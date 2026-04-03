@@ -4,16 +4,99 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chronicle — Magers Campaign</title>
-<meta http-equiv="refresh" content="0; url=player/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
 <style>
-  body { font-family: 'Georgia', serif; background: #0f1020; color: #f0e8d0;
-         display: flex; align-items: center; justify-content: center;
-         height: 100vh; margin: 0; flex-direction: column; gap: 1rem; }
-  a { color: #d4af37; }
+:root {
+  --ink:#f0e8d0;
+  --parchment:#0f1020;
+  --parchment-dark:#13152b;
+  --amber:#d4af37;
+  --amber-light:#f0d060;
+  --amber-dim:#a88820;
+  --muted:#7d7a94;
+  --border-strong:rgba(212,175,55,0.28);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:'Crimson Pro',Georgia,serif;
+  background:var(--parchment);
+  color:var(--ink);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  background-image:
+    radial-gradient(ellipse at 20% 20%,rgba(74,59,140,0.25) 0%,transparent 55%),
+    radial-gradient(ellipse at 80% 80%,rgba(30,20,80,0.4) 0%,transparent 55%);
+}
+.entry-card{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:2rem;
+  padding:3rem 4rem;
+}
+.logo{
+  font-family:'Cinzel',serif;
+  font-size:2.8rem;
+  font-weight:600;
+  letter-spacing:0.15em;
+  color:var(--ink);
+}
+.logo span{color:var(--amber);}
+.campaign-name{
+  font-family:'Cinzel',serif;
+  font-size:0.85rem;
+  letter-spacing:0.3em;
+  color:var(--muted);
+  text-transform:uppercase;
+  margin-top:-1rem;
+}
+.divider{
+  width:120px;
+  height:1px;
+  background:linear-gradient(to right,transparent,var(--amber-dim),transparent);
+}
+.btn-player{
+  font-family:'Cinzel',serif;
+  font-size:0.9rem;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  padding:14px 48px;
+  border-radius:4px;
+  border:2px solid var(--amber);
+  background:var(--amber);
+  color:var(--parchment);
+  cursor:pointer;
+  transition:all 0.2s;
+  font-weight:600;
+}
+.btn-player:hover{background:var(--amber-light);border-color:var(--amber-light);}
+.admin-link{
+  font-family:'Cinzel',serif;
+  font-size:0.62rem;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:var(--muted);
+  cursor:pointer;
+  border:none;
+  background:none;
+  padding:4px 0;
+  border-bottom:1px solid transparent;
+  transition:all 0.2s;
+}
+.admin-link:hover{color:var(--ink);border-bottom-color:var(--muted);}
 </style>
 </head>
 <body>
-  <div>Redirecting to Chronicle…</div>
-  <div><a href="player/">Player View</a> · <a href="admin/log-viewer.html">Admin</a></div>
+<div class="entry-card">
+  <div class="logo">Chron<span>i</span>cle</div>
+  <div class="campaign-name">Magers Campaign</div>
+  <div class="divider"></div>
+  <button class="btn-player" onclick="window.location='player/'">Enter Chronicle</button>
+  <button class="admin-link" onclick="window.location='admin/log-viewer.html'">Admin Access</button>
+</div>
 </body>
 </html>
