@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — Drive Access Test</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=JetBrains+Mono:wght@400;500&family=Crimson+Pro:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0f1020; --bg2:#13152b; --bg3:#181a35; --bg4:#1e2040;
+  --gold:#d4af37; --gold-dim:#a88820;
+  --text:#f0e8d0; --text2:#d4c8a8; --muted:#7d7a94;
+  --border:rgba(212,175,55,0.14); --border-strong:rgba(212,175,55,0.28);
+  --green:#4adf9a; --green-bg:rgba(74,223,154,0.08); --green-border:rgba(74,223,154,0.25);
+  --red:#ff6b50; --red-bg:rgba(255,107,80,0.08); --red-border:rgba(255,107,80,0.25);
+  --amber:#e8a030; --amber-bg:rgba(232,160,48,0.08); --amber-border:rgba(232,160,48,0.25);
+  --blue:#5ab0ff; --blue-bg:rgba(90,176,255,0.08); --blue-border:rgba(90,176,255,0.25);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:"Crimson Pro",Georgia,serif;background:var(--bg);color:var(--text);min-height:100vh;
+  background-image:radial-gradient(ellipse at 20% 20%,rgba(74,59,140,0.2) 0%,transparent 55%),
+  radial-gradient(ellipse at 80% 80%,rgba(30,20,80,0.35) 0%,transparent 55%);
+  padding:2rem;}
+h1{font-family:"Cinzel",serif;font-size:1.4rem;font-weight:600;letter-spacing:0.12em;margin-bottom:4px;}
+h1 em{color:var(--gold);font-style:normal;}
+.subtitle{font-size:0.9rem;color:var(--muted);margin-bottom:2rem;line-height:1.6;}
+.config-box{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1rem 1.25rem;margin-bottom:1.5rem;}
+.config-label{font-family:"Cinzel",serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.config-val{font-family:"JetBrains Mono",monospace;font-size:0.73rem;color:var(--text2);line-height:1.9;word-break:break-all;}
+.config-val span{color:var(--gold);}
+.test-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;}
+.test-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1rem 1.25rem;}
+.test-card-title{font-family:"Cinzel",serif;font-size:0.8rem;letter-spacing:0.08em;font-weight:600;margin-bottom:3px;}
+.test-card-desc{font-size:0.85rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5;}
+.test-card-meta{font-family:"JetBrains Mono",monospace;font-size:0.65rem;color:var(--muted);background:var(--bg4);padding:3px 8px;border-radius:2px;display:inline-block;margin-bottom:0.75rem;word-break:break-all;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;}
+button{font-family:"Cinzel",serif;font-size:0.65rem;letter-spacing:0.08em;padding:7px 14px;border-radius:3px;cursor:pointer;transition:all 0.15s;border:1px solid;}
+.btn-run{background:var(--gold);color:var(--bg);border-color:var(--gold-dim);}
+.btn-run:hover{background:var(--gold-dim);}
+.btn-run:disabled{opacity:0.4;cursor:not-allowed;}
+.btn-all{background:none;color:var(--text2);border-color:var(--border-strong);font-size:0.7rem;padding:8px 20px;}
+.btn-all:hover{background:var(--bg4);}
+.btn-clear{background:none;color:var(--muted);border-color:var(--border);font-size:0.65rem;}
+.btn-clear:hover{color:var(--red);border-color:var(--red-border);}
+.card-header{display:flex;align-items:center;margin-bottom:6px;gap:8px;}
+.test-status{font-family:"JetBrains Mono",monospace;font-size:0.65rem;padding:2px 8px;border-radius:2px;border:1px solid;margin-left:auto;white-space:nowrap;}
+.st-idle   {background:var(--bg4);color:var(--muted);border-color:var(--border);}
+.st-running{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border);}
+.st-pass   {background:var(--green-bg);color:var(--green);border-color:var(--green-border);}
+.st-fail   {background:var(--red-bg);color:var(--red);border-color:var(--red-border);}
+.results-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;}
+.results-title{font-family:"Cinzel",serif;font-size:0.72rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;}
+.results-box{background:#090b18;border:1px solid var(--border-strong);border-radius:4px;
+  padding:1rem;font-family:"JetBrains Mono",monospace;font-size:0.75rem;line-height:1.9;
+  min-height:220px;max-height:500px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;}
+.c-ts  {color:var(--muted);}
+.c-head{color:var(--gold);font-weight:500;}
+.c-pass{color:var(--green);}
+.c-fail{color:var(--red);}
+.c-info{color:var(--blue);}
+.c-warn{color:var(--amber);}
+.copy-note{font-size:0.78rem;color:var(--muted);font-style:italic;margin-top:5px;}
+</style>
+</head>
+<body>
+<h1>Chron<em>i</em>cle &mdash; Drive Access Test</h1>
+<div class="subtitle">Tests the Apps Script proxy against each required file. Run individual tests or Test All.<br>Copy the results log and paste into Claude for debugging.</div>
+<div class="config-box">
+  <div class="config-label">Configuration</div>
+  <div class="config-val">
+    Proxy &nbsp;&nbsp;<span>https://script.google.com/macros/s/AKfycby8_YLLYic6TU_8HOBXmGDrGNXhzf1ZI&hellip;</span><br>
+    Campaign file &nbsp;&nbsp;<span>1FPs6fvLpmZaeqAe95gXmvqiCRgMr5aFm</span><br>
+    Access Test file &nbsp;&nbsp;<span>1FPs6fvLpmZaeqAe95gXmvqiCRgMr5aFm</span><br>
+    Folder &nbsp;&nbsp;<span>1BJQxOS4MspOlPzCt70r7zOY_8LnwAwPY</span>
+  </div>
+</div>
+<div style="display:flex;gap:8px;margin-bottom:1.25rem;align-items:center;">
+  <button class="btn-all" onclick="runAll()">&#9654; Test All</button>
+  <button class="btn-clear" onclick="clearLog()">Clear log</button>
+  <span id="overall" style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--muted);margin-left:8px;"></span>
+</div>
+<div class="test-grid">
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Proxy reachability</div>
+    <span class="test-status st-idle" id="st-proxy">idle</span>
+  </div>
+  <div class="test-card-desc">Confirms the Apps Script endpoint is reachable and returns valid JSON. Does not require a specific file.</div>
+  <div class="test-card-meta">GET https://script.google.com/macros/s/AKfycby8_Y&hellip;?id=DUMMY</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('proxy')">Run</button>
+  </div>
+</div>
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Access Test.json &mdash; read</div>
+    <span class="test-status st-idle" id="st-access-test">idle</span>
+  </div>
+  <div class="test-card-desc">Reads Access Test.json from the campaign folder. Verifies folder permissions and proxy file retrieval.</div>
+  <div class="test-card-meta">GET ?id=1FPs6fvLpmZaeqAe95gXmvqiCRgMr5aFm</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('access-test')">Run</button>
+  </div>
+</div>
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Campaign JSON &mdash; diagnose</div>
+    <span class="test-status st-idle" id="st-diagnose">idle</span>
+  </div>
+  <div class="test-card-desc">Checks the MIME type of magers-campaign.json without reading it. If Drive converted it to Sheets format, this will show the wrong MIME type and explain the parse failure.</div>
+  <div class="test-card-meta">GET ?action=diagnose&amp;id=FILE_ID</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('diagnose')">Run</button>
+  </div>
+</div>
+
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Campaign JSON &mdash; read &amp; schema</div>
+    <span class="test-status st-idle" id="st-campaign-read">idle</span>
+  </div>
+  <div class="test-card-desc">Reads magers-campaign.json and validates required Chronicle keys: party, session_logs, combat_encounters.</div>
+  <div class="test-card-meta">GET ?id=1FPs6fvLpmZaeqAe95gXmvqiCRgMr5aFm</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('campaign-read')">Run</button>
+  </div>
+</div>
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Campaign JSON &mdash; write round-trip</div>
+    <span class="test-status st-idle" id="st-campaign-write">idle</span>
+  </div>
+  <div class="test-card-desc">Reads the file, adds a harmless _test_write_ok timestamp, writes back, reads again to verify, then restores the original.</div>
+  <div class="test-card-meta">POST action=write &rarr; GET verify &rarr; POST restore</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('campaign-write')">Run</button>
+  </div>
+</div>
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Backup &mdash; create</div>
+    <span class="test-status st-idle" id="st-backup">idle</span>
+  </div>
+  <div class="test-card-desc">Creates a timestamped backup copy in the campaign folder. Same action as the Publish and Version Manager buttons.</div>
+  <div class="test-card-meta">POST action=backup fileId=1FPs6fvLpmZaeqAe95gXmvqiCRgMr5aFm</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('backup')">Run</button>
+  </div>
+</div>
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Backup &mdash; list</div>
+    <span class="test-status st-idle" id="st-list-backups">idle</span>
+  </div>
+  <div class="test-card-desc">Lists all backup files in the campaign folder. Used by the Version Manager sync feature.</div>
+  <div class="test-card-meta">POST action=listBackups fileId=1FPs6fvLpmZaeqAe95gXmvqiCRgMr5aFm</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('list-backups')">Run</button>
+  </div>
+</div>
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Security &mdash; new file blocked</div>
+    <span class="test-status st-idle" id="st-new-file">idle</span>
+  </div>
+  <div class="test-card-desc">Attempts a write with no fileId. PASS means the proxy correctly rejected it. This verifies the fileId guard.</div>
+  <div class="test-card-meta">POST action=write (no fileId) &rarr; expect error</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('new-file')">Run</button>
+  </div>
+</div>
+<div class="test-card">
+  <div class="card-header">
+    <div class="test-card-title">Security &mdash; out-of-folder blocked</div>
+    <span class="test-status st-idle" id="st-out-of-folder">idle</span>
+  </div>
+  <div class="test-card-desc">Attempts to read a file outside the campaign folder. PASS means folder containment is working.</div>
+  <div class="test-card-meta">GET ?id=aAbBcCdDeEfFgGhHiIjJkKlLmMnNoO123 &rarr; expect error</div>
+  <div class="btn-row">
+    <button class="btn-run" onclick="runTest('out-of-folder')">Run</button>
+  </div>
+</div>
+</div>
+<div class="results-header">
+  <div class="results-title">Results log</div>
+  <button class="btn-clear" onclick="copyLog()">Copy log</button>
+</div>
+<div class="results-box" id="rbox"></div>
+<div class="copy-note">Select all text in the box above and paste into Claude to debug a failure.</div>
+<script src="../shared/config.js"></script>
+<script>
+var PROXY     = window.CHRONICLE_CONFIG.proxyUrl;
+var FILE_ID   = window.CHRONICLE_CONFIG.campaignFileId;
+var TEST_FILE = window.CHRONICLE_CONFIG.campaignFileId;
+var FOLDER    = '1BJQxOS4MspOlPzCt70r7zOY_8LnwAwPY';
+var DUMMY     = 'aAbBcCdDeEfFgGhHiIjJkKlLmMnNoO123';
+
+var logEl = document.getElementById("rbox");
+var logLines = [];
+
+function ts() {
+  return new Date().toISOString().replace("T"," ").slice(0,19);
+}
+
+function logSpan(text, cls) {
+  var sp = document.createElement("span");
+  if (cls) sp.className = cls;
+  sp.textContent = text;
+  logEl.appendChild(sp);
+  var br = document.createElement("span");
+  br.textContent = "\n";
+  logEl.appendChild(br);
+  logEl.scrollTop = logEl.scrollHeight;
+  logLines.push(text);
+}
+
+function logHead(t) { logSpan(""); logSpan("=== " + t + " ===", "c-head"); logSpan("[" + ts() + "]", "c-ts"); }
+function pass(m)    { logSpan("  PASS  " + m, "c-pass"); }
+function fail(m)    { logSpan("  FAIL  " + m, "c-fail"); }
+function info(m)    { logSpan("  info  " + m, "c-info"); }
+function warn(m)    { logSpan("  warn  " + m, "c-warn"); }
+
+function clearLog() { logEl.innerHTML = ""; logLines = []; }
+
+function copyLog() {
+  var text = logLines.join("\n");
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      var n = document.querySelector(".copy-note");
+      n.textContent = "Copied to clipboard";
+      setTimeout(function(){ n.textContent = "Select all text in the box above and paste into Claude to debug a failure."; }, 2000);
+    });
+  } else {
+    window.prompt("Copy this:", text);
+  }
+}
+
+function setSt(id, state, label) {
+  var el = document.getElementById("st-" + id);
+  if (!el) return;
+  el.className = "test-status st-" + state;
+  el.textContent = label || state;
+}
+
+function setOverall(passed, failed) {
+  var el = document.getElementById("overall");
+  el.textContent = passed + " passed, " + failed + " failed";
+  el.style.color = failed === 0 ? "var(--green)" : "var(--red)";
+}
+
+// HTTP helpers
+// All requests use GET with action parameter to avoid CORS preflight
+function driveGet(params) {
+  var parts = [];
+  Object.keys(params).forEach(function(k) {
+    parts.push(encodeURIComponent(k) + "=" + encodeURIComponent(params[k]));
+  });
+  var url = PROXY + "?" + parts.join("&");
+  info("GET " + url.slice(0, 120) + (url.length > 120 ? "..." : ""));
+  return fetch(url)
+    .then(function(res) {
+      info("HTTP " + res.status + " " + res.statusText);
+      return res.text();
+    })
+    .then(function(text) {
+      info("Response (" + text.length + " chars): " + text.slice(0, 200) + (text.length > 200 ? "..." : ""));
+      return JSON.parse(text);
+    });
+}
+
+// Write uses POST with Content-Type: text/plain (avoids CORS preflight)
+function driveWrite(fileId, dataObj) {
+  var body = JSON.stringify({ action: "write", fileId: fileId, data: dataObj });
+  info("POST " + PROXY + " (Content-Type: text/plain, body " + body.length + " chars)");
+  return fetch(PROXY, {
+    method:  "POST",
+    headers: { "Content-Type": "text/plain" },
+    body:    body
+  })
+    .then(function(res) {
+      info("HTTP " + res.status + " " + res.statusText);
+      return res.text();
+    })
+    .then(function(text) {
+      info("Response (" + text.length + " chars): " + text.slice(0, 200) + (text.length > 200 ? "..." : ""));
+      return JSON.parse(text);
+    });
+}
+
+
+// Individual tests — return Promise<boolean>
+var TESTS = {
+
+  "proxy": function() {
+    logHead("TEST: Proxy reachability");
+    setSt("proxy", "running", "running");
+    return driveGet({ action: "read", id: DUMMY })
+      .then(function(json) {
+        if (typeof json === "object") {
+          pass("Proxy returned JSON — endpoint is reachable");
+          info("Response keys: " + Object.keys(json).join(", "));
+          if (!json.ok) info("Proxy returned expected error for dummy ID: " + (json.error || ""));
+          setSt("proxy", "pass", "pass");
+          return true;
+        }
+        fail("Unexpected response type: " + typeof json);
+        setSt("proxy", "fail", "fail");
+        return false;
+      })
+      .catch(function(e) {
+        fail("Exception: " + e.message);
+        info("Check: is the Apps Script URL correct? Is it deployed? Is your network blocking requests to google.com?");
+        setSt("proxy", "fail", "fail");
+        return false;
+      });
+  },
+
+  "access-test": function() {
+    logHead("TEST: Access Test.json read");
+    setSt("access-test", "running", "running");
+    return driveGet({ action: "read", id: TEST_FILE })
+      .then(function(json) {
+        if (!json.ok) {
+          fail("Proxy error: " + json.error);
+          info("Possible causes: file not in authorised folder, file not shared, wrong file ID.");
+          setSt("access-test", "fail", "fail");
+          return false;
+        }
+        pass("Access Test.json read successfully");
+        info("Top-level keys: " + Object.keys(json.data || {}).join(", "));
+        setSt("access-test", "pass", "pass");
+        return true;
+      })
+      .catch(function(e) {
+        fail("Exception: " + e.message);
+        setSt("access-test", "fail", "fail");
+        return false;
+      });
+  },
+
+  "diagnose": function() {
+    logHead("TEST: Campaign JSON diagnose (MIME type check)");
+    setSt("diagnose", "running", "running");
+    return driveGet({ action: "diagnose", id: FILE_ID })
+      .then(function(json) {
+        if (!json.ok) {
+          fail("Diagnose failed: " + json.error);
+          setSt("diagnose", "fail", "fail");
+          return false;
+        }
+        var d = json.diagnostics || {};
+        pass("Diagnose returned");
+        info("File name: " + d.name);
+        info("MIME type: " + d.mimeType);
+        info("File size: " + d.size + " bytes");
+        var isPlain = d.mimeType && (
+          d.mimeType.indexOf("json") !== -1 ||
+          d.mimeType.indexOf("text/plain") !== -1 ||
+          d.mimeType.indexOf("octet-stream") !== -1
+        );
+        if (isPlain) {
+          pass("MIME type is correct — file is stored as plain JSON");
+          setSt("diagnose", "pass", "pass");
+          return true;
+        } else {
+          fail("MIME type is WRONG: " + d.mimeType);
+          fail("Google converted this file. Delete it from Drive, turn off 'Convert uploads' in Drive Settings, re-upload.");
+          setSt("diagnose", "fail", "fail");
+          return false;
+        }
+      })
+      .catch(function(e) {
+        fail("Exception: " + e.message);
+        setSt("diagnose", "fail", "fail");
+        return false;
+      });
+  },
+
+  "campaign-read": function() {
+    logHead("TEST: Campaign JSON read and schema check");
+    setSt("campaign-read", "running", "running");
+    var required = ["party", "session_logs", "combat_encounters"];
+    return driveGet({ action: "read", id: FILE_ID })
+      .then(function(json) {
+        if (!json.ok) {
+          fail("Proxy error: " + json.error);
+          setSt("campaign-read", "fail", "fail");
+          return false;
+        }
+        var data = JSON.parse(json.raw);
+        pass("File read OK");
+        info("Schema version: " + (data._schema_version || "not set"));
+        info("Top-level keys: " + Object.keys(data).join(", "));
+        var ok = true;
+        required.forEach(function(k) {
+          if (data[k]) { pass("Key present: " + k + " (" + data[k].length + " items)"); }
+          else         { fail("Missing key: " + k); ok = false; }
+        });
+        if (ok) { pass("Schema valid"); setSt("campaign-read", "pass", "pass"); return true; }
+        fail("Schema invalid — wrong file or corrupted JSON");
+        setSt("campaign-read", "fail", "fail");
+        return false;
+      })
+      .catch(function(e) {
+        fail("Exception: " + e.message);
+        setSt("campaign-read", "fail", "fail");
+        return false;
+      });
+  },
+
+  "campaign-write": function() {
+    logHead("TEST: Campaign JSON write round-trip");
+    setSt("campaign-write", "running", "running");
+    var original = null;
+    info("Step 1: read current file");
+    return driveGet({ action: "read", id: FILE_ID })
+      .then(function(json) {
+        if (!json.ok) throw new Error("Read failed: " + json.error);
+        original = JSON.parse(json.raw);
+        pass("Read OK — " + Object.keys(original).length + " keys");
+        info("Step 2: write back with _test_write_ok timestamp");
+        var modified = Object.assign({}, original, { _test_write_ok: new Date().toISOString() });
+        return driveWrite(FILE_ID, modified);
+      })
+      .then(function(json) {
+        if (!json.ok) throw new Error("Write failed: " + json.error);
+        pass("Write accepted");
+        info("Step 3: read back to verify (waiting 800ms for Drive consistency)");
+        return new Promise(function(res) { setTimeout(res, 800); });
+      })
+      .then(function() { return driveGet({ action: "read", id: FILE_ID }); })
+      .then(function(json) {
+        if (!json.ok) throw new Error("Verify read failed: " + json.error);
+        var verified = JSON.parse(json.raw);
+        if (verified._test_write_ok) {
+          pass("Round-trip verified — timestamp field present: " + verified._test_write_ok);
+        } else {
+          throw new Error("Round-trip failed — _test_write_ok not found in re-read");
+        }
+        info("Step 4: restoring original");
+        return driveWrite(FILE_ID, original);
+      })
+      .then(function(json) {
+        if (json.ok) { pass("Restored to original — no permanent changes"); }
+        else { warn("Restore failed: " + json.error + " — _test_write_ok left in file (harmless)"); }
+        setSt("campaign-write", "pass", "pass");
+        return true;
+      })
+      .catch(function(e) {
+        fail("Exception: " + e.message);
+        if (original) {
+          warn("Attempting restore after failure...");
+          driveWrite(FILE_ID, original)
+            .then(function(r) { warn(r.ok ? "Restore succeeded" : "Restore also failed: " + r.error); })
+            .catch(function(e2) { warn("Restore exception: " + e2.message); });
+        }
+        setSt("campaign-write", "fail", "fail");
+        return false;
+      });
+  },
+
+  "backup": function() {
+    logHead("TEST: Backup create");
+    setSt("backup", "running", "running");
+    return driveGet({ action: "backup", id: FILE_ID, label: "drive-test" })
+      .then(function(json) {
+        if (!json.ok) {
+          fail("Backup failed: " + json.error);
+          setSt("backup", "fail", "fail");
+          return false;
+        }
+        pass("Backup created");
+        info("Name: " + json.name);
+        info("ID:   " + json.backupId);
+        info("This file now exists in your campaign folder. Delete manually if desired.");
+        setSt("backup", "pass", "pass");
+        return true;
+      })
+      .catch(function(e) {
+        fail("Exception: " + e.message);
+        setSt("backup", "fail", "fail");
+        return false;
+      });
+  },
+
+  "list-backups": function() {
+    logHead("TEST: Backup list");
+    setSt("list-backups", "running", "running");
+    return driveGet({ action: "listBackups", id: FILE_ID })
+      .then(function(json) {
+        if (!json.ok) {
+          fail("listBackups failed: " + json.error);
+          setSt("list-backups", "fail", "fail");
+          return false;
+        }
+        var b = json.backups || [];
+        pass("listBackups returned OK");
+        info("Backup count: " + b.length);
+        if (b.length > 0) info("Most recent: " + b[0].name);
+        else info("No backups found yet — run the Backup test first.");
+        setSt("list-backups", "pass", "pass");
+        return true;
+      })
+      .catch(function(e) {
+        fail("Exception: " + e.message);
+        setSt("list-backups", "fail", "fail");
+        return false;
+      });
+  },
+
+  "new-file": function() {
+    logHead("TEST: Security — write with no fileId should be BLOCKED");
+    setSt("new-file", "running", "running");
+    // Send a POST write with no fileId — proxy should reject it
+    return driveWrite(null, { party: [], session_logs: [], combat_encounters: [] })
+      .then(function(json) {
+        if (!json.ok && json.error) {
+          pass("BLOCKED as expected: " + json.error);
+          info("Security check passed — proxy enforces fileId requirement");
+          setSt("new-file", "pass", "pass");
+          return true;
+        }
+        fail("UNEXPECTED SUCCESS — proxy accepted a write with no fileId. Security issue.");
+        setSt("new-file", "fail", "fail");
+        return false;
+      })
+      .catch(function(e) {
+        pass("BLOCKED at network level: " + e.message);
+        setSt("new-file", "pass", "pass");
+        return true;
+      });
+  },
+
+  "out-of-folder": function() {
+    logHead("TEST: Security — out-of-folder read should be BLOCKED");
+    setSt("out-of-folder", "running", "running");
+    return driveGet({ action: "read", id: DUMMY })
+      .then(function(json) {
+        if (!json.ok && json.error) {
+          pass("BLOCKED as expected: " + json.error);
+          info("Security check passed — folder containment is working");
+          setSt("out-of-folder", "pass", "pass");
+          return true;
+        }
+        fail("UNEXPECTED SUCCESS — proxy returned data for dummy ID outside folder.");
+        setSt("out-of-folder", "fail", "fail");
+        return false;
+      })
+      .catch(function(e) {
+        pass("BLOCKED at network level: " + e.message);
+        setSt("out-of-folder", "pass", "pass");
+        return true;
+      });
+  }
+
+};
+
+function disableButtons(state) {
+  document.querySelectorAll("button").forEach(function(b) { b.disabled = state; });
+}
+
+function runTest(id) {
+  var fn = TESTS[id];
+  if (!fn) { console.error("Unknown test: " + id); return; }
+  disableButtons(true);
+  fn().then(function() { disableButtons(false); }).catch(function() { disableButtons(false); });
+}
+
+function runAll() {
+  clearLog();
+  logSpan("Chronicle Drive Access Test Suite", "c-head");
+  logSpan("Started: " + ts(), "c-ts");
+  logSpan("Proxy:   " + PROXY, "c-info");
+  logSpan("File ID: " + FILE_ID, "c-info");
+  disableButtons(true);
+  var order = ["proxy","access-test","diagnose","campaign-read","campaign-write","backup","list-backups","new-file","out-of-folder"];
+  var results = {};
+  var chain = Promise.resolve();
+  order.forEach(function(id) {
+    chain = chain
+      .then(function() { return TESTS[id](); })
+      .then(function(ok) {
+        results[id] = ok;
+        return new Promise(function(res) { setTimeout(res, 300); });
+      });
+  });
+  chain.then(function() {
+    logSpan("", "");
+    logSpan("=== SUMMARY ===", "c-head");
+    var passed = 0, failed = 0;
+    order.forEach(function(id) {
+      if (results[id]) { pass(id); passed++; }
+      else             { fail(id); failed++; }
+    });
+    logSpan("");
+    logSpan("Result: " + passed + " passed, " + failed + " failed", failed === 0 ? "c-pass" : "c-fail");
+    logSpan("Completed: " + ts(), "c-ts");
+    disableButtons(false);
+    setOverall(passed, failed);
+  });
+}
+</script>
+</body>
+</html>

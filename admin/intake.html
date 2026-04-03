@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — Session Intake</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+  /* ── Arcane Night ── */
+  --ink:#f0e8d0; --ink-inv:#0f1020;
+  --parchment:#0f1020; --parchment-dark:#13152b; --parchment-mid:#1e2040; --card-bg:#181a35;
+  --amber:#d4af37; --amber-dim:#a88820; --amber-light:#f0d060;
+  --rust:#ff6b50; --teal:#4a9e7a; --green:#4adf9a; --purple:#c090ff;
+  --muted:#7d7a94; --muted-light:#4a4870;
+  --border:rgba(212,175,55,0.12); --border-strong:rgba(212,175,55,0.28);
+  --shadow:0 4px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.08);
+  --shadow-md:0 8px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.12);
+  /* Entity colours — brightened for dark bg */
+  --c-pc:#4adf9a; --c-npc:#ff8c55; --c-loc:#5ab0ff; --c-quest:#ffd040;
+  --c-item:#c090ff; --c-combat:#ff6060; --c-lore:#80ff80; --c-session:#9090c0;
+}
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Crimson Pro', Georgia, serif;
+    background: var(--parchment);
+    color: var(--ink);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(212,175,55,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(139,58,30,0.05) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  }
+
+  /* ── Header ── */
+  header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;height:64px;background:rgba(13,15,40,0.95);position:relative;z-index:100;}
+.header-right{display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;overflow:hidden;min-width:0;}
+.nav-links{display:flex;gap:0.9rem;justify-content:center;align-items:center;flex-wrap:nowrap;padding:0 2rem;}
+.nav-link{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;color:var(--muted);
+  text-transform:uppercase;padding-bottom:2px;border-bottom:1px solid transparent;
+  transition:all 0.15s;white-space:nowrap;cursor:pointer;}
+.nav-link:hover{color:var(--ink);}
+.nav-link.active{color:var(--amber);border-bottom-color:var(--amber);}
+
+  .logo{font-family:"Cinzel",serif;font-size:1.05rem;font-weight:600;letter-spacing:0.12em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .logo span { color: var(--amber); }
+  .session-badge {
+    font-family: 'Cinzel', serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    border: 1px solid var(--border-strong);
+    padding: 4px 12px;
+    border-radius: 2px;
+  }
+
+  /* ── Progress steps ── */
+  .progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 1.5rem 2rem 0;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    color: var(--muted-light);
+  }
+  .step.active { color: var(--amber); }
+  .step.done { color: var(--teal); }
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem;
+    flex-shrink: 0;
+  }
+  .step.done .step-num {
+    background: var(--teal);
+    border-color: var(--teal);
+    color: white;
+  }
+  .step.active .step-num {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: white;
+  }
+  .step-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    margin: 0 8px;
+  }
+  .step-line.done { background: var(--teal); }
+
+  /* ── Main layout ── */
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 2rem 4rem;
+  }
+
+  .page-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.25rem;
+    color: var(--ink);
+  }
+  .page-subtitle {
+    font-size: 1.05rem;
+    color: var(--muted);
+    font-style: italic;
+    margin-bottom: 2rem;
+    font-weight: 300;
+  }
+
+  /* ── Upload zones ── */
+  .upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  .upload-zone {
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 4px;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(19,21,43,0.8);
+    position: relative;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--amber);
+    background: rgba(212,175,55,0.04);
+  }
+  .upload-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .upload-icon {
+    width: 40px; height: 40px;
+    opacity: 0.35;
+  }
+  .upload-label {
+    font-family: 'Cinzel', serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    color: var(--ink);
+  }
+  .upload-hint {
+    font-size: 0.9rem;
+    color: var(--muted);
+    font-style: italic;
+    line-height: 1.4;
+  }
+  .upload-type-tag {
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    padding: 3px 10px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .tag-images { background: rgba(42,107,107,0.1); color: var(--teal); border: 1px solid rgba(42,107,107,0.25); }
+  .tag-text { background: rgba(212,175,55,0.1); color: var(--amber-dim); border: 1px solid rgba(212,175,55,0.25); }
+
+  /* ── File list ── */
+  .file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 1rem;
+    width: 100%;
+    text-align: left;
+  }
+  .file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    background:var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.88rem;
+  }
+  .file-item-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--ink);
+  }
+  .file-item-size {
+    color: var(--muted-light);
+    font-size: 0.78rem;
+    flex-shrink: 0;
+  }
+  .file-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted-light);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 2px;
+    flex-shrink: 0;
+    transition: color 0.15s;
+  }
+  .file-remove:hover { color: var(--rust); }
+  .file-order {
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    color: var(--muted-light);
+    flex-shrink: 0;
+    min-width: 20px;
+  }
+
+  /* ── Divider ── */
+  .ornament-divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 2rem 0;
+  }
+  .ornament-divider::before, .ornament-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border-strong), transparent);
+  }
+  .ornament-divider span {
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* ── OCR Panel ── */
+  .ocr-section { display: none; }
+  .ocr-section.visible { display: block; }
+
+  .ocr-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+  }
+  .ocr-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+  .ocr-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    font-style: italic;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--amber);
+    animation: pulse 1.5s infinite;
+  }
+  .status-dot.done { background: var(--teal); animation: none; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+
+  /* Page tabs */
+  .page-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border-strong);
+    margin-bottom: 1.25rem;
+    overflow-x: auto;
+  }
+  .page-tab {
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    padding: 8px 16px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    cursor: pointer;
+    color: var(--muted);
+    white-space: nowrap;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+  .page-tab:hover { color: var(--ink); }
+  .page-tab.active {
+    color: var(--amber);
+    border-bottom-color: var(--amber);
+  }
+  .page-tab .tab-check {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1px solid var(--muted-light);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .page-tab.confirmed .tab-check {
+    background: var(--teal);
+    border-color: var(--teal);
+  }
+
+  /* Side-by-side OCR panel */
+  .ocr-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .ocr-image-pane {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #2a2520;
+    min-height: 340px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .ocr-image-pane img {
+    max-width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    display: block;
+  }
+  .ocr-image-pane .placeholder-img {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: rgba(255,255,255,0.3);
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+  }
+  .ocr-image-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.5);
+    color: rgba(255,255,255,0.7);
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    padding: 6px 12px;
+    text-align: center;
+  }
+
+  .ocr-text-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ocr-text-label {
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .ocr-textarea {
+    flex: 1;
+    min-height: 310px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem;
+    font-family: 'Crimson Pro', Georgia, serif;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--ink);
+    background:var(--card-bg);
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .ocr-textarea:focus { border-color: var(--amber); }
+  .ocr-textarea.has-flags { border-color: var(--rust-light); }
+
+  .flag-count {
+    font-size: 0.78rem;
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: rgba(139,58,30,0.1);
+    color: var(--rust);
+    border: 1px solid rgba(139,58,30,0.2);
+  }
+
+  .page-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
+  }
+  .page-note {
+    font-size: 0.88rem;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* ── Narrative text section ── */
+  .narrative-section { display: none; }
+  .narrative-section.visible { display: block; }
+
+  .narrative-display {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    background:var(--card-bg);
+    font-size: 1rem;
+    line-height: 1.8;
+    color: var(--ink);
+    max-height: 320px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+  .narrative-display:empty::after {
+    content: 'Narrative notes will appear here after upload...';
+    color: var(--muted-light);
+    font-style: italic;
+  }
+
+  /* ── Session summary consolidation ── */
+  .consolidation-section { display: none; }
+  .consolidation-section.visible { display: block; }
+
+  .consolidation-card {
+    background:var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .consolidation-card-header {
+    background: var(--ink);
+    color: var(--parchment);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .consolidation-card-header h3 {
+    font-family: 'Cinzel', serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  .consolidation-card-header span {
+    font-size: 0.8rem;
+    opacity: 0.5;
+    font-style: italic;
+  }
+  .session-doc-view {
+    padding: 1.5rem;
+    font-size: 0.98rem;
+    line-height: 1.8;
+    max-height: 400px;
+    overflow-y: auto;
+    color: var(--ink);
+    white-space: pre-wrap;
+  }
+
+  .doc-section-head {
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    color: var(--amber-dim);
+    text-transform: uppercase;
+    margin: 1.25rem 0 0.5rem;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .doc-section-head:first-child { margin-top: 0; }
+
+  /* ── Buttons ── */
+  .btn {
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    padding: 9px 22px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: var(--amber);
+    color: white;
+    border-color: var(--amber-dim);
+  }
+  .btn-primary:hover { background: var(--amber-dim); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--border-strong);
+  }
+  .btn-secondary:hover { background: var(--parchment-dark); }
+
+  .btn-confirm {
+    background: var(--teal);
+    color: white;
+    border-color: var(--teal);
+  }
+  .btn-confirm:hover { background: #205555; }
+
+  .btn-ghost {
+    background: none;
+    border: none;
+    color: var(--amber);
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    padding: 4px 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* ── Footer actions ── */
+  .footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .footer-left { font-size: 0.9rem; color: var(--muted); font-style: italic; }
+
+  /* ── Alerts / notices ── */
+  .notice {
+    border-left: 3px solid var(--amber);
+    background: rgba(212,175,55,0.06);
+    padding: 0.75rem 1rem;
+    font-size: 0.92rem;
+    color: var(--muted);
+    border-radius: 0 3px 3px 0;
+    margin-bottom: 1rem;
+  }
+  .notice strong { color: var(--ink); font-weight: 600; }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .upload-grid { grid-template-columns: 1fr; }
+    .ocr-panel { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Chron<span>i</span>cle</div>
+  <nav class="nav-links">
+    <span class="nav-link active" onclick="window.location='intake.html'">Session Intake</span>
+    <span class="nav-link" onclick="window.location='glossary.html'">OCR Glossary</span>
+    <span class="nav-link" onclick="window.location='delta-review.html'">Delta Review</span>
+    <span class="nav-link" onclick="window.location='integrity.html'">Integrity</span>
+    <span class="nav-link" onclick="window.location='log-viewer.html'">Campaign Log</span>
+    <span class="nav-link" onclick="window.location='log-editor.html'">Log Editor</span>
+    <span class="nav-link" onclick="window.location='versions.html'">Versions</span>
+  </nav>
+  <div class="header-right"></div>
+</header>
+
+<!-- Progress -->
+<div class="progress-bar">
+  <div class="step active" id="step1">
+    <div class="step-num">1</div>
+    <span>Upload</span>
+  </div>
+  <div class="step-line" id="line1"></div>
+  <div class="step" id="step2">
+    <div class="step-num">2</div>
+    <span>OCR Review</span>
+  </div>
+  <div class="step-line" id="line2"></div>
+  <div class="step" id="step3">
+    <div class="step-num">3</div>
+    <span>Consolidate</span>
+  </div>
+  <div class="step-line" id="line3"></div>
+  <div class="step" id="step4">
+    <div class="step-num">4</div>
+    <span>Analyse</span>
+  </div>
+</div>
+
+<main>
+
+  <!-- ═══════════════════════════════ STEP 1: UPLOAD ═══════════════════════════════ -->
+  <div id="upload-section">
+    <h1 class="page-title">New Session Upload</h1>
+    <p class="page-subtitle">Gather the scrolls before the ink fades from memory.</p>
+
+    <div class="upload-grid">
+
+      <!-- Combat image uploads -->
+      <div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
+          <span class="upload-type-tag tag-images">Combat Log — Images</span>
+          <span style="font-size:0.82rem; color:var(--muted); font-style:italic;" id="img-count-label">0 pages</span>
+        </div>
+        <div class="upload-zone" id="img-drop-zone">
+          <input type="file" id="img-input" multiple accept="image/*" onchange="handleImageFiles(this.files)">
+          <svg class="upload-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="8" width="32" height="24" rx="3" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="13" cy="17" r="3" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M4 26l8-7 6 5 5-4 13 9" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+          <div class="upload-label">Drop image pages here</div>
+          <div class="upload-hint">PNG, JPG, WEBP accepted<br>Multiple files — one per page</div>
+        </div>
+        <div class="file-list" id="img-file-list"></div>
+      </div>
+
+      <!-- Narrative text upload -->
+      <div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
+          <span class="upload-type-tag tag-text">Narrative Notes — Text</span>
+          <span style="font-size:0.82rem; color:var(--muted); font-style:italic;" id="txt-count-label">0 files</span>
+        </div>
+        <div class="upload-zone" id="txt-drop-zone">
+          <input type="file" id="txt-input" accept=".txt,.md" onchange="handleTextFile(this.files[0])">
+          <svg class="upload-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="4" width="24" height="32" rx="3" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="13" y1="13" x2="27" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="13" y1="19" x2="27" y2="19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="13" y1="25" x2="22" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <div class="upload-label">Drop narrative notes here</div>
+          <div class="upload-hint">TXT or Markdown<br>One file, complete session notes</div>
+        </div>
+        <div class="file-list" id="txt-file-list"></div>
+        <div id="narrative-preview-container" style="margin-top:1rem;display:none;">
+          <div style="font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;color:var(--muted);margin-bottom:6px;">Preview</div>
+          <div class="narrative-display" id="narrative-preview"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="notice" id="order-notice" style="display:none;">
+      <strong>Page order matters.</strong> Images will be processed top-to-bottom as listed. Drag rows to reorder if needed after upload.
+    </div>
+
+    <div style="display:flex; justify-content:flex-end;">
+      <button class="btn btn-primary" id="run-ocr-btn" disabled onclick="startOCR()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h7M2 10h5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+        Run OCR Analysis
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ STEP 2: OCR REVIEW ═══════════════════════════════ -->
+  <div class="ocr-section" id="ocr-section">
+
+    <div class="ornament-divider"><span>OCR Review — Handwritten Combat Log</span></div>
+
+    <div class="ocr-header">
+      <h2 class="ocr-title">Correct the Transcription</h2>
+      <div class="ocr-status">
+        <div class="status-dot" id="ocr-status-dot"></div>
+        <span id="ocr-status-text">Processing page 1...</span>
+      </div>
+    </div>
+
+    <div class="notice">
+      Review each page carefully before continuing. <strong>Flagged words</strong> (shown in rust) indicate low OCR confidence. Correct any errors — the AI will never see the raw scan, only your verified text.
+    </div>
+
+    <div class="page-tabs" id="page-tabs"></div>
+
+    <div class="ocr-panel">
+      <div class="ocr-image-pane" id="ocr-image-pane">
+        <div class="placeholder-img">
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="3" y="5" width="30" height="26" rx="3" stroke="white" stroke-opacity="0.4" stroke-width="1.5"/><circle cx="11" cy="14" r="3" stroke="white" stroke-opacity="0.4" stroke-width="1.5"/><path d="M3 26l8-7 6 5 5-4 14 10" stroke="white" stroke-opacity="0.4" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span>Image preview</span>
+        </div>
+        <div class="ocr-image-label" id="ocr-image-label">Page 1</div>
+      </div>
+      <div class="ocr-text-pane">
+        <div class="ocr-text-label">
+          <span>Extracted Text — Edit to Correct</span>
+          <span class="flag-count" id="flag-count" style="display:none;">0 flags</span>
+        </div>
+        <textarea class="ocr-textarea" id="ocr-textarea" placeholder="OCR output will appear here..."></textarea>
+      </div>
+    </div>
+
+    <div class="page-actions">
+      <span class="page-note" id="page-progress-note">Page 1 of 1</span>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-secondary" id="prev-page-btn" onclick="changePage(-1)" disabled>← Prev</button>
+        <button class="btn btn-confirm" id="confirm-page-btn" onclick="confirmPage()">Confirm Page ✓</button>
+        <button class="btn btn-secondary" id="next-page-btn" onclick="changePage(1)" disabled>Next →</button>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+      <button class="btn btn-primary" id="all-confirmed-btn" disabled onclick="showConsolidation()">
+        All Pages Confirmed — Consolidate →
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ STEP 3: CONSOLIDATION ═══════════════════════════════ -->
+  <div class="consolidation-section" id="consolidation-section">
+
+    <div class="ornament-divider"><span>Session Consolidation</span></div>
+
+    <h2 class="ocr-title" style="margin-bottom:0.25rem;">Complete Session Document</h2>
+    <p class="page-subtitle">All sources merged into a single view. This is what the AI will analyse for deltas.</p>
+
+    <div class="consolidation-card" id="session-doc-card">
+      <div class="consolidation-card-header">
+        <h3>Full Session Record</h3>
+        <span id="session-doc-stats">— pages + narrative</span>
+      </div>
+      <div class="session-doc-view" id="session-doc-view">
+        <!-- dynamically filled -->
+      </div>
+    </div>
+
+    <div class="footer-actions">
+      <div class="footer-left">Review the merged document above before sending to analysis.</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-secondary" onclick="goBackToOCR()">← Back to OCR</button>
+        <button class="btn btn-primary" onclick="sendToAnalysis()">
+          Send to Delta Analysis →
+        </button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="../shared/config.js"></script>
+<script src="../shared/chronicle-ai.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+// State
+// ══════════════════════════════════════════════════════
+let imageFiles = [];
+let textFile = null;
+let narrativeText = '';
+let currentPage = 0;
+let pageData = []; // { file, imageURL, ocrText, confirmed }
+
+// ══════════════════════════════════════════════════════
+// Step navigation helpers
+// ══════════════════════════════════════════════════════
+function setStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    const s = document.getElementById('step' + i);
+    s.classList.remove('active', 'done');
+    if (i < n) s.classList.add('done');
+    else if (i === n) s.classList.add('active');
+    const l = document.getElementById('line' + i);
+    if (l) l.classList.toggle('done', i < n);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// Image upload
+// ══════════════════════════════════════════════════════
+function handleImageFiles(files) {
+  Array.from(files).forEach(f => {
+    if (!imageFiles.find(x => x.name === f.name && x.size === f.size)) {
+      imageFiles.push(f);
+      pageData.push({ file: f, imageURL: URL.createObjectURL(f), ocrText: '', confirmed: false });
+    }
+  });
+  renderImageList();
+  checkReadyToRun();
+}
+
+function renderImageList() {
+  const list = document.getElementById('img-file-list');
+  const label = document.getElementById('img-count-label');
+  label.textContent = imageFiles.length + (imageFiles.length === 1 ? ' page' : ' pages');
+  list.innerHTML = imageFiles.map((f, i) => `
+    <div class="file-item" data-idx="${i}">
+      <span class="file-order">p.${i+1}</span>
+      <span class="file-item-name">${f.name}</span>
+      <span class="file-item-size">${(f.size/1024).toFixed(0)} KB</span>
+      <button class="file-remove" onclick="removeImage(${i})" title="Remove">✕</button>
+    </div>
+  `).join('');
+  document.getElementById('order-notice').style.display = imageFiles.length > 1 ? 'block' : 'none';
+}
+
+function removeImage(idx) {
+  URL.revokeObjectURL(pageData[idx].imageURL);
+  imageFiles.splice(idx, 1);
+  pageData.splice(idx, 1);
+  renderImageList();
+  checkReadyToRun();
+}
+
+// ══════════════════════════════════════════════════════
+// Text upload
+// ══════════════════════════════════════════════════════
+function handleTextFile(file) {
+  if (!file) return;
+  textFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    narrativeText = e.target.result;
+    const preview = document.getElementById('narrative-preview');
+    const container = document.getElementById('narrative-preview-container');
+    preview.textContent = narrativeText.slice(0, 1200) + (narrativeText.length > 1200 ? '\n\n[...preview truncated...]' : '');
+    container.style.display = 'block';
+    const label = document.getElementById('txt-count-label');
+    label.textContent = '1 file';
+    const list = document.getElementById('txt-file-list');
+    list.innerHTML = `
+      <div class="file-item">
+        <span class="file-item-name">${file.name}</span>
+        <span class="file-item-size">${(file.size/1024).toFixed(1)} KB</span>
+        <button class="file-remove" onclick="removeText()" title="Remove">✕</button>
+      </div>`;
+    checkReadyToRun();
+  };
+  reader.readAsText(file);
+}
+
+function removeText() {
+  textFile = null; narrativeText = '';
+  document.getElementById('txt-file-list').innerHTML = '';
+  document.getElementById('txt-count-label').textContent = '0 files';
+  document.getElementById('narrative-preview-container').style.display = 'none';
+  checkReadyToRun();
+}
+
+// ══════════════════════════════════════════════════════
+// Drag & drop
+// ══════════════════════════════════════════════════════
+['img-drop-zone','txt-drop-zone'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('drag-over');
+    if (id === 'img-drop-zone') handleImageFiles(e.dataTransfer.files);
+    else handleTextFile(e.dataTransfer.files[0]);
+  });
+});
+
+// ══════════════════════════════════════════════════════
+// Enable run button
+// ══════════════════════════════════════════════════════
+function checkReadyToRun() {
+  const btn = document.getElementById('run-ocr-btn');
+  btn.disabled = !(imageFiles.length > 0 && textFile);
+}
+
+// ══════════════════════════════════════════════════════
+// OCR flow (simulated — replace with real API call)
+// ══════════════════════════════════════════════════════
+function startOCR() {
+  document.getElementById('upload-section').style.display = 'none';
+  document.getElementById('ocr-section').classList.add('visible');
+  setStep(2);
+  currentPage = 0;
+  buildTabs();
+  simulateOCR(0);
+}
+
+function buildTabs() {
+  const tabs = document.getElementById('page-tabs');
+  tabs.innerHTML = pageData.map((p, i) => `
+    <button class="page-tab${i === 0 ? ' active' : ''}" id="tab-${i}" onclick="switchPage(${i})">
+      <span class="tab-check"></span>Page ${i+1}
+    </button>
+  `).join('');
+}
+
+function simulateOCR(idx) {
+  if (idx >= pageData.length) { finishOCR(); return; }
+  const dot  = document.getElementById('ocr-status-dot');
+  const text = document.getElementById('ocr-status-text');
+  dot.classList.remove('done');
+  text.textContent = `Processing page ${idx+1} of ${pageData.length}…`;
+
+  const page = pageData[idx];
+
+  // Build context for the AI
+  const sessionHint = document.getElementById('session-id-input')?.value?.trim() || 'session_006';
+  const combatHint  = document.getElementById('combat-id-input')?.value?.trim()  || '';
+
+  const system = `You are a D&D 5e session log OCR assistant. Extract handwritten combat notes into structured text.
+Party: ${ChronicleAI.PARTY_ROSTER}
+For each round you find, output:
+ROUND <n> [session: <session_id>]
+Slot 1: <actor nickname> — <action>, <result> [<value>] [<notes>]
+...
+ENEMY ACTIONS: <description> | <impact>
+ROUND SUMMARY: <one sentence>
+---
+Output exactly this format. If a value is unclear, write [?] after it. Session: ${sessionHint}${combatHint ? '. Combat: ' + combatHint : ''}.`;
+
+  if (page.imageDataURL) {
+    // Real image — call Vision API
+    ChronicleAI.call({
+      system,
+      messages: [{
+        role: 'user',
+        content: [
+          ChronicleAI.imageContent(page.imageDataURL),
+          { type: 'text', text: `Extract all combat round data from this handwritten notes page.` },
+        ],
+      }],
+      onLoading: () => {},
+      onResult: (text) => {
+        page.ocrText    = text;
+        page.confirmed  = false;
+        page.processing = false;
+        dot.classList.add('done');
+        buildTabs();
+        switchPage(idx);
+        simulateOCR(idx + 1);
+      },
+      onError: () => {
+        // Fall back to sample text
+        page.ocrText    = generateSampleOCR(idx);
+        page.confirmed  = false;
+        page.processing = false;
+        dot.classList.add('done');
+        buildTabs();
+        switchPage(idx);
+        simulateOCR(idx + 1);
+      },
+    });
+  } else {
+    // No image — use placeholder/sample text
+    setTimeout(() => {
+      page.ocrText    = generateSampleOCR(idx);
+      page.confirmed  = false;
+      page.processing = false;
+      dot.classList.add('done');
+      buildTabs();
+      switchPage(idx);
+      simulateOCR(idx + 1);
+    }, 600);
+  }
+}
+
+function generateSampleOCR(idx) {
+  const pages = [
+    `ROUND 1\nInitiative: Zara (18), Goblin Chief (15), Morcant (12), Cultist A (10), Thalia (8)\n\nZara — Eldritch Blast → Goblin Chief. Hit. 2d10+4 = 14 dmg.\nGoblin Chief — Greataxe → Morcant. Hit. 2d6+3 = 9 dmg.\nMorcant — Shield of Faith (conc). Action Surge. Longsword → Cultist A. CRIT. 4d8+4 = 28 dmg.\nCultist A — Spiritual weapon vs Thalia. Miss.\nThalia — Healing Word → Morcant. +1d4+4 = 7 HP. Guiding Bolt → Goblin Chief. Hit. 4d6 = 18 dmg. Disadvantage next attack.\n\nROUND 2\nZara — Misty Step behind pillar. Eldritch Blast → Chief. Hit. 11 dmg.\nGoblin Chief — Reckless attack → Zara. Hit 17 dmg. Zara at 6 HP.\nMorcant — Divine Smite (2nd lvl). Longsword → Chief. Hit. 2d8+2d8+4 = 26 dmg. CHIEF DOWN.\nCultist A — flees through east door.\nThalia — Healing Word → Zara. +8 HP. Sacred Flame → Cultist A (fleeing). DEX save DC13 fail. 2d8 = 9 dmg. Cultist A DOWN.`,
+    `POST COMBAT NOTES\nAll PCs stabilised. Short rest taken in the shrine antechamber.\n\nLoot from Goblin Chief:\n- Greataxe +1 (magical, faint aura)\n- Pouch: 34 GP, 2x smoky quartz (est. 25 GP each)\n- Folded note (sealed, unknown wax emblem — crescent over a closed eye)\n\nThalia inspects the altar. Arcana check 19. Detects lingering transmutation magic, not divine. Conclusion: the shrine is a fake — the cult was using it as a front.\n\nZara finds a trapdoor behind the altar. Perception 22. Stone worn smooth from recent use.\n\nMorcant questions the bound cultist (survivor). Intimidation 14. Cultist reveals:\n- "The Pale Warden" is their leader, met only once\n- Next gathering is at the mill outside Thornwick — three days hence\n- Password: "the river remembers"`
+  ];
+  return { text: pages[idx % pages.length] };
+}
+
+function finishOCR() {
+  document.getElementById('ocr-status-dot').classList.add('done');
+  document.getElementById('ocr-status-text').textContent = 'All pages extracted — review each below';
+  switchPage(0);
+}
+
+function switchPage(idx) {
+  // Save current edits
+  if (pageData[currentPage]) {
+    pageData[currentPage].ocrText = document.getElementById('ocr-textarea').value;
+  }
+  currentPage = idx;
+  // Update tabs
+  document.querySelectorAll('.page-tab').forEach((t, i) => {
+    t.classList.toggle('active', i === idx);
+    t.classList.toggle('confirmed', pageData[i] && pageData[i].confirmed);
+    const check = t.querySelector('.tab-check');
+    if (pageData[i] && pageData[i].confirmed) {
+      check.style.background = 'var(--teal)';
+      check.style.borderColor = 'var(--teal)';
+    } else {
+      check.style.background = '';
+      check.style.borderColor = '';
+    }
+  });
+  // Update image
+  const imgPane = document.getElementById('ocr-image-pane');
+  const label = document.getElementById('ocr-image-label');
+  imgPane.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = pageData[idx].imageURL;
+  img.alt = `Page ${idx+1}`;
+  imgPane.appendChild(img);
+  const lblEl = document.createElement('div');
+  lblEl.className = 'ocr-image-label';
+  lblEl.textContent = `Page ${idx+1} of ${pageData.length}`;
+  imgPane.appendChild(lblEl);
+  // Update textarea
+  document.getElementById('ocr-textarea').value = pageData[idx].ocrText;
+  // Update nav
+  document.getElementById('prev-page-btn').disabled = idx === 0;
+  document.getElementById('next-page-btn').disabled = idx === pageData.length - 1;
+  document.getElementById('page-progress-note').textContent = `Page ${idx+1} of ${pageData.length}`;
+  updateAllConfirmedBtn();
+}
+
+function changePage(dir) {
+  const next = currentPage + dir;
+  if (next >= 0 && next < pageData.length) switchPage(next);
+}
+
+function confirmPage() {
+  pageData[currentPage].ocrText = document.getElementById('ocr-textarea').value;
+  pageData[currentPage].confirmed = true;
+  const tab = document.getElementById(`tab-${currentPage}`);
+  tab.classList.add('confirmed');
+  const check = tab.querySelector('.tab-check');
+  check.style.background = 'var(--teal)';
+  check.style.borderColor = 'var(--teal)';
+  updateAllConfirmedBtn();
+  // Auto-advance to next unconfirmed
+  const nextUnconfirmed = pageData.findIndex((p, i) => i > currentPage && !p.confirmed);
+  if (nextUnconfirmed !== -1) switchPage(nextUnconfirmed);
+}
+
+function updateAllConfirmedBtn() {
+  const allDone = pageData.every(p => p.confirmed);
+  document.getElementById('all-confirmed-btn').disabled = !allDone;
+}
+
+// ══════════════════════════════════════════════════════
+// Consolidation
+// ══════════════════════════════════════════════════════
+function showConsolidation() {
+  document.getElementById('ocr-section').classList.remove('visible');
+  document.getElementById('consolidation-section').classList.add('visible');
+  setStep(3);
+  buildSessionDoc();
+}
+
+function buildSessionDoc() {
+  const view = document.getElementById('session-doc-view');
+  const stats = document.getElementById('session-doc-stats');
+
+  let html = '';
+
+  // Combat pages
+  pageData.forEach((p, i) => {
+    html += `<div class="doc-section-head">Combat Log — Page ${i+1}</div>`;
+    html += `<div style="white-space:pre-wrap;margin-bottom:0.5rem;">${escapeHtml(p.ocrText)}</div>`;
+  });
+
+  // Narrative
+  html += `<div class="doc-section-head">Narrative Notes — ${textFile ? textFile.name : 'Player Notes'}</div>`;
+  html += `<div style="white-space:pre-wrap;">${escapeHtml(narrativeText)}</div>`;
+
+  view.innerHTML = html;
+  stats.textContent = `${pageData.length} combat page${pageData.length !== 1 ? 's' : ''} + narrative`;
+}
+
+function goBackToOCR() {
+  document.getElementById('consolidation-section').classList.remove('visible');
+  document.getElementById('ocr-section').classList.add('visible');
+  setStep(2);
+}
+
+function sendToAnalysis() {
+  setStep(4);
+  // Brief confirmation before handing off to Delta Review
+  setTimeout(() => {
+    if (confirm(`Session document assembled:\n• ${pageData.length} page(s) processed\n• Ready for Delta Review\n\nOpen Delta Review now?`)) {
+      window.location = 'chronicle_delta_review_v2.html';
+    }
+  }, 200);
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

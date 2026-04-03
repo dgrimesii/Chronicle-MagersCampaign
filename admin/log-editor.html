@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — Log Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* ── Arcane Night ── */
+  --ink:#f0e8d0; --ink-inv:#0f1020;
+  --parchment:#0f1020; --parchment-dark:#13152b; --parchment-mid:#1e2040; --card-bg:#181a35;
+  --amber:#d4af37; --amber-dim:#a88820; --amber-light:#f0d060;
+  --rust:#ff6b50; --teal:#4a9e7a; --green:#4adf9a; --purple:#c090ff;
+  --muted:#7d7a94; --muted-light:#4a4870;
+  --border:rgba(212,175,55,0.12); --border-strong:rgba(212,175,55,0.28);
+  --shadow:0 4px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.08);
+  --shadow-md:0 8px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.12);
+  /* Entity colours — brightened for dark bg */
+  --c-pc:#4adf9a; --c-npc:#ff8c55; --c-loc:#5ab0ff; --c-quest:#ffd040;
+  --c-item:#c090ff; --c-combat:#ff6060; --c-lore:#80ff80; --c-session:#9090c0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Crimson Pro',Georgia,serif;background:#0f1020;color:#f0e8d0;
+  background-image:radial-gradient(ellipse at 20% 20%,rgba(74,59,140,0.25) 0%,transparent 55%),
+    radial-gradient(ellipse at 80% 80%,rgba(30,20,80,0.4) 0%,transparent 55%);color:var(--ink);height:100vh;display:flex;flex-direction:column;overflow:hidden;
+  background-image:radial-gradient(ellipse at 15% 10%,rgba(212,175,55,0.05) 0%,transparent 50%),radial-gradient(ellipse at 85% 90%,rgba(42,107,107,0.04) 0%,transparent 50%);}
+
+header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;height:64px;background:rgba(13,15,40,0.95);position:relative;z-index:100;}
+.logo{font-family:"Cinzel",serif;font-size:1.05rem;font-weight:600;letter-spacing:0.12em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.logo span{color:var(--amber);}
+.header-right{display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;overflow:hidden;min-width:0;}
+.nav-links{display:flex;gap:0.9rem;justify-content:center;align-items:center;flex-wrap:nowrap;padding:0 2rem;}
+.nav-link{cursor:pointer;font-family:'Cinzel',serif;font-size:0.63rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;padding-bottom:2px;border-bottom:1px solid transparent;transition:all 0.15s;white-space:nowrap;cursor:pointer;}
+.nav-link:hover{color:var(--ink);}
+.nav-link.active{color:var(--amber);border-bottom-color:var(--amber);}
+.header-actions{display:flex;align-items:center;gap:8px;}
+
+.shell{display:grid;grid-template-columns:260px 1fr;flex:1;overflow:hidden;min-height:0;}
+
+/* ═══════════════════ LEFT: Entity picker ═══════════════════ */
+aside{border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:#13152b;overflow:hidden;}
+
+.aside-search{padding:0.75rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;}
+.search-wrap{position:relative;}
+.search-wrap input{width:100%;padding:7px 10px 7px 30px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.9rem;background:var(--card-bg);color:var(--ink);outline:none;transition:border-color 0.15s;}
+.search-wrap input:focus{border-color:var(--amber);}
+.search-icon{position:absolute;left:8px;top:50%;transform:translateY(-50%);opacity:0.3;pointer-events:none;}
+
+.quick-add-bar{padding:0.5rem 1rem;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;}
+.qa-btn{font-family:'Cinzel',serif;font-size:0.57rem;letter-spacing:0.08em;padding:4px 9px;border-radius:2px;border:1px solid;cursor:pointer;background:none;transition:all 0.15s;white-space:nowrap;}
+.qa-btn:hover{opacity:0.75;}
+
+.entity-list{flex:1;overflow-y:auto;}
+.entity-group-hdr{font-family:'Cinzel',serif;font-size:0.57rem;letter-spacing:0.18em;color:var(--muted-light);text-transform:uppercase;padding:0.5rem 1rem 0.2rem;background:var(--parchment-mid);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;}
+.entity-row{padding:0.5rem 1rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;display:flex;align-items:center;gap:8px;}
+.entity-row:hover{background:rgba(212,175,55,0.06);}
+.entity-row.active{background:rgba(212,175,55,0.13);border-right:2px solid var(--amber);}
+.e-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.e-name{font-size:0.9rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.e-sub{font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:var(--muted-light);}
+.e-unsaved{width:6px;height:6px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+
+/* ═══════════════════ RIGHT: Editor workspace ═══════════════════ */
+.workspace{display:flex;flex-direction:column;overflow:hidden;}
+.workspace-scroll{flex:1;overflow-y:auto;padding:1.5rem;}
+
+/* Entity identity bar */
+.entity-id-bar{display:flex;align-items:center;gap:12px;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+.entity-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:1rem;font-weight:600;flex-shrink:0;}
+.entity-id-info{flex:1;}
+.entity-id-name{font-family:'Cinzel',serif;font-size:1.3rem;font-weight:600;letter-spacing:0.06em;}
+.entity-id-meta{font-size:0.85rem;color:var(--muted);font-style:italic;margin-top:2px;}
+.entity-id-badge{font-family:'JetBrains Mono',monospace;font-size:0.65rem;background:var(--parchment-mid);border:1px solid var(--border);padding:2px 8px;border-radius:2px;color:var(--muted);}
+
+/* Edit type tabs */
+.edit-type-tabs{display:flex;gap:0;border-bottom:1px solid var(--border-strong);margin-bottom:1.25rem;}
+.et-tab{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.1em;padding:8px 16px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;color:var(--muted);margin-bottom:-1px;transition:all 0.15s;display:flex;align-items:center;gap:6px;}
+.et-tab:hover{color:var(--ink);}
+.et-tab.active{color:var(--amber);border-bottom-color:var(--amber);}
+.et-tab .tab-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+/* Edit sections */
+.edit-section{display:none;}
+.edit-section.active{display:flex;flex-direction:column;gap:1.25rem;}
+
+/* Field editor */
+.field-editor{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;overflow:hidden;box-shadow:var(--shadow);}
+.fe-header{padding:0.65rem 1rem;border-bottom:1px solid var(--border);background:var(--parchment-mid);display:flex;align-items:center;justify-content:space-between;}
+.fe-title{font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.12em;font-weight:600;}
+.fe-subtitle{font-size:0.8rem;color:var(--muted);font-style:italic;}
+.fe-body{padding:1rem;}
+
+/* Individual field rows */
+.field-edit-row{margin-bottom:1rem;}
+.field-edit-row:last-child{margin-bottom:0;}
+.fel-label{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.14em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+.fel-badge{font-size:0.55rem;padding:1px 6px;border-radius:2px;}
+.badge-required{background:rgba(139,58,30,0.1);color:var(--rust);border:1px solid rgba(139,58,30,0.2);}
+.badge-optional{background:rgba(212,175,55,0.06);color:var(--muted);border:1px solid var(--border-strong);}
+.badge-readonly{background:rgba(42,107,107,0.08);color:var(--teal);border:1px solid rgba(42,107,107,0.2);}
+.field-input{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.95rem;background:var(--card-bg);color:var(--ink);outline:none;transition:border-color 0.15s;}
+.field-input:focus{border-color:var(--amber);}
+.field-input:disabled{background:var(--parchment-mid);color:var(--muted);cursor:not-allowed;}
+.field-textarea{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.95rem;background:var(--card-bg);color:var(--ink);outline:none;resize:vertical;min-height:80px;line-height:1.6;transition:border-color 0.15s;}
+.field-textarea:focus{border-color:var(--amber);}
+.field-select{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.06em;background:var(--card-bg);color:var(--ink);outline:none;}
+.field-hint{font-size:0.8rem;color:var(--muted-light);font-style:italic;margin-top:4px;}
+.field-current{font-size:0.82rem;color:var(--muted);padding:6px 8px;background:var(--parchment-mid);border-radius:3px;border:1px solid var(--border);margin-bottom:4px;line-height:1.5;}
+.field-current-label{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;color:var(--muted-light);text-transform:uppercase;margin-bottom:2px;}
+
+/* Milestone / progress log entry builder */
+.log-entry-builder{border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+.leb-existing{background:var(--parchment-mid);padding:0.6rem 0.85rem;border-bottom:1px solid var(--border);}
+.leb-existing-title{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.leb-item{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:0.88rem;border-bottom:1px solid var(--border);}
+.leb-item:last-child{border-bottom:none;}
+.leb-sid{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted-light);min-width:80px;flex-shrink:0;margin-top:1px;}
+.leb-new{padding:0.75rem 0.85rem;background:var(--card-bg);}
+.leb-new-title{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.12em;color:var(--amber-dim);text-transform:uppercase;margin-bottom:6px;}
+
+/* Level up panel */
+.level-panel{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.level-current-badge{font-family:'Cinzel',serif;font-size:2rem;font-weight:600;text-align:center;padding:1rem;background:var(--parchment-mid);border-radius:3px;border:1px solid var(--border);}
+.level-current-label{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;text-align:center;margin-top:4px;}
+.level-arrow{font-size:1.5rem;color:var(--amber);text-align:center;padding:0.5rem;display:flex;align-items:center;justify-content:center;}
+.level-new-badge{font-family:'Cinzel',serif;font-size:2rem;font-weight:600;text-align:center;padding:1rem;background:rgba(42,107,107,0.08);border-radius:3px;border:2px solid var(--teal);color:var(--teal);}
+
+/* AI Draft assistant (inline) */
+.ai-draft-panel{background:rgba(42,107,107,0.04);border:1px solid rgba(42,107,107,0.2);border-radius:4px;overflow:hidden;}
+.ai-draft-header{padding:0.65rem 1rem;background:rgba(42,107,107,0.08);border-bottom:1px solid rgba(42,107,107,0.15);display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.ai-draft-title{font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.1em;color:var(--teal);display:flex;align-items:center;gap:8px;}
+.ai-draft-collapse{font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--teal);}
+.ai-draft-body{padding:1rem;display:none;}
+.ai-draft-body.open{display:flex;flex-direction:column;gap:0.75rem;}
+.prompt-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px;}
+.prompt-chip{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.08em;padding:4px 10px;border-radius:2px;border:1px solid rgba(42,107,107,0.3);color:var(--teal);background:rgba(42,107,107,0.06);cursor:pointer;transition:all 0.12s;}
+.prompt-chip:hover{background:rgba(42,107,107,0.14);}
+.ai-prompt-input{width:100%;padding:8px 10px;border:1px solid rgba(42,107,107,0.3);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.95rem;background:var(--card-bg);color:var(--ink);outline:none;resize:none;min-height:60px;line-height:1.55;}
+.ai-prompt-input:focus{border-color:var(--teal);}
+.ai-draft-output{background:var(--card-bg);border:1px solid rgba(42,107,107,0.2);border-radius:3px;padding:0.85rem;font-size:0.95rem;line-height:1.7;min-height:60px;color:var(--ink);}
+.ai-draft-output.empty{color:var(--muted-light);font-style:italic;}
+.ai-draft-actions{display:flex;gap:6px;}
+
+/* Conflict checker */
+.conflict-check{background:rgba(212,175,55,0.05);border:1px solid rgba(212,175,55,0.2);border-radius:3px;padding:0.75rem 0.85rem;}
+.conflict-title{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--amber-dim);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.conflict-item{font-size:0.88rem;padding:3px 0;display:flex;gap:8px;align-items:flex-start;}
+.conflict-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);flex-shrink:0;margin-top:5px;}
+
+/* Save bar */
+.save-bar{flex-shrink:0;border-top:1px solid var(--border-strong);padding:0.75rem 1.5rem;background:var(--card-bg);display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.save-status{font-size:0.85rem;color:var(--muted);font-style:italic;}
+.save-actions{display:flex;gap:8px;align-items:center;}
+.btn{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;padding:8px 16px;border-radius:3px;cursor:pointer;transition:all 0.15s;border:1px solid transparent;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+.btn-primary{background:var(--amber);color:white;border-color:var(--amber-dim);}
+.btn-primary:hover{background:var(--amber-dim);}
+.btn-primary:disabled{opacity:0.4;cursor:not-allowed;}
+.btn-teal{background:var(--teal);color:white;border-color:var(--teal);}
+.btn-teal:hover{background:#205555;}
+.btn-secondary{background:none;color:var(--ink);border-color:var(--border-strong);}
+.btn-secondary:hover{background:var(--parchment-dark);}
+.btn-sm{padding:5px 11px;font-size:0.64rem;}
+.btn-ghost{background:none;border:none;font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.08em;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:4px;}
+.btn-ghost:hover{color:var(--amber-dim);}
+
+/* Empty workspace */
+.workspace-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;gap:10px;padding:3rem;}
+.we-title{font-family:'Cinzel',serif;font-size:1rem;letter-spacing:0.08em;}
+.we-hint{font-size:0.9rem;font-style:italic;line-height:1.6;}
+.we-scenarios{display:flex;flex-direction:column;gap:6px;margin-top:0.5rem;text-align:left;max-width:340px;}
+.we-scenario{display:flex;gap:8px;font-size:0.88rem;align-items:flex-start;}
+.we-scenario-dot{width:5px;height:5px;border-radius:50%;background:var(--amber);flex-shrink:0;margin-top:6px;}
+
+/* Toast */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--ink);color:var(--parchment);padding:0.75rem 1.25rem;border-radius:4px;font-size:0.9rem;opacity:0;transform:translateY(8px);transition:all 0.25s;z-index:999;pointer-events:none;font-family:'Crimson Pro',serif;}
+.toast.show{opacity:1;transform:translateY(0);}
+
+/* New entity modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;display:flex;align-items:center;justify-content:center;padding:2rem;}
+.modal-backdrop.hidden{display:none;}
+.modal{background:var(--parchment);border:1px solid var(--border-strong);border-radius:4px;width:100%;max-width:520px;box-shadow:var(--shadow-md);}
+.modal-hdr{padding:1rem 1.25rem;border-bottom:1px solid var(--border);font-family:'Cinzel',serif;font-size:0.88rem;letter-spacing:0.08em;display:flex;align-items:center;justify-content:space-between;}
+.modal-body{padding:1.25rem;display:flex;flex-direction:column;gap:0.85rem;}
+.modal-footer{padding:0.85rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1rem;padding:0 4px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Chron<span>i</span>cle</div>
+  <nav class="nav-links">
+    <span class="nav-link" onclick="window.location='intake.html'">Session Intake</span>
+    <span class="nav-link" onclick="window.location='glossary.html'">OCR Glossary</span>
+    <span class="nav-link" onclick="window.location='delta-review.html'">Delta Review</span>
+    <span class="nav-link" onclick="window.location='integrity.html'">Integrity</span>
+    <span class="nav-link" onclick="window.location='log-viewer.html'">Campaign Log</span>
+    <span class="nav-link active" onclick="window.location='log-editor.html'">Log Editor</span>
+    <span class="nav-link" onclick="window.location='versions.html'">Versions</span>
+  </nav>
+  <div class="header-right">
+    <div class="header-actions">
+    <button class="btn btn-secondary btn-sm" onclick="openNewEntityModal()">+ New entry</button>
+    <button class="btn btn-primary btn-sm" id="header-save-btn" onclick="saveAll()" disabled>Save changes</button>
+  </div>
+  </div>
+</header>
+
+<div class="shell">
+
+<!-- ═══════════ LEFT: Entity picker ═══════════ -->
+<aside>
+  <div class="aside-search">
+    <div class="search-wrap">
+      <svg class="search-icon" width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="9.5" x2="13" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      <input type="text" placeholder="Find an entry…" oninput="filterEntities(this.value)" id="entity-search">
+    </div>
+  </div>
+  <div class="quick-add-bar">
+    <span style="font-family:'Cinzel',serif;font-size:0.57rem;letter-spacing:0.1em;color:var(--muted);align-self:center;">Quick add:</span>
+    <button class="qa-btn" style="color:var(--c-session);border-color:var(--c-session);" onclick="openNewEntityModal('off-screen')">Off-screen event</button>
+    <button class="qa-btn" style="color:var(--c-lore);border-color:var(--c-lore);" onclick="openNewEntityModal('lore')">Lore / flavor</button>
+    <button class="qa-btn" style="color:var(--c-loc);border-color:var(--c-loc);" onclick="openNewEntityModal('location')">Location</button>
+  </div>
+  <div class="entity-list" id="entity-list"></div>
+</aside>
+
+<!-- ═══════════ RIGHT: Workspace ═══════════ -->
+<div class="workspace">
+  <div class="workspace-scroll" id="workspace-scroll">
+    <div class="workspace-empty" id="workspace-empty">
+      <div class="we-title">Log Editor</div>
+      <div class="we-hint">Select an entry to edit, or use Quick Add for something new.</div>
+      <div class="we-scenarios">
+        <div class="we-scenario"><div class="we-scenario-dot"></div><span>Off-screen events &amp; world developments</span></div>
+        <div class="we-scenario"><div class="we-scenario-dot"></div><span>Flesh out NPCs, places, items with lore &amp; flavor</span></div>
+        <div class="we-scenario"><div class="we-scenario-dot"></div><span>Level-ups and subclass unlocks</span></div>
+        <div class="we-scenario"><div class="we-scenario-dot"></div><span>Player backstory additions to character cards</span></div>
+      </div>
+    </div>
+    <div id="workspace-content" style="display:none;"></div>
+  </div>
+  <div class="save-bar" id="save-bar" style="display:none;">
+    <div class="save-status" id="save-status">Unsaved changes</div>
+    <div class="save-actions">
+      <button class="btn-ghost" onclick="discardChanges()">Discard</button>
+      <button class="btn btn-secondary btn-sm" onclick="previewChanges()">Preview delta</button>
+      <button class="btn btn-teal btn-sm" onclick="commitChanges()">Commit to log ✓</button>
+    </div>
+  </div>
+</div>
+</div><!-- end shell -->
+
+<!-- New entity modal -->
+<div class="modal-backdrop hidden" id="new-entity-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span id="modal-title">New Entry</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="createNewEntity()">Create entry</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../shared/config.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+// CAMPAIGN DATA (from campaign log)
+// ══════════════════════════════════════════════════════
+const TYPE_HEX = { pc:'#4adf9a', npc:'#ff8c55', location:'#5ab0ff', quest:'#ffd040', item:'#c090ff', lore:'#80ff80', session:'#5F5E5A' };
+
+const ENTITIES = [
+  // PC: Zragar
+  { id:"pc_001", type:'pc', name:"Zragar", sub:"Wizard \u00b7 Lv 2 \u00b7 David", data:{ nickname:"Goldie", player:"David", class:"Wizard", status:'active', current_level:2, notes:"Familiar: Index the Owl. Expert in historical adventure chronicles. Tail-less gold dragonborn bladesinger (longsword).", milestones:[{"session_id": "session_003", "event": "Level up to 2", "note": "Reached after the Siege of Bagyers Farm."}], backstory:'', personality:'', appearance:'' } },
+  // PC: Malachite
+  { id:"pc_002", type:'pc', name:"Malachite", sub:"Barbarian \u00b7 Lv 2 \u00b7 Lance", data:{ nickname:"Mal", player:"Lance", class:"Barbarian", status:'active', current_level:2, notes:"Aasimar. Recently discovered 'Healing Hands' ability.", milestones:[{"session_id": "session_003", "event": "Level up to 2", "note": "Reached after the Siege of Bagyers Farm."}], backstory:'', personality:'', appearance:'' } },
+  // PC: Ashton
+  { id:"pc_003", type:'pc', name:"Ashton", sub:"Warlock \u00b7 Lv 2 \u00b7 Frazer", data:{ nickname:"Ash", player:"Frazer", class:"Warlock", status:'active', current_level:2, notes:"", milestones:[{"session_id": "session_003", "event": "Level up to 2", "note": "Reached after the Siege of Bagyers Farm."}], backstory:'', personality:'', appearance:'' } },
+  // PC: Asphodel
+  { id:"pc_004", type:'pc', name:"Asphodel", sub:"Monk \u00b7 Lv 2 \u00b7 Kevin", data:{ nickname:"Del", player:"Kevin", class:"Monk", status:'active', current_level:2, notes:"Familiar: Deer.", milestones:[{"session_id": "session_003", "event": "Level up to 2", "note": "Reached after the Siege of Bagyers Farm."}], backstory:'', personality:'', appearance:'' } },
+  // PC: Derwin
+  { id:"pc_005", type:'pc', name:"Derwin", sub:"Rogue \u00b7 Lv 2 \u00b7 Sam", data:{ nickname:"Goli", player:"Sam", class:"Rogue", status:'active', current_level:2, notes:"Nephew of Ched Warmfire.", milestones:[{"session_id": "session_003", "event": "Level up to 2", "note": "Reached after the Siege of Bagyers Farm."}], backstory:'', personality:'', appearance:'' } },
+  // PC: Atticus
+  { id:"pc_006", type:'pc', name:"Atticus", sub:"Druid \u00b7 Lv 2 \u00b7 Jamie", data:{ nickname:"Atti", player:"Jamie", class:"Druid", status:'active', current_level:2, notes:"Familiar: Bat.", milestones:[{"session_id": "session_003", "event": "Level up to 2", "note": "Reached after the Siege of Bagyers Farm."}], backstory:'', personality:'', appearance:'' } },
+  { id:"npc_001", type:'npc', name:"Ched Warmfire", sub:"deceased", data:{ disposition:"deceased", notes:"Village leader, Goli's uncle. Retired Fighter. Bitter and protective after his original party was decimated. Killed during the Siege of Bagyers Farm.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_003", type:'npc', name:"Krustie Gnome", sub:"neutral", data:{ disposition:"neutral", notes:"Gnome at Quarry camp; provided directions to the Rat Cave location.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_004", type:'npc', name:"Blair", sub:"friendly", data:{ disposition:"friendly", notes:"Cleric survivor of Ched's old party. Skilled potion brewer; provided quests for Menne's Ranch and Belfar.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_007", type:'npc', name:"Helen", sub:"friendly", data:{ disposition:"friendly", notes:"Primary contact at Menne's Ranch. Negotiated potion trade agreement; provided Quarry ROUS quest. Paid 30 GP reward for completion of supply chain quest.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_008", type:'npc', name:"Carly", sub:"friendly", data:{ disposition:"friendly", notes:"Male caravan owner escorted safely to Menne's Ranch during the Axe Beak ambush in Session 4.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_009", type:'npc', name:"Bessel", sub:"deceased", data:{ disposition:"deceased", notes:"Fire/Wizard. Member of Ched's original party.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_010", type:'npc', name:"Hawk", sub:"unknown", data:{ disposition:"unknown", notes:"Ranger. Member of Ched's original party.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_011", type:'npc', name:"Darnell", sub:"unknown", data:{ disposition:"unknown", notes:"Contact in Belfar mentioned by Blair and on Ched's map.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_012", type:'npc', name:"Kiki", sub:"unknown", data:{ disposition:"unknown", notes:"Connection for jobs in Green Harbor.", description:'', lore:'', intel_log:[] } },
+  { id:"npc_013", type:'npc', name:"The Low-Level Wizard", sub:"", data:{ disposition:"", notes:"", description:'', lore:'', intel_log:[] } },
+  { id:"loc_001", type:'location', name:"Riverbend", sub:"visited", data:{ description:"Home village on bluffs above Merelane River.", visibility:"visited", areas:[], lore:'' } },
+  { id:"loc_002", type:'location', name:"The Quarry", sub:"visited", data:{ description:"Dwarven/Gnomish site 2 days walk Southwest of Menne's Ranch. Site of ROUS infestation. Contains a camp of temporary tents and few permanent structures for workers.", visibility:"visited", areas:[], lore:'' } },
+  { id:"loc_003", type:'location', name:"Bagyers Farm", sub:"visited", data:{ description:"Site of the Pylon emergence and Ched's death.", visibility:"visited", areas:[], lore:'' } },
+  { id:"loc_004", type:'location', name:"Menne's Ranch", sub:"visited", data:{ description:"Horse-farming community North of Riverbend. Prime horse country with a Main Street featuring a Tavern and Shop.", visibility:"visited", areas:[], lore:'' } },
+  { id:"loc_005", type:'location', name:"The Rat Cave", sub:"visited", data:{ description:"Infested cavern located near The Quarry. Accessed via a water slide into a dark, echoing chamber.", visibility:"visited", areas:[], lore:'' } },
+  { id:"loc_006", type:'location', name:"Belfar", sub:"heard-of", data:{ description:"City to the Northeast. Primary destination for Pylon research.", visibility:"heard-of", areas:[], lore:'' } },
+  { id:"loc_011", type:'location', name:"Lake Town", sub:"heard-of", data:{ description:"Approx. 2 days west of The Quarry. Current temporary destination.", visibility:"heard-of", areas:[], lore:'' } },
+  { id:"loc_012", type:'location', name:"Green Harbor", sub:"heard-of", data:{ description:"Major port to the south.", visibility:"heard-of", areas:[], lore:'' } },
+  { id:"loc_007", type:'location', name:"The Northern Woods", sub:"", data:{ description:"Dense forest extending north of Riverbend toward Menne's Ranch. The site of the party's childhood explorations.", visibility:"", areas:[], lore:'' } },
+  { id:"qst_001", type:'quest', name:"Avenge Uncle Ched", sub:"active", data:{ status:"active", priority:"high", category:"long-term", motivation:"Ched's death demands retribution.", objectives:[{"id": "obj_001", "description": "Find Darnell in Belfar to learn about Ched's past.", "is_completed": false}], progress:[{"session_id": "session_003", "entry": "Ched killed by Pylon spawns."}, {"session_id": "session_003", "entry": "Blair suggested finding Darnell in Belfar."}] } },
+  { id:"qst_002", type:'quest', name:"The Pylon Anomaly", sub:"active", data:{ status:"active", priority:"critical", category:"long-term", motivation:"", objectives:[{"id": "obj_002", "description": "Seek information in Belfar about the Pylons.", "is_completed": false}], progress:[{"session_id": "session_001", "entry": "First Pylon witnessed by the group."}, {"session_id": "session_003", "entry": "Bagyers Farm Pylon neutralized via Eldritch Blast."}] } },
+  { id:"qst_003", type:'quest', name:"Escort to Lake Town", sub:"active", data:{ status:"active", priority:"medium", category:"short-term", motivation:"", objectives:[], progress:[{"session_id": "session_005", "entry": "Accepted 6 GP/person contract to escort stone-trading caravan to Lake Town. Ambushed by goblins mid-route."}] } },
+  { id:"qst_004", type:'quest', name:"Blair's Potion Supply Chain", sub:"completed", data:{ status:"completed", priority:"medium", category:"medium-term", motivation:"", objectives:[{"id": "obj_003", "description": "Establish trade agreement with Helen at Menne's Ranch.", "is_completed": true, "notes": "Party paid 30GP reward (Trade Commission)."}], progress:[{"session_id": "session_004", "entry": "Escorted Carly (m) and established trade agreement with Helen at Menne's Ranch."}] } },
+  { id:"qst_005", type:'quest', name:"The Quarry ROUS Problem", sub:"completed", data:{ status:"completed", priority:"medium", category:"short-term", motivation:"", objectives:[{"id": "obj_004", "description": "Clear the ROUS infestation from the cave near The Quarry.", "is_completed": true, "notes": "Confirmed 7-round engagement. Extermination complete."}], progress:[{"session_id": "session_004", "entry": "Received directions from Krustie; discovered the Rat Cave via a water slide into the cavern."}, {"session_id": "session_005", "entry": "Cleared the nest. Provided tails to Crusty Nome. Reward (100 GP Emerald) received."}] } },
+  { id:"item_001", type:'item', name:"Ched's Map", sub:"map", data:{ item_type:"map", session_found:"session_003", holder:"", notes:"Markers for Darnell (Belfar), Kiki (Green Harbor), Fish (Sholes Ford), Western '?', Southern 'X'. ", lore:'', is_quest_item:true } },
+  { id:"item_002", type:'item', name:"Bessel's Spellbook", sub:"spellbook", data:{ item_type:"spellbook", session_found:"session_003", holder:"pc_001", notes:"Contains L1-L3 spells: Shield, MM, Mage Armor, Find Familiar, Absorb Elements, Detect Magic, Comp Languages, Misty Step, Scorching Ray, Knock, Spider Climb, Fireball, Tiny Hut. Note: Goldie will gain access to these as he grows in level. ", lore:'', is_quest_item:false } },
+  { id:"item_003", type:'item', name:"Potions of Healing", sub:"consumable", data:{ item_type:"consumable", session_found:"session_003", holder:"pc_005", notes:"4 potions found in an adventuring chest. ", lore:'', is_quest_item:false } },
+  { id:"item_004", type:'item', name:"+1 Moon Sickle", sub:"weapon", data:{ item_type:"weapon", session_found:"session_003", holder:"pc_006", notes:" ", lore:'', is_quest_item:false } },
+  { id:"item_005", type:'item', name:"Boots of Striding and Springing", sub:"wondrous item", data:{ item_type:"wondrous item", session_found:"session_003", holder:"pc_002", notes:" ", lore:'', is_quest_item:false } },
+  { id:"item_006", type:'item', name:"Cloak of Protection", sub:"wondrous item", data:{ item_type:"wondrous item", session_found:"session_003", holder:"pc_003", notes:"Corrected from 'Clock' in notes. ", lore:'', is_quest_item:false } },
+  { id:"item_007", type:'item', name:"Gloves of Thievery", sub:"wondrous item", data:{ item_type:"wondrous item", session_found:"session_003", holder:"pc_005", notes:" ", lore:'', is_quest_item:false } },
+  { id:"item_008", type:'item', name:"+1 Brass Knuckles", sub:"weapon", data:{ item_type:"weapon", session_found:"session_003", holder:"pc_004", notes:" ", lore:'', is_quest_item:false } },
+  { id:"item_009", type:'item', name:"Trade Commission", sub:"currency", data:{ item_type:"currency", session_found:"session_004", holder:"", notes:"30 GP total received from Helen at Menne's Ranch for the Potion Supply quest. ", lore:'', is_quest_item:false } },
+  { id:"item_010", type:'item', name:"Unrefined Emerald", sub:"", data:{ item_type:"", session_found:"", holder:"party_shared", notes:" Reward for ROUS cave. Valued at 100 GP.", lore:'', is_quest_item:false } },
+  { id:"lore_001", type:'lore', name:"Historical Anomaly of Pylons", sub:'World Lore', data:{ content:"No history of Pylons exists in Goldie's chronicles prior to 5 years ago.", reliability:"confirmed", source:"" } },
+  { id:"lore_002", type:'lore', name:"Ched's Original Party", sub:'World Lore', data:{ content:"Consisted of Ched (Fighter), Blair (Cleric), Bessel (Wizard), and Hawk (Ranger). They were decimated in the past.", reliability:"confirmed", source:"" } },
+];
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let selectedId = null;
+let pendingEdits = {}; // entityId → {field → newValue}
+let searchQuery = '';
+let modalContext = null;
+let aiDraftOpen = {};
+
+function hasUnsavedEdits(id) { return id && pendingEdits[id] && Object.keys(pendingEdits[id]).length > 0; }
+function setEdit(id, field, val) {
+  if (!pendingEdits[id]) pendingEdits[id] = {};
+  pendingEdits[id][field] = val;
+  updateSaveBar();
+}
+
+function updateSaveBar() {
+  const hasAny = Object.keys(pendingEdits).some(k=>Object.keys(pendingEdits[k]).length>0);
+  document.getElementById('save-bar').style.display = hasAny ? 'flex' : 'none';
+  document.getElementById('header-save-btn').disabled = !hasAny;
+  document.getElementById('save-status').textContent = `Unsaved changes in ${Object.keys(pendingEdits).filter(k=>Object.keys(pendingEdits[k]).length>0).length} entr${Object.keys(pendingEdits).length===1?'y':'ies'}`;
+  renderEntityList();
+}
+
+// ══════════════════════════════════════════════════════
+// ENTITY LIST
+// ══════════════════════════════════════════════════════
+const GROUP_ORDER = ['pc','npc','location','quest','item','lore'];
+const GROUP_LABELS = { pc:'Player Characters', npc:'NPCs', location:'Locations', quest:'Quests', item:'Items & Loot', lore:'Lore' };
+
+function renderEntityList() {
+  const q = searchQuery.toLowerCase();
+  const list = document.getElementById('entity-list');
+  let html = '';
+  GROUP_ORDER.forEach(type => {
+    const filtered = ENTITIES.filter(e=>e.type===type&&(!q||(e.name+e.sub).toLowerCase().includes(q)));
+    if (!filtered.length) return;
+    html += `<div class="entity-group-hdr">${GROUP_LABELS[type]}</div>`;
+    filtered.forEach(e => {
+      const isActive = selectedId===e.id;
+      const unsaved = hasUnsavedEdits(e.id);
+      html += `<div class="entity-row${isActive?' active':''}" onclick="selectEntity('${e.id}')">
+        <div class="e-dot" style="background:${TYPE_HEX[e.type]};"></div>
+        <div style="flex:1;min-width:0;">
+          <div class="e-name">${e.name}</div>
+          <div class="e-sub">${e.sub}</div>
+        </div>
+        ${unsaved?'<div class="e-unsaved"></div>':''}
+      </div>`;
+    });
+  });
+  list.innerHTML = html || '<div style="padding:1rem;text-align:center;font-size:0.88rem;color:var(--muted-light);font-style:italic;">No results</div>';
+}
+
+function filterEntities(q) { searchQuery=q; renderEntityList(); }
+
+// ══════════════════════════════════════════════════════
+// ENTITY SELECTION
+// ══════════════════════════════════════════════════════
+function selectEntity(id) {
+  // Warn if current entity has uncommitted edits
+  if (selectedId && selectedId !== id && pendingEdits[selectedId] && Object.keys(pendingEdits[selectedId]).length > 0) {
+    const ent = ENTITIES.find(e => e.id === selectedId);
+    const name = ent ? ent.name : selectedId;
+    if (!confirm(`You have uncommitted changes to "${name}". Commit them before switching?`)) {
+      // User chose to discard — clear that entity's pending edits
+      delete pendingEdits[selectedId];
+      updateSaveBar();
+    } else {
+      // Commit first, then navigate
+      commitChanges();
+    }
+  }
+  selectedId = id;
+  renderEntityList();
+  renderWorkspace();
+}
+
+// ══════════════════════════════════════════════════════
+// WORKSPACE RENDERERS
+// ══════════════════════════════════════════════════════
+function renderWorkspace() {
+  const ent = ENTITIES.find(e=>e.id===selectedId);
+  if (!ent) return;
+  document.getElementById('workspace-empty').style.display='none';
+  document.getElementById('workspace-content').style.display='block';
+
+  const renderers = { pc:renderPC, npc:renderNPC, location:renderLocation, quest:renderQuest, item:renderItem, lore:renderLore };
+  const renderer = renderers[ent.type];
+  document.getElementById('workspace-content').innerHTML = renderer ? renderer(ent) : '<div style="padding:2rem;color:var(--muted);">No editor for this type yet.</div>';
+
+  // Scroll top
+  document.getElementById('workspace-scroll').scrollTop = 0;
+}
+
+function avatarHTML(ent) {
+  const initials = ent.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const bg = TYPE_HEX[ent.type]+'22';
+  const color = TYPE_HEX[ent.type];
+  return `<div class="entity-avatar" style="background:${bg};color:${color};">${initials}</div>`;
+}
+
+function fieldRow(label, fieldId, value, type='text', hint='', opts={}) {
+  const badge = opts.required ? '<span class="fel-badge badge-required">required</span>' : opts.readonly ? '<span class="fel-badge badge-readonly">auto</span>' : '<span class="fel-badge badge-optional">optional</span>';
+  const inputEl = type==='textarea'
+    ? `<textarea class="field-textarea" id="${fieldId}" oninput="setEdit('${selectedId}','${fieldId}',this.value)">${value||''}</textarea>`
+    : type==='select'
+    ? `<select class="field-select" id="${fieldId}" onchange="setEdit('${selectedId}','${fieldId}',this.value)">${(opts.options||[]).map(o=>`<option value="${o.v}" ${value===o.v?'selected':''}>${o.l}</option>`).join('')}</select>`
+    : `<input class="field-input" id="${fieldId}" type="${type}" value="${String(value==null?'':Array.isArray(value)?'':value).replace(/"/g,'&quot;')}" oninput="setEdit('${selectedId}','${fieldId}',this.value)" ${opts.readonly?'disabled':''}/>`;
+  return `<div class="field-edit-row">
+    <div class="fel-label">${label} ${badge}</div>
+    ${value && type!=='textarea' && !opts.readonly ? `<div class="field-current"><div class="field-current-label">Current</div>${value}</div>` : ''}
+    ${inputEl}
+    ${hint?`<div class="field-hint">${hint}</div>`:''}
+  </div>`;
+}
+
+function aiDraftPanel(id, promptChips, placeholder) {
+  const isOpen = aiDraftOpen[id];
+  return `
+  <div class="ai-draft-panel">
+    <div class="ai-draft-header" onclick="toggleAiDraft('${id}')">
+      <div class="ai-draft-title">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 6.5h4M6.5 4.5v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        AI draft assistant — let Chronicle write a first draft
+      </div>
+      <span class="ai-draft-collapse">${isOpen?'▲':'▼'}</span>
+    </div>
+    <div class="ai-draft-body ${isOpen?'open':''}" id="ai-body-${id}">
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Quick prompts</div>
+        <div class="prompt-chips">${promptChips.map(c=>`<span class="prompt-chip" onclick="fillPrompt('${id}','${c.replace(/'/g,"\\'")}')">${c}</span>`).join('')}</div>
+      </div>
+      <textarea class="ai-prompt-input" id="ai-prompt-${id}" placeholder="${placeholder}" rows="2"></textarea>
+      <div class="ai-draft-output empty" id="ai-output-${id}">Draft will appear here — review and use the Insert button to copy it into the field above.</div>
+      <div class="ai-draft-actions">
+        <button class="btn btn-teal btn-sm" onclick="generateDraft('${id}')">Generate draft</button>
+        <button class="btn btn-secondary btn-sm" onclick="insertDraft('${id}')">Insert into field ↑</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function logEntryBuilder(entries, fieldId, addLabel) {
+  const entriesHtml = entries.length ? entries.map(e=>`
+    <div class="leb-item">
+      <span class="leb-sid">${e.session_id||e.event||'—'}</span>
+      <span>${e.entry||e.note||e.event||''}</span>
+    </div>`).join('') : '<div style="font-size:0.82rem;color:var(--muted-light);font-style:italic;padding:4px 0;">None recorded yet.</div>';
+
+  return `<div class="log-entry-builder">
+    <div class="leb-existing">
+      <div class="leb-existing-title">Existing entries</div>
+      ${entriesHtml}
+    </div>
+    <div class="leb-new">
+      <div class="leb-new-title">+ Add new entry</div>
+      <textarea class="field-textarea" id="${fieldId}_new" placeholder="${addLabel}" rows="2" style="min-height:56px;" oninput="setEdit('${selectedId}','${fieldId}_new',this.value)"></textarea>
+    </div>
+  </div>`;
+}
+
+// ── PC editor ──────────────────────────────────────────
+function renderPC(ent) {
+  const d = ent.data;
+  return `
+    <div class="entity-id-bar">
+      ${avatarHTML(ent)}
+      <div class="entity-id-info">
+        <div class="entity-id-name">${ent.name}</div>
+        <div class="entity-id-meta">${d.class} · Level ${d.current_level} · Played by ${d.player}</div>
+      </div>
+      <span class="entity-id-badge">${ent.id}</span>
+    </div>
+
+    <div class="edit-type-tabs">
+      <button class="et-tab active" onclick="switchTab(this,'pc-notes')"><span class="tab-dot"></span>Notes & facts</button>
+      <button class="et-tab" onclick="switchTab(this,'pc-backstory')"><span class="tab-dot"></span>Backstory</button>
+      <button class="et-tab" onclick="switchTab(this,'pc-levelup')"><span class="tab-dot"></span>Level up</button>
+      <button class="et-tab" onclick="switchTab(this,'pc-appearance')"><span class="tab-dot"></span>Appearance</button>
+    </div>
+
+    <!-- Notes tab -->
+    <div class="edit-section active" id="tab-pc-notes">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Character notes</div><div class="fe-subtitle">Abilities, familiars, key facts visible to all players</div></div>
+        <div class="fe-body">
+          ${fieldRow('Current notes', 'notes_display', d.notes, 'textarea', 'Factual information about this character known to the party.')}
+          ${fieldRow('New fact to add', 'notes_append', '', 'textarea', 'This will be appended to the notes above. e.g. "Bat familiar is named Vesper."')}
+        </div>
+      </div>
+      ${aiDraftPanel('pc_notes_'+ent.id,
+        ['Summarise what the party knows about this character','Suggest interesting facts based on their class','Write a memorable character quirk'],
+        'e.g. "Write 2–3 facts about a level 2 Druid with a bat familiar, in the style of a campaign log"')}
+    </div>
+
+    <!-- Backstory tab -->
+    <div class="edit-section" id="tab-pc-backstory">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Player backstory</div><div class="fe-subtitle">Personal history — written by or with the player. Visible to all on the player viewer.</div></div>
+        <div class="fe-body">
+          ${d.backstory ? `<div class="field-current"><div class="field-current-label">Existing backstory</div>${d.backstory}</div>` : ''}
+          ${fieldRow('Backstory', 'backstory', d.backstory, 'textarea', 'Rich personal history, origin, motivations. Players can contribute this directly.')}
+          ${fieldRow('Personality traits', 'personality', d.personality, 'textarea', 'How do they act, speak, relate to others?')}
+        </div>
+      </div>
+      ${aiDraftPanel('pc_back_'+ent.id,
+        [`Write a backstory for a ${d.class}`, 'Suggest personality traits based on their class and level','Write how this character relates to the party'],
+        `e.g. "Write a 3-paragraph backstory for ${ent.name}, a level ${d.current_level} ${d.class} in a D&D 5e homebrew setting"`)}
+    </div>
+
+    <!-- Level up tab -->
+    <div class="edit-section" id="tab-pc-levelup">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Level up</div><div class="fe-subtitle">Record a level increase or subclass unlock</div></div>
+        <div class="fe-body">
+          <div class="level-panel" style="grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:1rem;">
+            <div><div class="level-current-badge">${d.current_level}</div><div class="level-current-label">Current level</div></div>
+            <div class="level-arrow">→</div>
+            <div><div class="level-new-badge" id="level-new-display">${d.current_level+1}</div><div class="level-current-label" style="color:var(--teal);">New level</div></div>
+          </div>
+          ${fieldRow('New level', 'new_level', d.current_level+1, 'number', '', {required:true})}
+          ${fieldRow('Session reference', 'levelup_session', 'session_006', 'text', 'Which session did this happen between / during?', {required:true})}
+          ${fieldRow('Subclass unlocked', 'subclass', '', 'text', 'e.g. "Circle of the Moon" — leave blank if none at this level')}
+          ${fieldRow('New abilities gained', 'new_abilities', '', 'textarea', 'List key features unlocked at this level')}
+          ${fieldRow('Milestone note', 'milestone_note', '', 'textarea', 'A narrative note about why/when this level-up happened')}
+        </div>
+      </div>
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Milestone history</div></div>
+        <div class="fe-body" style="padding:0.85rem;">
+          ${logEntryBuilder(d.milestones||[], 'milestone', 'Add a milestone note without a level change e.g. "Discovered they are descended from a gold dragon"')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Appearance tab -->
+    <div class="edit-section" id="tab-pc-appearance">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Appearance & description</div></div>
+        <div class="fe-body">
+          ${fieldRow('Physical description', 'appearance', d.appearance, 'textarea', 'What do they look like? Height, build, distinguishing features.')}
+          ${fieldRow('Usual equipment / style', 'equipment_desc', '', 'textarea', 'How do they typically appear at the table — weapons, armour, accessories?')}
+        </div>
+      </div>
+      ${aiDraftPanel('pc_app_'+ent.id,
+        [`Describe a ${d.class}'s typical appearance`,'Write a distinctive physical detail','Suggest equipment befitting their class'],
+        `e.g. "Describe the appearance of ${ent.name}, a ${d.class}, noting their dragonborn/aasimar/etc heritage"`)}
+    </div>`;
+}
+
+// ── NPC editor ─────────────────────────────────────────
+function renderNPC(ent) {
+  const d = ent.data;
+  return `
+    <div class="entity-id-bar">
+      ${avatarHTML(ent)}
+      <div class="entity-id-info">
+        <div class="entity-id-name">${ent.name}</div>
+        <div class="entity-id-meta" style="text-transform:capitalize;">${d.disposition} · NPC</div>
+      </div>
+      <span class="entity-id-badge">${ent.id}</span>
+    </div>
+
+    <div class="edit-type-tabs">
+      <button class="et-tab active" onclick="switchTab(this,'npc-facts')"><span class="tab-dot"></span>Facts & notes</button>
+      <button class="et-tab" onclick="switchTab(this,'npc-lore')"><span class="tab-dot"></span>Lore & flavor</button>
+      <button class="et-tab" onclick="switchTab(this,'npc-intel')"><span class="tab-dot"></span>Intel log</button>
+    </div>
+
+    <div class="edit-section active" id="tab-npc-facts">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Known facts</div><div class="fe-subtitle">Player-perspective — what the party has confirmed about this person</div></div>
+        <div class="fe-body">
+          ${fieldRow('Current notes', 'notes_display', d.notes, 'textarea')}
+          ${fieldRow('New fact to add', 'notes_append', '', 'textarea', 'Appended to notes. e.g. "Revealed they were born in Belfar." ')}
+          ${fieldRow('Disposition', 'disposition', d.disposition, 'select', '', {options:[{v:'friendly',l:'Friendly'},{v:'neutral',l:'Neutral'},{v:'hostile',l:'Hostile'},{v:'unknown',l:'Unknown'},{v:'deceased',l:'Deceased'}]})}
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section" id="tab-npc-lore">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Lore & flavor</div><div class="fe-subtitle">Off-screen developments, rumors, DM color — enriches the log without being session-specific</div></div>
+        <div class="fe-body">
+          ${fieldRow('Flavor text', 'flavor', d.flavor||'', 'textarea', 'How would a bard describe this person? Visual details, mannerisms, memorable quotes.')}
+          ${fieldRow('Off-screen development', 'off_screen', '', 'textarea', 'Something that happened to or around this NPC outside of a session. e.g. "Blair has been seen more frequently in Riverbend market."')}
+          ${fieldRow('Rumor or hearsay', 'rumor', '', 'textarea', 'Something the party might hear. Reliability is automatically set to "rumored".')}
+        </div>
+      </div>
+      ${aiDraftPanel('npc_lore_'+ent.id,
+        [`Write flavor text for ${ent.name}`,'Describe how this NPC might speak','Suggest an interesting off-screen development','Write a rumor the party might hear about them'],
+        `e.g. "Write a vivid 2-sentence description of ${ent.name} as a ${d.disposition} ${d.notes?.split('.')[0]||'NPC'}"`)}
+    </div>
+
+    <div class="edit-section" id="tab-npc-intel">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Intel log</div><div class="fe-subtitle">Track what the party has learned and suspects over time</div></div>
+        <div class="fe-body">
+          <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Things they have told us</div>
+          ${logEntryBuilder(d.things_told||[], 'things_told', 'e.g. "Revealed their real name is..." (confirmed reliability)')}
+          <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin:1rem 0 6px;">Things we suspect</div>
+          ${logEntryBuilder(d.things_suspected||[], 'things_suspected', 'e.g. "We suspect they are connected to the Pylon events" (suspected reliability)')}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Location editor ─────────────────────────────────────
+function renderLocation(ent) {
+  const d = ent.data;
+  return `
+    <div class="entity-id-bar">
+      ${avatarHTML(ent)}
+      <div class="entity-id-info">
+        <div class="entity-id-name">${ent.name}</div>
+        <div class="entity-id-meta" style="text-transform:capitalize;">${d.visibility} · Location</div>
+      </div>
+      <span class="entity-id-badge">${ent.id}</span>
+    </div>
+
+    <div class="edit-type-tabs">
+      <button class="et-tab active" onclick="switchTab(this,'loc-desc')"><span class="tab-dot"></span>Description</button>
+      <button class="et-tab" onclick="switchTab(this,'loc-areas')"><span class="tab-dot"></span>Areas</button>
+      <button class="et-tab" onclick="switchTab(this,'loc-lore')"><span class="tab-dot"></span>Lore & flavor</button>
+    </div>
+
+    <div class="edit-section active" id="tab-loc-desc">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Description as observed</div><div class="fe-subtitle">What the party actually saw and experienced — player perspective only</div></div>
+        <div class="fe-body">
+          ${fieldRow('Current description', 'desc_display', d.description, 'textarea')}
+          ${fieldRow('Update / expand description', 'description_new', '', 'textarea', 'Add more detail based on further visits or information gathered.')}
+          ${fieldRow('Visibility status', 'visibility', d.visibility, 'select', '', {options:[{v:'visited',l:'Visited'},{v:'heard-of',l:'Heard of'},{v:'rumored',l:'Rumored'},{v:'unknown',l:'Unknown to party'}]})}
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section" id="tab-loc-areas">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Known areas</div><div class="fe-subtitle">Track what has and hasn't been explored</div></div>
+        <div class="fe-body">
+          ${fieldRow('Areas explored', 'areas_explored', d.areas_explored||'', 'textarea', 'Rooms, districts, paths the party has physically been through.')}
+          ${fieldRow('Known but unexplored', 'areas_unexplored', d.areas_unexplored||'', 'textarea', 'Doors not opened, paths not taken — party knows they exist but hasn\'t gone there.')}
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section" id="tab-loc-lore">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Lore & flavor</div></div>
+        <div class="fe-body">
+          ${fieldRow('Flavor text', 'flavor_text', d.flavor_text||'', 'textarea', 'Sensory details — what it smells like, sounds like, feels like to be here.')}
+          ${fieldRow('Historical lore', 'lore', d.lore||'', 'textarea', 'History the party has learned about this place. Reliability will be tagged based on source.')}
+          ${fieldRow('Off-screen development', 'off_screen', '', 'textarea', 'Something that happened at this location outside of a session.')}
+        </div>
+      </div>
+      ${aiDraftPanel('loc_lore_'+ent.id,
+        [`Write flavor text for ${ent.name}`,'Describe the atmosphere of this place','Suggest historical lore for this location','Write what a traveler might say about it'],
+        `e.g. "Write evocative flavor text for ${ent.name}: ${d.description?.slice(0,60)}..."`)}
+    </div>`;
+}
+
+// ── Quest editor ───────────────────────────────────────
+function renderQuest(ent) {
+  const d = ent.data;
+  return `
+    <div class="entity-id-bar">
+      ${avatarHTML(ent)}
+      <div class="entity-id-info">
+        <div class="entity-id-name">${ent.name}</div>
+        <div class="entity-id-meta" style="text-transform:capitalize;">${d.status} · ${d.priority} priority</div>
+      </div>
+      <span class="entity-id-badge">${ent.id}</span>
+    </div>
+
+    <div class="edit-type-tabs">
+      <button class="et-tab active" onclick="switchTab(this,'qst-progress')"><span class="tab-dot"></span>Progress</button>
+      <button class="et-tab" onclick="switchTab(this,'qst-objectives')"><span class="tab-dot"></span>Objectives</button>
+      <button class="et-tab" onclick="switchTab(this,'qst-dminfo')"><span class="tab-dot"></span>DM notes</button>
+    </div>
+
+    <div class="edit-section active" id="tab-qst-progress">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Off-session development</div><div class="fe-subtitle">Log something that happened to this quest outside of a session</div></div>
+        <div class="fe-body">
+          ${fieldRow('Status', 'status', d.status, 'select', '', {options:[{v:'active',l:'Active'},{v:'completed',l:'Completed'},{v:'failed',l:'Failed'},{v:'dormant',l:'Dormant'}]})}
+          ${logEntryBuilder(d.progress||[], 'progress', 'Describe an off-screen development e.g. "Word reached the party via courier that Darnell has been seen in Belfar."')}
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section" id="tab-qst-objectives">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Objectives</div></div>
+        <div class="fe-body">
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1rem;">
+            ${(d.objectives||[]).map((o,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 8px;background:var(--parchment-mid);border-radius:3px;border:1px solid var(--border);">
+              <div style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${o.done?'var(--teal)':'var(--border-strong)'};background:${o.done?'var(--teal)':'none'};flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="toggleObjective(${i})">
+                ${o.done?'<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>':''}
+              </div>
+              <span style="flex:1;font-size:0.92rem;${o.done?'color:var(--muted);text-decoration:line-through;':''}">${o.desc}</span>
+              ${o.notes?`<span style="font-size:0.78rem;color:var(--muted);font-style:italic;">${o.notes}</span>`:''}
+            </div>`).join('')}
+          </div>
+          ${fieldRow('Add new objective', 'new_objective', '', 'textarea', 'A new task or goal that has been revealed', {hint:'Will be added with is_completed: false'})}
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section" id="tab-qst-dminfo">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">DM notes</div><div class="fe-subtitle">Private information not shown in the player viewer</div></div>
+        <div class="fe-body">
+          ${fieldRow('DM notes', 'dm_notes', d.dm_notes||'', 'textarea', 'Background info, planned reveals, NPC motivations — not visible to players.')}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Item editor ────────────────────────────────────────
+function renderItem(ent) {
+  const d = ent.data;
+  const holderName = d.current_holder_id ? (ENTITIES.find(e=>e.id===d.current_holder_id)?.name||d.current_holder_id) : 'Unassigned';
+  return `
+    <div class="entity-id-bar">
+      ${avatarHTML(ent)}
+      <div class="entity-id-info">
+        <div class="entity-id-name">${ent.name}</div>
+        <div class="entity-id-meta">${d.type} · Held by ${holderName}</div>
+      </div>
+      <span class="entity-id-badge">${ent.id}</span>
+    </div>
+
+    <div class="edit-type-tabs">
+      <button class="et-tab active" onclick="switchTab(this,'item-facts')"><span class="tab-dot"></span>Facts</button>
+      <button class="et-tab" onclick="switchTab(this,'item-lore')"><span class="tab-dot"></span>Lore & flavor</button>
+    </div>
+
+    <div class="edit-section active" id="tab-item-facts">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Item details</div></div>
+        <div class="fe-body">
+          ${fieldRow('Current notes', 'notes_display', d.notes, 'textarea')}
+          ${fieldRow('Additional notes', 'notes_append', '', 'textarea', 'New information to append. e.g. "Faint transmutation aura detected on further inspection."')}
+          ${fieldRow('Holder', 'current_holder_id', d.current_holder_id||'', 'select', 'Who currently carries this item?', {options:[{v:'',l:'— unassigned / party shared —'},...ENTITIES.filter(e=>e.type==='pc').map(e=>({v:e.id,l:e.name}))]})}
+          ${fieldRow('Identification status', 'identified', d.identified?'true':'false', 'select', '', {options:[{v:'true',l:'Identified'},{v:'false',l:'Unidentified'}]})}
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section" id="tab-item-lore">
+      <div class="field-editor">
+        <div class="fe-header"><div class="fe-title">Lore & flavor</div></div>
+        <div class="fe-body">
+          ${fieldRow('Item lore', 'lore', d.lore||'', 'textarea', 'History, origin, who made it, where it has been.')}
+          ${fieldRow('Flavor text', 'flavor', '', 'textarea', 'How a sage might describe it. What it looks like, feels like, smells like.')}
+        </div>
+      </div>
+      ${aiDraftPanel('item_lore_'+ent.id,
+        [`Write lore for ${ent.name}`,'Describe what this item looks like','Suggest a mysterious backstory','Write what a wizard might say about it'],
+        `e.g. "Write 2–3 sentences of flavor text for ${ent.name}, a ${d.type} in a D&D 5e setting"`)}
+    </div>`;
+}
+
+// ── Lore editor ────────────────────────────────────────
+function renderLore(ent) {
+  const d = ent.data;
+  return `
+    <div class="entity-id-bar">
+      ${avatarHTML(ent)}
+      <div class="entity-id-info">
+        <div class="entity-id-name">${ent.name}</div>
+        <div class="entity-id-meta" style="text-transform:capitalize;">Reliability: ${d.reliability} · Source: ${d.source||'unknown'}</div>
+      </div>
+      <span class="entity-id-badge">${ent.id}</span>
+    </div>
+
+    <div class="field-editor">
+      <div class="fe-header"><div class="fe-title">Lore entry</div><div class="fe-subtitle">World knowledge from the party's perspective</div></div>
+      <div class="fe-body">
+        ${fieldRow('Content', 'content', d.content, 'textarea', 'What the party knows or believes.')}
+        ${fieldRow('Additional details', 'additional_details', d.additional_details||'', 'textarea', 'Expand or correct the existing entry.')}
+        ${fieldRow('Reliability', 'reliability', d.reliability, 'select', '', {options:[{v:'confirmed',l:'Confirmed'},{v:'suspected',l:'Suspected'},{v:'rumored',l:'Rumored'},{v:'contradicted',l:'Contradicted'}]})}
+        ${fieldRow('Source', 'source', d.source||'', 'text', 'Who or what told the party this?')}
+      </div>
+    </div>
+    ${aiDraftPanel('lore_'+ent.id,
+      ['Expand this lore entry','Write what a scholar would add','Suggest a contradicting rumor','Flesh out the implications'],
+      `e.g. "Expand on: ${d.content?.slice(0,80)}..." `)}`;
+}
+
+// ══════════════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════════════
+function switchTab(btn, sectionId) {
+  const container = btn.closest('.workspace-scroll') || document.getElementById('workspace-scroll');
+  container.querySelectorAll('.et-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const prefix = sectionId.split('-')[0];
+  container.querySelectorAll(`.edit-section[id^="tab-${prefix}"]`).forEach(s=>s.classList.remove('active'));
+  const target = document.getElementById('tab-'+sectionId);
+  if (target) target.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════
+// AI DRAFT ASSISTANT
+// ══════════════════════════════════════════════════════
+function toggleAiDraft(id) {
+  aiDraftOpen[id] = !aiDraftOpen[id];
+  const body = document.getElementById('ai-body-'+id);
+  if (body) body.classList.toggle('open', !!aiDraftOpen[id]);
+  const header = body?.previousElementSibling;
+  const arrow = header?.querySelector('.ai-draft-collapse');
+  if (arrow) arrow.textContent = aiDraftOpen[id] ? '▲' : '▼';
+}
+
+function fillPrompt(id, text) {
+  const el = document.getElementById('ai-prompt-'+id);
+  if (el) { el.value = text; el.focus(); }
+}
+
+const DRAFT_RESPONSES = {
+  'Write flavor text for': name => `${name} stands with quiet authority — the kind of person who has seen enough of the world to know when to speak and when to stay silent. There is something weathered about their bearing, like stone worn smooth by a river, neither harsh nor soft.`,
+  'Write a backstory for a': cls => `Before the road, before the party, there was only the village and the slow weight of expectation. ${cls}s are not made in a day — they are made in the spaces between ordinary things: the first spell that worked when nothing else did, the creature that looked at them differently, the mentor who disappeared without explanation.`,
+  'Expand this lore entry': () => `This knowledge, fragmentary as it is, points toward something older than the records suggest. The absence of prior mention is itself significant — either the history was deliberately obscured, or the phenomenon is genuinely new. Neither possibility is reassuring.`,
+  'default': prompt => `Based on the context of this campaign, here is a draft: ${prompt.slice(0,40)}... [Draft content would be generated here by the Claude API using the full entity context, campaign log, and your prompt as input.]`,
+};
+
+function generateDraft(panelId) {
+  const prompt = document.getElementById('ai-prompt-'+panelId)?.value?.trim();
+  const output = document.getElementById('ai-output-'+panelId);
+  if (!output || !prompt) return;
+  output.textContent = 'Drafting…';
+  output.className = 'ai-draft-output';
+  setTimeout(() => {
+    const key = Object.keys(DRAFT_RESPONSES).find(k=>prompt.toLowerCase().includes(k.toLowerCase()));
+    const ent = ENTITIES.find(e=>e.id===selectedId);
+    const text = key ? DRAFT_RESPONSES[key](ent?.name||'this character') : DRAFT_RESPONSES.default(prompt);
+    output.textContent = text;
+    output.className = 'ai-draft-output';
+  }, 900);
+}
+
+function insertDraft(panelId) {
+  const output = document.getElementById('ai-output-'+panelId);
+  if (!output || output.classList.contains('empty')) return;
+  const text = output.textContent;
+  // Find nearest textarea above in same section
+  const panel = output.closest('.ai-draft-panel');
+  const section = panel?.closest('.edit-section') || panel?.closest('.field-editor');
+  const textareas = section?.querySelectorAll('textarea:not(.ai-prompt-input)');
+  const last = textareas?.[textareas.length-1];
+  if (last) {
+    last.value = last.value ? last.value + '\n\n' + text : text;
+    last.dispatchEvent(new Event('input'));
+    last.scrollIntoView({behavior:'smooth',block:'nearest'});
+    showToast('Draft inserted ↑');
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// QUEST OBJECTIVES
+// ══════════════════════════════════════════════════════
+function toggleObjective(idx) {
+  const ent = ENTITIES.find(e=>e.id===selectedId);
+  if (!ent) return;
+  ent.data.objectives[idx].done = !ent.data.objectives[idx].done;
+  setEdit(selectedId, `objective_${idx}_done`, ent.data.objectives[idx].done);
+  renderWorkspace();
+}
+
+// ══════════════════════════════════════════════════════
+// SAVE / COMMIT
+// ══════════════════════════════════════════════════════
+function commitChanges() {
+  const entityIds = Object.keys(pendingEdits).filter(k => Object.keys(pendingEdits[k]).length > 0);
+  if (!entityIds.length) return;
+
+  let applied = 0;
+
+  entityIds.forEach(id => {
+    const ent    = ENTITIES.find(e => e.id === id);
+    if (!ent) return;
+    const edits  = pendingEdits[id];
+    const d      = ent.data;
+
+    Object.entries(edits).forEach(([field, val]) => {
+      // ── "display" fields: replace the underlying data field ──────────────
+      if (field === 'notes_display')    { d.notes       = val; return; }
+      if (field === 'desc_display')     { d.description = val; return; }
+
+      // ── "append" fields: add to existing text ────────────────────────────
+      if (field === 'notes_append' && val.trim()) {
+        d.notes = (d.notes ? d.notes + '\n' : '') + val.trim();
+        return;
+      }
+      if (field === 'description_new' && val.trim()) {
+        d.description = (d.description ? d.description + '\n' : '') + val.trim();
+        return;
+      }
+      if (field === 'off_screen' && val.trim()) {
+        d.notes = (d.notes ? d.notes + '\n' : '') + '[Off-screen] ' + val.trim();
+        return;
+      }
+      if (field === 'rumor' && val.trim()) {
+        d.notes = (d.notes ? d.notes + '\n' : '') + '[Rumour] ' + val.trim();
+        return;
+      }
+      if (field === 'flavor' && val.trim())      { d.flavor       = val.trim(); return; }
+      if (field === 'flavor_text' && val.trim())  { d.flavor_text  = val.trim(); return; }
+
+      // ── Level-up: push a milestone entry ─────────────────────────────────
+      if (field === 'new_level') {
+        const lvl = parseInt(val);
+        if (lvl > (d.current_level || 1)) {
+          d.current_level = lvl;
+          // milestone_note and levelup_session may also be in pendingEdits
+          const note    = edits['milestone_note']    || '';
+          const session = edits['levelup_session']   || '';
+          const sub     = edits['subclass']          || '';
+          const abil    = edits['new_abilities']     || '';
+          if (!d.milestones) d.milestones = [];
+          d.milestones.push({
+            session_id: session,
+            event:  `Level up to ${lvl}${sub ? ' — Subclass: ' + sub : ''}`,
+            note:   [note, abil].filter(Boolean).join(' | '),
+          });
+        }
+        return;
+      }
+      // Skip companion fields that were already handled by new_level
+      if (['milestone_note','levelup_session','subclass','new_abilities'].includes(field)) return;
+
+      // ── Direct field writes ───────────────────────────────────────────────
+      // fieldId matches data field name exactly for these
+      const DIRECT = ['backstory','personality','appearance','equipment_desc',
+                      'disposition','visibility','status','dm_notes',
+                      'areas_explored','areas_unexplored','lore',
+                      'current_holder_id','identified','reliability',
+                      'source','content','additional_details'];
+      if (DIRECT.includes(field)) { d[field] = val; return; }
+
+      // Fallback: write directly to data under the field name
+      d[field] = val;
+    });
+
+    applied++;
+  });
+
+  const count = applied;
+  pendingEdits = {};
+  updateSaveBar();
+  renderEntityList();
+
+  // Re-render workspace so the committed values show as current
+  if (selectedId) renderWorkspace();
+
+  showToast(`Committed ${count} entr${count === 1 ? 'y' : 'ies'} — changes applied locally`);
+}
+
+function discardChanges() {
+  if (!confirm('Discard all unsaved changes?')) return;
+  pendingEdits = {};
+  updateSaveBar();
+  renderWorkspace();
+  renderEntityList();
+}
+
+function previewChanges() {
+  const entries = Object.entries(pendingEdits).filter(([,v])=>Object.keys(v).length>0);
+  if (!entries.length) { showToast('No changes to preview'); return; }
+  const summary = entries.map(([id,fields])=>{
+    const ent = ENTITIES.find(e=>e.id===id);
+    return `${ent?.name||id}: ${Object.keys(fields).join(', ')}`;
+  }).join('\n');
+  alert(`Changes to commit:\n\n${summary}\n\nIn production, this shows the full JSON diff before writing to Drive.`);
+}
+
+function saveAll() { commitChanges(); }
+
+// ══════════════════════════════════════════════════════
+// NEW ENTITY MODAL
+// ══════════════════════════════════════════════════════
+function openNewEntityModal(preset) {
+  modalContext = preset || null;
+  const modal = document.getElementById('new-entity-modal');
+  const title = document.getElementById('modal-title');
+  const body = document.getElementById('modal-body');
+
+  const typeOptions = ['pc','npc','location','quest','item','lore','session'];
+  const selectedType = preset==='off-screen'?'session':preset==='lore'?'lore':preset==='location'?'location':'npc';
+
+  title.textContent = preset==='off-screen' ? 'New Off-Screen Event' : preset==='lore' ? 'New Lore Entry' : preset==='location' ? 'New Location' : 'New Entry';
+
+  body.innerHTML = `
+    <div class="field-edit-row">
+      <div class="fel-label">Entry type <span class="fel-badge badge-required">required</span></div>
+      <select class="field-select" id="new-type" onchange="updateNewEntityForm()">
+        ${typeOptions.map(t=>`<option value="${t}" ${t===selectedType?'selected':''}>${{pc:'Player Character',npc:'NPC',location:'Location',quest:'Quest',item:'Item / Loot',lore:'Lore / World knowledge',session:'Off-screen Event'}[t]}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field-edit-row">
+      <div class="fel-label">Name / Title <span class="fel-badge badge-required">required</span></div>
+      <input class="field-input" id="new-name" placeholder="e.g. The Old Bridge">
+    </div>
+    <div class="field-edit-row">
+      <div class="fel-label">Initial description <span class="fel-badge badge-optional">optional</span></div>
+      <textarea class="field-textarea" id="new-desc" placeholder="A brief description to start with — can be expanded in the editor." rows="3"></textarea>
+    </div>
+    <div class="field-edit-row" id="new-session-ref-row" style="display:${selectedType==='session'?'block':'none'}">
+      <div class="fel-label">When did this happen? <span class="fel-badge badge-optional">optional</span></div>
+      <input class="field-input" id="new-session-ref" placeholder="e.g. Between sessions 5 and 6" value="${selectedType==='session'?'Between sessions 005 and 006':''}">
+    </div>
+    <div style="font-size:0.82rem;color:var(--muted);font-style:italic;padding:6px 0;">The new entry will be added to your local edits and committed to the campaign log when you save.</div>
+  `;
+  modal.classList.remove('hidden');
+}
+
+function updateNewEntityForm() {
+  const type = document.getElementById('new-type')?.value;
+  const row = document.getElementById('new-session-ref-row');
+  if (row) row.style.display = type==='session'?'block':'none';
+}
+
+function createNewEntity() {
+  const type = document.getElementById('new-type')?.value;
+  const name = document.getElementById('new-name')?.value?.trim();
+  const desc = document.getElementById('new-desc')?.value?.trim();
+  if (!name) { showToast('Please enter a name'); return; }
+  const newId = type+'_new_'+Date.now();
+  const newEnt = { id:newId, type, name, sub:`New · ${type}`, data:{ notes:desc, description:desc, content:desc } };
+  ENTITIES.push(newEnt);
+  closeModal();
+  renderEntityList();
+  selectEntity(newId);
+  showToast(`Created: ${name}`);
+}
+
+function closeModal() { document.getElementById('new-entity-modal').classList.add('hidden'); }
+
+// ══════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════
+function showToast(msg) {
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+// ── Load from magers-campaign.json if available, then render ──
+(async () => {
+  try {
+    const res = await fetch('magers-campaign.json');
+    if (res.ok) {
+      const json = await res.json();
+      // Rebuild ENTITIES from live data
+      ENTITIES.length = 0;
+      const party    = json.party             || [];
+      const npcs     = json.npc_directory     || [];
+      const locs     = json.locations         || [];
+      const quests   = json.quest_ledger      || [];
+      const items    = json.inventory_and_loot|| [];
+      const lore     = json.world_lore        || [];
+
+      party.forEach(p  => ENTITIES.push({ id:p.id, type:'pc',       name:p.name,        sub:`${p.class} · Lv ${p.current_level} · ${p.player}`,  data:{nickname:p.nickname||'',player:p.player||'',class:p.class||'',status:'active',current_level:p.current_level||1,notes:p.notes||'',milestones:p.milestones||[],backstory:'',personality:'',appearance:''} }));
+      npcs.forEach(n   => ENTITIES.push({ id:n.id, type:'npc',      name:n.name,        sub:n.disposition||'',       data:{disposition:n.disposition||'',notes:n.notes||'',description:'',lore:'',intel_log:[]} }));
+      locs.forEach(l   => ENTITIES.push({ id:l.id, type:'location', name:l.name,        sub:l.visibility||'',        data:{description:l.description||'',visibility:l.visibility||'',areas:[],lore:''} }));
+      quests.forEach(q => ENTITIES.push({ id:q.id, type:'quest',    name:q.title,       sub:q.status||'',            data:{status:q.status||'',priority:q.priority||'',category:q.category||'',motivation:q.narrative_motivation||'',objectives:q.objectives||[],progress:q.progress_log||[]} }));
+      items.forEach(i  => ENTITIES.push({ id:i.id, type:'item',     name:i.name,        sub:i.type||'',              data:{item_type:i.type||'',session_found:i.session_found||'',holder:i.current_holder_id||'',notes:(i.notes||'')+(i.description?' '+i.description:''),lore:'',is_quest_item:!!i.is_quest_item} }));
+      lore.forEach(l   => ENTITIES.push({ id:l.id, type:'lore',     name:l.title,       sub:'World Lore',            data:{content:l.content||'',reliability:l.reliability||'',source:l.source||''} }));
+      showToast('Loaded from magers-campaign.json');
+    }
+  } catch(e) {
+    // Use embedded ENTITIES — no action needed
+  }
+  renderEntityList();
+})();
+</script>
+</body>
+</html>

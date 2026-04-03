@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — OCR Glossary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+  /* ── Arcane Night ── */
+  --ink:#f0e8d0; --ink-inv:#0f1020;
+  --parchment:#0f1020; --parchment-dark:#13152b; --parchment-mid:#1e2040; --card-bg:#181a35;
+  --amber:#d4af37; --amber-dim:#a88820; --amber-light:#f0d060;
+  --rust:#ff6b50; --teal:#4a9e7a; --green:#4adf9a; --purple:#c090ff;
+  --muted:#7d7a94; --muted-light:#4a4870;
+  --border:rgba(212,175,55,0.12); --border-strong:rgba(212,175,55,0.28);
+  --shadow:0 4px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.08);
+  --shadow-md:0 8px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.12);
+  /* Entity colours — brightened for dark bg */
+  --c-pc:#4adf9a; --c-npc:#ff8c55; --c-loc:#5ab0ff; --c-quest:#ffd040;
+  --c-item:#c090ff; --c-combat:#ff6060; --c-lore:#80ff80; --c-session:#9090c0;
+}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Crimson Pro', Georgia, serif; background: var(--parchment); color: var(--ink); min-height: 100vh; background-image: radial-gradient(ellipse at 15% 15%, rgba(212,175,55,0.05) 0%, transparent 55%), radial-gradient(ellipse at 85% 85%, rgba(42,107,107,0.04) 0%, transparent 55%); }
+
+  header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;height:64px;background:rgba(13,15,40,0.95);position:relative;z-index:100;}
+  .logo{font-family:"Cinzel",serif;font-size:1.05rem;font-weight:600;letter-spacing:0.12em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .logo span { color: var(--amber); }
+  .header-right{display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;overflow:hidden;min-width:0;}
+.nav-links{display:flex;gap:0.9rem;justify-content:center;align-items:center;flex-wrap:nowrap;padding:0 2rem;}
+  .nav-link { font-family: 'Cinzel', serif; font-size: 0.68rem; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; padding-bottom: 2px; border-bottom: 1px solid transparent; transition: all 0.15s; cursor: pointer; }
+  .nav-link:hover { color: var(--ink); }
+  .nav-link.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+  .app-shell { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 64px); }
+
+  aside { border-right: 1px solid var(--border-strong); padding: 1.5rem 0; background: #13152b; display: flex; flex-direction: column; }
+  .sidebar-section-label { font-family: 'Cinzel', serif; font-size: 0.62rem; letter-spacing: 0.2em; color: var(--muted-light); text-transform: uppercase; padding: 0 1.25rem 0.5rem; margin-top: 1rem; }
+  .sidebar-section-label:first-child { margin-top: 0; }
+  .sidebar-item { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 1.25rem; cursor: pointer; transition: background 0.12s; border: none; background: none; width: 100%; text-align: left; gap: 8px; }
+  .sidebar-item:hover { background: rgba(212,175,55,0.07); }
+  .sidebar-item.active { background: rgba(212,175,55,0.12); border-right: 2px solid var(--amber); }
+  .sidebar-item-label { font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.07em; color: var(--ink); }
+  .sidebar-item.active .sidebar-item-label { color: var(--amber-dim); }
+  .sidebar-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; padding: 2px 7px; border-radius: 10px; flex-shrink: 0; background: var(--parchment-dark); color: var(--muted); border: 1px solid var(--border); }
+  .sidebar-badge.confirmed { background: rgba(42,107,107,0.12); color: var(--teal); border-color: rgba(42,107,107,0.25); }
+  .sidebar-badge.learned { background: rgba(212,175,55,0.12); color: var(--amber-dim); border-color: rgba(212,175,55,0.25); }
+  .sidebar-badge.needs-review { background: rgba(139,58,30,0.10); color: var(--rust); border-color: rgba(139,58,30,0.2); }
+  .sidebar-divider { height: 1px; background: var(--border); margin: 0.75rem 1.25rem; }
+  .sidebar-stats { margin-top: auto; padding: 1rem 1.25rem; border-top: 1px solid var(--border); }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+  .stat-label { font-size: 0.82rem; color: var(--muted); }
+  .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--ink); font-weight: 500; }
+
+  main { padding: 2rem 2.5rem; overflow-y: auto; }
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.75rem; gap: 1rem; }
+  .page-title { font-family: 'Cinzel', serif; font-size: 1.5rem; font-weight: 600; letter-spacing: 0.06em; }
+  .page-subtitle { font-size: 1rem; color: var(--muted); font-style: italic; margin-top: 0.25rem; font-weight: 300; }
+
+  /* ── Layout Grammar Panel ── */
+  .grammar-panel { background:var(--card-bg); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 1.75rem; overflow: hidden; }
+  .grammar-header { background: var(--ink); color: var(--parchment); padding: 0.75rem 1.25rem; display: flex; align-items: center; justify-content: space-between; }
+  .grammar-header h3 { font-family: 'Cinzel', serif; font-size: 0.78rem; letter-spacing: 0.12em; }
+  .grammar-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+  .grammar-tab { font-family: 'Cinzel', serif; font-size: 0.68rem; letter-spacing: 0.1em; padding: 8px 18px; border: none; border-bottom: 2px solid transparent; background: none; cursor: pointer; color: var(--muted); margin-bottom: -1px; transition: all 0.15s; }
+  .grammar-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+  .grammar-body { padding: 1.25rem; }
+  .grammar-view { display: none; }
+  .grammar-view.active { display: block; }
+
+  /* Layout visualiser */
+  .layout-vis { display: grid; gap: 6px; }
+  .layout-vis.grid-2col { grid-template-columns: 1fr 1fr; }
+  .layout-vis.linear { grid-template-columns: 1fr; }
+  .slot-cell { padding: 7px 12px; border-radius: 3px; font-size: 0.88rem; }
+  .slot-cell.pc { background: rgba(42,107,107,0.08); border: 1px solid rgba(42,107,107,0.2); color: var(--teal); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+  .slot-cell.pc strong { color: #0F6E56; }
+  .slot-cell.enemy { background: rgba(139,58,30,0.06); border: 1px solid rgba(139,58,30,0.18); color: var(--rust); grid-column: 1 / -1; font-size: 0.82rem; }
+  .slot-cell.header { background: var(--parchment-mid); border: 1px solid var(--border-strong); color: var(--muted); font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.1em; text-align: center; grid-column: 1 / -1; }
+  .slot-num { display: inline-block; font-family: 'Cinzel', serif; font-size: 0.62rem; color: var(--muted-light); min-width: 16px; margin-right: 4px; }
+
+  .grammar-note { font-size: 0.88rem; color: var(--muted); font-style: italic; margin-top: 1rem; line-height: 1.5; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+  .grammar-note strong { color: var(--ink); font-style: normal; }
+
+  /* Semantic role pills */
+  .role-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 1rem; }
+  .role-pill { font-family: 'Cinzel', serif; font-size: 0.62rem; letter-spacing: 0.1em; padding: 4px 12px; border-radius: 2px; }
+  .role-pc-name-slot { background: rgba(42,107,107,0.1); color: var(--teal); border: 1px solid rgba(42,107,107,0.2); }
+  .role-action { background: rgba(74,59,140,0.08); color: var(--purple); border: 1px solid rgba(74,59,140,0.15); }
+  .role-bonus-action { background: rgba(186,117,23,0.1); color: #7a4e0a; border: 1px solid rgba(186,117,23,0.2); }
+  .role-result { background: rgba(212,175,55,0.006); color: var(--muted); border: 1px solid var(--border-strong); }
+  .role-condition { background: rgba(212,175,55,0.1); color: var(--amber-dim); border: 1px solid rgba(212,175,55,0.2); }
+  .role-enemy-section { background: rgba(139,58,30,0.08); color: var(--rust); border: 1px solid rgba(139,58,30,0.18); }
+
+  /* ── Roster panel ── */
+  .roster-panel { background:var(--card-bg); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 1.75rem; overflow: hidden; }
+  .roster-header { padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .roster-header h3 { font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.1em; }
+  .roster-source { font-size: 0.8rem; color: var(--teal); font-style: italic; display: flex; align-items: center; gap: 6px; }
+  .roster-source::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); }
+  .roster-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .roster-card { padding: 0.85rem 1.1rem; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .roster-card:nth-child(3n) { border-right: none; }
+  .roster-card:nth-last-child(-n+3) { border-bottom: none; }
+  .roster-name { font-family: 'Cinzel', serif; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.06em; }
+  .roster-nick { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; background: var(--parchment-mid); border: 1px solid var(--border-strong); padding: 1px 8px; border-radius: 2px; margin-top: 4px; }
+  .roster-meta { font-size: 0.8rem; color: var(--muted); margin-top: 3px; font-style: italic; }
+  .roster-abbrs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .abbr-pill { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; background: rgba(42,107,107,0.08); border: 1px solid rgba(42,107,107,0.2); color: var(--teal); padding: 1px 7px; border-radius: 10px; }
+  .abbr-pill.primary { background: rgba(42,107,107,0.18); font-weight: 500; }
+
+  /* ── Tier tabs ── */
+  .tier-tabs { display: flex; border-bottom: 1px solid var(--border-strong); margin-bottom: 1.25rem; }
+  .tier-tab { font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.1em; padding: 9px 18px; border: none; border-bottom: 2px solid transparent; background: none; cursor: pointer; color: var(--muted); margin-bottom: -1px; transition: all 0.15s; display: flex; align-items: center; gap: 7px; }
+  .tier-tab:hover { color: var(--ink); }
+  .tier-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+  .tier-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .tier-tab.t-confirmed.active { color: var(--teal); border-bottom-color: var(--teal); }
+  .tier-tab.t-confirmed { color: var(--teal); }
+  .tier-tab.t-learned { color: var(--amber-dim); }
+  .tier-tab.t-learned.active { color: var(--amber-dim); border-bottom-color: var(--amber-dim); }
+  .tier-tab.t-needs-review { color: var(--rust); }
+  .tier-tab.t-needs-review.active { color: var(--rust); border-bottom-color: var(--rust); }
+  .tier-tab.t-all { color: var(--muted); }
+  .tier-tab.t-all.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+  /* ── Toolbar ── */
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .search-box { flex: 1; min-width: 180px; position: relative; }
+  .search-box input { width: 100%; padding: 8px 12px 8px 34px; border: 1px solid var(--border-strong); border-radius: 3px; font-family: 'Crimson Pro', serif; font-size: 0.95rem; color: var(--ink); background:var(--card-bg); outline: none; transition: border-color 0.15s; }
+  .search-box input:focus { border-color: var(--amber); }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: 0.35; pointer-events: none; }
+  .filter-select { padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 3px; font-family: 'Cinzel', serif; font-size: 0.68rem; letter-spacing: 0.08em; background:var(--card-bg); color: var(--ink); outline: none; cursor: pointer; }
+
+  /* ── Entry cards ── */
+  .entries-grid { display: flex; flex-direction: column; gap: 6px; }
+  .entry-card { background:var(--card-bg); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; transition: box-shadow 0.15s; }
+  .entry-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
+  .entry-card.is-confirmed { border-left: 3px solid var(--teal); }
+  .entry-card.is-learned { border-left: 3px solid var(--amber); }
+  .entry-card.is-needs-review { border-left: 3px solid var(--rust-light); }
+
+  .entry-main { display: grid; grid-template-columns: 120px 1fr 160px auto; align-items: center; gap: 1rem; padding: 0.7rem 1rem; cursor: pointer; }
+  .entry-abbr { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 500; color: var(--ink); background: var(--parchment-mid); padding: 4px 10px; border-radius: 3px; text-align: center; border: 1px solid var(--border); }
+  .entry-full-form { font-size: 1rem; font-weight: 600; }
+  .entry-context { font-size: 0.82rem; color: var(--muted); font-style: italic; margin-top: 2px; }
+
+  .entry-role-col { display: flex; flex-direction: column; gap: 4px; }
+  .role-tag { display: inline-block; font-family: 'Cinzel', serif; font-size: 0.6rem; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 2px; }
+
+  .entry-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .tier-badge { font-family: 'Cinzel', serif; font-size: 0.6rem; letter-spacing: 0.12em; padding: 3px 9px; border-radius: 2px; text-transform: uppercase; }
+  .tier-badge.confirmed { background: rgba(42,107,107,0.1); color: var(--teal); border: 1px solid rgba(42,107,107,0.2); }
+  .tier-badge.learned { background: rgba(212,175,55,0.1); color: var(--amber-dim); border: 1px solid rgba(212,175,55,0.2); }
+  .tier-badge.needs-review { background: rgba(139,58,30,0.08); color: var(--rust); border: 1px solid rgba(139,58,30,0.2); }
+  .conf-bar { width: 56px; height: 4px; background: var(--parchment-dark); border-radius: 2px; overflow: hidden; }
+  .conf-fill { height: 100%; border-radius: 2px; }
+  .conf-fill.high { background: var(--teal); }
+  .conf-fill.mid { background: var(--amber); }
+  .conf-fill.low { background: var(--rust-light); }
+  .entry-conf-label { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--muted-light); }
+
+  /* ── Expanded detail ── */
+  .entry-detail { display: none; border-top: 1px solid var(--border); padding: 1rem 1.25rem; background: var(--parchment); gap: 1.5rem; }
+  .entry-detail.open { display: grid; grid-template-columns: 1fr 1fr; }
+  .detail-label { font-family: 'Cinzel', serif; font-size: 0.63rem; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; margin-bottom: 0.5rem; }
+  .history-row { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .history-row:last-child { border-bottom: none; }
+  .history-session { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted-light); flex-shrink: 0; min-width: 52px; }
+  .history-action { flex: 1; }
+  .history-outcome { font-size: 0.72rem; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+  .outcome-confirmed { background: rgba(42,107,107,0.1); color: var(--teal); }
+  .outcome-corrected { background: rgba(139,58,30,0.1); color: var(--rust); }
+  .outcome-added { background: rgba(212,175,55,0.1); color: var(--amber-dim); }
+  .outcome-auto { background: rgba(74,59,140,0.08); color: var(--purple); }
+  .inline-input { width: 100%; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 3px; font-family: 'Crimson Pro', serif; font-size: 0.95rem; background:var(--card-bg); outline: none; color: var(--ink); margin-bottom: 8px; }
+  .inline-input:focus { border-color: var(--amber); }
+  .inline-select { padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 3px; font-family: 'Cinzel', serif; font-size: 0.65rem; background:var(--card-bg); color: var(--ink); outline: none; width: 100%; margin-bottom: 8px; }
+
+  /* ── Needs-review notice ── */
+  .review-notice { border-left: 3px solid var(--rust-light); background: rgba(139,58,30,0.04); padding: 0.75rem 1rem; border-radius: 0 3px 3px 0; margin-bottom: 0.75rem; font-size: 0.9rem; }
+  .review-notice strong { color: var(--rust); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; }
+  .review-notice p { margin-top: 3px; color: var(--muted); font-style: italic; font-size: 0.85rem; }
+
+  /* ── Add panel ── */
+  .add-panel { background:var(--card-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: none; }
+  .add-panel.open { display: block; }
+  .add-form-grid { display: grid; grid-template-columns: 110px 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+  .form-field { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-family: 'Cinzel', serif; font-size: 0.62rem; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+
+  /* ── Prompt preview ── */
+  .ornament-divider { display: flex; align-items: center; gap: 1rem; margin: 1.5rem 0; }
+  .ornament-divider::before, .ornament-divider::after { content: ''; flex: 1; height: 1px; background: linear-gradient(to right, transparent, var(--border-strong), transparent); }
+  .ornament-divider span { font-family: 'Cinzel', serif; font-size: 0.65rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; white-space: nowrap; }
+  .prompt-preview { background: #f0e8d0; border-radius: 4px; padding: 1.25rem 1.5rem; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; line-height: 1.85; color: #c8bfae; overflow-x: auto; white-space: pre; }
+  .pk { color: #e8a84a; }
+  .pv { color: #8ec9a0; }
+  .pc { color: #4a4540; }
+  .pp { color: #7ab8d4; }
+  .ps { color: #d4af37; }
+
+  /* ── Buttons ── */
+  .btn { font-family: 'Cinzel', serif; font-size: 0.72rem; letter-spacing: 0.1em; padding: 8px 18px; border-radius: 3px; cursor: pointer; transition: all 0.15s; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .btn-primary { background: var(--amber); color: white; border-color: var(--amber-dim); }
+  .btn-primary:hover { background: var(--amber-dim); }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--border-strong); }
+  .btn-secondary:hover { background: var(--parchment-dark); }
+  .btn-sm { padding: 6px 12px; font-size: 0.65rem; }
+  .btn-confirm { background: var(--teal); color: white; border-color: var(--teal); }
+  .btn-confirm:hover { background: #205555; }
+  .action-btn { background: none; border: 1px solid var(--border); border-radius: 3px; padding: 4px 9px; cursor: pointer; font-family: 'Cinzel', serif; font-size: 0.6rem; letter-spacing: 0.08em; color: var(--muted); transition: all 0.15s; }
+  .action-btn:hover { border-color: var(--amber); color: var(--amber-dim); }
+  .action-btn.danger:hover { border-color: var(--rust); color: var(--rust); }
+
+  .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--ink); color: var(--parchment); padding: 0.75rem 1.25rem; border-radius: 4px; font-size: 0.9rem; opacity: 0; transform: translateY(8px); transition: all 0.25s; z-index: 999; pointer-events: none; font-family: 'Crimson Pro', serif; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Chron<span>i</span>cle</div>
+  <nav class="nav-links">
+    <span class="nav-link" onclick="window.location='intake.html'">Session Intake</span>
+    <span class="nav-link active" onclick="window.location='glossary.html'">OCR Glossary</span>
+    <span class="nav-link" onclick="window.location='delta-review.html'">Delta Review</span>
+    <span class="nav-link" onclick="window.location='integrity.html'">Integrity</span>
+    <span class="nav-link" onclick="window.location='log-viewer.html'">Campaign Log</span>
+    <span class="nav-link" onclick="window.location='log-editor.html'">Log Editor</span>
+    <span class="nav-link" onclick="window.location='versions.html'">Versions</span>
+  </nav>
+  <div class="header-right"></div>
+</header>
+
+<div class="app-shell">
+  <aside>
+    <div class="sidebar-section-label">Semantic Role</div>
+    <button class="sidebar-item active" onclick="filterCat('all',this)"><span class="sidebar-item-label">All Entries</span><span class="sidebar-badge" id="b-all">—</span></button>
+    <button class="sidebar-item" onclick="filterCat('pc-name',this)"><span class="sidebar-item-label">PC Name Slots</span><span class="sidebar-badge confirmed" id="b-pc-name">—</span></button>
+    <button class="sidebar-item" onclick="filterCat('action',this)"><span class="sidebar-item-label">Actions</span><span class="sidebar-badge" id="b-action">—</span></button>
+    <button class="sidebar-item" onclick="filterCat('bonus-action',this)"><span class="sidebar-item-label">Bonus Actions</span><span class="sidebar-badge" id="b-bonus-action">—</span></button>
+    <button class="sidebar-item" onclick="filterCat('result',this)"><span class="sidebar-item-label">Results</span><span class="sidebar-badge" id="b-result">—</span></button>
+    <button class="sidebar-item" onclick="filterCat('condition',this)"><span class="sidebar-item-label">Conditions</span><span class="sidebar-badge" id="b-condition">—</span></button>
+    <button class="sidebar-item" onclick="filterCat('enemy-section',this)"><span class="sidebar-item-label">Enemy Section</span><span class="sidebar-badge" id="b-enemy-section">—</span></button>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">By Tier</div>
+    <button class="sidebar-item" onclick="filterTier('confirmed',this)"><span class="sidebar-item-label">Confirmed</span><span class="sidebar-badge confirmed" id="b-confirmed">—</span></button>
+    <button class="sidebar-item" onclick="filterTier('learned',this)"><span class="sidebar-item-label">Learned</span><span class="sidebar-badge learned" id="b-learned">—</span></button>
+    <button class="sidebar-item" onclick="filterTier('needs-review',this)"><span class="sidebar-item-label">Needs Review</span><span class="sidebar-badge needs-review" id="b-needs-review">—</span></button>
+    <div class="sidebar-stats">
+      <div class="stat-row"><span class="stat-label">Total entries</span><span class="stat-val" id="stat-total">0</span></div>
+      <div class="stat-row"><span class="stat-label">Auto-resolved</span><span class="stat-val" id="stat-auto">0</span></div>
+      <div class="stat-row"><span class="stat-label">Avg confidence</span><span class="stat-val" id="stat-conf">—</span></div>
+      <div class="stat-row"><span class="stat-label">Sessions logged</span><span class="stat-val">5</span></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">OCR Hints Glossary</h1>
+        <p class="page-subtitle">Layout-agnostic. Meaning extracted from grammar, not grid position.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="btn btn-secondary btn-sm" onclick="togglePrompt()">View prompt snippet</button>
+        <button class="btn btn-primary btn-sm" onclick="toggleAdd()">+ Add entry</button>
+      </div>
+    </div>
+
+    <!-- ── Round Grammar Panel ── -->
+    <div class="grammar-panel">
+      <div class="grammar-header">
+        <h3>Round Entry Grammar — Layout-Independent</h3>
+        <span style="font-size:0.75rem;opacity:0.55;font-style:italic;">Both layouts produce the same extracted structure</span>
+      </div>
+
+      <!-- Semantic roles legend — shown always -->
+      <div style="padding:1rem 1.25rem 0.75rem;border-bottom:1px solid var(--border);">
+        <div style="font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:0.6rem;">Semantic roles — stable across all layouts</div>
+        <div class="role-legend">
+          <span class="role-pill role-pc-name-slot">pc-name-slot</span>
+          <span class="role-pill role-action">action</span>
+          <span class="role-pill role-bonus-action">bonus-action</span>
+          <span class="role-pill role-result">result / value</span>
+          <span class="role-pill role-condition">condition</span>
+          <span class="role-pill role-enemy-section">enemy-section</span>
+        </div>
+      </div>
+
+      <!-- Entry grammar pattern -->
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);background:var(--parchment);">
+        <div style="font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:0.6rem;">Atomic entry pattern — one per initiative slot</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:var(--ink);line-height:2;">
+          <span style="background:rgba(42,107,107,0.12);color:#0F6E56;padding:2px 8px;border-radius:2px;">PC name</span>
+          <span style="color:var(--muted);padding:0 6px;">—</span>
+          <span style="background:rgba(74,59,140,0.1);color:var(--purple);padding:2px 8px;border-radius:2px;">action</span>
+          <span style="color:var(--muted);padding:0 4px;">/</span>
+          <span style="background:rgba(186,117,23,0.1);color:#7a4e0a;padding:2px 8px;border-radius:2px;">bonus action</span>
+          <span style="color:var(--muted);padding:0 6px;">,</span>
+          <span style="background:rgba(212,175,55,0.006);color:var(--muted);padding:2px 8px;border-radius:2px;">result</span>
+          <span style="color:var(--muted);padding:0 4px;">/</span>
+          <span style="background:rgba(212,175,55,0.12);color:var(--amber-dim);padding:2px 8px;border-radius:2px;">condition</span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--muted);font-style:italic;margin-top:0.6rem;">The dash after the PC name is the universal delimiter. Everything before it is a name-slot token. Everything after is action/result/condition tokens.</div>
+      </div>
+
+      <!-- Layout tabs -->
+      <div class="grammar-tabs">
+        <button class="grammar-tab active" onclick="switchLayout('grid',this)">Grid layout (2×3)</button>
+        <button class="grammar-tab" onclick="switchLayout('linear',this)">Linear layout (single column)</button>
+        <button class="grammar-tab" onclick="switchLayout('output',this)">Extracted output (both)</button>
+      </div>
+
+      <div class="grammar-body">
+
+        <!-- Grid layout view -->
+        <div class="grammar-view active" id="view-grid">
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:0.85rem;">6 PCs in initiative order, arranged left-right then top-down. Initiative slot assignment changes each encounter.</div>
+          <div class="layout-vis grid-2col">
+            <div class="slot-cell header">Rd [N]</div>
+            <div class="slot-cell pc"><span class="slot-num">1</span><strong>Gold</strong> — Move, FB, hit 9</div>
+            <div class="slot-cell pc"><span class="slot-num">4</span><strong>Ash</strong> — EB, Cpt</div>
+            <div class="slot-cell pc"><span class="slot-num">2</span><strong>Att</strong> — SW, miss</div>
+            <div class="slot-cell pc"><span class="slot-num">5</span><strong>Mal</strong> — Not 20</div>
+            <div class="slot-cell pc"><span class="slot-num">3</span><strong>Asp</strong> — Death ✓</div>
+            <div class="slot-cell pc"><span class="slot-num">6</span><strong>Goli</strong> — Death ✗</div>
+            <div class="slot-cell enemy">Enemy actions: Hit Gold, Ash</div>
+          </div>
+          <div class="grammar-note"><strong>Initiative order</strong> is declared once per encounter (not per round) and held constant. Slots 1–3 fill the left column top-to-bottom; slots 4–6 fill the right column top-to-bottom. Enemy actions always appear below the 2×3 grid as a separate section.</div>
+        </div>
+
+        <!-- Linear layout view -->
+        <div class="grammar-view" id="view-linear">
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:0.85rem;">6 PCs in initiative order, each on their own row. More space per entry for bonus actions and extended notes.</div>
+          <div class="layout-vis linear">
+            <div class="slot-cell header">Rd [N]</div>
+            <div class="slot-cell pc"><span class="slot-num">1</span><strong>Gold</strong> — Move, FB hit 9 | BA: —</div>
+            <div class="slot-cell pc"><span class="slot-num">2</span><strong>Att</strong> — SW miss | BA: Shillelagh</div>
+            <div class="slot-cell pc"><span class="slot-num">3</span><strong>Asp</strong> — Death ✓ | BA: —</div>
+            <div class="slot-cell pc"><span class="slot-num">4</span><strong>Ash</strong> — EB crit | BA: Hex</div>
+            <div class="slot-cell pc"><span class="slot-num">5</span><strong>Mal</strong> — Rage attack | BA: —</div>
+            <div class="slot-cell pc"><span class="slot-num">6</span><strong>Goli</strong> — Sneak 14 | BA: —</div>
+            <div class="slot-cell enemy">Enemy actions: Hit Gold, Ash — 12 dmg each</div>
+          </div>
+          <div class="grammar-note"><strong>Switching layouts</strong> is a per-session toggle in Session Intake. The glossary and extraction prompt adapt automatically. A <strong>| BA:</strong> delimiter separates action from bonus action in this layout, giving room for both to be recorded.</div>
+        </div>
+
+        <!-- Extracted output view -->
+        <div class="grammar-view" id="view-output">
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:0.85rem;">Regardless of layout, OCR extraction always produces this structure. The delta analysis engine only ever sees this — never raw grid positions.</div>
+          <div style="background:#f0e8d0;border-radius:4px;padding:1rem 1.25rem;font-family:'JetBrains Mono',monospace;font-size:0.73rem;line-height:1.8;color:#c8bfae;overflow-x:auto;">
+<span style="color:#4a4540;">// Same output whether notes used grid or linear layout</span>
+{
+  <span style="color:#e8a84a;">"combat_round"</span>: <span style="color:#8ec9a0;">10</span>,
+  <span style="color:#e8a84a;">"layout_used"</span>: <span style="color:#8ec9a0;">"grid_2col"</span>,  <span style="color:#4a4540;">// or "linear" — informational only</span>
+  <span style="color:#e8a84a;">"initiative_slots"</span>: [
+    {
+      <span style="color:#e8a84a;">"slot"</span>: <span style="color:#8ec9a0;">1</span>, <span style="color:#e8a84a;">"actor_id"</span>: <span style="color:#8ec9a0;">"pc_001"</span>, <span style="color:#e8a84a;">"actor_abbr"</span>: <span style="color:#8ec9a0;">"Gold"</span>,
+      <span style="color:#e8a84a;">"action"</span>: <span style="color:#8ec9a0;">"Move, Firebolt"</span>, <span style="color:#e8a84a;">"bonus_action"</span>: <span style="color:#8ec9a0;">null</span>,
+      <span style="color:#e8a84a;">"result"</span>: <span style="color:#8ec9a0;">"hit"</span>, <span style="color:#e8a84a;">"value"</span>: <span style="color:#8ec9a0;">9</span>, <span style="color:#e8a84a;">"condition"</span>: <span style="color:#8ec9a0;">null</span>
+    },
+    <span style="color:#4a4540;">// ... slots 2–6 ...</span>
+  ],
+  <span style="color:#e8a84a;">"enemy_actions"</span>: [
+    { <span style="color:#e8a84a;">"description"</span>: <span style="color:#8ec9a0;">"Hit Gold, Ash"</span>, <span style="color:#e8a84a;">"targets"</span>: [<span style="color:#8ec9a0;">"pc_001"</span>, <span style="color:#8ec9a0;">"pc_003"</span>] }
+  ]
+}
+          </div>
+          <div class="grammar-note"><strong>Layout independence</strong> is enforced at the schema level. Adding a third layout in future requires only a new visual description in the OCR prompt — the output schema, the glossary, and the delta engine are unchanged.</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Party Roster ── -->
+    <div class="roster-panel">
+      <div class="roster-header">
+        <h3>Party Roster — Name-Slot Source of Truth</h3>
+        <span class="roster-source">Synced from campaign log JSON</span>
+      </div>
+      <div class="roster-grid" id="roster-grid"></div>
+    </div>
+
+    <!-- ── Add panel ── -->
+    <div class="add-panel" id="add-panel">
+      <div style="font-family:'Cinzel',serif;font-size:0.8rem;letter-spacing:0.1em;margin-bottom:1rem;">New Glossary Entry</div>
+      <div class="add-form-grid">
+        <div class="form-field"><label class="form-label">Abbreviation</label><input class="inline-input" id="new-abbr" placeholder="e.g. FB" style="font-family:'JetBrains Mono',monospace;margin:0;"></div>
+        <div class="form-field"><label class="form-label">Full Meaning</label><input class="inline-input" id="new-full" placeholder="e.g. Firebolt" style="margin:0;"></div>
+        <div class="form-field"><label class="form-label">Semantic Role</label>
+          <select class="inline-select" id="new-cat" style="margin:0;height:36px;">
+            <option value="action">Action</option>
+            <option value="bonus-action">Bonus Action</option>
+            <option value="pc-name">PC Name Slot</option>
+            <option value="result">Result / Value</option>
+            <option value="condition">Condition</option>
+            <option value="enemy-section">Enemy Section</option>
+          </select>
+        </div>
+        <div class="form-field"><label class="form-label">Context note</label><input class="inline-input" id="new-ctx" placeholder="who uses it, when" style="margin:0;"></div>
+        <div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:1px;">
+          <button class="btn btn-primary btn-sm" onclick="addEntry()">Add</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleAdd()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Needs-review notices -->
+    <div id="review-notices"></div>
+
+    <!-- Tier tabs -->
+    <div class="tier-tabs">
+      <button class="tier-tab t-all active" onclick="filterTierTab('all',this)"><span class="tier-dot"></span> All</button>
+      <button class="tier-tab t-confirmed" onclick="filterTierTab('confirmed',this)"><span class="tier-dot"></span> Confirmed</button>
+      <button class="tier-tab t-learned" onclick="filterTierTab('learned',this)"><span class="tier-dot"></span> Learned</button>
+      <button class="tier-tab t-needs-review" onclick="filterTierTab('needs-review',this)"><span class="tier-dot"></span> Needs review</button>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-box">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="9.5" x2="13" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <input type="text" placeholder="Search abbreviations or meanings..." oninput="applySearch(this.value)">
+      </div>
+      <select class="filter-select" onchange="sortEntries(this.value)">
+        <option value="role">By role</option>
+        <option value="alpha">A → Z</option>
+        <option value="confidence">Confidence ↓</option>
+        <option value="sessions">Most seen</option>
+      </select>
+    </div>
+
+    <div class="entries-grid" id="entries-grid"></div>
+
+    <!-- Prompt preview -->
+    <div id="prompt-section" style="display:none;">
+      <div class="ornament-divider"><span>Live OCR Prompt Snippet</span></div>
+      <div style="font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:0.75rem;">Injected before every image. Layout-specific description selected at session intake.</div>
+      <div style="display:flex;gap:8px;margin-bottom:0.75rem;">
+        <button class="btn btn-secondary btn-sm" onclick="setPromptLayout('grid')" id="pl-grid" style="border-color:var(--amber);color:var(--amber-dim);">Grid layout prompt</button>
+        <button class="btn btn-secondary btn-sm" onclick="setPromptLayout('linear')" id="pl-linear">Linear layout prompt</button>
+      </div>
+      <div class="prompt-preview" id="prompt-content"></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../shared/config.js"></script>
+<script>
+const PARTY = [
+  { id:'pc_001', name:'Zragar',    nickname:'Goldie', cls:'Wizard',    player:'David',  abbrs:['Gold','Goldie','Zra'] },
+  { id:'pc_002', name:'Malachite', nickname:'Mal',    cls:'Barbarian', player:'Lance',  abbrs:['Mal','Mala'] },
+  { id:'pc_003', name:'Ashton',    nickname:'Ash',    cls:'Warlock',   player:'Frazer', abbrs:['Ash','Asht'] },
+  { id:'pc_004', name:'Asphodel',  nickname:'Del',    cls:'Monk',      player:'Kevin',  abbrs:['Asp','Del','Asph'] },
+  { id:'pc_005', name:'Derwin',    nickname:'Goli',   cls:'Rogue',     player:'Sam',    abbrs:['Goli','Der','Derw'] },
+  { id:'pc_006', name:'Atticus',   nickname:'Atti',   cls:'Druid',     player:'Jamie',  abbrs:['Att','Atti'] },
+];
+
+// Semantic role display config
+const ROLE_STYLE = {
+  'pc-name':      { label:'pc-name-slot',   cls:'role-pc-name-slot' },
+  'action':       { label:'action',          cls:'role-action' },
+  'bonus-action': { label:'bonus-action',    cls:'role-bonus-action' },
+  'result':       { label:'result/value',    cls:'role-result' },
+  'condition':    { label:'condition',       cls:'role-condition' },
+  'enemy-section':{ label:'enemy-section',  cls:'role-enemy-section' },
+};
+
+let glossary = [
+  // ── PC names (roster-sourced, layout-independent) ──
+  { id:1,  abbr:'Gold',     full:'Zragar (Goldie)',        role:'pc-name',       tier:'confirmed', confidence:100, source:'roster', sessions:['S1','S2','S3','S4','S5'], context:'pc_001 · Wizard · David', history:[{session:'auto',ocr_saw:'Gold',human_said:'Zragar',outcome:'auto'}] },
+  { id:2,  abbr:'Mal',      full:'Malachite',              role:'pc-name',       tier:'confirmed', confidence:100, source:'roster', sessions:['S1','S2','S3','S4','S5'], context:'pc_002 · Barbarian · Lance', history:[{session:'auto',ocr_saw:'Mal',human_said:'Malachite',outcome:'auto'}] },
+  { id:3,  abbr:'Ash',      full:'Ashton',                 role:'pc-name',       tier:'confirmed', confidence:100, source:'roster', sessions:['S1','S2','S3','S4','S5'], context:'pc_003 · Warlock · Frazer', history:[{session:'auto',ocr_saw:'Ash',human_said:'Ashton',outcome:'auto'}] },
+  { id:4,  abbr:'Asp',      full:'Asphodel',               role:'pc-name',       tier:'confirmed', confidence:100, source:'roster', sessions:['S3','S4','S5'],           context:'pc_004 · Monk · Kevin', history:[{session:'auto',ocr_saw:'Asp',human_said:'Asphodel',outcome:'auto'}] },
+  { id:5,  abbr:'Goli',     full:'Derwin (Goli)',           role:'pc-name',       tier:'confirmed', confidence:100, source:'roster', sessions:['S3','S4','S5'],           context:'pc_005 · Rogue · Sam', history:[{session:'auto',ocr_saw:'Goli',human_said:'Derwin',outcome:'auto'}] },
+  { id:6,  abbr:'Att',      full:'Atticus',                role:'pc-name',       tier:'confirmed', confidence:100, source:'roster', sessions:['S3','S4','S5'],           context:'pc_006 · Druid · Jamie. Roster + grammar resolves ambiguity — no conflict.', history:[{session:'S3',ocr_saw:'Att',human_said:'Atticus',outcome:'auto'},{session:'S4',ocr_saw:'Att',human_said:'Atticus',outcome:'confirmed'}] },
+  // ── Actions ──
+  { id:7,  abbr:'FB',       full:'Firebolt',               role:'action',        tier:'confirmed', confidence:97,  source:'log',    sessions:['S2','S3','S4','S5'], context:'Gold\'s primary cantrip', history:[{session:'S2',ocr_saw:'FB',human_said:'Firebolt',outcome:'corrected'},{session:'S3',ocr_saw:'FB',human_said:'Firebolt',outcome:'confirmed'},{session:'S5',ocr_saw:'FB',human_said:'Firebolt',outcome:'confirmed'}] },
+  { id:8,  abbr:'EB',       full:'Eldritch Blast',         role:'action',        tier:'confirmed', confidence:97,  source:'log',    sessions:['S2','S3','S4','S5'], context:'Ash\'s primary cantrip. OCR misreads as "68" — flag as misread pattern.', history:[{session:'S2',ocr_saw:'EB',human_said:'Eldritch Blast',outcome:'corrected'},{session:'S3',ocr_saw:'68',human_said:'Eldritch Blast',outcome:'corrected'},{session:'S4',ocr_saw:'EB',human_said:'Eldritch Blast',outcome:'confirmed'}] },
+  { id:9,  abbr:'SW',       full:'Sacred Weapon',          role:'action',        tier:'confirmed', confidence:90,  source:'log',    sessions:['S3','S5'], context:'Att (Atticus) druid ability', history:[{session:'S3',ocr_saw:'SW',human_said:'Sacred Weapon',outcome:'corrected'},{session:'S5',ocr_saw:'SW',human_said:'Sacred Weapon',outcome:'confirmed'}] },
+  { id:10, abbr:'SG',       full:'Starry Wisp',            role:'action',        tier:'needs-review', confidence:50, source:'learned', sessions:['S5'], context:'Att action — seen once. Could be Starry Wisp or Sacred Flame. Needs second session.', history:[{session:'S5',ocr_saw:'SG',human_said:'Starry Wisp',outcome:'corrected'}] },
+  { id:11, abbr:'TS',       full:'True Strike',            role:'action',        tier:'learned',   confidence:68,  source:'log',    sessions:['S5'], context:'Seen in Rd 14 as "True Strik 3"', history:[{session:'S5',ocr_saw:'True Strik',human_said:'True Strike',outcome:'corrected'}] },
+  // ── Bonus actions ──
+  { id:12, abbr:'HW',       full:'Healing Word',           role:'bonus-action',  tier:'confirmed', confidence:95,  source:'log',    sessions:['S3','S4','S5'], context:'Healer bonus action — appears after | BA: in linear layout', history:[{session:'S3',ocr_saw:'HW',human_said:'Healing Word',outcome:'corrected'},{session:'S4',ocr_saw:'HW',human_said:'Healing Word',outcome:'confirmed'}] },
+  // ── Results ──
+  { id:13, abbr:'Cpt',      full:'Critical hit',           role:'result',        tier:'needs-review', confidence:45, source:'learned', sessions:['S5'], context:'Seen once after action. May be "Crit" misread as "Cpt".', history:[{session:'S5',ocr_saw:'Cpt',human_said:'Critical hit',outcome:'corrected'}] },
+  // ── Conditions ──
+  { id:14, abbr:'Death ✓',  full:'Death save — success',   role:'condition',     tier:'confirmed', confidence:100, source:'learned', sessions:['S3','S4','S5'], context:'Checkmark after "Death" — appears in PC entry, not enemy section', history:[{session:'S3',ocr_saw:'Death ✓',human_said:'Death save — success',outcome:'corrected'},{session:'S5',ocr_saw:'Death ✓',human_said:'Death save — success',outcome:'confirmed'}] },
+  { id:15, abbr:'Death ✗',  full:'Death save — failure',   role:'condition',     tier:'confirmed', confidence:100, source:'learned', sessions:['S3','S5'], context:'X after "Death" — OCR also reads as "Death X"', history:[{session:'S3',ocr_saw:'Death X',human_said:'Death save — failure',outcome:'corrected'},{session:'S5',ocr_saw:'Death X',human_said:'Death save — failure',outcome:'confirmed'}] },
+  { id:16, abbr:'Stable',   full:'Stable at 0 HP',         role:'condition',     tier:'confirmed', confidence:100, source:'log',    sessions:['S3','S4','S5'], context:'Full word — no expansion needed', history:[{session:'S3',ocr_saw:'Stable',human_said:'Stable at 0 HP',outcome:'auto'}] },
+  { id:17, abbr:'Down',     full:'Downed (0 HP)',           role:'condition',     tier:'confirmed', confidence:95,  source:'learned',sessions:['S4','S5'], context:'PC dropped to 0HP', history:[{session:'S4',ocr_saw:'Down',human_said:'Downed (0 HP)',outcome:'corrected'},{session:'S5',ocr_saw:'Down,',human_said:'Downed (0 HP)',outcome:'confirmed'}] },
+  // ── Enemy section ──
+  { id:18, abbr:'Hit —',    full:'Enemy hit summary',       role:'enemy-section', tier:'confirmed', confidence:100, source:'learned', sessions:['S3','S4','S5'], context:'"Hit — [PC names]" = enemy actions that struck PCs this round. Appears below PC grid.', history:[{session:'S3',ocr_saw:'Hit Gold, Ash',human_said:'Enemy hit Gold, Ash',outcome:'corrected'},{session:'S4',ocr_saw:'Hit — Gold (1HP left)',human_said:'Enemy hit Gold',outcome:'confirmed'}] },
+  // ── Round notation ──
+  { id:19, abbr:'Rd',       full:'Round',                  role:'result',        tier:'confirmed', confidence:100, source:'log',    sessions:['S1','S2','S3','S4','S5'], context:'Round header — always first token, followed by round number', history:[{session:'S1',ocr_saw:'Rd',human_said:'Round',outcome:'auto'}] },
+];
+
+let state = { catFilter:'all', tierFilter:'all', search:'', expanded:null, promptOpen:false, promptLayout:'grid' };
+const ROLE_ORDER = ['pc-name','action','bonus-action','result','condition','enemy-section'];
+
+// ══════════════════════════════════════════════════════
+function render() {
+  renderRoster(); renderBadges(); renderReviewNotices(); renderEntries(); renderStats();
+  if (state.promptOpen) renderPrompt();
+}
+
+function renderRoster() {
+  document.getElementById('roster-grid').innerHTML = PARTY.map(pc => `
+    <div class="roster-card">
+      <div class="roster-name">${pc.name}</div>
+      <div><span class="roster-nick">${pc.nickname}</span></div>
+      <div class="roster-meta">${pc.cls} · ${pc.player}</div>
+      <div class="roster-abbrs">${pc.abbrs.map((a,i)=>`<span class="abbr-pill${i===0?' primary':''}">${a}</span>`).join('')}</div>
+    </div>`).join('');
+}
+
+function renderBadges() {
+  const roles = ['pc-name','action','bonus-action','result','condition','enemy-section'];
+  roles.forEach(r => { const el=document.getElementById('b-'+r); if(el) el.textContent=glossary.filter(e=>e.role===r).length; });
+  document.getElementById('b-all').textContent = glossary.length;
+  document.getElementById('b-confirmed').textContent = glossary.filter(e=>e.tier==='confirmed').length;
+  document.getElementById('b-learned').textContent = glossary.filter(e=>e.tier==='learned').length;
+  document.getElementById('b-needs-review').textContent = glossary.filter(e=>e.tier==='needs-review').length;
+}
+
+function renderReviewNotices() {
+  const nr = glossary.filter(e=>e.tier==='needs-review');
+  document.getElementById('review-notices').innerHTML = nr.length ? nr.map(e=>`
+    <div class="review-notice">
+      <strong>"${e.abbr}"</strong> — ${e.full}
+      <p>${e.context}</p>
+    </div>`).join('') : '';
+}
+
+function getFiltered() {
+  return glossary.filter(e => {
+    if (state.catFilter !== 'all' && e.role !== state.catFilter) return false;
+    if (state.tierFilter !== 'all' && e.tier !== state.tierFilter) return false;
+    if (state.search) { const q=state.search.toLowerCase(); if(!e.abbr.toLowerCase().includes(q)&&!e.full.toLowerCase().includes(q)) return false; }
+    return true;
+  });
+}
+
+function roleTag(role) {
+  const r = ROLE_STYLE[role] || { label:role, cls:'role-result' };
+  return `<span class="role-tag ${r.cls}">${r.label}</span>`;
+}
+
+function sourceBadge(src) {
+  const map = { roster:'from roster', log:'from combat log', learned:'OCR correction', manual:'manual', auto:'auto-resolved' };
+  const cls = { roster:'role-pc-name-slot', log:'role-action', learned:'role-bonus-action', manual:'role-result', auto:'role-pc-name-slot' };
+  return `<span style="font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.08em;padding:2px 7px;border-radius:2px;" class="${cls[src]||'role-result'}">${map[src]||src}</span>`;
+}
+
+function renderEntries() {
+  let filtered = getFiltered();
+  if (state.catFilter==='all' && state.tierFilter==='all' && !state.search) {
+    filtered = [...filtered].sort((a,b)=>ROLE_ORDER.indexOf(a.role)-ROLE_ORDER.indexOf(b.role));
+  }
+  const grid = document.getElementById('entries-grid');
+  if (!filtered.length) { grid.innerHTML=`<div style="text-align:center;padding:3rem 2rem;color:var(--muted);"><div style="font-family:'Cinzel',serif;font-size:0.9rem;margin-bottom:0.5rem;">No entries found</div><div style="font-size:0.9rem;font-style:italic;">Add an entry or adjust your filters.</div></div>`; return; }
+  // Group by role when showing all
+  let html = '';
+  let lastRole = null;
+  filtered.forEach(e => {
+    if (state.catFilter==='all' && state.tierFilter==='all' && !state.search && e.role !== lastRole) {
+      const r = ROLE_STYLE[e.role]||{label:e.role};
+      html += `<div style="font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;padding:0.75rem 0 0.35rem;${lastRole?'border-top:1px solid var(--border);margin-top:0.5rem;':''}">${r.label}</div>`;
+      lastRole = e.role;
+    }
+    const cf = e.confidence>=80?'high':e.confidence>=50?'mid':'low';
+    const isOpen = state.expanded===e.id;
+    html += `
+      <div class="entry-card is-${e.tier}" id="card-${e.id}">
+        <div class="entry-main" onclick="toggleExpand(${e.id})">
+          <div class="entry-abbr">${e.abbr}</div>
+          <div>
+            <div class="entry-full-form">${e.full}</div>
+            <div class="entry-context">${e.context}</div>
+          </div>
+          <div class="entry-role-col">
+            ${roleTag(e.role)}
+            <div style="margin-top:3px;">${sourceBadge(e.source)}</div>
+            <div style="font-size:0.75rem;color:var(--muted-light);margin-top:2px;font-family:'JetBrains Mono',monospace;">${e.sessions.length} session${e.sessions.length!==1?'s':''}</div>
+          </div>
+          <div class="entry-right">
+            <span class="tier-badge ${e.tier}">${e.tier.replace('-',' ')}</span>
+            <div class="conf-bar"><div class="conf-fill ${cf}" style="width:${e.confidence}%"></div></div>
+            <div class="entry-conf-label">${e.confidence}%</div>
+          </div>
+        </div>
+        <div class="entry-detail ${isOpen?'open':''}" id="detail-${e.id}">
+          <div>
+            <div class="detail-label">Correction history</div>
+            ${e.history.map(h=>`<div class="history-row"><span class="history-session">${h.session}</span><span class="history-action">saw "<em>${h.ocr_saw}</em>" → <strong>${h.human_said}</strong></span><span class="history-outcome outcome-${h.outcome}">${h.outcome}</span></div>`).join('')}
+          </div>
+          <div>
+            <div class="detail-label">Edit</div>
+            <input class="inline-input" value="${e.full}" id="ef-${e.id}" placeholder="Full meaning">
+            <input class="inline-input" value="${e.context}" id="ec-${e.id}" placeholder="Context note">
+            <select class="inline-select" id="ecat-${e.id}">
+              ${['pc-name','action','bonus-action','result','condition','enemy-section'].map(r=>`<option value="${r}"${e.role===r?' selected':''}>${ROLE_STYLE[r]?.label||r}</option>`).join('')}
+            </select>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+              <button class="btn btn-confirm btn-sm" onclick="saveEdit(${e.id})">Save</button>
+              ${e.tier!=='confirmed'?`<button class="btn btn-secondary btn-sm" onclick="promote(${e.id})">Promote</button>`:''}
+              <button class="action-btn danger" onclick="removeEntry(${e.id})" style="margin-left:auto;">Remove</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  });
+  grid.innerHTML = html;
+}
+
+function renderStats() {
+  document.getElementById('stat-total').textContent = glossary.length;
+  document.getElementById('stat-auto').textContent = glossary.filter(e=>['roster','log','auto'].includes(e.source)).length;
+  const avg = Math.round(glossary.reduce((s,e)=>s+e.confidence,0)/(glossary.length||1));
+  document.getElementById('stat-conf').textContent = avg+'%';
+}
+
+function renderPrompt() {
+  const L = state.promptLayout;
+  const confirmed = glossary.filter(e=>e.tier==='confirmed');
+  const learned = glossary.filter(e=>e.tier==='learned');
+  const nr = glossary.filter(e=>e.tier==='needs-review');
+  const pcNames = confirmed.filter(e=>e.role==='pc-name');
+  const actions = confirmed.filter(e=>e.role==='action'||e.role==='bonus-action');
+  const conditions = confirmed.filter(e=>e.role==='condition');
+  const enemy = confirmed.filter(e=>e.role==='enemy-section');
+
+  const layoutDesc = L==='grid' ? `
+<span class="pk">LAYOUT: 2×3 GRID</span>
+<span class="pc">Round structure:</span>
+<span class="pc">  Rd [N]                          ← round header</span>
+<span class="pc">  [Slot 1 PC] — [action/result]  | [Slot 4 PC] — [action/result]</span>
+<span class="pc">  [Slot 2 PC] — [action/result]  | [Slot 5 PC] — [action/result]</span>
+<span class="pc">  [Slot 3 PC] — [action/result]  | [Slot 6 PC] — [action/result]</span>
+<span class="pc">  [Enemy actions — below the grid, may span full width]</span>
+<span class="pc">Slots 1–3 = left column top-to-bottom. Slots 4–6 = right column top-to-bottom.</span>` : `
+<span class="pk">LAYOUT: LINEAR (SINGLE COLUMN)</span>
+<span class="pc">Round structure:</span>
+<span class="pc">  Rd [N]</span>
+<span class="pc">  [Slot 1 PC] — [action] | BA: [bonus action]</span>
+<span class="pc">  [Slot 2 PC] — [action] | BA: [bonus action]</span>
+<span class="pc">  ... (slots 3–6 follow in initiative order)</span>
+<span class="pc">  [Enemy actions — below all PC rows]</span>
+<span class="pc">The | BA: delimiter separates main action from bonus action on the same line.</span>`;
+
+  document.getElementById('prompt-content').innerHTML = [
+    `<span class="pc">## Chronicle OCR — ${new Date().toLocaleDateString()} · ${glossary.length} glossary entries</span>`,
+    ``,
+    layoutDesc,
+    ``,
+    `<span class="pk">ENTRY GRAMMAR</span> <span class="pc">(applies to both layouts)</span>`,
+    `<span class="pc">The dash ( — ) after a PC name is the universal delimiter.</span>`,
+    `<span class="pc">Everything before it = pc-name-slot token. Everything after = action/result/condition tokens.</span>`,
+    `<span class="pc">All 6 name-slot tokens MUST resolve to a party roster entry. If a token does not match, flag [?].</span>`,
+    ``,
+    `<span class="pk">PARTY ROSTER</span> <span class="pc">(closed set — name-slot tokens must match one of these exactly)</span>`,
+    ...PARTY.map(pc=>`  <span class="pp">${pc.abbrs[0].padEnd(7)}</span> <span class="pc">(also: ${pc.abbrs.slice(1).join(', ')||'—'})</span> → <span class="pv">${pc.name} · ${pc.cls}</span>`),
+    ``,
+    `<span class="pk">CONFIRMED ABBREVIATIONS</span>`,
+    ...actions.map(e=>`  <span class="pp">${e.abbr.padEnd(10)}</span>[<span class="ps">${e.role}</span>] → <span class="pv">${e.full}</span>  <span class="pc">${e.context}</span>`),
+    ...conditions.map(e=>`  <span class="pp">${e.abbr.padEnd(10)}</span>[<span class="ps">${e.role}</span>] → <span class="pv">${e.full}</span>`),
+    ...enemy.map(e=>`  <span class="pp">${e.abbr.padEnd(10)}</span>[<span class="ps">${e.role}</span>] → <span class="pv">${e.full}</span>`),
+    learned.length ? `\n<span class="pk">LIKELY</span> <span class="pc">(apply if context supports)</span>` : '',
+    ...learned.map(e=>`  <span class="pp">${e.abbr.padEnd(10)}</span>[<span class="ps">${e.role}</span>] → <span class="pv">${e.full}</span>  <span class="pc">${e.confidence}% conf</span>`),
+    nr.length ? `\n<span class="pk">AMBIGUOUS</span> <span class="pc">(flag with [?] — do not assume)</span>` : '',
+    ...nr.map(e=>`  <span class="pp">${e.abbr.padEnd(10)}</span><span class="pc">→ unclear (${e.full}) — flag for human review</span>`),
+    ``,
+    `<span class="pk">MISREAD PATTERNS</span> <span class="pc">(visual OCR errors seen in previous sessions)</span>`,
+    `  <span class="pc">"68"  in action slot → likely "EB" (Eldritch Blast)</span>`,
+  ].filter(s=>s!==null&&s!==undefined).join('\n');
+}
+
+// ══════════════════════════════════════════════════════
+function switchLayout(which, el) {
+  document.querySelectorAll('.grammar-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.grammar-view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+which).classList.add('active');
+}
+function setPromptLayout(which) {
+  state.promptLayout = which;
+  document.getElementById('pl-grid').style.cssText = which==='grid' ? 'border-color:var(--amber);color:var(--amber-dim);' : '';
+  document.getElementById('pl-linear').style.cssText = which==='linear' ? 'border-color:var(--amber);color:var(--amber-dim);' : '';
+  renderPrompt();
+}
+function toggleExpand(id) { state.expanded=state.expanded===id?null:id; renderEntries(); }
+function filterCat(cat,el) { state.catFilter=cat; state.tierFilter='all'; document.querySelectorAll('.sidebar-item').forEach(s=>s.classList.remove('active')); el.classList.add('active'); document.querySelectorAll('.tier-tab').forEach(t=>t.classList.remove('active')); document.querySelector('.t-all').classList.add('active'); renderEntries(); renderBadges(); }
+function filterTier(tier,el) { state.tierFilter=tier; document.querySelectorAll('.sidebar-item').forEach(s=>s.classList.remove('active')); el.classList.add('active'); renderEntries(); }
+function filterTierTab(tier,el) { state.tierFilter=tier; document.querySelectorAll('.tier-tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); renderEntries(); }
+function applySearch(v) { state.search=v; renderEntries(); }
+function sortEntries(by) {
+  if(by==='alpha') glossary.sort((a,b)=>a.abbr.localeCompare(b.abbr));
+  else if(by==='confidence') glossary.sort((a,b)=>b.confidence-a.confidence);
+  else if(by==='sessions') glossary.sort((a,b)=>b.sessions.length-a.sessions.length);
+  else if(by==='role') glossary.sort((a,b)=>ROLE_ORDER.indexOf(a.role)-ROLE_ORDER.indexOf(b.role));
+  renderEntries();
+}
+function promote(id) { const e=glossary.find(x=>x.id===id); if(!e) return; e.tier='confirmed'; e.confidence=Math.min(100,e.confidence+15); showToast(`"${e.abbr}" promoted to Confirmed`); render(); }
+function removeEntry(id) { const e=glossary.find(x=>x.id===id); if(!e||!confirm(`Remove "${e.abbr}"?`)) return; glossary=glossary.filter(x=>x.id!==id); showToast('Entry removed'); render(); }
+function saveEdit(id) { const e=glossary.find(x=>x.id===id); if(!e) return; e.full=document.getElementById('ef-'+id).value; e.context=document.getElementById('ec-'+id).value; e.role=document.getElementById('ecat-'+id).value; showToast(`"${e.abbr}" updated`); render(); }
+function toggleAdd() { document.getElementById('add-panel').classList.toggle('open'); }
+function addEntry() {
+  const abbr=document.getElementById('new-abbr').value.trim();
+  const full=document.getElementById('new-full').value.trim();
+  const ctx=document.getElementById('new-ctx').value.trim();
+  const role=document.getElementById('new-cat').value;
+  if(!abbr||!full){showToast('Fill in abbreviation and meaning');return;}
+  if(glossary.find(e=>e.abbr.toLowerCase()===abbr.toLowerCase())){showToast(`"${abbr}" already exists`);return;}
+  glossary.push({id:Date.now(),abbr,full,role,tier:'learned',confidence:50,source:'manual',sessions:[],context:ctx||'Manually added',history:[{session:'manual',ocr_saw:abbr,human_said:full,outcome:'added'}]});
+  document.getElementById('new-abbr').value='';document.getElementById('new-full').value='';document.getElementById('new-ctx').value='';
+  document.getElementById('add-panel').classList.remove('open');
+  showToast(`"${abbr}" added`); render();
+}
+function togglePrompt() { state.promptOpen=!state.promptOpen; document.getElementById('prompt-section').style.display=state.promptOpen?'block':'none'; if(state.promptOpen) renderPrompt(); }
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+
+render();
+</script>
+</body>
+</html>

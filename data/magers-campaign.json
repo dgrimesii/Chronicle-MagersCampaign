@@ -1,0 +1,4981 @@
+{
+  "_schema_version": "3.3.0",
+  "_chronicle_viewer_format": true,
+  "_note": "This file is the campaign log for the Chronicle app. Both the raw schema arrays and the viewer-format combat_encounters (with compact round slots) are included.",
+  "meta": {
+    "campaign_name": "Magers Campaign",
+    "system": "D&D 5e",
+    "setting": "Magers Homebrew",
+    "dm": "John Magers",
+    "started_date": "2026-02-10",
+    "last_updated": "2026-04-01",
+    "session_count": 5,
+    "active": true,
+    "notes": "Exploring the Pylon mystery following the death of Ched Warmfire. Currently traveling West toward Lake Town to earn funds before pivoting Northeast to Belfar."
+  },
+  "party": [
+    {
+      "id": "pc_001",
+      "name": "Zragar",
+      "nickname": "Goldie",
+      "player": "David",
+      "class": "Wizard",
+      "status": "active",
+      "current_level": 2,
+      "milestones": [
+        {
+          "session_id": "session_003",
+          "event": "Level up to 2",
+          "note": "Reached after the Siege of Bagyers Farm."
+        }
+      ],
+      "notes": "Familiar: Index the Owl. Expert in historical adventure chronicles. Tail-less gold dragonborn bladesinger (longsword)."
+    },
+    {
+      "id": "pc_002",
+      "name": "Malachite",
+      "nickname": "Mal",
+      "player": "Lance",
+      "class": "Barbarian",
+      "status": "active",
+      "current_level": 2,
+      "milestones": [
+        {
+          "session_id": "session_003",
+          "event": "Level up to 2",
+          "note": "Reached after the Siege of Bagyers Farm."
+        }
+      ],
+      "notes": "Aasimar. Recently discovered 'Healing Hands' ability."
+    },
+    {
+      "id": "pc_003",
+      "name": "Ashton",
+      "nickname": "Ash",
+      "player": "Frazer",
+      "class": "Warlock",
+      "status": "active",
+      "current_level": 2,
+      "milestones": [
+        {
+          "session_id": "session_003",
+          "event": "Level up to 2",
+          "note": "Reached after the Siege of Bagyers Farm."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "pc_004",
+      "name": "Asphodel",
+      "nickname": "Del",
+      "player": "Kevin",
+      "class": "Monk",
+      "status": "active",
+      "current_level": 2,
+      "milestones": [
+        {
+          "session_id": "session_003",
+          "event": "Level up to 2",
+          "note": "Reached after the Siege of Bagyers Farm."
+        }
+      ],
+      "notes": "Familiar: Deer."
+    },
+    {
+      "id": "pc_005",
+      "name": "Derwin",
+      "nickname": "Goli",
+      "player": "Sam",
+      "class": "Rogue",
+      "status": "active",
+      "current_level": 2,
+      "milestones": [
+        {
+          "session_id": "session_003",
+          "event": "Level up to 2",
+          "note": "Reached after the Siege of Bagyers Farm."
+        }
+      ],
+      "notes": "Nephew of Ched Warmfire."
+    },
+    {
+      "id": "pc_006",
+      "name": "Atticus",
+      "nickname": "Atti",
+      "player": "Jamie",
+      "class": "Druid",
+      "status": "active",
+      "current_level": 2,
+      "milestones": [
+        {
+          "session_id": "session_003",
+          "event": "Level up to 2",
+          "note": "Reached after the Siege of Bagyers Farm."
+        }
+      ],
+      "notes": "Familiar: Bat."
+    }
+  ],
+  "session_logs": [
+    {
+      "session_id": "session_001",
+      "title": "The Coming of Age",
+      "summary": "Prologue at age 13 featuring the first Pylon event and a wolf fight; jumps 5 years to age 18. Lifelong childhood friends remain tight-knit.",
+      "narrative_vibe": "Nostalgic and ominous.",
+      "session_date": "2026-02-10"
+    },
+    {
+      "session_id": "session_002",
+      "title": "Vespons & Siege of Bagyers Farm (Part 1)",
+      "summary": "The party is in their treehouse in Atticus's clearing when a Vespon swarm is detected in the woods. Transitioned to defending Bagyers Farm from a new Pylon emergence.",
+      "narrative_vibe": "High-pitched buzzing; panic; frantic defense; smell of sulfur.",
+      "mechanical_notes": [
+        {
+          "type": "player_absence",
+          "pc_id": "pc_003",
+          "note": "Ashton piloted by David due to Frazer being sick."
+        }
+      ],
+      "session_date": "2026-02-24"
+    },
+    {
+      "session_id": "session_003",
+      "title": "Siege Conclusion",
+      "summary": "The Pylon defense concluded with the destruction of the monolith. Ched Warmfire was killed in the battle. The party resolved to set out into the world following leads from Blair and Ched's past.",
+      "narrative_vibe": "Somber; heavy loss; sulfurous smell of black goo.",
+      "key_moments": [
+        "Death of Ched Warmfire",
+        "Pylon destruction by Ashton",
+        "Discovery of Bessel's Spellbook and local maps",
+        "Blair provides quests for Menne's Ranch and Belfar"
+      ],
+      "session_date": "2026-03-03"
+    },
+    {
+      "session_id": "session_004",
+      "title": "To Menne's Ranch",
+      "summary": "Escorted Carly to Menne's Ranch. Successfully negotiated a trade agreement with Helen for potion components (rewarded 50GP). Helen then requested aid with a Quarry infestation.",
+      "narrative_vibe": "Classic adventure feel; echoes in the subterranean dark.",
+      "mechanical_notes": [
+        {
+          "type": "player_absence",
+          "pc_id": "pc_002",
+          "note": "Malachite piloted by David due to Lance's work schedule."
+        }
+      ],
+      "key_moments": [
+        "Escorting Carly to Menne's Ranch",
+        "Establishing trade agreement with Helen",
+        "Accepting the Quarry ROUS quest",
+        "The 'Goonies Slide' in the Rat Cave"
+      ],
+      "session_date": "2026-03-10"
+    },
+    {
+      "session_id": "session_005",
+      "title": "The Road West",
+      "summary": "Finished the ROUS fight at the Quarry. Met travelers and agreed to escort them west to Lake Town due to goblin sightings. A goblin ambush began on the road.",
+      "narrative_vibe": "Tense; vigilant; smell of damp hills and goblin musk.",
+      "key_moments": [
+        "Clearing the Rat Cave",
+        "Meeting the Lake Town caravan"
+      ],
+      "session_date": "2026-03-17"
+    }
+  ],
+  "character_moments": [
+    {
+      "character_ids": [
+        "pc_006",
+        "pc_004"
+      ],
+      "type": "clutch_save",
+      "description": "Atticus healed Asphodel immediately after they were downed by a flurry of goblin/ogre attacks, keeping the frontline from collapsing.",
+      "parent_event_id": "cbt_005"
+    },
+    {
+      "character_ids": [
+        "pc_002"
+      ],
+      "type": "combat_highlight",
+      "description": "Malachite landed a devastating critical hit on a ROUS, described narratively as a 'SPLAT!' that set the tone for the cleanup.",
+      "parent_event_id": "cbt_004"
+    },
+    {
+      "character_ids": [
+        "pc_001",
+        "pc_002",
+        "pc_003",
+        "pc_004",
+        "pc_005",
+        "pc_006"
+      ],
+      "type": "backstory_revelation",
+      "description": "The party shares a childhood history of playing at 'Atticus's Clearing,' having utilized an expanded treehouse as their base for make-believe adventures long before becoming actual adventurers.",
+      "origin_session": "session_001"
+    }
+  ],
+  "npc_directory": [
+    {
+      "id": "npc_001",
+      "name": "Ched Warmfire",
+      "disposition": "deceased",
+      "notes": "Village leader, Goli's uncle. Retired Fighter. Bitter and protective after his original party was decimated. Killed during the Siege of Bagyers Farm."
+    },
+    {
+      "id": "npc_003",
+      "name": "Krustie Gnome",
+      "disposition": "neutral",
+      "notes": "Gnome at Quarry camp; provided directions to the Rat Cave location."
+    },
+    {
+      "id": "npc_004",
+      "name": "Blair",
+      "disposition": "friendly",
+      "notes": "Cleric survivor of Ched's old party. Skilled potion brewer; provided quests for Menne's Ranch and Belfar."
+    },
+    {
+      "id": "npc_007",
+      "name": "Helen",
+      "disposition": "friendly",
+      "notes": "Primary contact at Menne's Ranch. Negotiated potion trade agreement; provided Quarry ROUS quest. Paid 30 GP reward for completion of supply chain quest."
+    },
+    {
+      "id": "npc_008",
+      "name": "Carly",
+      "disposition": "friendly",
+      "notes": "Male caravan owner escorted safely to Menne's Ranch during the Axe Beak ambush in Session 4."
+    },
+    {
+      "id": "npc_009",
+      "name": "Bessel",
+      "disposition": "deceased",
+      "notes": "Fire/Wizard. Member of Ched's original party."
+    },
+    {
+      "id": "npc_010",
+      "name": "Hawk",
+      "disposition": "unknown",
+      "notes": "Ranger. Member of Ched's original party."
+    },
+    {
+      "id": "npc_011",
+      "name": "Darnell",
+      "disposition": "unknown",
+      "notes": "Contact in Belfar mentioned by Blair and on Ched's map."
+    },
+    {
+      "id": "npc_012",
+      "name": "Kiki",
+      "disposition": "unknown",
+      "notes": "Connection for jobs in Green Harbor."
+    },
+    {
+      "id": "npc_013",
+      "name": "The Low-Level Wizard",
+      "description_as_observed": "Traveling with the stone traders.",
+      "status": "active",
+      "reliability": "unknown"
+    }
+  ],
+  "bestiary": [
+    {
+      "id": "mon_001",
+      "name": "Rock Lobster",
+      "traits": [
+        "Sulfur smell",
+        "Black goo on death"
+      ],
+      "reliability": "confirmed"
+    },
+    {
+      "id": "mon_002",
+      "name": "Axe Beak",
+      "reliability": "confirmed",
+      "first_encountered": "session_004",
+      "combat_appearances": [
+        "cbt_003"
+      ],
+      "traits": [
+        "Large flightless bird",
+        "Aggressive charge attack",
+        "Targeted horses during cbt_003"
+      ]
+    },
+    {
+      "id": "mon_003",
+      "name": "Vespon Swarm",
+      "reliability": "confirmed",
+      "first_encountered": "session_002",
+      "combat_appearances": [
+        "cbt_001",
+        "cbt_003"
+      ],
+      "traits": [
+        "Insect swarm creature",
+        "Distinctive high-pitched buzzing",
+        "Can be put to sleep via Sleep spell",
+        "Entombed via Mold Earth in cbt_001 finale"
+      ]
+    },
+    {
+      "id": "mon_004",
+      "name": "Goblins",
+      "traits": [
+        "Cycle of boldness/retreat"
+      ],
+      "reliability": "confirmed"
+    },
+    {
+      "id": "mon_005",
+      "name": "Vespon Queen",
+      "reliability": "confirmed",
+      "first_encountered": "session_002",
+      "combat_appearances": [
+        "cbt_001"
+      ],
+      "traits": [
+        "Queen-class Vespon",
+        "Sonic Buzz ability (downed Asphodel in Round 2 of cbt_001)",
+        "Commands the swarm",
+        "Killed by Asphodel in Round 4 of cbt_001"
+      ]
+    },
+    {
+      "id": "mon_006",
+      "name": "Goblin Slinger",
+      "reliability": "confirmed",
+      "first_encountered": "session_005",
+      "combat_appearances": [
+        "cbt_005"
+      ],
+      "traits": [
+        "Ranged goblin variant",
+        "Sling attacks at range",
+        "Operated in coordinated group with standard goblins and Ogre"
+      ]
+    },
+    {
+      "id": "mon_007",
+      "name": "Ogre",
+      "reliability": "confirmed",
+      "first_encountered": "session_005",
+      "combat_appearances": [
+        "cbt_005"
+      ],
+      "traits": [
+        "Appeared mid-combat after initial goblin wave",
+        "Killed by Atticus via Ice Knife in Round 3 of cbt_005",
+        "High melee damage output (12 damage on Malachite, Round 3)"
+      ]
+    },
+    {
+      "id": "mon_008",
+      "name": "Giant Rat (ROUS)",
+      "reliability": "confirmed",
+      "first_encountered": "session_004",
+      "combat_appearances": [
+        "cbt_004"
+      ],
+      "traits": [
+        "Referred to in-game as ROUS (Rodents of Unusual Size)",
+        "Pack creature, encountered in large numbers",
+        "Found in cavern accessed via water slide near The Quarry",
+        "Infestation cleared across cbt_004 (7 rounds)"
+      ]
+    }
+  ],
+  "world_lore": [
+    {
+      "id": "lore_001",
+      "title": "Historical Anomaly of Pylons",
+      "content": "No history of Pylons exists in Goldie's chronicles prior to 5 years ago.",
+      "reliability": "confirmed"
+    },
+    {
+      "id": "lore_002",
+      "title": "Ched's Original Party",
+      "content": "Consisted of Ched (Fighter), Blair (Cleric), Bessel (Wizard), and Hawk (Ranger). They were decimated in the past.",
+      "reliability": "confirmed"
+    }
+  ],
+  "inventory_and_loot": [
+    {
+      "id": "item_001",
+      "name": "Ched's Map",
+      "type": "map",
+      "session_found": "session_003",
+      "is_quest_item": true,
+      "notes": "Five markers: Darnell in Belfar (loc_006, npc_011), Kiki in Green Harbor (loc_012, npc_012), Fish in Sholes Ford (loc_009), Western '?' (loc_010), Southern 'X' (loc_013)."
+    },
+    {
+      "id": "item_002",
+      "name": "Bessel's Spellbook",
+      "type": "spellbook",
+      "session_found": "session_003",
+      "current_holder_id": "pc_001",
+      "notes": "Contains L1-L3 spells: Shield, MM, Mage Armor, Find Familiar, Absorb Elements, Detect Magic, Comp Languages, Misty Step, Scorching Ray, Knock, Spider Climb, Fireball, Tiny Hut. Note: Goldie will gain access to these as he grows in level.",
+      "is_quest_item": false
+    },
+    {
+      "id": "item_003",
+      "name": "Potions of Healing",
+      "type": "consumable",
+      "session_found": "session_003",
+      "current_holder_id": "pc_005",
+      "notes": "4 potions found in an adventuring chest."
+    },
+    {
+      "id": "item_004",
+      "name": "+1 Moon Sickle",
+      "type": "weapon",
+      "session_found": "session_003",
+      "current_holder_id": "pc_006"
+    },
+    {
+      "id": "item_005",
+      "name": "Boots of Striding and Springing",
+      "type": "wondrous item",
+      "session_found": "session_003",
+      "current_holder_id": "pc_002"
+    },
+    {
+      "id": "item_006",
+      "name": "Cloak of Protection",
+      "type": "wondrous item",
+      "session_found": "session_003",
+      "current_holder_id": "pc_003",
+      "notes": "Corrected from 'Clock' in notes."
+    },
+    {
+      "id": "item_007",
+      "name": "Gloves of Thievery",
+      "type": "wondrous item",
+      "session_found": "session_003",
+      "current_holder_id": "pc_005"
+    },
+    {
+      "id": "item_008",
+      "name": "+1 Brass Knuckles",
+      "type": "weapon",
+      "session_found": "session_003",
+      "current_holder_id": "pc_004"
+    },
+    {
+      "id": "item_009",
+      "name": "Trade Commission",
+      "type": "currency",
+      "session_found": "session_004",
+      "notes": "30 GP total received from Helen at Menne's Ranch for the Potion Supply quest."
+    },
+    {
+      "id": "item_010",
+      "name": "Unrefined Emerald",
+      "description": "Reward for ROUS cave. Valued at 100 GP.",
+      "origin_session": "session_005",
+      "current_holder_id": "party_shared"
+    }
+  ],
+  "locations": [
+    {
+      "id": "loc_001",
+      "name": "Riverbend",
+      "description": "Home village on bluffs above Merelane River.",
+      "visibility": "visited"
+    },
+    {
+      "id": "loc_002",
+      "name": "The Quarry",
+      "description": "Dwarven/Gnomish site 2 days walk Southwest of Menne's Ranch. Site of ROUS infestation. Contains a camp of temporary tents and few permanent structures for workers.",
+      "visibility": "visited"
+    },
+    {
+      "id": "loc_003",
+      "name": "Bagyers Farm",
+      "description": "Site of the Pylon emergence and Ched's death.",
+      "visibility": "visited"
+    },
+    {
+      "id": "loc_004",
+      "name": "Menne's Ranch",
+      "description": "Horse-farming community North of Riverbend. Prime horse country with a Main Street featuring a Tavern and Shop.",
+      "visibility": "visited"
+    },
+    {
+      "id": "loc_005",
+      "name": "The Rat Cave",
+      "description": "Infested cavern located near The Quarry. Accessed via a water slide into a dark, echoing chamber.",
+      "visibility": "visited"
+    },
+    {
+      "id": "loc_006",
+      "name": "Belfar",
+      "description": "City to the Northeast. Primary destination for Pylon research.",
+      "visibility": "heard-of"
+    },
+    {
+      "id": "loc_007",
+      "name": "The Northern Woods",
+      "description": "Dense forest extending north of Riverbend. Site of the Vespon Queen encounter (cbt_001). The party's childhood exploration grounds.",
+      "visibility": "visited"
+    },
+    {
+      "id": "loc_008",
+      "name": "Atticus's Clearing",
+      "visibility": "visited",
+      "description": "A specific grove within the Northern Woods where Atticus grew up. Contains the party's childhood treehouse base. Site of the Vespon Queen encounter (cbt_001).",
+      "parent_location": "loc_007"
+    },
+    {
+      "id": "loc_009",
+      "name": "Sholes Ford",
+      "visibility": "heard-of",
+      "description": "Name on Ched's Map. Contact: Fish. No other context recorded."
+    },
+    {
+      "id": "loc_010",
+      "name": "Western Unknown",
+      "visibility": "heard-of",
+      "description": "Marked with '?' on Ched's Map. Location and significance unknown."
+    },
+    {
+      "id": "loc_011",
+      "name": "Lake Town",
+      "description": "Approx. 2 days west of The Quarry. Current temporary destination.",
+      "visibility": "heard-of"
+    },
+    {
+      "id": "loc_012",
+      "name": "Green Harbor",
+      "description": "Major port to the south.",
+      "visibility": "heard-of"
+    },
+    {
+      "id": "loc_013",
+      "name": "Southern Unknown",
+      "visibility": "heard-of",
+      "description": "Marked with 'X' on Ched's Map. Location and significance unknown."
+    }
+  ],
+  "quest_ledger": [
+    {
+      "id": "qst_001",
+      "title": "Avenge Uncle Ched",
+      "category": "long-term",
+      "status": "active",
+      "priority": "high",
+      "visibility": "revealed",
+      "origin_session": "session_003",
+      "narrative_motivation": "Ched's death demands retribution.",
+      "progress_log": [
+        {
+          "session_id": "session_003",
+          "entry": "Ched killed by Pylon spawns."
+        },
+        {
+          "session_id": "session_003",
+          "entry": "Blair suggested finding Darnell in Belfar."
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj_001",
+          "description": "Find Darnell in Belfar to learn about Ched's past.",
+          "is_completed": false
+        }
+      ]
+    },
+    {
+      "id": "qst_002",
+      "title": "The Pylon Anomaly",
+      "category": "long-term",
+      "status": "active",
+      "priority": "critical",
+      "visibility": "revealed",
+      "origin_session": "session_001",
+      "progress_log": [
+        {
+          "session_id": "session_001",
+          "entry": "First Pylon witnessed by the group."
+        },
+        {
+          "session_id": "session_003",
+          "entry": "Bagyers Farm Pylon neutralized via Eldritch Blast."
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj_002",
+          "description": "Seek information in Belfar about the Pylons.",
+          "is_completed": false
+        }
+      ]
+    },
+    {
+      "id": "qst_003",
+      "title": "Escort to Lake Town",
+      "category": "short-term",
+      "status": "active",
+      "priority": "medium",
+      "visibility": "revealed",
+      "origin_session": "session_005",
+      "progress_log": [
+        {
+          "session_id": "session_005",
+          "entry": "Accepted 6 GP/person contract to escort stone-trading caravan to Lake Town. Ambushed by goblins mid-route."
+        }
+      ]
+    },
+    {
+      "id": "qst_004",
+      "title": "Blair's Potion Supply Chain",
+      "category": "medium-term",
+      "status": "completed",
+      "priority": "medium",
+      "visibility": "revealed",
+      "origin_session": "session_003",
+      "progress_log": [
+        {
+          "session_id": "session_004",
+          "entry": "Escorted Carly (m) and established trade agreement with Helen at Menne's Ranch."
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj_003",
+          "description": "Establish trade agreement with Helen at Menne's Ranch.",
+          "is_completed": true,
+          "notes": "Party paid 30GP reward (Trade Commission)."
+        }
+      ]
+    },
+    {
+      "id": "qst_005",
+      "title": "The Quarry ROUS Problem",
+      "category": "short-term",
+      "status": "completed",
+      "priority": "medium",
+      "visibility": "revealed",
+      "origin_session": "session_004",
+      "progress_log": [
+        {
+          "session_id": "session_004",
+          "entry": "Received directions from Krustie; discovered the Rat Cave via a water slide into the cavern."
+        },
+        {
+          "session_id": "session_005",
+          "entry": "Cleared the nest. Provided tails to Krustie Gnome. Reward (100 GP Emerald) received."
+        }
+      ],
+      "objectives": [
+        {
+          "id": "obj_004",
+          "description": "Clear the ROUS infestation from the cave near The Quarry.",
+          "is_completed": true,
+          "notes": "Confirmed 7-round engagement. Extermination complete."
+        }
+      ]
+    }
+  ],
+  "combat_encounters_raw": [
+    {
+      "id": "cbt_001",
+      "name": "Vespon Queen & Swarm",
+      "location_id": "loc_007",
+      "outcome": "victory",
+      "narrative_context": "Encounter in the woods near the Atticus's clearing and treehouse.",
+      "rounds": [
+        {
+          "round_number": 1,
+          "session_id": "session_002",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_002",
+              "action": "Trident Throw",
+              "result": "miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "result-unclear"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "result-unclear",
+              "value": "3"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "10"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_004",
+              "action": "Toll the Dead",
+              "result": "enemy-save"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Shortbow",
+              "result": "hit",
+              "value": "4"
+            }
+          ]
+        },
+        {
+          "round_number": 2,
+          "session_id": "session_002",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_002",
+              "action": "Longsword",
+              "result": "hit",
+              "value": "13"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "1"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "hit",
+              "value": "3"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_004",
+              "action": "Unarmed Strike",
+              "result": "critical-hit",
+              "value": "9"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Shortbow",
+              "result": "miss"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Queen uses Sonic Buzz on Asphodel",
+              "impact": "PC Downed (12 damage)"
+            }
+          ]
+        },
+        {
+          "round_number": 3,
+          "session_id": "session_002",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_002",
+              "action": "Longsword",
+              "result": "miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "2"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_006",
+              "action": "Healing Word",
+              "result": "success",
+              "notes": "Target: Asphodel"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "7"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_004",
+              "action": "Unarmed Strike",
+              "result": "hit",
+              "value": "6"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Daggers",
+              "result": "hit",
+              "value": "9"
+            }
+          ]
+        },
+        {
+          "round_number": 4,
+          "session_id": "session_002",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Sleep",
+              "result": "success",
+              "notes": "Incapacitated the swarm"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "hit",
+              "value": "4"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Melee (2 hits)",
+              "result": "hit",
+              "value": "13",
+              "notes": "Queen killed"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "No Action",
+              "result": "no-action"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "No Action",
+              "result": "no-action"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "No Action",
+              "result": "no-action"
+            }
+          ],
+          "round_summary": "Queen killed; remaining swarm put to sleep and entombed via Mold Earth."
+        }
+      ],
+      "finale": "Atti and Goldie used Mold Earth to entomb the sleeping swarm."
+    },
+    {
+      "id": "cbt_002",
+      "name": "Siege of Bagyers Farm",
+      "location_id": "loc_003",
+      "outcome": "victory",
+      "narrative_context": "Sulfur smell; Pylon pulses spawn Rock Lobsters. Mentor Ched Warmfire killed.",
+      "rounds": [
+        {
+          "round_number": 1,
+          "session_id": "session_002",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Magic Missile",
+              "result": "hit",
+              "value": "10",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Entangle",
+              "result": "success",
+              "notes": "6 Rock Lobsters restrained"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Toll the Dead",
+              "result": "enemy-save"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "3",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Trident Throw",
+              "result": "hit",
+              "value": "12",
+              "notes": "Target: Rock Lobster"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Shortbow (Sneak Attack)",
+              "result": "result-unclear"
+            }
+          ]
+        },
+        {
+          "round_number": 2,
+          "session_id": "session_002",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "miss",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Ice Knife",
+              "result": "hit",
+              "notes": "3 Rocks killed"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Toll the Dead",
+              "result": "enemy-save"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Witch Bolt",
+              "result": "miss",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Longsword",
+              "result": "miss"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Shortbow (Sneak Attack)",
+              "result": "result-unclear"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Ashton",
+              "impact": "Concentration on Witch Bolt broken"
+            }
+          ]
+        },
+        {
+          "round_number": 3,
+          "session_id": "session_002",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "3",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "hit",
+              "value": "4"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Melee",
+              "result": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "miss",
+              "notes": "Disadvantage (enemy in 5')"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Longsword",
+              "result": "hit",
+              "value": "8"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Main/Offhand Melee",
+              "result": "hit/hit"
+            }
+          ]
+        },
+        {
+          "round_number": 4,
+          "session_id": "session_002",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "3",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Melee",
+              "result": "hit/miss"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Disengage",
+              "result": "success"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Longsword",
+              "result": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "3 Melee Attacks",
+              "result": "3 hits",
+              "notes": "3 Rocks killed"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rocks hit Goli, Asphodel, Malachite",
+              "impact": "Minor Damage"
+            }
+          ]
+        },
+        {
+          "round_number": 5,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "10",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "hit",
+              "value": "7"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Punch x2",
+              "result": "critical-hit",
+              "notes": "Nat 20 on main hand; off-hand missed"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "8"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "miss"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "2 Attacks (Main/Off)",
+              "result": "hit",
+              "notes": "Nat 20 on main hand; off-hand missed"
+            }
+          ]
+        },
+        {
+          "round_number": 6,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Magic Missile",
+              "result": "hit",
+              "value": "14",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "2 Attacks",
+              "result": "hit",
+              "notes": "1 Hit (1 Rock Lobster killed), 1 Miss"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "hit",
+              "notes": "1 Rock Lobster killed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "2 Attacks",
+              "result": "hit",
+              "notes": "1st Hit (1 Rock Lobster killed), 2nd Hit"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Goli and Asphodel",
+              "impact": "Goli Downed; Asphodel at 1 HP"
+            }
+          ]
+        },
+        {
+          "round_number": 7,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Melee",
+              "result": "hit",
+              "notes": "2 Rock Lobsters killed"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "hit",
+              "notes": "1 Rock Lobster killed; closing distance to Pylon"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Death Save",
+              "result": "success"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Hit on Asphodel",
+              "impact": "Asphodel Downed"
+            }
+          ]
+        },
+        {
+          "round_number": 8,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "critical-miss",
+              "notes": "Nat 1"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Death Save",
+              "result": "failure"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "6"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "hit",
+              "value": "15",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Death Save",
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "round_number": 9,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Breath Weapon",
+              "result": "hit",
+              "notes": "3 Rock Lobsters killed"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Earth Tremor",
+              "result": "success",
+              "notes": "1 Enemy Saved, 2 Killed"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Death Save",
+              "result": "success",
+              "notes": "2nd success total"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "3"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "hit",
+              "value": "12",
+              "notes": "Target: Pylon"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Death Save",
+              "result": "failure"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Malachite",
+              "impact": "1 hit"
+            }
+          ]
+        },
+        {
+          "round_number": 10,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "4",
+              "notes": "Moved; Opportunity Attack Missed"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Shillelagh",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Death Save",
+              "result": "success"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "1"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "critical-hit",
+              "value": "21",
+              "notes": "Nat 20 on Pylon"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Death Save",
+              "result": "failure"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Goldie and Ashton"
+            }
+          ]
+        },
+        {
+          "round_number": 11,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "9"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Death Save",
+              "result": "success",
+              "notes": "Stable"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "7",
+              "notes": "PYLON DESTROYED"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Surround",
+              "result": "hit",
+              "notes": "Surrounded; 1 Hit (1 Rock Lobster killed)"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Death Save",
+              "result": "success"
+            }
+          ],
+          "round_summary": "Pylon collapses and begins to dissolve; spawns continue fighting.",
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Goldie",
+              "impact": "Goldie at 1 HP"
+            }
+          ]
+        },
+        {
+          "round_number": 12,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Breath Weapon",
+              "result": "hit",
+              "value": "6"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Acid Splash",
+              "result": "hit"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Stable",
+              "result": "no-action"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Chill Touch",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "hit",
+              "notes": "1 Rock Lobster killed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Stable",
+              "result": "no-action"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Atticus and Ashton",
+              "impact": "Ashton Downed"
+            }
+          ]
+        },
+        {
+          "round_number": 13,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Shocking Grasp",
+              "result": "miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Acid Splash",
+              "result": "hit",
+              "notes": "2 Rock Lobsters killed"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Stable at 0HP",
+              "result": "no-action"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Death Save",
+              "result": "failure"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "hit",
+              "notes": "1 Rock Lobster killed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Stable",
+              "result": "no-action"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "2 hits on Malachite from 2 separate Rock Lobsters"
+            }
+          ]
+        },
+        {
+          "round_number": 14,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "True Strike",
+              "result": "hit",
+              "value": "3"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Acid Splash",
+              "result": "hit",
+              "value": "1"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Stable",
+              "result": "no-action"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Death Save",
+              "result": "success"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Healing Hands",
+              "result": "success",
+              "value": "7",
+              "notes": "Aasimar ability on self"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Stable",
+              "result": "no-action"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Atticus",
+              "impact": "Atticus Downed"
+            }
+          ]
+        },
+        {
+          "round_number": 15,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Shocking Grasp",
+              "result": "hit",
+              "value": "3"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Death Save",
+              "result": "failure"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Stable",
+              "result": "no-action"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Death Save",
+              "failure": "failure"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "hit",
+              "notes": "1 Rock Lobster killed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Stable",
+              "result": "no-action"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Hit twice on Malachite"
+            }
+          ]
+        },
+        {
+          "round_number": 16,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Shocking Grasp",
+              "result": "hit",
+              "notes": "1 Rock Lobster killed"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Death Save",
+              "result": "success"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Stable",
+              "result": "no-action"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Death Save",
+              "result": "success"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "hit",
+              "notes": "1 Rock Lobster killed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Stable",
+              "result": "no-action"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Malachite",
+              "impact": "1 hit"
+            }
+          ]
+        },
+        {
+          "round_number": 17,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Goodberry",
+              "result": "success",
+              "notes": "Target: Ashton"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Death Save",
+              "result": "success"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Stable",
+              "result": "no-action"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Goodberry",
+              "result": "success",
+              "notes": "Target: Atticus"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "miss"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Stable",
+              "result": "no-action"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Nat 20 on Malachite"
+            }
+          ]
+        },
+        {
+          "round_number": 18,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "1"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Goodberry",
+              "result": "success",
+              "notes": "Target: Asphodel"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Goodberry",
+              "result": "success",
+              "notes": "Target: Goli"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "5",
+              "notes": "Target Dead"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "hit",
+              "notes": "1 Rock Lobster killed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Shortbow (Sneak Attack)",
+              "result": "hit",
+              "notes": "Target Dead"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Rock Lobster hits Malachite",
+              "impact": "Damage applied"
+            }
+          ]
+        },
+        {
+          "round_number": 19,
+          "session_id": "session_003",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_006",
+              "action": "Acid Splash",
+              "result": "hit",
+              "value": "5",
+              "notes": "1 Dead Enemy"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_004",
+              "action": "Toll the Dead",
+              "result": "hit",
+              "value": "1"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "2"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_002",
+              "action": "Attack",
+              "result": "hit",
+              "notes": "LAST ROCK LOBSTER KILLED"
+            }
+          ],
+          "finale": "Victory. Pylon neutralized. All spawns defeated. Ched Warmfire confirmed dead."
+        }
+      ],
+      "finale": "The party barely survived the 19-round siege. Ched Warmfire was killed in the chaos. Loot recovered from a chest in the aftermath."
+    },
+    {
+      "id": "cbt_003",
+      "name": "Axe Beak & Vespon Ambush",
+      "location_id": "loc_004",
+      "outcome": "victory",
+      "rounds": [
+        {
+          "round_number": 1,
+          "session_id": "session_004",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "Toll the Dead",
+              "result": "save"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "4"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "Trident throw",
+              "result": "hit",
+              "value": "11"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Entangle",
+              "result": "success"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Short bow",
+              "result": "hit",
+              "value": "4"
+            }
+          ]
+        },
+        {
+          "round_number": 4,
+          "notes": "Axe Beaks alert about woods; flee. Owl spots 4 Vespon swarms.",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "Move to intercept",
+              "result": "success"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Ready: Firebolt",
+              "result": "hit",
+              "value": "4"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "Healing Hands",
+              "result": "hit",
+              "value": "2"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast fleeing Axe Beak",
+              "result": "hit"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Ready: Starry Wisp",
+              "result": "hit",
+              "value": "6"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Ready: Short bow",
+              "result": "miss"
+            }
+          ]
+        },
+        {
+          "round_number": 5,
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "2 attacks",
+              "result": "miss/miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "melee attack",
+              "result": "miss"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "hit",
+              "value": "11"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "hit",
+              "value": "7"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Short bow",
+              "result": "hit",
+              "value": "5"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "1 swarm attacks each horse (2 total). Del hit."
+            }
+          ]
+        },
+        {
+          "round_number": 6,
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "2 attacks",
+              "result": "hit/miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Sleep",
+              "result": "success",
+              "notes": "2 Vespon failed save; wake up after."
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "Melee attack",
+              "result": "hit",
+              "value": "12",
+              "notes": "1 swarm dead"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Witch Bolt",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "hit",
+              "value": "4"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Short bow",
+              "result": "miss"
+            }
+          ]
+        },
+        {
+          "round_number": 7,
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "2 attacks",
+              "result": "hit",
+              "value": "6"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "4"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "attack",
+              "result": "hit"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "BA: Witch Bolt / A: EB",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Starry wisp",
+              "result": "miss"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Short bow sneak attack",
+              "result": "hit"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Both horses killed. Attack against Del takes him down."
+            }
+          ]
+        },
+        {
+          "round_number": 8,
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "Successful death save",
+              "result": "success"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "7"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "hit",
+              "value": "9"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp (A) / HW (BA)",
+              "result": "hit",
+              "value": "1",
+              "notes": "HW on Del"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Short bow",
+              "result": "hit",
+              "value": "11"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Hit Ash."
+            }
+          ]
+        },
+        {
+          "round_number": 9,
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "Toll the Dead",
+              "result": "miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "miss"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Arms of Hadar",
+              "result": "hit",
+              "value": "7"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "miss"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Sneak attack",
+              "result": "hit",
+              "value": "10"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Hit Ash (Ash is down)."
+            }
+          ]
+        },
+        {
+          "round_number": 10,
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "2 melee attacks",
+              "result": "miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "Melee attack",
+              "result": "hit",
+              "notes": "Vespon Dead"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Death save (nat 20)",
+              "result": "success",
+              "notes": "Back to 1 HP"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Shillelagh",
+              "result": "miss"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "Hit sneak attack",
+              "result": "hit",
+              "value": "13"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Hit Atticus (nat 20)."
+            }
+          ]
+        },
+        {
+          "round_number": 11,
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "2 unarmed attacks",
+              "result": "hit"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "value": "10"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_002",
+              "action": "Melee attack",
+              "result": "hit",
+              "value": "11",
+              "notes": "Last Vespon dead"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "None",
+              "notes": "Combat ended before turn"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "None",
+              "notes": "Combat ended before turn"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_005",
+              "action": "None",
+              "notes": "Combat ended before turn"
+            }
+          ]
+        }
+      ],
+      "aftermath": "Del, Atticus, and Goldie turned familiars into goats to pull the wagon to Menne's Ranch."
+    },
+    {
+      "id": "cbt_004",
+      "name": "The Rat Cave",
+      "location_id": "loc_005",
+      "outcome": "victory",
+      "narrative_context": "Party enters via Goonies-style slide near the Quarry camp. Standardized as ROUS.",
+      "rounds": [
+        {
+          "round_number": 1,
+          "session_id": "session_004",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Breath Weapon",
+              "notes": "3 ROUS hit; 1 killed"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Throw trident",
+              "notes": "1 ROUS dead"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_005",
+              "action": "Short bow",
+              "notes": "1 ROUS dead"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "notes": "1 ROUS dead"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "value": "3",
+              "notes": "1 ROUS dead"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_004",
+              "action": "Unarmed Strike",
+              "value": "5"
+            }
+          ]
+        },
+        {
+          "round_number": 2,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Breath Weapon",
+              "result": "enemy-save",
+              "value": "5",
+              "notes": "Used Shield as reaction to block OAs; 4 ROUS saved"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Melee (Sword)",
+              "result": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_005",
+              "action": "Melee (Main/Off)",
+              "result": "miss/hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "result": "miss"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "critical-miss",
+              "notes": "Nat 1"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_004",
+              "action": "Move",
+              "notes": "Repositioned; no attack"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "ROUS hit Goli"
+            }
+          ]
+        },
+        {
+          "round_number": 3,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Concussive Burst",
+              "result": "mixed",
+              "notes": "3 targets; 2 saved, 1 failed"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "critical-hit",
+              "notes": "SPLAT! 1 ROUS killed"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_005",
+              "action": "Melee (Main/Off)",
+              "result": "miss/hit",
+              "notes": "1 ROUS hit; no kill"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Arms of Hadar",
+              "result": "success"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Acid Splash",
+              "result": "enemy-save"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_004",
+              "action": "Unarmed (x2)",
+              "result": "hit/hit",
+              "notes": "2 ROUS killed"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Party heavy damage: Goli (10 dmg), Del (3 dmg), Mal (4 dmg), Ash (16 dmg)"
+            }
+          ]
+        },
+        {
+          "round_number": 4,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_005",
+              "action": "Melee",
+              "result": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Arms of Hadar",
+              "result": "success",
+              "notes": "2 ROUS killed"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Healing Word / Starry Wisp",
+              "notes": "HW on Ash; Wisp missed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_004",
+              "action": "Unarmed (x2)",
+              "result": "hit/hit",
+              "notes": "2 ROUS killed"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Del's familiar (Deer) killed. Ash (4 dmg), Del (4 dmg)"
+            }
+          ]
+        },
+        {
+          "round_number": 5,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "value": "3",
+              "notes": "No kill"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_005",
+              "action": "Melee (Main/Off)",
+              "result": "hit/miss"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Disengage / Conjure Pact Weapon"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Acid Splash",
+              "notes": "2 failed saves"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_004",
+              "action": "Unarmed (x2)",
+              "result": "hit/hit",
+              "notes": "2 ROUS killed"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Mal hit (11 dmg total)"
+            }
+          ]
+        },
+        {
+          "round_number": 6,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "value": "5",
+              "notes": "No kill"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_005",
+              "action": "Melee (Main/Off)",
+              "result": "hit/hit",
+              "notes": "1 ROUS killed; 6 dmg to other"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Pact Weapon",
+              "value": "8"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_006",
+              "action": "Starry Wisp",
+              "result": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_004",
+              "action": "Unarmed (x2)",
+              "result": "hit/hit",
+              "notes": "1 ROUS killed; 8 dmg to other"
+            }
+          ]
+        },
+        {
+          "round_number": 7,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_001",
+              "action": "True Strike (Scimitar)",
+              "result": "miss"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_005",
+              "action": "Melee (Main/Off)",
+              "result": "hit/hit",
+              "notes": "1 ROUS killed; 6 dmg to other"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "value": "9",
+              "notes": "Final ROUS killed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cbt_005",
+      "name": "Goblin Ambush",
+      "location_id": "loc_002",
+      "outcome": "paused",
+      "narrative_context": "Ambush on road west of the Quarry. Paused end of Round 3.",
+      "rounds": [
+        {
+          "round_number": 1,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "Move",
+              "notes": "No attack"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Dash",
+              "notes": "No attack"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_006",
+              "action": "Entangle",
+              "notes": "Targeted incoming goblins"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_005",
+              "action": "Shortbow",
+              "value": "10",
+              "notes": "1 Goblin killed"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "value": "13",
+              "notes": "Target: Ogre"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_001",
+              "action": "Firebolt",
+              "result": "miss"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Goblins move; Ogre appears; Slinger hits Del"
+            }
+          ]
+        },
+        {
+          "round_number": 2,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "Unarmed (x2)",
+              "notes": "1 Goblin killed"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "value": "16"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_006",
+              "action": "Cure Wounds",
+              "value": "5",
+              "notes": "Target: Del (Downed earlier this round)"
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_005",
+              "action": "Shortbow",
+              "value": "10",
+              "notes": "Target: Ogre"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_003",
+              "action": "Witch Bolt",
+              "value": "12",
+              "notes": "Target: Ogre"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_001",
+              "action": "Magic Missile",
+              "value": "9",
+              "notes": "Target: Ogre"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Goblins: Del (3 dmg), Mal (3 dmg). Slingers: Del (7 dmg) - Del is DOWN. Ogre: Mal (10 dmg)"
+            }
+          ]
+        },
+        {
+          "round_number": 3,
+          "session_id": "session_005",
+          "initiative_grid": [
+            {
+              "slot": 1,
+              "actor_id": "pc_004",
+              "action": "Unarmed (x2)",
+              "value": "7",
+              "notes": "Nat 1 on second; no kill"
+            },
+            {
+              "slot": 2,
+              "actor_id": "pc_002",
+              "action": "Melee",
+              "result": "miss"
+            },
+            {
+              "slot": 3,
+              "actor_id": "pc_006",
+              "action": "Ice Knife",
+              "value": "8",
+              "notes": "Ogre killed. Mal saved vs burst."
+            },
+            {
+              "slot": 4,
+              "actor_id": "pc_005",
+              "action": "Shortbow",
+              "value": "14"
+            },
+            {
+              "slot": 5,
+              "actor_id": "pc_003",
+              "action": "Eldritch Blast",
+              "value": "7"
+            },
+            {
+              "slot": 6,
+              "actor_id": "pc_001",
+              "action": "Sleep",
+              "notes": "1 fails save; 2 succeed"
+            }
+          ],
+          "enemy_actions": [
+            {
+              "description": "Goblin: Mal (4 dmg). Ogre (before death): Mal (12 dmg). Slingers: Del (4 dmg)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cbt_006",
+      "name": "Wolf Fight",
+      "location_id": "loc_001",
+      "outcome": "victory",
+      "narrative_context": "Prologue combat at age 13. The party's first encounter as a group. Took place near Riverbend. Round-by-round details to be provided.",
+      "notes": "Pre-campaign prologue event referenced in session_001 summary. Details pending.",
+      "rounds": []
+    }
+  ],
+  "combat_encounters": [
+    {
+      "id": "cbt_001",
+      "name": "Vespon Queen & Swarm",
+      "location_id": "loc_007",
+      "sessions": [
+        "session_002"
+      ],
+      "outcome": "victory",
+      "totalRounds": 4,
+      "narrativeContext": "Encounter in the woods near Atticus's clearing and treehouse.",
+      "finale": "Atti and Goldie used Mold Earth to entomb the sleeping swarm.",
+      "rounds": [
+        {
+          "n": 1,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_002",
+              "act": "Trident Throw",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "unclear"
+            },
+            {
+              "s": 3,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "val": "3"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "10"
+            },
+            {
+              "s": 5,
+              "a": "pc_004",
+              "act": "Toll the Dead",
+              "res": "save"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Shortbow",
+              "res": "hit",
+              "val": "4"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 2,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_002",
+              "act": "Longsword",
+              "res": "hit",
+              "val": "13"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "1"
+            },
+            {
+              "s": 3,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "val": "3"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_004",
+              "act": "Unarmed Strike",
+              "res": "crit",
+              "val": "9"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Shortbow",
+              "res": "miss"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Queen: Sonic Buzz on Asphodel",
+              "impact": "Del DOWNED (12 dmg)"
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_002",
+              "act": "Longsword",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "2"
+            },
+            {
+              "s": 3,
+              "a": "pc_006",
+              "act": "Healing Word",
+              "res": "hit",
+              "notes": "Target: Asphodel"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "7"
+            },
+            {
+              "s": 5,
+              "a": "pc_004",
+              "act": "Unarmed Strike",
+              "res": "hit",
+              "val": "6"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Daggers",
+              "res": "hit",
+              "val": "9"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 4,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Sleep",
+              "res": "hit",
+              "notes": "Incapacitated swarm"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "val": "4"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Melee (2 hits)",
+              "res": "hit",
+              "val": "13",
+              "notes": "\u2605 Queen killed"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "No Action",
+              "res": "neutral"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "No Action",
+              "res": "neutral"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "No Action",
+              "res": "neutral"
+            }
+          ],
+          "enemy": [],
+          "summary": "Queen killed; remaining swarm put to sleep and entombed via Mold Earth."
+        }
+      ]
+    },
+    {
+      "id": "cbt_002",
+      "name": "Siege of Bagyers Farm",
+      "location_id": "loc_003",
+      "sessions": [
+        "session_002",
+        "session_003"
+      ],
+      "outcome": "victory",
+      "totalRounds": 19,
+      "narrativeContext": "Sulfur smell; Pylon pulses spawn Rock Lobsters. Mentor Ched Warmfire killed.",
+      "notes": "\u2605 Ched fell during this encounter. Pylon destroyed Rd 11.",
+      "finale": "The party barely survived the 19-round siege. Ched Warmfire was killed in the chaos. Loot recovered from a chest in the aftermath.",
+      "rounds": [
+        {
+          "n": 1,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Magic Missile",
+              "res": "hit",
+              "val": "10",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Entangle",
+              "res": "hit",
+              "notes": "6 Rock Lobsters restrained"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Toll the Dead",
+              "res": "save"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "3",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Trident Throw",
+              "res": "hit",
+              "val": "12",
+              "notes": "Target: Rock Lobster"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Shortbow SA",
+              "res": "unclear"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 2,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "miss",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Ice Knife",
+              "res": "hit",
+              "notes": "3 Rocks killed"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Toll the Dead",
+              "res": "save"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Witch Bolt",
+              "res": "miss",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Longsword",
+              "res": "miss"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Shortbow SA",
+              "res": "unclear"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rock Lobster hits Ashton",
+              "impact": "Conc on Witch Bolt broken"
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "3",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "val": "4"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "miss",
+              "notes": "Disadvantage"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Longsword",
+              "res": "hit",
+              "val": "8"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Main/Offhand",
+              "res": "hit"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 4,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "3",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Melee",
+              "res": "hit"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Disengage",
+              "res": "neutral"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Longsword",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "3 Melee Attacks",
+              "res": "hit",
+              "notes": "3 Rocks killed"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rocks hit Goli, Del, Mal",
+              "impact": "Minor damage"
+            }
+          ]
+        },
+        {
+          "n": 5,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "10",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "val": "7"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Punch x2",
+              "res": "crit",
+              "notes": "Nat 20 main hand"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "8"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "miss"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "2 Attacks",
+              "res": "hit",
+              "notes": "Nat 20 main hand"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 6,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Magic Missile",
+              "res": "hit",
+              "val": "14",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "2 Attacks",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "2 Attacks",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rocks hit Goli & Del",
+              "impact": "Goli DOWNED \u00b7 Del at 1HP"
+            }
+          ]
+        },
+        {
+          "n": 7,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "2 Rocks killed"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Hit on Asphodel",
+              "impact": "Del DOWNED"
+            }
+          ]
+        },
+        {
+          "n": 8,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "miss",
+              "notes": "Nat 1"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Failure"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "6"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit",
+              "val": "15",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 9,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Breath Weapon",
+              "res": "hit",
+              "notes": "3 Rocks killed"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Earth Tremor",
+              "res": "hit",
+              "notes": "2 killed"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "2nd success"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "3"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit",
+              "val": "12",
+              "notes": "Target: Pylon"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Failure"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rock Lobster hits Malachite"
+            }
+          ]
+        },
+        {
+          "n": 10,
+          "sid": "session_002",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "4",
+              "notes": "OA missed"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Shillelagh",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success \u2014 stable"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "1"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "crit",
+              "val": "21",
+              "notes": "\u2605 Nat 20 on Pylon"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Failure"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rocks hit Goldie & Ashton"
+            }
+          ]
+        },
+        {
+          "n": 11,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "9"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success \u2014 stable"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "7",
+              "notes": "\u2605\u2605 PYLON DESTROYED"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Surround",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rock Lobster hits Goldie",
+              "impact": "Gold at 1HP"
+            }
+          ],
+          "summary": "Pylon collapses and begins to dissolve; spawns continue fighting."
+        },
+        {
+          "n": 12,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Breath Weapon",
+              "res": "hit",
+              "val": "6"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Acid Splash",
+              "res": "hit"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Stable",
+              "res": "neutral"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Chill Touch",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Stable",
+              "res": "neutral"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rocks hit Atticus & Ashton",
+              "impact": "Ash DOWNED"
+            }
+          ]
+        },
+        {
+          "n": 13,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Shocking Grasp",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Acid Splash",
+              "res": "hit",
+              "notes": "2 Rocks killed"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Stable",
+              "res": "neutral"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Failure"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Stable",
+              "res": "neutral"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "2 hits on Malachite"
+            }
+          ]
+        },
+        {
+          "n": 14,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "True Strike",
+              "res": "hit",
+              "val": "3"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Acid Splash",
+              "res": "hit",
+              "val": "1"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Stable",
+              "res": "neutral"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Healing Hands",
+              "res": "hit",
+              "val": "7",
+              "notes": "Self-heal (Aasimar)"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Stable",
+              "res": "neutral"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rock Lobster hits Atticus",
+              "impact": "Att DOWNED"
+            }
+          ]
+        },
+        {
+          "n": 15,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Shocking Grasp",
+              "res": "hit",
+              "val": "3"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Failure"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Stable",
+              "res": "neutral"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Death Save",
+              "res": "death"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Stable",
+              "res": "neutral"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Hit twice on Malachite"
+            }
+          ]
+        },
+        {
+          "n": 16,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Shocking Grasp",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Stable",
+              "res": "neutral"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Stable",
+              "res": "neutral"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rock Lobster hits Malachite"
+            }
+          ]
+        },
+        {
+          "n": 17,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Goodberry",
+              "res": "hit",
+              "notes": "Target: Ashton"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Death Save",
+              "res": "death",
+              "notes": "Success"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Stable",
+              "res": "neutral"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Goodberry",
+              "res": "hit",
+              "notes": "Target: Atticus"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "miss"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Stable",
+              "res": "neutral"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Nat 20 on Malachite"
+            }
+          ]
+        },
+        {
+          "n": 18,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "1"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Goodberry",
+              "res": "hit",
+              "notes": "Target: Asphodel"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Goodberry",
+              "res": "hit",
+              "notes": "Target: Goli"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "5",
+              "notes": "Target dead"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit",
+              "notes": "1 Rock killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Shortbow SA",
+              "res": "hit",
+              "notes": "Target dead"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Rock Lobster hits Malachite"
+            }
+          ]
+        },
+        {
+          "n": 19,
+          "sid": "session_003",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_006",
+              "act": "Acid Splash",
+              "res": "hit",
+              "val": "5",
+              "notes": "1 dead"
+            },
+            {
+              "s": 3,
+              "a": "pc_004",
+              "act": "Toll the Dead",
+              "res": "hit",
+              "val": "1"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "2"
+            },
+            {
+              "s": 5,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit",
+              "notes": "\u2605\u2605 LAST ROCK KILLED \u2014 Victory"
+            }
+          ],
+          "enemy": [],
+          "summary": "Victory. Pylon neutralized. All spawns defeated. Ched Warmfire confirmed dead."
+        }
+      ]
+    },
+    {
+      "id": "cbt_003",
+      "name": "Axe Beak & Vespon Ambush",
+      "location_id": "loc_004",
+      "sessions": [
+        "session_004"
+      ],
+      "outcome": "victory",
+      "totalRounds": 9,
+      "narrativeContext": "Road ambush while escorting Carly to Menne's Ranch. Horses killed.",
+      "aftermath": "Del, Atticus, and Goldie turned familiars into goats to pull the wagon to Menne's Ranch.",
+      "rounds": [
+        {
+          "n": 1,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "Toll the Dead",
+              "res": "save"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "4"
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Trident throw",
+              "res": "hit",
+              "val": "11"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Entangle",
+              "res": "hit"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Short bow",
+              "res": "hit",
+              "val": "4"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 4,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "Move to intercept",
+              "res": "neutral"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Ready: Firebolt",
+              "res": "hit",
+              "val": "4"
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Healing Hands",
+              "res": "hit",
+              "val": "2"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "EB fleeing Axe Beak",
+              "res": "hit"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Ready: Starry Wisp",
+              "res": "hit",
+              "val": "6"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Ready: Short bow",
+              "res": "miss"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 5,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "2 attacks",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Melee attack",
+              "res": "miss"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "11"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "val": "7"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Short bow",
+              "res": "hit",
+              "val": "5"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "1 swarm attacks each horse (2 total). Del hit."
+            }
+          ]
+        },
+        {
+          "n": 6,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "2 attacks",
+              "res": "hit"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Sleep",
+              "res": "hit",
+              "notes": "2 Vespon failed save; wake up after."
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Melee attack",
+              "res": "hit",
+              "val": "12",
+              "notes": "1 swarm dead"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Witch Bolt",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "val": "4"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Short bow",
+              "res": "miss"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 7,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "2 attacks",
+              "res": "hit",
+              "val": "6"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "4"
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Attack",
+              "res": "hit"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "BA: Witch Bolt / A: EB",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "miss"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Short bow SA",
+              "res": "hit"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Both horses killed. Attack against Del takes him down.",
+              "impact": "Del DOWNED"
+            }
+          ]
+        },
+        {
+          "n": 8,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "Death save",
+              "res": "death",
+              "notes": "Success"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "7"
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "hit",
+              "val": "9"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Starry Wisp + HW",
+              "res": "hit",
+              "val": "1",
+              "notes": "HW on Del"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Short bow",
+              "res": "hit",
+              "val": "11"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Hit Ash."
+            }
+          ]
+        },
+        {
+          "n": 9,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "Toll the Dead",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "miss"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Arms of Hadar",
+              "res": "hit",
+              "val": "7"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "miss"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Sneak attack",
+              "res": "hit",
+              "val": "10"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Hit Ash.",
+              "impact": "Ash DOWNED"
+            }
+          ]
+        },
+        {
+          "n": 10,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "2 melee attacks",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Melee attack",
+              "res": "hit",
+              "notes": "Vespon Dead"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Death save (Nat 20)",
+              "res": "death",
+              "notes": "Back to 1 HP"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Shillelagh",
+              "res": "miss"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "Sneak attack",
+              "res": "hit",
+              "val": "13"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Hit Atticus (Nat 20)."
+            }
+          ]
+        },
+        {
+          "n": 11,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "2 unarmed attacks",
+              "res": "hit"
+            },
+            {
+              "s": 2,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "10"
+            },
+            {
+              "s": 3,
+              "a": "pc_002",
+              "act": "Melee attack",
+              "res": "hit",
+              "val": "11",
+              "notes": "\u2605 Last Vespon dead"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "None",
+              "res": "neutral",
+              "notes": "Combat ended before turn"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "None",
+              "res": "neutral",
+              "notes": "Combat ended before turn"
+            },
+            {
+              "s": 6,
+              "a": "pc_005",
+              "act": "None",
+              "res": "neutral",
+              "notes": "Combat ended before turn"
+            }
+          ],
+          "enemy": []
+        }
+      ]
+    },
+    {
+      "id": "cbt_004",
+      "name": "The Rat Cave",
+      "location_id": "loc_005",
+      "sessions": [
+        "session_004",
+        "session_005"
+      ],
+      "outcome": "victory",
+      "totalRounds": 7,
+      "narrativeContext": "Party entered via Goonies-style slide near the Quarry camp. ROUS infestation.",
+      "rounds": [
+        {
+          "n": 1,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Breath Weapon",
+              "res": "hit",
+              "notes": "3 ROUS hit; 1 killed"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Throw trident",
+              "res": "hit",
+              "notes": "1 ROUS dead"
+            },
+            {
+              "s": 3,
+              "a": "pc_005",
+              "act": "Short bow",
+              "res": "hit",
+              "notes": "1 ROUS dead"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "notes": "1 ROUS dead"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "val": "3",
+              "notes": "1 ROUS dead"
+            },
+            {
+              "s": 6,
+              "a": "pc_004",
+              "act": "Unarmed Strike",
+              "res": "hit",
+              "val": "5"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 2,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Breath Weapon",
+              "res": "save",
+              "val": "5",
+              "notes": "4 ROUS saved; Shield reaction"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Melee (Sword)",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 3,
+              "a": "pc_005",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "miss"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "miss",
+              "notes": "Nat 1"
+            },
+            {
+              "s": 6,
+              "a": "pc_004",
+              "act": "Move",
+              "res": "neutral",
+              "notes": "Repositioned"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "ROUS hit Goli"
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Concussive Burst",
+              "res": "hit",
+              "notes": "2 saved, 1 failed"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "crit",
+              "notes": "\u2605 SPLAT! 1 ROUS killed"
+            },
+            {
+              "s": 3,
+              "a": "pc_005",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 ROUS hit"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Arms of Hadar",
+              "res": "hit"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Acid Splash",
+              "res": "save"
+            },
+            {
+              "s": 6,
+              "a": "pc_004",
+              "act": "Unarmed (x2)",
+              "res": "hit",
+              "notes": "2 ROUS killed"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Party heavy damage",
+              "impact": "Goli 10 \u00b7 Del 3 \u00b7 Mal 4 \u00b7 Ash 16"
+            }
+          ]
+        },
+        {
+          "n": 4,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 3,
+              "a": "pc_005",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Arms of Hadar",
+              "res": "hit",
+              "notes": "2 ROUS killed"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "HW + Starry Wisp",
+              "res": "hit",
+              "notes": "HW on Ash; Wisp missed"
+            },
+            {
+              "s": 6,
+              "a": "pc_004",
+              "act": "Unarmed (x2)",
+              "res": "hit",
+              "notes": "2 ROUS killed"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Del's familiar (Deer) killed"
+            }
+          ]
+        },
+        {
+          "n": 5,
+          "sid": "session_004",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "3"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 3,
+              "a": "pc_005",
+              "act": "Melee",
+              "res": "hit"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Disengage + Pact Weapon",
+              "res": "neutral"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Acid Splash",
+              "res": "hit",
+              "notes": "2 failed saves"
+            },
+            {
+              "s": 6,
+              "a": "pc_004",
+              "act": "Unarmed (x2)",
+              "res": "hit",
+              "notes": "2 ROUS killed"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Mal hit",
+              "impact": "11 total dmg"
+            }
+          ]
+        },
+        {
+          "n": 6,
+          "sid": "session_005",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "hit",
+              "val": "5"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 3,
+              "a": "pc_005",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Pact Weapon",
+              "res": "hit",
+              "val": "8"
+            },
+            {
+              "s": 5,
+              "a": "pc_006",
+              "act": "Starry Wisp",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 6,
+              "a": "pc_004",
+              "act": "Unarmed (x2)",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            }
+          ],
+          "enemy": []
+        },
+        {
+          "n": 7,
+          "sid": "session_005",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_001",
+              "act": "True Strike (Scimitar)",
+              "res": "miss"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_005",
+              "act": "Melee",
+              "res": "hit",
+              "notes": "1 ROUS killed"
+            },
+            {
+              "s": 4,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "9",
+              "notes": "\u2605 Final ROUS killed \u2014 Victory"
+            }
+          ],
+          "enemy": []
+        }
+      ]
+    },
+    {
+      "id": "cbt_005",
+      "name": "Goblin Ambush",
+      "location_id": "loc_002",
+      "sessions": [
+        "session_005"
+      ],
+      "outcome": "paused",
+      "totalRounds": 3,
+      "narrativeContext": "Ambush on road west of the Quarry. Paused end of Round 3 \u2014 continues next session.",
+      "notes": "\u26a0 Combat continues in Session 006.",
+      "rounds": [
+        {
+          "n": 1,
+          "sid": "session_005",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "Move",
+              "res": "neutral",
+              "notes": "No attack"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Dash",
+              "res": "neutral",
+              "notes": "No attack"
+            },
+            {
+              "s": 3,
+              "a": "pc_006",
+              "act": "Entangle",
+              "res": "hit",
+              "notes": "Targeted goblins"
+            },
+            {
+              "s": 4,
+              "a": "pc_005",
+              "act": "Shortbow",
+              "res": "hit",
+              "val": "10",
+              "notes": "1 Goblin killed"
+            },
+            {
+              "s": 5,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "13",
+              "notes": "Target: Ogre"
+            },
+            {
+              "s": 6,
+              "a": "pc_001",
+              "act": "Firebolt",
+              "res": "miss"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Goblins move; Ogre appears; Slinger hits Del"
+            }
+          ]
+        },
+        {
+          "n": 2,
+          "sid": "session_005",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "Unarmed (x2)",
+              "res": "hit",
+              "notes": "1 Goblin killed"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "hit",
+              "val": "16"
+            },
+            {
+              "s": 3,
+              "a": "pc_006",
+              "act": "Cure Wounds",
+              "res": "hit",
+              "val": "5",
+              "notes": "Target: Del (just downed)"
+            },
+            {
+              "s": 4,
+              "a": "pc_005",
+              "act": "Shortbow",
+              "res": "hit",
+              "val": "10",
+              "notes": "Target: Ogre"
+            },
+            {
+              "s": 5,
+              "a": "pc_003",
+              "act": "Witch Bolt",
+              "res": "hit",
+              "val": "12",
+              "notes": "Target: Ogre"
+            },
+            {
+              "s": 6,
+              "a": "pc_001",
+              "act": "Magic Missile",
+              "res": "hit",
+              "val": "9",
+              "notes": "Target: Ogre"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Goblins: Del 3, Mal 3. Slingers: Del 7 \u2014 Del DOWNED. Ogre: Mal 10."
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "sid": "session_005",
+          "slots": [
+            {
+              "s": 1,
+              "a": "pc_004",
+              "act": "Unarmed (x2)",
+              "res": "hit",
+              "val": "7",
+              "notes": "Nat 1 on second"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "act": "Melee",
+              "res": "miss"
+            },
+            {
+              "s": 3,
+              "a": "pc_006",
+              "act": "Ice Knife",
+              "res": "hit",
+              "val": "8",
+              "notes": "\u2605 Ogre killed; Mal saved vs burst"
+            },
+            {
+              "s": 4,
+              "a": "pc_005",
+              "act": "Shortbow",
+              "res": "hit",
+              "val": "14"
+            },
+            {
+              "s": 5,
+              "a": "pc_003",
+              "act": "Eldritch Blast",
+              "res": "hit",
+              "val": "7"
+            },
+            {
+              "s": 6,
+              "a": "pc_001",
+              "act": "Sleep",
+              "res": "hit",
+              "notes": "1 fails; 2 succeed"
+            }
+          ],
+          "enemy": [
+            {
+              "desc": "Goblin: Mal 4. Ogre (pre-death): Mal 12. Slingers: Del 4."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cbt_006",
+      "name": "Wolf Fight",
+      "location_id": "loc_008",
+      "location": "loc_008",
+      "sessions": [
+        "session_001"
+      ],
+      "outcome": "victory",
+      "totalRounds": 0,
+      "narrativeContext": "Prologue combat at age 13. The party's first encounter as a group. Took place near Atticus's Clearing.",
+      "notes": "Round-by-round details pending. Referenced in session_001 summary.",
+      "rounds": []
+    }
+  ]
+}

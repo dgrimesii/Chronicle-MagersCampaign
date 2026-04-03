@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — Version Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* ── Arcane Night ── */
+  --ink:#f0e8d0; --ink-inv:#0f1020;
+  --parchment:#0f1020; --parchment-dark:#13152b; --parchment-mid:#1e2040; --card-bg:#181a35;
+  --amber:#d4af37; --amber-dim:#a88820; --amber-light:#f0d060;
+  --rust:#ff6b50; --teal:#4a9e7a; --green:#4adf9a; --purple:#c090ff;
+  --muted:#7d7a94; --muted-light:#4a4870;
+  --border:rgba(212,175,55,0.12); --border-strong:rgba(212,175,55,0.28);
+  --shadow:0 4px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.08);
+  --shadow-md:0 8px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.12);
+  /* Entity colours — brightened for dark bg */
+  --c-pc:#4adf9a; --c-npc:#ff8c55; --c-loc:#5ab0ff; --c-quest:#ffd040;
+  --c-item:#c090ff; --c-combat:#ff6060; --c-lore:#80ff80; --c-session:#9090c0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Crimson Pro',Georgia,serif;background:#0f1020;color:#f0e8d0;
+  background-image:radial-gradient(ellipse at 20% 20%,rgba(74,59,140,0.25) 0%,transparent 55%),
+    radial-gradient(ellipse at 80% 80%,rgba(30,20,80,0.4) 0%,transparent 55%);color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
+  background-image:radial-gradient(ellipse at 20% 10%,rgba(212,175,55,0.05) 0%,transparent 50%),radial-gradient(ellipse at 80% 90%,rgba(42,107,107,0.04) 0%,transparent 50%);}
+
+header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;height:64px;background:rgba(13,15,40,0.95);position:relative;z-index:100;}
+.logo{font-family:"Cinzel",serif;font-size:1.05rem;font-weight:600;letter-spacing:0.12em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.logo span{color:var(--amber);}
+.header-right{display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;overflow:hidden;min-width:0;}
+.nav-links{display:flex;gap:0.9rem;justify-content:center;align-items:center;flex-wrap:nowrap;padding:0 2rem;}
+.nav-link{cursor:pointer;font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;padding-bottom:2px;border-bottom:1px solid transparent;transition:all 0.15s;white-space:nowrap;cursor:pointer;}
+.nav-link:hover{color:var(--ink);}
+.nav-link.active{color:var(--amber);border-bottom-color:var(--amber);}
+
+.shell{display:grid;grid-template-columns:300px 1fr;flex:1;overflow:hidden;max-height:calc(100vh - 64px);}
+
+/* ── Left panel: version ledger ── */
+.ledger-panel{border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:#13152b;overflow:hidden;}
+.ledger-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ledger-title{font-family:'Cinzel',serif;font-size:0.82rem;letter-spacing:0.12em;font-weight:600;margin-bottom:0.25rem;}
+.ledger-subtitle{font-size:0.8rem;color:var(--muted);font-style:italic;}
+.ledger-list{flex:1;overflow-y:auto;}
+
+/* Version entries in ledger */
+.version-entry{padding:0.75rem 1.25rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;position:relative;}
+.version-entry:hover{background:rgba(212,175,55,0.06);}
+.version-entry.active{background:rgba(212,175,55,0.12);border-right:2px solid var(--amber);}
+.version-entry.is-live{border-left:3px solid var(--teal);}
+.version-entry.is-pre{border-left:3px solid var(--amber);}
+.version-entry.is-post{border-left:3px solid var(--green);}
+.version-entry.is-manual{border-left:3px solid var(--muted);}
+
+.ve-top{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
+.ve-tag{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.12em;padding:2px 7px;border-radius:2px;text-transform:uppercase;flex-shrink:0;}
+.tag-live{background:rgba(42,107,107,0.12);color:var(--teal);border:1px solid rgba(42,107,107,0.25);}
+.tag-pre{background:rgba(212,175,55,0.1);color:var(--amber-dim);border:1px solid rgba(212,175,55,0.25);}
+.tag-post{background:rgba(45,106,63,0.1);color:var(--green);border:1px solid rgba(45,106,63,0.25);}
+.tag-manual{background:rgba(212,175,55,0.006);color:var(--muted);border:1px solid var(--border-strong);}
+.ve-name{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--ink);font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ve-date{font-size:0.78rem;color:var(--muted-light);}
+.ve-stats{display:flex;gap:8px;margin-top:2px;flex-wrap:wrap;}
+.ve-stat{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted);}
+.ve-note{font-size:0.78rem;color:var(--muted);font-style:italic;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+.ledger-empty{padding:2rem 1.25rem;text-align:center;color:var(--muted);}
+.ledger-empty-title{font-family:'Cinzel',serif;font-size:0.85rem;letter-spacing:0.08em;margin-bottom:0.4rem;}
+.ledger-empty-hint{font-size:0.88rem;font-style:italic;}
+
+/* ── Right panel: actions + detail ── */
+.action-panel{display:flex;flex-direction:column;overflow:hidden;}
+
+/* Action bar at top */
+.action-bar{padding:1rem 1.75rem;border-bottom:1px solid var(--border);background:var(--card-bg);display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0;}
+.action-bar-title{font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.12em;color:var(--muted);margin-right:4px;}
+
+/* Main content area */
+.content-area{flex:1;overflow-y:auto;padding:1.75rem;}
+
+/* Live file card */
+.live-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:1.5rem;box-shadow:var(--shadow);}
+.live-card-header{background:var(--ink);color:var(--parchment);padding:0.85rem 1.25rem;display:flex;align-items:center;justify-content:space-between;}
+.live-card-title{font-family:'Cinzel',serif;font-size:0.82rem;letter-spacing:0.1em;}
+.live-status-dot{width:8px;height:8px;border-radius:50%;background:var(--teal);animation:pulse-green 2s infinite;}
+@keyframes pulse-green{0%,100%{opacity:1;}50%{opacity:0.5;}}
+.live-card-body{padding:1.25rem;display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;}
+.live-stat{text-align:center;padding:0.75rem;background:var(--parchment-mid);border-radius:3px;}
+.live-stat-num{font-family:'Cinzel',serif;font-size:1.4rem;font-weight:600;color:var(--ink);}
+.live-stat-label{font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+.live-card-footer{padding:0.75rem 1.25rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--parchment);}
+.live-file-name{font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--muted);}
+
+/* Pre-session backup workflow card */
+.workflow-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:1.5rem;box-shadow:var(--shadow);}
+.workflow-header{padding:0.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.workflow-header-title{font-family:'Cinzel',serif;font-size:0.85rem;letter-spacing:0.08em;font-weight:600;}
+.workflow-badge{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.12em;padding:2px 9px;border-radius:2px;background:rgba(212,175,55,0.1);color:var(--amber-dim);border:1px solid rgba(212,175,55,0.25);}
+.workflow-steps{display:flex;flex-direction:column;gap:0;}
+.workflow-step{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:12px;padding:0.85rem 1.25rem;border-bottom:1px solid var(--border);}
+.workflow-step:last-child{border-bottom:none;}
+.workflow-step.done .step-circle{background:var(--teal);border-color:var(--teal);color:white;}
+.workflow-step.current .step-circle{background:var(--amber);border-color:var(--amber);color:white;}
+.step-circle{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:0.68rem;color:var(--muted);flex-shrink:0;}
+.step-text-title{font-size:0.95rem;font-weight:600;color:var(--ink);}
+.step-text-hint{font-size:0.8rem;color:var(--muted);font-style:italic;}
+
+/* Version detail card */
+.version-detail-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;overflow:hidden;box-shadow:var(--shadow);}
+.vd-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;}
+.vd-title{font-family:'Cinzel',serif;font-size:1.1rem;font-weight:600;letter-spacing:0.06em;}
+.vd-date{font-size:0.85rem;color:var(--muted);margin-top:3px;}
+.vd-body{padding:1.25rem;}
+.vd-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:1.25rem;}
+.vd-stat{text-align:center;padding:0.6rem;background:var(--parchment-mid);border-radius:3px;border:1px solid var(--border);}
+.vd-stat-num{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:500;color:var(--ink);}
+.vd-stat-label{font-family:'Cinzel',serif;font-size:0.52rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+.vd-diff{margin-bottom:1.25rem;}
+.diff-title{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:0.5rem;}
+.diff-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.9rem;}
+.diff-row:last-child{border-bottom:none;}
+.diff-field{min-width:120px;color:var(--muted);}
+.diff-before{font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--muted);text-decoration:line-through;}
+.diff-arrow{color:var(--muted-light);}
+.diff-after{font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--teal);font-weight:500;}
+.diff-unchanged{font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--muted-light);}
+.vd-note-input{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.95rem;background:var(--card-bg);color:var(--ink);outline:none;margin-top:4px;}
+.vd-note-input:focus{border-color:var(--amber);}
+
+/* Restore flow */
+.restore-steps{background:rgba(42,107,107,0.04);border:1px solid rgba(42,107,107,0.2);border-radius:4px;padding:1rem 1.25rem;margin-top:1rem;}
+.restore-step-row{display:flex;align-items:flex-start;gap:10px;padding:5px 0;font-size:0.92rem;}
+.restore-step-num{font-family:'Cinzel',serif;font-size:0.65rem;color:var(--teal);min-width:18px;margin-top:2px;}
+.danger-zone{background:rgba(139,58,30,0.04);border:1px solid rgba(139,58,30,0.2);border-radius:4px;padding:1rem 1.25rem;margin-top:1rem;}
+.danger-title{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.15em;color:var(--rust);text-transform:uppercase;margin-bottom:0.5rem;}
+
+/* Import drop zone */
+.import-zone{border:1.5px dashed var(--border-strong);border-radius:4px;padding:1.5rem;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(212,175,55,0.04);position:relative;margin-bottom:1.5rem;}
+.import-zone:hover,.import-zone.drag-over{border-color:var(--amber);background:rgba(212,175,55,0.04);}
+.import-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.import-zone-label{font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.1em;color:var(--muted);margin-top:6px;}
+.import-zone-hint{font-size:0.85rem;color:var(--muted-light);font-style:italic;margin-top:3px;}
+
+/* Buttons */
+.btn{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;padding:8px 16px;border-radius:3px;cursor:pointer;transition:all 0.15s;border:1px solid transparent;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+.btn-primary{background:var(--amber);color:white;border-color:var(--amber-dim);}
+.btn-primary:hover{background:var(--amber-dim);}
+.btn-teal{background:var(--teal);color:white;border-color:var(--teal);}
+.btn-teal:hover{background:#205555;}
+.btn-danger{background:rgba(139,58,30,0.1);color:var(--rust);border-color:rgba(139,58,30,0.3);}
+.btn-danger:hover{background:var(--rust);color:white;border-color:var(--rust);}
+.btn-secondary{background:transparent;color:var(--ink);border-color:var(--border-strong);}
+.btn-secondary:hover{background:var(--parchment-dark);}
+.btn-ghost{background:none;border:none;font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.08em;color:var(--amber-dim);cursor:pointer;padding:4px 0;text-decoration:underline;text-underline-offset:3px;}
+.btn-sm{padding:5px 11px;font-size:0.64rem;}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* Divider */
+.ornament-divider{display:flex;align-items:center;gap:1rem;margin:1.5rem 0;}
+.ornament-divider::before,.ornament-divider::after{content:'';flex:1;height:1px;background:linear-gradient(to right,transparent,var(--border-strong),transparent);}
+.ornament-divider span{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;white-space:nowrap;}
+
+/* Toast */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--ink);color:var(--parchment);padding:0.75rem 1.25rem;border-radius:4px;font-size:0.9rem;opacity:0;transform:translateY(8px);transition:all 0.25s;z-index:999;pointer-events:none;font-family:'Crimson Pro',serif;}
+.toast.show{opacity:1;transform:translateY(0);}
+
+/* Confirm modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(212,175,55,0.05);z-index:500;display:flex;align-items:center;justify-content:center;padding:2rem;}
+.modal-backdrop.hidden{display:none;}
+.modal{background:var(--parchment);border:1px solid var(--border-strong);border-radius:4px;width:100%;max-width:440px;box-shadow:var(--shadow-md);}
+.modal-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);font-family:'Cinzel',serif;font-size:0.88rem;letter-spacing:0.08em;}
+.modal-body{padding:1.25rem;font-size:0.95rem;line-height:1.65;}
+.modal-footer{padding:0.85rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Chron<span>i</span>cle</div>
+  <nav class="nav-links">
+    <span class="nav-link" onclick="window.location='intake.html'">Session Intake</span>
+    <span class="nav-link" onclick="window.location='glossary.html'">OCR Glossary</span>
+    <span class="nav-link" onclick="window.location='delta-review.html'">Delta Review</span>
+    <span class="nav-link" onclick="window.location='integrity.html'">Integrity</span>
+    <span class="nav-link" onclick="window.location='log-viewer.html'">Campaign Log</span>
+    <span class="nav-link" onclick="window.location='log-editor.html'">Log Editor</span>
+    <span class="nav-link active" onclick="window.location='versions.html'">Versions</span>
+  </nav>
+  <div class="header-right"></div>
+</header>
+
+<div class="shell">
+
+  <!-- ── Left: version ledger ── -->
+  <div class="ledger-panel">
+    <div class="ledger-header">
+      <div class="ledger-title">Version Ledger</div>
+      <div class="ledger-subtitle">All known snapshots of the campaign log</div>
+    </div>
+    <div class="ledger-list" id="ledger-list"></div>
+  </div>
+
+  <!-- ── Right: action panel ── -->
+  <div class="action-panel">
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <span class="action-bar-title">Actions:</span>
+      <button class="btn btn-primary" onclick="startPreSessionBackup()">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 9v1a1 1 0 001 1h8a1 1 0 001-1V9" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+        Create pre-session backup
+      </button>
+      <button class="btn btn-secondary" onclick="triggerImport()">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 11V4M3 7l3-3 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 9v1a1 1 0 001 1h8a1 1 0 001-1V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        Import JSON to ledger
+      </button>
+      <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="importJsonFile(this.files[0])">
+      <button class="btn btn-secondary" onclick="clearLedger()" style="margin-left:auto;">Clear ledger</button>
+    </div>
+
+    <!-- Content -->
+    <div class="content-area" id="content-area">
+      <!-- Default view rendered by JS -->
+    </div>
+
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div class="modal-backdrop hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header" id="modal-title">Confirm</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../shared/config.js"></script>
+<script>
+// ── Drive integration ─────────────────────────────────────────────────────────
+// All requests use GET to avoid CORS preflight. Write data is JSON-encoded
+// in the URL 'payload' parameter. The proxy returns { ok, raw } for reads
+// and { ok, ... } for mutations.
+
+const DRIVE_PROXY    = window.CHRONICLE_CONFIG.proxyUrl;
+const CAMPAIGN_FILE  = window.CHRONICLE_CONFIG.campaignFileId;
+
+async function driveGet(params) {
+  var url = DRIVE_PROXY + '?';
+  var parts = [];
+  Object.keys(params).forEach(function(k) {
+    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+  });
+  url += parts.join('&');
+  const res  = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Drive error');
+  return data;
+}
+
+// Read campaign JSON — returns the parsed campaign object
+async function fetchCampaignFromDrive() {
+  const data = await driveGet({ action: 'read', id: CAMPAIGN_FILE });
+  // Proxy returns { ok: true, raw: "<json string>" }
+  return JSON.parse(data.raw);
+}
+
+// Write uses POST with Content-Type: text/plain to avoid CORS preflight.
+// text/plain is a CORS "simple" type — no OPTIONS request is sent.
+async function writeCampaignToDrive(campaignObj) {
+  const body = JSON.stringify({ action: 'write', fileId: CAMPAIGN_FILE, data: campaignObj });
+  const res  = await fetch(DRIVE_PROXY, {
+    method:  'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body:    body,
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Drive write error');
+  return data;
+}
+
+
+// Create a backup copy
+async function backupCampaignOnDrive(label) {
+  return driveGet({
+    action: 'backup',
+    id:     CAMPAIGN_FILE,
+    label:  label || '',
+  });
+}
+
+// List existing backups
+async function listDriveBackups() {
+  return driveGet({ action: 'listBackups', id: CAMPAIGN_FILE });
+}
+
+// Compatibility shim — routes write to POST, everything else to GET
+async function driveRequest(action, extra) {
+  if (action === 'write') {
+    const data = (extra || {}).data;
+    if (!data) throw new Error('driveRequest write: data required');
+    return writeCampaignToDrive(data);
+  }
+  var params = Object.assign({ action: action, id: CAMPAIGN_FILE }, extra || {});
+  return driveGet(params);
+}
+
+
+// ══════════════════════════════════════════════════════
+// VERSION LEDGER — persisted to localStorage
+// Each entry:
+// {
+//   id: string (timestamp),
+//   type: 'pre' | 'post' | 'manual' | 'live',
+//   filename: string,
+//   label: string,
+//   sessionRef: string,  // e.g. 'session_006'
+//   createdAt: ISO string,
+//   note: string,
+//   stats: { sessions, pcs, npcs, quests, combats, rounds, items },
+//   dataSnapshot: object | null  // stored if size < 2MB, else null
+// }
+// ══════════════════════════════════════════════════════
+
+const LEDGER_KEY = 'chronicle_version_ledger';
+const LIVE_KEY   = 'chronicle_live_data';
+
+let ledger = JSON.parse(localStorage.getItem(LEDGER_KEY) || '[]');
+let liveData = JSON.parse(localStorage.getItem(LIVE_KEY) || 'null');
+let selectedId = null;
+
+// ── Seed with realistic demo entries if empty ──
+if (!ledger.length) {
+  const seed = [
+    { id:'v001', type:'live',   filename:'magers-campaign.json',            label:'Live file',               sessionRef:'session_005', createdAt:'2026-03-27T18:30:00Z', note:'Current published version after Session 5.',          stats:{sessions:5,pcs:6,npcs:10,quests:5,combats:5,rounds:42,items:10} },
+    { id:'v002', type:'post',   filename:'magers-campaign_v005.json',       label:'Post-session 5',          sessionRef:'session_005', createdAt:'2026-03-17T22:15:00Z', note:'Published immediately after Session 5 delta review.',  stats:{sessions:5,pcs:6,npcs:10,quests:5,combats:5,rounds:42,items:10} },
+    { id:'v003', type:'pre',    filename:'magers-campaign_pre-session-005.json', label:'Pre-session 5',     sessionRef:'session_005', createdAt:'2026-03-17T18:00:00Z', note:'Snapshot before starting Session 5 intake.',           stats:{sessions:4,pcs:6,npcs:9,quests:4,combats:4,rounds:35,items:10} },
+    { id:'v004', type:'post',   filename:'magers-campaign_v004.json',       label:'Post-session 4',          sessionRef:'session_004', createdAt:'2026-03-10T23:00:00Z', note:'',                                                     stats:{sessions:4,pcs:6,npcs:9,quests:4,combats:4,rounds:35,items:10} },
+    { id:'v005', type:'pre',    filename:'magers-campaign_pre-session-004.json', label:'Pre-session 4',     sessionRef:'session_004', createdAt:'2026-03-10T18:00:00Z', note:'',                                                     stats:{sessions:3,pcs:6,npcs:8,quests:3,combats:2,rounds:23,items:3} },
+    { id:'v006', type:'post',   filename:'magers-campaign_v003.json',       label:'Post-session 3',          sessionRef:'session_003', createdAt:'2026-02-24T23:30:00Z', note:'Siege conclusion. Ched died this session.',             stats:{sessions:3,pcs:6,npcs:8,quests:3,combats:2,rounds:23,items:8} },
+    { id:'v007', type:'pre',    filename:'magers-campaign_pre-session-003.json', label:'Pre-session 3',     sessionRef:'session_003', createdAt:'2026-02-24T18:00:00Z', note:'',                                                     stats:{sessions:2,pcs:6,npcs:5,quests:2,combats:1,rounds:4,items:0} },
+    { id:'v008', type:'manual', filename:'magers-campaign_manual-backup.json',   label:'Manual backup',     sessionRef:'',            createdAt:'2026-02-20T10:00:00Z', note:'Mid-week manual save before experimenting with schema.', stats:{sessions:2,pcs:6,npcs:5,quests:2,combats:1,rounds:4,items:0} },
+  ];
+  ledger = seed;
+  saveLedger();
+}
+
+function saveLedger() {
+  localStorage.setItem(LEDGER_KEY, JSON.stringify(ledger));
+}
+
+// ══════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════
+function setVersionStatus(msg, state) {
+  const el = document.getElementById('version-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = state === 'ok' ? 'var(--green)' : state === 'error' ? 'var(--red)' : 'var(--amber)';
+}
+
+// Sync Drive backup list into the local ledger (adds any Drive backups not already recorded)
+async function syncBackupsFromDrive() {
+  try {
+    setVersionStatus('Syncing backup list from Drive…', 'loading');
+    const result  = await driveRequest('listBackups', {});
+    const backups = result.backups || [];
+
+    let added = 0;
+    for (const b of backups) {
+      if (ledger.some(e => e.driveBackupId === b.id)) continue; // already in ledger
+      const guessed = guessType(b.name);
+      ledger.push({
+        id:             generateId(),
+        type:           guessed,
+        filename:       b.name,
+        label:          labelFromFilename(b.name),
+        sessionRef:     guessSessionRef(b.name),
+        createdAt:      b.modified,
+        note:           `Imported from Drive: ${b.name}`,
+        stats:          null,
+        driveBackupId:  b.id,
+        driveBackupName:b.name,
+        dataSnapshot:   null,
+      });
+      added++;
+    }
+
+    ledger.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    saveLedger();
+    render();
+    setVersionStatus(added > 0 ? `✓ Synced ${added} backup${added!==1?'s':''} from Drive` : '✓ Ledger up to date', 'ok');
+  } catch(e) {
+    setVersionStatus(`Sync failed: ${e.message}`, 'error');
+  }
+}
+
+// Restore: download a Drive backup file to the user's machine
+async function downloadDriveBackup(driveBackupId, filename) {
+  try {
+    setVersionStatus('Fetching backup from Drive…', 'loading');
+    const res  = await fetch(`${DRIVE_PROXY}?id=${driveBackupId}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    const blob = new Blob([JSON.stringify(data.data, null, 2)], {type:'application/json'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    setVersionStatus(`✓ Downloaded: ${filename}`, 'ok');
+  } catch(e) {
+    setVersionStatus(`Download failed: ${e.message}`, 'error');
+  }
+}
+
+
+function render() {
+  renderLedger();
+  if (selectedId) {
+    const v = ledger.find(e=>e.id===selectedId);
+    if (v) renderVersionDetail(v);
+    else renderDefaultContent();
+  } else {
+    renderDefaultContent();
+  }
+}
+
+function renderLedger() {
+  const list = document.getElementById('ledger-list');
+  if (!ledger.length) {
+    list.innerHTML = `<div class="ledger-empty">
+      <div class="ledger-empty-title">No versions yet</div>
+      <div class="ledger-empty-hint">Create a pre-session backup<br>or import a JSON file to begin.</div>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = ledger.map(v => {
+    const isActive = selectedId === v.id;
+    const typeClass = { live:'is-live', pre:'is-pre', post:'is-post', manual:'is-manual' }[v.type] || '';
+    const tagClass  = { live:'tag-live', pre:'tag-pre', post:'tag-post', manual:'tag-manual' }[v.type] || 'tag-manual';
+    const tagLabel  = { live:'Live', pre:'Pre-session', post:'Post-session', manual:'Manual' }[v.type] || v.type;
+    const date = new Date(v.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const time = new Date(v.createdAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+
+    return `<div class="version-entry ${typeClass}${isActive?' active':''}" onclick="selectVersion('${v.id}')">
+      <div class="ve-top">
+        <span class="ve-tag ${tagClass}">${tagLabel}</span>
+        <span class="ve-name">${v.label}</span>
+      </div>
+      <div class="ve-date">${date} · ${time}</div>
+      <div class="ve-stats">
+        <span class="ve-stat">${v.stats.sessions}s</span>
+        <span class="ve-stat">${v.stats.npcs}npc</span>
+        <span class="ve-stat">${v.stats.quests}q</span>
+        <span class="ve-stat">${v.stats.combats}cbt</span>
+        <span class="ve-stat">${v.stats.rounds}rds</span>
+      </div>
+      ${v.note?`<div class="ve-note">${v.note}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderDefaultContent() {
+  // Current live snapshot stats
+  const live = ledger.find(v=>v.type==='live') || ledger[0];
+  const nextSessionNum = live ? (live.stats.sessions + 1) : 1;
+  const nextSessionId = `session_${String(nextSessionNum).padStart(3,'0')}`;
+
+  document.getElementById('content-area').innerHTML = `
+
+    <!-- Live file status -->
+    <div class="live-card">
+      <div class="live-card-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="live-status-dot"></div>
+          <span class="live-card-title">Live Campaign Log</span>
+        </div>
+        <span style="font-size:0.78rem;opacity:0.5;font-style:italic;">what players are reading right now</span>
+      </div>
+      <div class="live-card-body">
+        <div class="live-stat"><div class="live-stat-num">${live?.stats.sessions||5}</div><div class="live-stat-label">Sessions</div></div>
+        <div class="live-stat"><div class="live-stat-num">${live?.stats.npcs||10}</div><div class="live-stat-label">NPCs</div></div>
+        <div class="live-stat"><div class="live-stat-num">${live?.stats.combats||5}</div><div class="live-stat-label">Combats</div></div>
+        <div class="live-stat"><div class="live-stat-num">${live?.stats.rounds||42}</div><div class="live-stat-label">Rounds logged</div></div>
+      </div>
+      <div class="live-card-footer">
+        <span class="live-file-name">magers-campaign.json</span>
+        <span style="font-size:0.78rem;color:var(--muted);font-style:italic;">Last snapshot: ${live ? new Date(live.createdAt).toLocaleDateString() : '—'}</span>
+      </div>
+    </div>
+
+    <!-- Pre-session backup workflow -->
+    <div class="workflow-card">
+      <div class="workflow-header">
+        <div class="workflow-header-title">Pre-Session Backup Workflow</div>
+        <span class="workflow-badge">Run before every session intake</span>
+      </div>
+      <div class="workflow-steps">
+        <div class="workflow-step done">
+          <div class="step-circle">✓</div>
+          <div>
+            <div class="step-text-title">Load current campaign log</div>
+            <div class="step-text-hint">Import magers-campaign.json or confirm Drive connection</div>
+          </div>
+          <span style="font-size:0.78rem;color:var(--teal);">done</span>
+        </div>
+        <div class="workflow-step current">
+          <div class="step-circle">2</div>
+          <div>
+            <div class="step-text-title">Create pre-session snapshot</div>
+            <div class="step-text-hint">Downloads a dated backup before any changes are made</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="startPreSessionBackup()">Backup now →</button>
+        </div>
+        <div class="workflow-step">
+          <div class="step-circle">3</div>
+          <div>
+            <div class="step-text-title">Upload backup to Drive versions folder</div>
+            <div class="step-text-hint">Drag the downloaded file into Drive/Chronicle/versions/</div>
+          </div>
+          <span style="font-size:0.78rem;color:var(--muted-light);">manual</span>
+        </div>
+        <div class="workflow-step">
+          <div class="step-circle">4</div>
+          <div>
+            <div class="step-text-title">Run Session Intake → Delta Review → Publish</div>
+            <div class="step-text-hint">The post-session snapshot is recorded automatically after publish</div>
+          </div>
+          <span style="font-size:0.78rem;color:var(--muted-light);">next</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import zone -->
+    <div class="ornament-divider"><span>Import a saved version</span></div>
+    <div class="import-zone" id="import-drop-zone">
+      <input type="file" accept=".json" onchange="importJsonFile(this.files[0])">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="opacity:0.3;margin-bottom:6px;"><rect x="4" y="4" width="20" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M14 10v8M10 14l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="import-zone-label">Drop a campaign JSON here to add it to the ledger</div>
+      <div class="import-zone-hint">Any previously exported version — named backup or raw campaign log</div>
+    </div>
+
+    <!-- Recovery guide -->
+    <div class="ornament-divider"><span>Recovery guide</span></div>
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:1.25rem;">
+      <div style="font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.12em;font-weight:600;margin-bottom:0.85rem;">How to restore a previous version</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:10px;align-items:flex-start;font-size:0.92rem;padding:6px 0;border-bottom:1px solid var(--border);">
+          <span style="font-family:'Cinzel',serif;font-size:0.65rem;color:var(--teal);min-width:20px;margin-top:2px;">1</span>
+          <div>Select the version you want to restore from the ledger on the left. Choose the <strong>pre-session snapshot</strong> for the session where things went wrong.</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;font-size:0.92rem;padding:6px 0;border-bottom:1px solid var(--border);">
+          <span style="font-family:'Cinzel',serif;font-size:0.65rem;color:var(--teal);min-width:20px;margin-top:2px;">2</span>
+          <div>Click <strong>Download for restore</strong> in the version detail panel. This downloads the file named <code>magers-campaign.json</code> (the live filename) so you can drop it directly into Drive.</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;font-size:0.92rem;padding:6px 0;border-bottom:1px solid var(--border);">
+          <span style="font-family:'Cinzel',serif;font-size:0.65rem;color:var(--teal);min-width:20px;margin-top:2px;">3</span>
+          <div>In Google Drive, navigate to the Chronicle folder. Upload the downloaded file, choosing to <strong>replace</strong> the existing <code>magers-campaign.json</code>.</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;font-size:0.92rem;padding:6px 0;">
+          <span style="font-family:'Cinzel',serif;font-size:0.65rem;color:var(--teal);min-width:20px;margin-top:2px;">4</span>
+          <div>Players who refresh their viewer will immediately see the restored version. Confirm the data looks correct, then re-run the intake for the affected session.</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Set up drag/drop on import zone
+  const zone = document.getElementById('import-drop-zone');
+  if (zone) {
+    zone.addEventListener('dragover', e=>{e.preventDefault();zone.classList.add('drag-over');});
+    zone.addEventListener('dragleave', ()=>zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e=>{e.preventDefault();zone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)importJsonFile(f);});
+  }
+}
+
+function renderVersionDetail(v) {
+  const live = ledger.find(e=>e.type==='live') || ledger[0];
+  const liveStats = live?.stats || {};
+  const diffs = computeDiff(v.stats, liveStats);
+  const typeLabel = { live:'Live file', pre:'Pre-session snapshot', post:'Post-session snapshot', manual:'Manual backup' }[v.type] || v.type;
+  const tagClass  = { live:'tag-live', pre:'tag-pre', post:'tag-post', manual:'tag-manual' }[v.type] || 'tag-manual';
+  const date = new Date(v.createdAt).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'});
+  const isLive = v.type === 'live';
+
+  document.getElementById('content-area').innerHTML = `
+    <div class="version-detail-card">
+      <div class="vd-header">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+            <span class="ve-tag ${tagClass}">${typeLabel}</span>
+            ${v.sessionRef?`<span style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--muted-light);">${v.sessionRef}</span>`:''}
+          </div>
+          <div class="vd-title">${v.label}</div>
+          <div class="vd-date">${date}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--muted-light);margin-top:4px;">${v.filename}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;">
+          ${!isLive ? `
+            <button class="btn btn-teal btn-sm" onclick="downloadForRestore('${v.id}')">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v6M2.5 5l3 2.5 3-2.5" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><line x1="1" y1="9.5" x2="10" y2="9.5" stroke="white" stroke-width="1.3" stroke-linecap="round"/></svg>
+              Download for restore
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadVersion('${v.id}')">Download (versioned name)</button>
+          ` : `<button class="btn btn-secondary btn-sm" onclick="downloadVersion('${v.id}')">Download live copy</button>`}
+          <button class="btn btn-ghost" onclick="deleteVersion('${v.id}')">Remove from ledger</button>
+        </div>
+      </div>
+
+      <div class="vd-body">
+
+        <!-- Stats -->
+        <div class="vd-stats">
+          ${Object.entries({Sessions:'sessions',PCs:'pcs',NPCs:'npcs',Quests:'quests',Combats:'combats',Rounds:'rounds',Items:'items'}).map(([label,key])=>`
+            <div class="vd-stat">
+              <div class="vd-stat-num">${v.stats[key]??'—'}</div>
+              <div class="vd-stat-label">${label}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Diff vs live -->
+        ${!isLive && diffs.length ? `
+          <div class="vd-diff">
+            <div class="diff-title">Difference from live file</div>
+            ${diffs.map(d=>`
+              <div class="diff-row">
+                <span class="diff-field">${d.field}</span>
+                <span class="diff-before">${d.before}</span>
+                <span class="diff-arrow">→</span>
+                <span class="diff-after">${d.after}</span>
+                <span style="font-size:0.75rem;color:${d.delta>0?'var(--teal)':'var(--rust)'};margin-left:auto;">${d.delta>0?'+':''}${d.delta}</span>
+              </div>`).join('')}
+          </div>` : isLive ? '' : `
+          <div style="font-size:0.88rem;color:var(--muted);font-style:italic;padding:8px 0;">Identical to live file — no changes detected.</div>`}
+
+        <!-- Note -->
+        <div style="margin-bottom:1rem;">
+          <div class="diff-title">Note</div>
+          <input class="vd-note-input" value="${v.note||''}" placeholder="Add a note about this version…" onchange="updateNote('${v.id}',this.value)" onblur="updateNote('${v.id}',this.value)">
+        </div>
+
+        ${!isLive ? `
+          <!-- Restore section -->
+          <div class="restore-steps">
+            <div style="font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.15em;color:var(--teal);text-transform:uppercase;margin-bottom:0.6rem;">To restore this version</div>
+            <div class="restore-step-row"><span class="restore-step-num">1</span><span>Click <strong>Download for restore</strong> above — saves as <code>magers-campaign.json</code></span></div>
+            <div class="restore-step-row"><span class="restore-step-num">2</span><span>Open Google Drive → Chronicle folder → upload and replace <code>magers-campaign.json</code></span></div>
+            <div class="restore-step-row"><span class="restore-step-num">3</span><span>Players refresh their viewer — they see the restored version immediately</span></div>
+            <div class="restore-step-row"><span class="restore-step-num">4</span><span>Return here and create a new pre-session backup before re-running the intake</span></div>
+          </div>
+
+          <!-- Danger zone -->
+          <div class="danger-zone" style="margin-top:0.85rem;">
+            <div class="danger-title">Danger zone</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.9rem;">
+              <div>Mark this version as the new live file in the ledger. <em>Does not touch Google Drive.</em></div>
+              <button class="btn btn-danger btn-sm" onclick="markAsLive('${v.id}')">Mark as live</button>
+            </div>
+          </div>
+        ` : ''}
+
+      </div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// VERSIONING LOGIC
+// ══════════════════════════════════════════════════════
+function computeDiff(vStats, liveStats) {
+  const fields = { Sessions:'sessions', NPCs:'npcs', Quests:'quests', Combats:'combats', Rounds:'rounds', Items:'items' };
+  return Object.entries(fields)
+    .filter(([,k])=> (vStats[k]??0) !== (liveStats[k]??0))
+    .map(([label,k])=>({ field:label, before:vStats[k]??0, after:liveStats[k]??0, delta:(liveStats[k]??0)-(vStats[k]??0) }));
+}
+
+function statsFromData(data) {
+  const rounds = (data.combats||data.combat_encounters||[]).reduce((sum,c)=>sum+(c.rounds?.length||c.totalRounds||0),0);
+  return {
+    sessions: (data.sessions||data.session_logs||[]).length,
+    pcs: (data.party||[]).length,
+    npcs: (data.npcs||data.npc_directory||[]).length,
+    quests: (data.quests||data.quest_ledger||[]).length,
+    combats: (data.combats||data.combat_encounters||[]).length,
+    rounds,
+    items: (data.items||data.inventory_and_loot||[]).length,
+  };
+}
+
+function nextSessionLabel() {
+  const live = ledger.find(v=>v.type==='live');
+  const n = live ? (live.stats.sessions + 1) : 1;
+  return `session_${String(n).padStart(3,'0')}`;
+}
+
+function generateId() { return 'v' + Date.now(); }
+
+function formatFilename(type, sessionRef) {
+  const sid = sessionRef || nextSessionLabel();
+  const map = {
+    pre:  `magers-campaign_pre-${sid}.json`,
+    post: `magers-campaign_v${sid.replace('session_','')}.json`,
+    manual: `magers-campaign_manual-${new Date().toISOString().slice(0,10)}.json`,
+    live: 'magers-campaign.json',
+  };
+  return map[type] || `magers-campaign_${type}.json`;
+}
+
+// ── Pre-session backup ──
+async function startPreSessionBackup() {
+  const btn = document.getElementById('pre-backup-btn');
+  if (btn) { btn.textContent = 'Creating backup…'; btn.disabled = true; }
+
+  try {
+    const sessionRef = nextSessionLabel();
+    const label      = `pre-${sessionRef}`;
+
+    // Step 1 — backup file on Drive (server-side copy, stays in campaign folder)
+    setVersionStatus('Creating Drive backup…', 'loading');
+    const result = await driveRequest('backup', { label });
+    const driveBackupId   = result.backupId;
+    const driveBackupName = result.name;
+
+    // Step 2 — fetch current campaign data to store stats locally
+    setVersionStatus('Reading campaign data…', 'loading');
+    const data  = await fetchCampaignFromDrive();
+    const stats = statsFromData(data);
+
+    // Step 3 — record in local ledger
+    const entry = {
+      id:           generateId(),
+      type:         'pre',
+      filename:     driveBackupName,
+      label:        `Pre-${sessionRef.replace('_','-')}`,
+      sessionRef,
+      createdAt:    new Date().toISOString(),
+      note:         `Automatic pre-session backup before ${sessionRef}. Drive copy: ${driveBackupName}`,
+      stats,
+      driveBackupId,
+      driveBackupName,
+      dataSnapshot: null,
+    };
+
+    ledger.unshift(entry);
+    saveLedger();
+    selectedId = entry.id;
+    render();
+
+    setVersionStatus(`✓ Backup created: ${driveBackupName}`, 'ok');
+    showToast(`Drive backup created: ${driveBackupName}`);
+
+  } catch(e) {
+    setVersionStatus(`Backup failed: ${e.message}`, 'error');
+    showToast(`Backup failed: ${e.message}`);
+  } finally {
+    if (btn) { btn.textContent = 'Pre-session backup'; btn.disabled = false; }
+  }
+}
+
+// ── Import a JSON file into the ledger ──
+function importJsonFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const stats = statsFromData(data);
+      const type = guessType(file.name);
+      const sessionRef = guessSessionRef(file.name, data);
+
+      const entry = {
+        id: generateId(),
+        type,
+        filename: file.name,
+        label: labelFromFilename(file.name),
+        sessionRef,
+        createdAt: new Date().toISOString(),
+        note: '',
+        stats,
+        dataSnapshot: file.size < 2_000_000 ? data : null,
+      };
+
+      ledger.unshift(entry);
+      saveLedger();
+      selectedId = entry.id;
+      render();
+      showToast(`Imported: ${file.name} (${stats.sessions} sessions, ${stats.rounds} rounds)`);
+    } catch(err) {
+      showToast('Could not parse JSON file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function guessType(filename) {
+  if (filename.includes('_pre-')) return 'pre';
+  if (/_v\d{3}/.test(filename)) return 'post';
+  if (filename === 'magers-campaign.json') return 'live';
+  return 'manual';
+}
+
+function guessSessionRef(filename, data) {
+  const m = filename.match(/session[_-](\d{3})/i);
+  if (m) return `session_${m[1]}`;
+  const sessions = data.sessions || data.session_logs || [];
+  return sessions.length ? sessions[sessions.length-1].id || sessions[sessions.length-1].session_id || '' : '';
+}
+
+function labelFromFilename(filename) {
+  return filename
+    .replace('magers-campaign_','')
+    .replace('.json','')
+    .replace(/-/g,' ')
+    .replace(/\b\w/g, c=>c.toUpperCase());
+}
+
+// ── Download helpers ──
+function downloadVersionEntry(entry, overrideName) {
+  // In production, entry.dataSnapshot holds the actual data
+  // Here we create a placeholder with the stats embedded
+  const content = JSON.stringify({
+    _chronicle_version: true,
+    _version_id: entry.id,
+    _label: entry.label,
+    _created_at: entry.createdAt,
+    _session_ref: entry.sessionRef,
+    _type: entry.type,
+    _stats: entry.stats,
+    _note: 'This is a demo download. In production, this file contains the full campaign JSON.',
+    _restore_instructions: 'Upload this file to Google Drive as magers-campaign.json to restore.',
+  }, null, 2);
+
+  const blob = new Blob([content], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = overrideName || entry.filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadVersion(id) {
+  const v = ledger.find(e=>e.id===id);
+  if (v) downloadVersionEntry(v, v.filename);
+}
+
+function downloadForRestore(id) {
+  const v = ledger.find(e=>e.id===id);
+  if (v) downloadVersionEntry(v, 'magers-campaign.json');
+  showToast('Downloaded as magers-campaign.json — upload to Drive to restore');
+}
+
+// ── Update note ──
+function updateNote(id, note) {
+  const v = ledger.find(e=>e.id===id);
+  if (v && v.note !== note) { v.note = note; saveLedger(); renderLedger(); }
+}
+
+// ── Mark as live ──
+function markAsLive(id) {
+  showModal(
+    'Mark as live?',
+    'This will update the ledger to treat this version as the current live file. It does not modify Google Drive. Use this to sync the ledger with your actual Drive state.',
+    'Mark as live',
+    () => {
+      ledger.forEach(v=>{ if(v.type==='live') v.type='post'; });
+      const v = ledger.find(e=>e.id===id);
+      if (v) { v.type='live'; v.filename='magers-campaign.json'; }
+      saveLedger();
+      render();
+      showToast('Ledger updated — marked as live');
+    }
+  );
+}
+
+// ── Delete ──
+function deleteVersion(id) {
+  const v = ledger.find(e=>e.id===id);
+  showModal(
+    `Remove "${v?.label}"?`,
+    'This removes it from the local ledger only. The actual file on Google Drive is not affected.',
+    'Remove',
+    () => {
+      ledger = ledger.filter(e=>e.id!==id);
+      if (selectedId===id) selectedId=null;
+      saveLedger();
+      render();
+      showToast('Removed from ledger');
+    }
+  );
+}
+
+// ── Select ──
+function selectVersion(id) {
+  selectedId = selectedId===id ? null : id;
+  render();
+}
+
+// ── Clear all ──
+function clearLedger() {
+  showModal('Clear entire ledger?','This removes all entries from the local ledger. Files on Google Drive are not affected.','Clear all',()=>{
+    ledger=[]; selectedId=null; saveLedger(); render(); showToast('Ledger cleared');
+  });
+}
+
+function triggerImport() { document.getElementById('import-file-input').click(); }
+
+// ══════════════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════════════
+let pendingConfirm = null;
+function showModal(title, body, confirmLabel, onConfirm) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-confirm-btn').textContent = confirmLabel;
+  pendingConfirm = onConfirm;
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); pendingConfirm=null; }
+document.getElementById('modal-confirm-btn').onclick = ()=>{ if(pendingConfirm){pendingConfirm();closeModal();} };
+
+// ══════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════
+function showToast(msg) {
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ══════════════════════════════════════════════════════
+// POST-SESSION AUTO-RECORD (called from Delta Review after publish)
+// ══════════════════════════════════════════════════════
+window.chronicleRecordPostSession = function(sessionId, stats, note) {
+  const entry = {
+    id: generateId(),
+    type: 'post',
+    filename: formatFilename('post', sessionId),
+    label: `Post-${sessionId.replace('_','-')}`,
+    sessionRef: sessionId,
+    createdAt: new Date().toISOString(),
+    note: note || `Automatically recorded after ${sessionId} delta review.`,
+    stats,
+    dataSnapshot: null,
+  };
+  // Update live entry to post
+  ledger.forEach(v=>{ if(v.type==='live') v.type='post'; });
+  // Add new live entry
+  const liveEntry = { ...entry, id: generateId()+'_live', type:'live', filename:'magers-campaign.json', label:'Live file' };
+  ledger.unshift(liveEntry);
+  ledger.unshift(entry);
+  saveLedger();
+  render();
+};
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — Integrity Checker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0f1020; --bg2:#13152b; --bg3:#181a35; --bg4:#1e2040;
+  --gold:#d4af37; --gold-dim:#a88820; --gold-faint:rgba(212,175,55,0.12);
+  --text:#f0e8d0; --text2:#d4c8a8; --muted:#7d7a94; --subtle:#4a4870;
+  --border:rgba(212,175,55,0.14); --border-strong:rgba(212,175,55,0.28);
+  --red:#ff6b50; --red-bg:rgba(255,107,80,0.08); --red-border:rgba(255,107,80,0.25);
+  --amber:#e8a030; --amber-bg:rgba(232,160,48,0.08); --amber-border:rgba(232,160,48,0.25);
+  --green:#4adf9a; --green-bg:rgba(74,223,154,0.07); --green-border:rgba(74,223,154,0.22);
+  --blue:#5ab0ff; --blue-bg:rgba(90,176,255,0.07); --blue-border:rgba(90,176,255,0.22);
+  --purple:#c090ff; --purple-bg:rgba(192,144,255,0.07); --purple-border:rgba(192,144,255,0.22);
+  --shadow:0 4px 32px rgba(0,0,0,0.5),0 0 0 1px rgba(212,175,55,0.06);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:"Crimson Pro",Georgia,serif;background:var(--bg);color:var(--text);min-height:100vh;
+  background-image:radial-gradient(ellipse at 20% 20%,rgba(74,59,140,0.2) 0%,transparent 55%),
+    radial-gradient(ellipse at 80% 80%,rgba(30,20,80,0.35) 0%,transparent 55%);}
+header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;height:64px;background:rgba(13,15,40,0.95);position:relative;z-index:100;}
+.logo{font-family:"Cinzel",serif;font-size:1.05rem;font-weight:600;letter-spacing:0.12em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.logo em{color:var(--gold);font-style:normal;}
+.header-right{display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;overflow:hidden;min-width:0;}
+.nav-links{display:flex;gap:0.9rem;justify-content:center;align-items:center;flex-wrap:nowrap;padding:0 2rem;}
+.nav-link{cursor:pointer;font-family:"Cinzel",serif;font-size:0.65rem;letter-spacing:0.12em;color:var(--muted);
+  text-transform:uppercase;padding-bottom:2px;border-bottom:1px solid transparent;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.nav-link:hover{color:var(--text2);}
+.nav-link.active{color:var(--gold);border-bottom-color:var(--gold);}
+.page{max-width:900px;margin:0 auto;padding:2rem 1.5rem 7rem;}
+/* Banner */
+.banner{border-radius:4px;padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:14px;border:1px solid;}
+.banner.critical{background:var(--red-bg);border-color:var(--red-border);}
+.banner.warning{background:var(--amber-bg);border-color:var(--amber-border);}
+.banner.clean{background:var(--green-bg);border-color:var(--green-border);}
+.bn-icon{font-size:1.4rem;flex-shrink:0;margin-top:1px;}
+.bn-title{font-family:"Cinzel",serif;font-size:0.82rem;letter-spacing:0.1em;margin-bottom:3px;}
+.bn-title.critical{color:var(--red);}
+.bn-title.warning{color:var(--amber);}
+.bn-title.clean{color:var(--green);}
+.bn-body{font-size:0.92rem;color:var(--text2);line-height:1.55;}
+.pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.pill{font-family:"JetBrains Mono",monospace;font-size:0.67rem;padding:2px 9px;border-radius:10px;border:1px solid;}
+.pill-crit{background:var(--red-bg);color:var(--red);border-color:var(--red-border);}
+.pill-warn{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border);}
+.pill-info{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border);}
+.pill-ok{background:var(--green-bg);color:var(--green);border-color:var(--green-border);}
+/* Groups */
+.group{margin-bottom:1.25rem;}
+.group-hdr{display:flex;align-items:center;gap:10px;padding:0.6rem 1rem;
+  background:var(--bg2);border:1px solid var(--border);border-radius:4px 4px 0 0;cursor:pointer;user-select:none;}
+.gh-icon{font-size:0.9rem;}
+.gh-title{font-family:"Cinzel",serif;font-size:0.75rem;letter-spacing:0.1em;font-weight:600;flex:1;}
+.gh-count{font-family:"JetBrains Mono",monospace;font-size:0.67rem;color:var(--muted);}
+.gh-tog{font-family:"JetBrains Mono",monospace;font-size:0.7rem;color:var(--subtle);}
+.group-body{border:1px solid var(--border);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;}
+.group-body.collapsed{display:none;}
+/* Check items */
+.ci{border-bottom:1px solid var(--border);}
+.ci:last-child{border-bottom:none;}
+.ci-hdr{padding:0.85rem 1.1rem;display:grid;grid-template-columns:22px 1fr auto;gap:12px;align-items:start;}
+.ci.critical .ci-hdr{background:rgba(255,107,80,0.03);}
+.ci.warning  .ci-hdr{background:rgba(232,160,48,0.03);}
+.sev{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:0.7rem;font-weight:700;flex-shrink:0;margin-top:1px;font-family:"Cinzel",serif;}
+.sev-c{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);}
+.sev-w{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border);}
+.ci-title{font-size:0.95rem;font-weight:600;color:var(--text);margin-bottom:3px;}
+.ci-detail{font-size:0.88rem;color:var(--text2);line-height:1.55;}
+code{font-family:"JetBrains Mono",monospace;font-size:0.78rem;color:var(--muted);
+  background:var(--bg4);padding:1px 6px;border-radius:2px;}
+.ci-ctx{margin-top:6px;padding:0.5rem 0.75rem;background:var(--bg4);border-radius:3px;
+  border-left:2px solid;font-size:0.85rem;line-height:1.6;}
+.ci-ctx.critical{border-left-color:var(--red);}
+.ci-ctx.warning{border-left-color:var(--amber);}
+.blocks{font-family:"JetBrains Mono",monospace;font-size:0.6rem;color:var(--red);
+  background:var(--red-bg);border:1px solid var(--red-border);padding:1px 6px;border-radius:2px;margin-left:5px;}
+.new-tag{font-family:"Cinzel",serif;font-size:0.57rem;letter-spacing:0.1em;padding:2px 8px;border-radius:2px;
+  border:1px solid var(--purple-border);background:var(--purple-bg);color:var(--purple);margin-top:5px;display:inline-block;}
+.old-tag{font-family:"Cinzel",serif;font-size:0.57rem;letter-spacing:0.1em;padding:2px 8px;border-radius:2px;
+  border:1px solid var(--amber-border);background:var(--amber-bg);color:var(--amber);margin-top:5px;display:inline-block;}
+/* Item actions */
+.ci-acts{display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;}
+.iab{font-family:"Cinzel",serif;font-size:0.6rem;letter-spacing:0.1em;padding:5px 11px;border-radius:2px;
+  cursor:pointer;border:1px solid;background:none;transition:all 0.15s;white-space:nowrap;}
+.iab-fix{color:var(--gold);border-color:rgba(212,175,55,0.4);font-weight:600;}
+.iab-fix:hover{background:var(--gold-faint);}
+.iab-sup{color:var(--subtle);border-color:var(--border);}
+.iab-sup:hover{color:var(--muted);background:var(--bg4);}
+.iab-flag{color:var(--amber);border-color:var(--amber-border);}
+.iab-flag:hover{background:var(--amber-bg);}
+.iab-sm{font-size:0.58rem;padding:3px 8px;}
+.st{font-family:"Cinzel",serif;font-size:0.6rem;letter-spacing:0.1em;padding:3px 9px;border-radius:2px;border:1px solid;}
+.st-fix{background:var(--gold-faint);color:var(--gold);border-color:rgba(212,175,55,0.4);}
+.st-res{background:var(--green-bg);color:var(--green);border-color:var(--green-border);}
+.st-sup{background:var(--bg4);color:var(--subtle);border-color:var(--border);}
+.st-flag{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border);}
+/* Gap visualiser */
+.gap-viz{display:flex;gap:3px;flex-wrap:wrap;margin-top:8px;align-items:center;}
+.gv{width:30px;height:30px;border-radius:3px;display:flex;align-items:center;justify-content:center;
+  font-family:"JetBrains Mono",monospace;font-size:0.7rem;font-weight:500;border:1px solid;flex-shrink:0;}
+.gv-ok{background:var(--green-bg);color:var(--green);border-color:var(--green-border);}
+.gv-miss{background:var(--red-bg);color:var(--red);border-color:var(--red-border);}
+.gv-queued{background:rgba(212,175,55,0.12);color:var(--gold);border-color:rgba(212,175,55,0.4);}
+/* Workspace */
+.ws{border-top:1px solid var(--border-strong);background:var(--bg2);animation:slid 0.2s ease-out;}
+@keyframes slid{from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:translateY(0);}}
+.ws-hdr{display:flex;align-items:center;gap:10px;padding:0.65rem 1.1rem;border-bottom:1px solid var(--border);background:rgba(212,175,55,0.05);}
+.ws-title{font-family:"Cinzel",serif;font-size:0.72rem;letter-spacing:0.12em;color:var(--gold);font-weight:600;}
+.ws-scope{font-family:"JetBrains Mono",monospace;font-size:0.65rem;color:var(--muted);}
+.ws-close{margin-left:auto;background:none;border:none;color:var(--subtle);cursor:pointer;font-size:0.95rem;padding:2px 6px;transition:color 0.15s;}
+.ws-close:hover{color:var(--muted);}
+.ws-body{padding:1rem 1.1rem;display:flex;flex-direction:column;gap:1rem;}
+/* Path picker */
+.paths{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.path-btn{padding:0.85rem 1rem;border-radius:3px;border:1px solid var(--border-strong);
+  background:var(--bg3);cursor:pointer;text-align:left;transition:all 0.15s;}
+.path-btn:hover,.path-btn.active{border-color:var(--gold);background:rgba(212,175,55,0.06);}
+.path-btn:disabled{opacity:0.38;cursor:not-allowed;}
+.pb-icon{font-size:1.2rem;margin-bottom:5px;}
+.pb-title{font-family:"Cinzel",serif;font-size:0.72rem;letter-spacing:0.08em;color:var(--text);display:block;margin-bottom:3px;}
+.pb-desc{font-size:0.82rem;color:var(--muted);line-height:1.45;}
+/* Round selector */
+.rsel{display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.rsel-lbl{font-family:"Cinzel",serif;font-size:0.6rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-right:4px;}
+.rchip{font-family:"JetBrains Mono",monospace;font-size:0.72rem;padding:4px 10px;border-radius:2px;
+  border:1px solid var(--border-strong);background:var(--bg4);color:var(--muted);cursor:pointer;transition:all 0.12s;}
+.rchip:hover{border-color:var(--gold);color:var(--text2);}
+.rchip.sel{background:rgba(212,175,55,0.12);border-color:var(--gold);color:var(--gold);}
+.rchip.all{color:var(--subtle);font-size:0.65rem;}
+/* Image drop */
+.drop-zone{border:1.5px dashed var(--border-strong);border-radius:3px;padding:1.25rem 1rem;
+  text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(212,175,55,0.02);position:relative;}
+.drop-zone:hover,.drop-zone.over{border-color:var(--gold);background:rgba(212,175,55,0.05);}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.dz-icon{font-size:1.4rem;margin-bottom:5px;opacity:0.5;}
+.dz-lbl{font-family:"Cinzel",serif;font-size:0.7rem;letter-spacing:0.1em;color:var(--muted);}
+.dz-hint{font-size:0.8rem;color:var(--subtle);margin-top:2px;}
+.thumbs{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;justify-content:center;}
+.thumb{width:64px;height:64px;object-fit:cover;border-radius:3px;border:1px solid var(--border);}
+/* Text input */
+.ws-ta{width:100%;padding:0.75rem 0.85rem;background:var(--bg3);border:1px solid var(--border-strong);
+  border-radius:3px;font-family:"Crimson Pro",serif;font-size:0.95rem;color:var(--text);
+  resize:vertical;min-height:90px;line-height:1.6;outline:none;transition:border-color 0.15s;}
+.ws-ta:focus{border-color:var(--gold);}
+.ws-ta::placeholder{color:var(--subtle);}
+.hints{display:flex;flex-wrap:wrap;gap:5px;margin-top:-4px;}
+.hint-c{font-family:"Cinzel",serif;font-size:0.58rem;letter-spacing:0.06em;padding:3px 9px;border-radius:2px;
+  border:1px solid var(--border);background:var(--bg4);color:var(--muted);cursor:pointer;transition:all 0.12s;}
+.hint-c:hover{border-color:var(--gold);color:var(--text2);}
+.proc-row{display:flex;align-items:center;gap:8px;justify-content:space-between;}
+.proc-note{font-size:0.82rem;color:var(--muted);font-style:italic;flex:1;}
+/* Spinner */
+.proc-box{display:flex;align-items:center;gap:10px;padding:0.75rem 0.85rem;
+  background:rgba(212,175,55,0.05);border:1px solid var(--border);border-radius:3px;}
+.spin{width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--gold);
+  border-radius:50%;animation:sp 0.8s linear infinite;flex-shrink:0;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.proc-t{font-family:"Cinzel",serif;font-size:0.68rem;letter-spacing:0.1em;color:var(--gold);}
+.proc-s{font-size:0.8rem;color:var(--muted);font-style:italic;margin-top:2px;}
+/* Round proposal */
+.rp{border:1px solid rgba(212,175,55,0.3);border-radius:3px;overflow:hidden;animation:slid 0.2s ease-out;}
+.rp-hdr{display:flex;align-items:center;gap:10px;padding:0.6rem 0.85rem;
+  background:rgba(212,175,55,0.07);border-bottom:1px solid rgba(212,175,55,0.2);}
+.rp-title{font-family:"Cinzel",serif;font-size:0.72rem;letter-spacing:0.1em;font-weight:600;color:var(--gold);}
+.rp-sid{font-family:"JetBrains Mono",monospace;font-size:0.62rem;color:var(--muted);}
+.rp-src{font-size:0.72rem;color:var(--subtle);font-style:italic;margin-left:auto;}
+.rp-slot{display:grid;grid-template-columns:22px 50px 1fr auto;align-items:center;gap:6px;
+  padding:0.45rem 0.85rem;border-bottom:1px solid var(--border);font-size:0.92rem;}
+.rp-slot:last-child{border-bottom:none;}
+.rp-slot.odd{background:rgba(212,175,55,0.025);}
+.rp-slot.enemy{grid-column:1/-1;padding:0.4rem 0.85rem;background:rgba(255,107,80,0.04);
+  border-top:1px solid rgba(255,107,80,0.12);display:flex;align-items:center;gap:8px;}
+.sn{font-family:"JetBrains Mono",monospace;font-size:0.62rem;color:var(--subtle);text-align:center;}
+.sa{font-family:"Cinzel",serif;font-size:0.75rem;font-weight:600;color:var(--text);}
+.sa.en{color:var(--red);}
+.sact{color:var(--text2);line-height:1.35;}
+.snote{display:block;font-size:0.75rem;color:var(--muted);font-style:italic;}
+.sval{font-family:"JetBrains Mono",monospace;font-size:0.7rem;color:var(--gold);margin-left:4px;font-weight:500;}
+.res{font-family:"JetBrains Mono",monospace;font-size:0.62rem;padding:2px 6px;border-radius:2px;}
+.r-hit{background:rgba(74,223,154,0.1);color:#3adf8a;}
+.r-miss{background:rgba(255,107,80,0.08);color:var(--red);}
+.r-crit{background:rgba(212,175,55,0.12);color:var(--gold);}
+.r-death{background:rgba(160,160,140,0.1);color:#a0a090;}
+.r-save{background:rgba(90,176,255,0.1);color:var(--blue);}
+.r-neu{background:var(--bg4);color:var(--muted);}
+.rp-sum{padding:0.55rem 0.85rem;border-top:1px solid rgba(212,175,55,0.15);
+  background:rgba(212,175,55,0.04);display:flex;align-items:flex-start;gap:8px;font-size:0.88rem;color:var(--text2);}
+.rp-sum-lbl{font-family:"Cinzel",serif;font-size:0.58rem;letter-spacing:0.12em;color:var(--gold);
+  text-transform:uppercase;flex-shrink:0;padding-right:8px;border-right:1px solid rgba(212,175,55,0.2);margin-right:4px;}
+.rp-acts{display:flex;align-items:center;gap:7px;padding:0.65rem 0.85rem;
+  border-top:1px solid var(--border);background:var(--bg3);}
+.rp-acts-note{font-size:0.8rem;color:var(--muted);font-style:italic;flex:1;}
+.btn-approve{font-family:"Cinzel",serif;font-size:0.68rem;letter-spacing:0.1em;padding:7px 15px;
+  border-radius:2px;background:var(--green);color:var(--bg);border:none;cursor:pointer;transition:all 0.15s;font-weight:600;}
+.btn-approve:hover{background:#38c882;}
+.btn-edit{font-family:"Cinzel",serif;font-size:0.65rem;letter-spacing:0.08em;padding:7px 11px;border-radius:2px;
+  background:none;color:var(--text2);border:1px solid var(--border-strong);cursor:pointer;transition:all 0.15s;}
+.btn-edit:hover{background:var(--bg4);}
+.btn-rej{font-family:"Cinzel",serif;font-size:0.65rem;letter-spacing:0.08em;padding:7px 11px;border-radius:2px;
+  background:none;color:var(--muted);border:1px solid var(--border);cursor:pointer;transition:all 0.15s;}
+.btn-rej:hover{color:var(--red);border-color:var(--red-border);}
+.json-ed{margin:0;padding:0.85rem;background:#0d0f1e;border-top:1px solid var(--border);
+  font-family:"JetBrains Mono",monospace;font-size:0.75rem;color:#c8bfae;line-height:1.7;
+  width:100%;resize:vertical;min-height:130px;border-left:none;border-right:none;border-bottom:none;outline:none;}
+/* Queued status row */
+.qs{padding:0.65rem 1.1rem;border-top:1px solid var(--border);background:rgba(74,223,154,0.04);
+  display:flex;align-items:center;gap:10px;}
+.qs-icon{color:var(--green);font-size:1rem;flex-shrink:0;}
+.qs-t{font-family:"Cinzel",serif;font-size:0.68rem;letter-spacing:0.08em;color:var(--green);}
+.qs-d{font-size:0.82rem;color:var(--muted);font-style:italic;}
+/* Gate bar */
+.gate{position:fixed;bottom:0;left:0;right:0;background:rgba(15,16,40,0.97);backdrop-filter:blur(12px);
+  border-top:1px solid var(--border-strong);padding:0.85rem 1.5rem;display:flex;justify-content:center;z-index:90;}
+.gate-in{max-width:900px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.gate-st{display:flex;align-items:center;gap:10px;}
+.gate-dot{width:10px;height:10px;border-radius:50%;}
+.gate-txt{font-family:"Cinzel",serif;font-size:0.72rem;letter-spacing:0.1em;color:var(--text2);}
+.gate-sub{font-size:0.8rem;color:var(--muted);font-style:italic;}
+.gate-acts{display:flex;gap:8px;}
+.btn{font-family:"Cinzel",serif;font-size:0.7rem;letter-spacing:0.1em;padding:8px 18px;border-radius:3px;
+  cursor:pointer;transition:all 0.15s;border:1px solid;}
+.btn-p{background:var(--gold);color:var(--bg);border-color:var(--gold-dim);}
+.btn-p:hover{background:var(--gold-dim);}
+.btn-p:disabled{opacity:0.35;cursor:not-allowed;}
+.btn-s{background:none;color:var(--text2);border-color:var(--border-strong);}
+.btn-s:hover{background:var(--bg4);}
+/* Context tabs */
+.ctx-tabs{display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid var(--border-strong);}
+.ctx-tab{font-family:"Cinzel",serif;font-size:0.68rem;letter-spacing:0.1em;padding:8px 18px;
+  border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s;}
+.ctx-tab:hover{color:var(--text2);}
+.ctx-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Chron<em>i</em>cle</div>
+  <nav class="nav-links">
+    <span class="nav-link" onclick="window.location='intake.html'">Session Intake</span>
+    <span class="nav-link" onclick="window.location='glossary.html'">OCR Glossary</span>
+    <span class="nav-link" onclick="window.location='delta-review.html'">Delta Review</span>
+    <span class="nav-link active" onclick="window.location='integrity.html'">Integrity</span>
+    <span class="nav-link" onclick="window.location='log-viewer.html'">Campaign Log</span>
+    <span class="nav-link" onclick="window.location='log-editor.html'">Log Editor</span>
+    <span class="nav-link" onclick="window.location='versions.html'">Versions</span>
+  </nav>
+  <div class="header-right"></div>
+</header>
+<div class="page">
+  <div class="ctx-tabs">
+    <button class="ctx-tab active" onclick="setCtx('intake',this)">Intake view</button>
+    <button class="ctx-tab" onclick="setCtx('review',this)">Delta Review view</button>
+  </div>
+  <div id="root"></div>
+</div>
+<div class="gate">
+  <div class="gate-in">
+    <div class="gate-st" id="gst"></div>
+    <div class="gate-acts">
+      <button class="btn btn-s" onclick="go()">Re-run checks</button>
+      <button class="btn btn-p" id="pbtn" disabled>Proceed to Delta Review &#8594;</button>
+    </div>
+  </div>
+</div>
+<script src="../shared/config.js"></script>
+<script src="../shared/chronicle-ai.js"></script>
+<script>
+
+const PARTY={pc_001:{nick:"Gold",cls:"Wizard"},pc_002:{nick:"Mal",cls:"Barbarian"},pc_003:{nick:"Ash",cls:"Warlock"},pc_004:{nick:"Del",cls:"Monk"},pc_005:{nick:"Goli",cls:"Rogue"},pc_006:{nick:"Att",cls:"Druid"}};
+const nick=id=>PARTY[id]?.nick||id;
+
+const CAMPAIGN={
+  session_logs:[
+    {session_id:"session_001",session_date:"2026-02-10"},
+    {session_id:"session_002",session_date:"2026-02-24"},
+    {session_id:"session_003",session_date:"2026-03-03"},
+    {session_id:"session_004",session_date:"2026-03-10"},
+    {session_id:"session_005",session_date:"2026-03-17"},
+  ],
+  npc_directory:Array.from({length:13},(_,i)=>({id:`npc_${String(i+1).padStart(3,"0")}`})),
+  locations:[{id:"loc_001"},{id:"loc_002"},{id:"loc_003"},{id:"loc_004"},{id:"loc_005"},{id:"loc_006"},{id:"loc_007"},{id:"loc_011"},{id:"loc_012"}],
+  inventory_and_loot:Array.from({length:10},(_,i)=>({id:`item_${String(i+1).padStart(3,"0")}`})),
+  quest_ledger:Array.from({length:5},(_,i)=>({id:`qst_${String(i+1).padStart(3,"0")}`})),
+  combat_encounters:[
+    {id:"cbt_001",name:"Vespon Queen & Swarm",totalRounds:4,sessions:["session_002"],rounds:[{n:1},{n:2},{n:3},{n:4}]},
+    {id:"cbt_002",name:"Siege of Bagyers Farm",totalRounds:19,sessions:["session_002","session_003"],rounds:Array.from({length:19},(_,i)=>({n:i+1}))},
+    {id:"cbt_003",name:"Axe Beak & Vespon Ambush",totalRounds:9,sessions:["session_004"],rounds:[{n:1},{n:4},{n:5},{n:6},{n:7},{n:8},{n:9},{n:10},{n:11}]},
+    {id:"cbt_004",name:"The Rat Cave",totalRounds:7,sessions:["session_004","session_005"],rounds:Array.from({length:7},(_,i)=>({n:i+1}))},
+    {id:"cbt_005",name:"Goblin Ambush",totalRounds:3,sessions:["session_005"],rounds:[{n:1},{n:2},{n:3}]},
+  ],
+};
+
+const INCOMING=[
+  {type:"NEW",array:"session_logs",label:"Session 006 log entry",id:"d_sess"},
+  {type:"MOD",array:"combat_encounters",label:"cbt_005 — update outcome",id:"d_cbt_hdr",combatId:"cbt_005"},
+  ...[4,5,6,7,8,10,11,12,13,14].map(n=>({type:"NEW",array:"combat_encounters",id:`d_rnd_${n}`,label:`cbt_005 — Round ${n}`,combatId:"cbt_005",roundNumber:n})),
+  {type:"NEW",array:"npc_directory",label:"New NPC — Goblin Warband",id:"d_npc_014"},
+];
+
+let appCtx="intake";
+let states={};
+let workspaces={};
+let collapsed=new Set();
+
+function checks(){
+  const out=[];
+  for(const cbt of CAMPAIGN.combat_encounters){
+    const ns=cbt.rounds.map(r=>r.n).sort((a,b)=>a-b);
+    if(!ns.length)continue;
+    const miss=[];
+    for(let i=ns[0];i<=ns[ns.length-1];i++)if(!ns.includes(i))miss.push(i);
+    if(miss.length)out.push({id:`g_${cbt.id}`,group:"combat",sev:"critical",block:true,isNew:false,
+      cbtId:cbt.id,cbtName:cbt.name,sessHint:cbt.sessions?.join(", ")||"",
+      miss,have:ns,rmin:ns[0],rmax:ns[ns.length-1],
+      title:`Round gap — ${cbt.name}`,
+      detail:`Rounds ${miss.map(n=>`<code>${n}</code>`).join(", ")} are missing. Sequence jumps from Round ${ns[ns.indexOf(miss[0])-1]||"?"} to Round ${miss[miss.length-1]+1}.`,
+      ctx:`Check physical notes for ${cbt.name} Rounds ${miss[0]}–${miss[miss.length-1]}. Use the correction workspace below to fill the gap.`,
+    });
+  }
+  const byC={};
+  for(const d of INCOMING)if(d.combatId&&d.roundNumber!=null)(byC[d.combatId]=byC[d.combatId]||[]).push(d.roundNumber);
+  for(const[cid,rns]of Object.entries(byC)){
+    const s=[...rns].sort((a,b)=>a-b);
+    const miss=[];
+    for(let i=s[0];i<=s[s.length-1];i++)if(!s.includes(i))miss.push(i);
+    if(miss.length){
+      const cbt=CAMPAIGN.combat_encounters.find(c=>c.id===cid);
+      out.push({id:`gi_${cid}`,group:"combat",sev:"critical",block:true,isNew:true,
+        cbtId:cid,cbtName:cbt?.name||cid,sessHint:"session_006",
+        miss,have:s,rmin:s[0],rmax:s[s.length-1],
+        title:`Incoming round gap — ${cbt?.name||cid}`,
+        detail:`Intake produced Rounds ${s.join(", ")} for <code>${cid}</code>, but Round${miss.length>1?"s":""} ${miss.map(n=>`<code>${n}</code>`).join(", ")} ${miss.length>1?"are":"is"} missing.`,
+        ctx:`The OCR may have missed a page. Check handwritten notes for Round${miss.length>1?"s":""} ${miss[0]}${miss.length>1?"–"+miss[miss.length-1]:""} and use the correction workspace.`,
+      });
+    }
+    const ex=CAMPAIGN.combat_encounters.find(c=>c.id===cid);
+    if(ex?.rounds?.length){
+      const exMax=Math.max(...ex.rounds.map(r=>r.n));
+      const incMin=Math.min(...s);
+      if(incMin!==exMax+1)out.push({id:`ct_${cid}`,group:"combat",sev:"warning",block:false,isNew:true,
+        cbtId:cid,cbtName:ex.name,sessHint:"session_006",miss:[],have:s,rmin:exMax+1,rmax:incMin,
+        title:`Continuity gap — ${ex.name}`,
+        detail:`Existing log ends at Round <code>${exMax}</code>. Incoming rounds start at <code>${incMin}</code>.`,
+        ctx:`Confirm Rounds 1–${exMax} are complete before appending new rounds.`,
+      });
+    }
+  }
+  for(const cbt of CAMPAIGN.combat_encounters){
+    if(cbt.totalRounds!=null&&cbt.totalRounds!==cbt.rounds.length)
+      out.push({id:`cnt_${cbt.id}`,group:"misc",sev:"warning",block:false,isNew:false,miss:[],have:[],
+        title:`Round count mismatch — ${cbt.name}`,
+        detail:`<code>totalRounds: ${cbt.totalRounds}</code> but ${cbt.rounds.length} round objects exist.`,
+        ctx:"Update totalRounds or locate the missing data.",
+      });
+  }
+  return out;
+}
+
+function go(){
+  const cs=checks();
+  const crit=cs.filter(c=>c.sev==="critical");
+  const warn=cs.filter(c=>c.sev==="warning");
+  const block=cs.filter(c=>c.block&&!["resolved","suppressed"].includes(states[c.id]));
+
+  let bcls,bicon,btitle,bbody;
+  if(!cs.length){bcls="clean";bicon="✓";btitle="All checks passed";bbody="No issues found. Safe to proceed.";}
+  else if(crit.length){bcls="critical";bicon="✕";btitle=`${crit.length} critical issue${crit.length>1?"s":""} — publishing blocked`;
+    bbody=appCtx==="intake"?"Use the correction workspace on each gap item to fill missing rounds before proceeding.":"Resolve or suppress each critical item to enable publishing.";}
+  else{bcls="warning";bicon="⚠";btitle=`${warn.length} warning${warn.length>1?"s":""}`;bbody="No blocking issues. Warnings should be reviewed.";}
+
+  const pills=[
+    crit.length?`<span class="pill pill-crit">${crit.length} critical</span>`:"",
+    warn.length?`<span class="pill pill-warn">${warn.length} warning</span>`:"",
+    `<span class="pill pill-info">${cs.length} checks</span>`,
+    !crit.length&&!warn.length?`<span class="pill pill-ok">Clean</span>`:"",
+  ].filter(Boolean).join("");
+
+  const byGroup={};
+  for(const c of cs)(byGroup[c.group]=byGroup[c.group]||[]).push(c);
+  const gmeta={"combat":{label:"Combat round integrity",icon:"⚔"},"misc":{label:"Other checks",icon:"◈"}};
+
+  const groupsHtml=Object.entries(byGroup).map(([gk,gi])=>{
+    const gm=gmeta[gk]||{label:gk,icon:"·"};
+    const cr=gi.filter(c=>c.sev==="critical").length;
+    const wr=gi.filter(c=>c.sev==="warning").length;
+    const cnt=[cr?`<span style="color:var(--red)">${cr} critical</span>`:"",wr?`<span style="color:var(--amber)">${wr} warning</span>`:"",!cr&&!wr?`<span style="color:var(--green)">clear</span>`:""].filter(Boolean).join(" · ");
+    const col=collapsed.has(gk);
+    return`<div class="group"><div class="group-hdr" onclick="tog('${gk}')"><span class="gh-icon">${gm.icon}</span><span class="gh-title">${gm.label}</span><span class="gh-count">${cnt}</span><span class="gh-tog">${col?"▼":"▲"}</span></div><div class="group-body${col?" collapsed":""}">${gi.map(ciHTML).join("")}</div></div>`;
+  }).join("");
+
+  document.getElementById("root").innerHTML=`<div class="banner ${bcls}"><div class="bn-icon">${bicon}</div><div><div class="bn-title ${bcls}">${btitle}</div><div class="bn-body">${bbody}</div><div class="pills">${pills}</div></div></div>${groupsHtml}`;
+
+  // Gate bar
+  const g=document.getElementById("gst"),p=document.getElementById("pbtn");
+  if(!block.length){g.innerHTML=`<div class="gate-dot" style="background:var(--green)"></div><div><div class="gate-txt">Ready to proceed</div><div class="gate-sub">All blocking issues resolved</div></div>`;p.disabled=false;}
+  else{g.innerHTML=`<div class="gate-dot" style="background:var(--red);animation:pr 1.5s infinite"></div><div><div class="gate-txt" style="color:var(--red)">${block.length} blocking issue${block.length>1?"s":""}</div><div class="gate-sub">Fix or suppress to proceed</div></div>`;p.disabled=true;}
+  p.textContent=appCtx==="intake"?"Proceed to Delta Review →":"Publish approved deltas →";
+  attachDrop();
+}
+
+function ciHTML(c){
+  const st=states[c.id]||"pending";
+  const ws=workspaces[c.id];
+  const sc=c.sev==="critical"?"sev-c":"sev-w";
+  const sl=c.sev==="critical"?"!":"⚠";
+
+  // Gap viz
+  let viz="";
+  if(c.miss?.length&&c.have?.length){
+    const boxes=[];
+    for(let i=c.rmin;i<=c.rmax;i++){
+      const q=ws?.proposals?.some(p=>p.n===i&&p.st==="ok");
+      if(q)boxes.push(`<div class="gv gv-queued" title="Rd ${i} queued">${i}</div>`);
+      else if(c.miss.includes(i))boxes.push(`<div class="gv gv-miss" title="Rd ${i} MISSING">?</div>`);
+      else boxes.push(`<div class="gv gv-ok" title="Rd ${i}">${i}</div>`);
+    }
+    const left=c.miss.filter(n=>!(ws?.proposals?.some(p=>p.n===n&&p.st==="ok")));
+    viz=`<div class="gap-viz">${boxes.join("")}<span style="font-size:.78rem;color:${left.length?"var(--red)":"var(--green)"};font-style:italic;margin-left:6px;">${left.length?`${left.length} round${left.length>1?"s":""} still missing`:"★ All rounds filled"}</span></div>`;
+  }
+
+  // Actions
+  let acts="";
+  if(st==="pending")
+    acts=c.miss?.length
+      ?`<button class="iab iab-fix" onclick="openWS('${c.id}')">Fix gap ↓</button><button class="iab iab-sup" onclick="setState('${c.id}','suppressed')">Suppress</button>`
+      :`<button class="iab iab-flag" onclick="setState('${c.id}','flagged')">Flag</button><button class="iab iab-sup" onclick="setState('${c.id}','suppressed')">Suppress</button>`;
+  else if(st==="fixing")acts=`<span class="st st-fix">Fixing…</span><button class="iab iab-sup iab-sm" onclick="closeWS('${c.id}')">Close</button>`;
+  else if(st==="resolved")acts=`<span class="st st-res">Resolved ✓</span><button class="iab iab-sup iab-sm" onclick="setState('${c.id}','pending')">Undo</button>`;
+  else if(st==="suppressed")acts=`<span class="st st-sup">Suppressed</span><button class="iab iab-sup iab-sm" onclick="setState('${c.id}','pending')">Undo</button>`;
+  else if(st==="flagged")acts=`<span class="st st-flag">Flagged</span><button class="iab iab-sup iab-sm" onclick="setState('${c.id}','pending')">Undo</button>`;
+
+  const wsHtml=st==="fixing"&&ws?renderWS(c,ws):"";
+  const approved=ws?.proposals?.filter(p=>p.st==="ok")||[];
+  const qsHtml=approved.length?renderQS(c,ws):"";
+
+  return`<div class="ci ${c.sev}" id="ci_${c.id}"><div class="ci-hdr"><div class="sev ${sc}">${sl}</div><div><div class="ci-title">${c.title}${c.block&&st==="pending"?`<span class="blocks">blocks publish</span>`:""}</div><div class="ci-detail">${c.detail}</div>${viz}${c.ctx?`<div class="ci-ctx ${c.sev}">${c.ctx}</div>`:""}<div style="margin-top:5px;">${c.isNew?`<span class="new-tag">New this session</span>`:`<span class="old-tag">Existing log</span>`}</div></div><div class="ci-acts">${acts}</div></div>${wsHtml}${qsHtml}</div>`;
+}
+
+function renderWS(c,ws){
+  const leftMiss=c.miss.filter(n=>!(ws.proposals?.some(p=>p.n===n&&p.st==="ok")));
+  const chips=leftMiss.map(n=>`<span class="rchip${ws.sel?.includes(n)?" sel":""}" onclick="selRound('${c.id}',${n})">${n}</span>`).join("");
+  const allSel=leftMiss.length&&leftMiss.every(n=>ws.sel?.includes(n));
+  const disPath=!ws.sel?.length;
+
+  let body="";
+  if(ws.stage==="proc"){
+    body=`<div class="proc-box"><div class="spin"></div><div><div class="proc-t">${ws.path==="img"?"Extracting from image…":"Generating round data…"}</div><div class="proc-s">${c.cbtName} · Rounds ${ws.sel?.join(", ")} · ${c.sessHint}</div></div></div>`;
+  } else if(!ws.path){
+    body=`<div style="margin-bottom:.75rem;"><div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:5px;">Which rounds to fill:</div><div class="rsel"><span class="rchip all${allSel?" sel":""}" onclick="selAll('${c.id}')">${allSel?"Deselect all":"Select all"}</span>${chips}</div>${!ws.sel?.length?`<div style="font-size:.82rem;color:var(--subtle);font-style:italic;margin-top:4px;">Select rounds to enable paths below</div>`:""}</div><div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">How to provide the data:</div><div class="paths"><button class="path-btn" onclick="setPath('${c.id}','img')" ${disPath?"disabled":""} ><div class="pb-icon">📷</div><span class="pb-title">Reprocess handwritten notes</span><span class="pb-desc">Upload a photo of the notes page. The AI extracts round data using the same OCR pipeline as session intake.</span></button><button class="path-btn" onclick="setPath('${c.id}','txt')" ${disPath?"disabled":""}><div class="pb-icon">✍</div><span class="pb-title">Type it in</span><span class="pb-desc">Describe what happened in plain language. The AI converts it to the round schema and shows you a preview.</span></button></div>`;
+  } else if(ws.path==="img"){
+    const hasImgs=ws.imgs?.length>0;
+    const thumbs=(ws.imgs||[]).map(src=>`<img class="thumb" src="${src}">`).join("");
+    body=`<div style="margin-bottom:.75rem;display:flex;align-items:center;gap:8px;"><div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;">Rounds: ${ws.sel?.join(", ")||"none"}</div><button class="iab iab-sup iab-sm" onclick="setPath('${c.id}',null)">← Back</button></div><div class="drop-zone" id="dz_${c.id}"><input type="file" accept="image/*" multiple onchange="addImgs('${c.id}',this.files)"><div class="dz-icon">📄</div><div class="dz-lbl">Drop photos of handwritten notes here</div><div class="dz-hint">or click to browse · JPEG, PNG · multiple pages</div>${hasImgs?`<div class="thumbs">${thumbs}</div>`:""}</div>${hasImgs?`<div class="proc-row"><span class="proc-note">${ws.imgs.length} image${ws.imgs.length>1?"s":""} ready · AI will extract Rounds ${ws.sel?.join(", ")}</span><button class="btn-approve" onclick="procImg('${c.id}')">Extract rounds →</button></div>`:""}`;
+  } else if(ws.path==="txt"){
+    const hints=[`Round ${ws.sel?.[0]||"?"} actions`,"Gold's action","Del's action","enemy actions","crits/deaths"];
+    body=`<div style="margin-bottom:.75rem;display:flex;align-items:center;gap:8px;"><div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;">Rounds: ${ws.sel?.join(", ")||"none"}</div><button class="iab iab-sup iab-sm" onclick="setPath('${c.id}',null)">← Back</button></div><div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:5px;">Describe what happened:</div><textarea class="ws-ta" id="ta_${c.id}" placeholder="e.g. Round 2: Gold Firebolt hit 4. Mal longsword hit 11. Ash Eldritch Blast miss. Atti Starry Wisp hit 6. Del shortbow hit 5. Goli shortbow miss. Axe Beak charged Del, hit 8 dmg.&#10;Round 3: Gold Firebolt miss. Mal longsword hit 9. Del death save success. Ash EB hit 7. Atti Entangle success — swarm restrained. Goli shortbow SA hit 11." rows="4">${ws.txt||""}</textarea><div class="hints">${hints.map(h=>`<span class="hint-c" onclick="addHint('${c.id}','${h}')">${h}</span>`).join("")}</div><div class="proc-row" style="margin-top:.75rem;"><span class="proc-note">AI will generate schemas for Round${ws.sel?.length>1?"s":""} ${ws.sel?.join(", ")} and show a preview.</span><button class="btn-approve" onclick="procTxt('${c.id}')">Generate rounds →</button></div>`;
+  }
+
+  const propHtml=(ws.proposals||[]).filter(p=>p.st!=="ok").map(p=>rpHTML(c.id,p)).join("");
+
+  return`<div class="ws"><div class="ws-hdr"><span class="ws-title">Correction workspace</span><span class="ws-scope"> — ${c.cbtName} · Rounds ${c.miss?.join(", ")}</span><button class="ws-close" onclick="closeWS('${c.id}')">✕</button></div><div class="ws-body">${body}${propHtml}</div></div>`;
+}
+
+function rpHTML(cid,p){
+  const rc=r=>({hit:"r-hit",miss:"r-miss",crit:"r-crit",death:"r-death",save:"r-save"}[r]||"r-neu");
+  const rl=r=>({hit:"hit",miss:"miss",crit:"CRIT",death:"death sv",save:"save",neutral:"—",unclear:"?"}[r]||r||"");
+  const slots=(p.slots||[]).map((s,i)=>`<div class="rp-slot${i%2===0?" odd":""}"><div class="sn">${s.s}</div><div class="sa">${nick(s.a)}</div><div class="sact">${s.act}${s.val?`<span class="sval">${s.val}</span>`:""}${s.notes?`<span class="snote">${s.notes}</span>`:""}</div>${s.res&&s.res!=="neutral"?`<span class="res ${rc(s.res)}">${rl(s.res)}</span>`:"<span></span>"}</div>`).join("");
+  const enemy=(p.enemy||[]).map(e=>`<div class="rp-slot enemy"><div class="sn">—</div><div class="sa en">Enemy</div><div class="sact">${e.desc}${e.impact?`<span class="snote">${e.impact}</span>`:""}</div></div>`).join("");
+  const sum=p.sum?`<div class="rp-sum"><span class="rp-sum-lbl">Summary</span><span style="font-style:italic">${p.sum}</span></div>`:"";
+  const json=JSON.stringify({round_number:p.n,session_id:p.sid,initiative_grid:(p.slots||[]).map(s=>({slot:s.s,actor_id:s.a,action:s.act,result:s.res||null,value:s.val||null,notes:s.notes||null})),enemy_actions:(p.enemy||[]).map(e=>({description:e.desc,impact:e.impact||null}))},null,2);
+  return`<div class="rp" id="rp_${cid}_${p.n}"><div class="rp-hdr"><span class="rp-title">Round ${p.n} — proposed</span><span class="rp-sid">${p.sid}</span><span class="rp-src">from ${p.src==="img"?"image OCR":"typed input"}</span></div><div>${slots}${enemy}</div>${sum}<div class="rp-acts" id="ra_${cid}_${p.n}"><span class="rp-acts-note">Review this round, then approve to add to the delta queue.</span><button class="btn-rej" onclick="rejP('${cid}',${p.n})">Reject</button><button class="btn-edit" onclick="editP('${cid}',${p.n})">Edit JSON</button><button class="btn-approve" onclick="appP('${cid}',${p.n})">Approve → queue ✓</button></div><textarea class="json-ed" id="je_${cid}_${p.n}" style="display:none">${json}</textarea></div>`;
+}
+
+function renderQS(c,ws){
+  const app=ws.proposals?.filter(p=>p.st==="ok")||[];
+  const allDone=c.miss?.every(n=>app.some(p=>p.n===n));
+  return`<div class="qs"><div class="qs-icon">✓</div><div><div class="qs-t">Round${app.length>1?"s":""} ${app.map(p=>p.n).join(", ")} queued for delta review</div><div class="qs-d">${allDone?"All missing rounds filled — will be resolved when published.":c.miss?.length-app.length+" round"+(c.miss?.length-app.length>1?"s":"")+" still missing."}</div></div>${allDone?`<button class="iab iab-fix" style="margin-left:auto;" onclick="setState('${c.id}','resolved')">Mark resolved</button>`:""}</div>`;
+}
+
+/* ─── Workspace actions ─── */
+function openWS(id){
+  states[id]="fixing";
+  if(!workspaces[id])workspaces[id]={path:null,sel:[],imgs:[],txt:"",stage:"idle",proposals:[]};
+  go();
+  setTimeout(()=>document.getElementById("ci_"+id)?.scrollIntoView({behavior:"smooth",block:"nearest"}),80);
+}
+function closeWS(id){
+  const ws=workspaces[id];
+  const hasOk=ws?.proposals?.some(p=>p.st==="ok");
+  states[id]=hasOk?"fixing":"pending";
+  if(!hasOk)delete workspaces[id];
+  go();
+}
+function setPath(id,path){
+  workspaces[id]=workspaces[id]||{path:null,sel:[],imgs:[],txt:"",stage:"idle",proposals:[]};
+  workspaces[id].path=path;workspaces[id].stage="idle";go();
+}
+function selRound(id,n){
+  const ws=workspaces[id];if(!ws)return;
+  const i=ws.sel.indexOf(n);if(i>-1)ws.sel.splice(i,1);else ws.sel.push(n);go();
+}
+function selAll(id){
+  const ws=workspaces[id];const c=checks().find(c=>c.id===id);if(!ws||!c)return;
+  const ml=c.miss.filter(n=>!(ws.proposals?.some(p=>p.n===n&&p.st==="ok")));
+  const all=ml.every(n=>ws.sel.includes(n));ws.sel=all?[]:[...ml];go();
+}
+function addHint(id,h){
+  const ta=document.getElementById("ta_"+id);if(!ta)return;
+  ta.value+=(ta.value?" · ":"")+h+": ";ta.focus();
+  workspaces[id]=workspaces[id]||{};workspaces[id].txt=ta.value;
+}
+function addImgs(id,files){
+  const ws=workspaces[id];if(!ws)return;
+  ws.imgs=ws.imgs||[];
+  Array.from(files).forEach(f=>{const r=new FileReader();r.onload=e=>{ws.imgs.push(e.target.result);go();};r.readAsDataURL(f);});
+}
+function attachDrop(){
+  document.querySelectorAll("[id^='dz_']").forEach(z=>{
+    z.addEventListener("dragover",e=>{e.preventDefault();z.classList.add("over");});
+    z.addEventListener("dragleave",()=>z.classList.remove("over"));
+    z.addEventListener("drop",e=>{e.preventDefault();z.classList.remove("over");addImgs(z.id.replace("dz_",""),e.dataTransfer.files);});
+  });
+}
+
+/* ─── AI calls ─── */
+
+async function procImg(id){
+  const ws=workspaces[id];const ch=checks().find(c=>c.id===id);if(!ws||!ch)return;
+  ws.stage="proc";go();
+  await ChronicleAI.fillRoundsFromImage({
+    images: ws.imgs,
+    combatName: ch.cbtName,
+    combatId:   ch.cbtId,
+    sessionId:  ch.sessHint||"session_004",
+    roundNumbers: ws.sel,
+    onLoading: loading=>{ if(!loading){ws.stage="review";go();} },
+    onResult:  proposals=>{ _mergeProposals(id,proposals); go(); },
+    onError:   ()=>{ _mergeProposals(id,ChronicleAI.demoRoundProposals(ws.sel,ch.sessHint||"session_004","img")); go(); },
+  });
+}
+async function procTxt(id){
+  const ws=workspaces[id];const ch=checks().find(c=>c.id===id);
+  const ta=document.getElementById("ta_"+id);
+  const txt=ta?.value?.trim()||ws?.txt?.trim()||"";
+  if(!ws||!ch||!txt)return;
+  ws.txt=txt;ws.stage="proc";go();
+  await ChronicleAI.fillRoundsFromText({
+    text: txt,
+    combatName: ch.cbtName,
+    combatId:   ch.cbtId,
+    sessionId:  ch.sessHint||"session_004",
+    roundNumbers: ws.sel,
+    onLoading: loading=>{ if(!loading){ws.stage="review";go();} },
+    onResult:  proposals=>{ _mergeProposals(id,proposals); go(); },
+    onError:   ()=>{ _mergeProposals(id,ChronicleAI.demoRoundProposals(ws.sel,ch.sessHint||"session_004","txt")); go(); },
+  });
+}
+// _mergeProposals: integrates proposals from ChronicleAI into workspace
+function _mergeProposals(id, proposals){
+  const ws=workspaces[id];if(!ws)return;
+  ws.stage="review";ws.proposals=ws.proposals||[];
+  for(const p of proposals){
+    if(ws.proposals.some(x=>x.n===p.n&&x.st==="ok"))continue;
+    const idx=ws.proposals.findIndex(x=>x.n===p.n);
+    idx>-1?ws.proposals[idx]=p:ws.proposals.push(p);
+  }
+}
+function appP(cid,n){
+  const ws=workspaces[cid];const p=ws?.proposals?.find(p=>p.n===n);if(!p)return;
+  p.st="ok";go();
+}
+function rejP(cid,n){
+  const ws=workspaces[cid];if(!ws)return;
+  ws.proposals=ws.proposals.filter(p=>p.n!==n);go();
+}
+function editP(cid,n){
+  const ed=document.getElementById(`je_${cid}_${n}`);const ra=document.getElementById(`ra_${cid}_${n}`);if(!ed||!ra)return;
+  const show=ed.style.display==="none";
+  ed.style.display=show?"block":"none";
+  if(show)ra.insertAdjacentHTML("beforeend",`<button class="btn-approve" id="ap_${cid}_${n}" onclick="applyEdit('${cid}',${n})">Apply edits</button>`);
+  else document.getElementById(`ap_${cid}_${n}`)?.remove();
+}
+function applyEdit(cid,n){
+  const ed=document.getElementById(`je_${cid}_${n}`);if(!ed)return;
+  try{
+    const p=JSON.parse(ed.value);
+    const ws=workspaces[cid];const prop=ws?.proposals?.find(x=>x.n===n);if(!prop)return;
+    prop.slots=(p.initiative_grid||[]).map(s=>({s:s.slot,a:s.actor_id,act:s.action,res:s.result||"neutral",val:s.value||null,notes:s.notes||null}));
+    prop.enemy=(p.enemy_actions||[]).map(e=>({desc:e.description,impact:e.impact||null}));
+    prop.sum=p.round_summary||null;
+    go();
+  }catch{ed.style.border="1px solid var(--red)";setTimeout(()=>{if(ed)ed.style.border="";},1500);}
+}
+function setState(id,s){states[id]=s;go();}
+function tog(k){collapsed.has(k)?collapsed.delete(k):collapsed.add(k);go();}
+function setCtx(ctx,btn){
+  appCtx=ctx;
+  document.querySelectorAll(".ctx-tab").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+  document.getElementById("nl-intake").classList.toggle("active",ctx==="intake");
+  document.getElementById("nl-review").classList.toggle("active",ctx==="review");
+  go();
+}
+document.addEventListener("DOMContentLoaded",()=>{
+  const s=document.createElement("style");
+  s.textContent="@keyframes pr{0%,100%{opacity:1;}50%{opacity:.35;}}";
+  document.head.appendChild(s);
+  go();
+});
+
+</script>
+</body>
+</html>

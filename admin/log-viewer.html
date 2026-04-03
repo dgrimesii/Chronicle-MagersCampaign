@@ -1,0 +1,1895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — Campaign Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* ── Arcane Night theme ── */
+  --ink:#f0e8d0;
+  --ink-inv:#0f1020;
+  --parchment:#0f1020;
+  --parchment-dark:#13152b;
+  --parchment-mid:#1e2040;
+  --card-bg:#181a35;
+
+  --amber:#d4af37;
+  --amber-dim:#a88820;
+  --amber-light:#f0d060;
+
+  --rust:#ff6b50;
+  --teal:#4a9e7a;
+  --green:#4adf9a;
+  --purple:#c090ff;
+
+  --muted:#7d7a94;
+  --muted-light:#4a4870;
+
+  --border:rgba(212,175,55,0.12);
+  --border-strong:rgba(212,175,55,0.28);
+
+  --shadow:0 4px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.08);
+  --shadow-md:0 8px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.12);
+
+  /* Entity dot colours — brightened for dark bg */
+  --c-pc:#4adf9a; --c-npc:#ff8c55; --c-loc:#5ab0ff; --c-quest:#ffd040;
+  --c-item:#c090ff; --c-combat:#ff6060; --c-lore:#80ff80; --c-session:#9090c0;
+
+  /* Combat log colours */
+  --c-hit:#4adf9a; --c-miss:#ff6060; --c-crit:#ffd040; --c-save:#5ab0ff;
+  --c-enemy:#ff8c55; --c-death:#7d7a94; --c-stable:#9090c0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Crimson Pro',Georgia,serif;background:#0f1020;color:#f0e8d0;height:100vh;overflow:hidden;display:flex;flex-direction:column;background-image:radial-gradient(ellipse at 20% 20%,rgba(74,59,140,0.25) 0%,transparent 55%),radial-gradient(ellipse at 80% 80%,rgba(30,20,80,0.4) 0%,transparent 55%);}
+
+/* ── Header ── */
+header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;height:64px;background:rgba(13,15,40,0.95);position:relative;z-index:100;}
+.logo{font-family:"Cinzel",serif;font-size:1.05rem;font-weight:600;letter-spacing:0.12em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.logo span{color:var(--amber);}
+.header-right{display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;overflow:hidden;min-width:0;}
+.nav-links{display:flex;gap:0.9rem;justify-content:center;align-items:center;flex-wrap:nowrap;padding:0 2rem;}
+.nav-link{cursor:pointer;font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;padding-bottom:2px;border-bottom:1px solid transparent;transition:all 0.15s;white-space:nowrap;cursor:pointer;}
+.nav-link:hover{color:var(--ink);}
+.nav-link.active{color:var(--amber);border-bottom-color:var(--amber);}
+
+/* ── View toggle ── */
+.view-toggle{display:flex;gap:0;border:1px solid var(--border-strong);border-radius:3px;overflow:hidden;}
+.view-btn{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;padding:5px 14px;border:none;background:none;cursor:pointer;color:var(--muted);transition:all 0.15s;}
+.view-btn.active{background:var(--ink);color:var(--parchment);}
+
+/* ── App shell ── */
+.shell{display:flex;flex:1;overflow:hidden;align-items:stretch;min-height:0;}
+
+/* ── Left sidebar ── */
+aside{width:260px;flex-shrink:0;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:#13152b;overflow:hidden;min-height:0;height:100%;}
+
+/* Search */
+.search-wrap{padding:0.85rem 1rem;border-bottom:1px solid var(--border);}
+.search-box{position:relative;}
+.search-box input{width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.92rem;background:var(--parchment-mid);color:var(--ink);outline:none;transition:border-color 0.15s;}
+.search-box input:focus{border-color:var(--amber);}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);opacity:0.35;pointer-events:none;}
+.search-results-count{font-size:0.75rem;color:var(--muted);font-style:italic;margin-top:5px;font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.08em;}
+
+/* Category filter pills */
+.cat-pills{display:flex;flex-wrap:wrap;gap:4px;padding:0.6rem 1rem;border-bottom:1px solid var(--border);}
+.cat-pill{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;padding:3px 9px;border-radius:2px;cursor:pointer;border:1px solid;transition:all 0.15s;text-transform:uppercase;}
+.cat-pill.active{color:white!important;}
+
+/* Entity list */
+.entity-list{flex:1;overflow-y:auto;min-height:0;}
+.entity-group-header{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.2em;color:#8886b0;text-transform:uppercase;padding:0.6rem 1rem 0.25rem;background:#1e2248;border-bottom:1px solid rgba(212,175,55,0.18);position:sticky;top:0;z-index:1;}
+.entity-item{padding:0.55rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.12s;display:flex;align-items:center;gap:8px;}
+.entity-item:hover{background:rgba(212,175,55,0.07);}
+.entity-item.active{background:rgba(212,175,55,0.14);border-right:2px solid var(--amber);}
+.entity-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.entity-name{font-size:0.92rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.entity-tag{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#6b6890;}
+.entity-status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+/* ── Main area: two views ── */
+.main-area{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+
+/* BROWSE VIEW */
+.browse-view{flex:1;overflow-y:auto;padding:1.5rem;display:none;}
+.browse-view.active{display:block;}
+
+/* Entity detail card */
+.detail-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:1.5rem;box-shadow:var(--shadow);max-width:820px;}
+.detail-header{display:flex;align-items:flex-start;gap:1rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+.detail-type-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.detail-title{font-family:'Cinzel',serif;font-size:1.4rem;font-weight:600;letter-spacing:0.06em;}
+.detail-subtitle{font-size:0.9rem;color:var(--muted);font-style:italic;margin-top:3px;}
+.detail-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;}
+.detail-badge{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.1em;padding:3px 10px;border-radius:2px;border:1px solid;}
+
+.detail-body{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
+.detail-section{display:flex;flex-direction:column;gap:0.5rem;}
+.detail-section.full{grid-column:1/-1;}
+.section-label{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.18em;color:var(--muted);text-transform:uppercase;margin-bottom:0.25rem;padding-bottom:3px;border-bottom:1px solid var(--border);}
+.section-text{font-size:0.95rem;line-height:1.65;color:var(--ink);}
+
+/* Relationship chips */
+.rel-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.rel-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--parchment);transition:all 0.15s;font-size:0.85rem;}
+.rel-chip:hover{border-color:var(--amber);background:rgba(212,175,55,0.06);}
+.rel-chip-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.rel-chip-label{color:var(--muted);font-size:0.72rem;font-family:'Cinzel',serif;letter-spacing:0.06em;}
+
+/* Timeline */
+.timeline{display:flex;flex-direction:column;gap:0;}
+.timeline-item{display:flex;gap:10px;padding:6px 0;}
+.timeline-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;margin-top:5px;}
+.timeline-session{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--muted-light);flex-shrink:0;min-width:80px;}
+.timeline-text{font-size:0.9rem;color:var(--ink);}
+
+/* Progress bar for quests */
+.quest-progress{margin-top:4px;}
+.obj-row{display:flex;align-items:center;gap:8px;font-size:0.88rem;padding:4px 0;}
+.obj-check{width:14px;height:14px;border-radius:2px;border:1.5px solid var(--border-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.obj-check.done{background:var(--teal);border-color:var(--teal);}
+
+/* Search results list */
+.search-results{display:flex;flex-direction:column;gap:8px;}
+.search-result-card{background:white;border:1px solid var(--border);border-radius:3px;padding:0.85rem 1rem;cursor:pointer;transition:all 0.15s;}
+.search-result-card:hover{border-color:var(--amber);box-shadow:var(--shadow);}
+.sr-header{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.sr-title{font-size:1rem;font-weight:600;}
+.sr-snippet{font-size:0.88rem;color:var(--muted);font-style:italic;line-height:1.4;}
+mark{background:rgba(212,175,55,0.2);color:var(--ink);border-radius:2px;padding:0 2px;}
+
+/* Empty state */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);gap:0.5rem;}
+.empty-state-title{font-family:'Cinzel',serif;font-size:1rem;letter-spacing:0.08em;}
+
+/* GRAPH VIEW */
+.graph-view{flex:1;overflow:hidden;display:none;flex-direction:column;}
+.graph-view.active{display:flex;}
+.graph-canvas{flex:1;position:relative;background:var(--parchment);}
+#graph-svg{width:100%;height:100%;}
+
+.graph-toolbar{padding:0.6rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:rgba(15,16,40,0.95);}
+.graph-legend{display:flex;flex-wrap:wrap;gap:10px;flex:1;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:0.75rem;color:var(--muted);}
+.legend-dot{width:9px;height:9px;border-radius:50%;}
+
+/* Graph tooltip */
+.graph-tooltip{position:absolute;background:var(--ink);color:var(--parchment);padding:6px 12px;border-radius:3px;font-size:0.8rem;pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:100;white-space:nowrap;font-family:'Cinzel',serif;letter-spacing:0.06em;}
+
+/* Graph node panel (on click) */
+.graph-node-panel{position:absolute;right:1rem;top:1rem;width:260px;background:#181a35;border:1px solid var(--border-strong);border-radius:4px;padding:1rem;box-shadow:var(--shadow-md);display:none;}
+.graph-node-panel.visible{display:block;}
+.gnp-title{font-family:'Cinzel',serif;font-size:0.9rem;font-weight:600;margin-bottom:0.25rem;}
+.gnp-type{font-size:0.75rem;color:var(--muted);font-style:italic;margin-bottom:0.75rem;}
+.gnp-rels{display:flex;flex-direction:column;gap:4px;}
+.gnp-rel{font-size:0.82rem;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;}
+.gnp-rel:hover .gnp-rel-name{color:var(--amber);}
+.gnp-rel-name{color:var(--ink);}
+.gnp-btn{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.08em;padding:5px 12px;border-radius:2px;border:1px solid var(--border-strong);background:none;cursor:pointer;margin-top:0.75rem;width:100%;transition:all 0.15s;}
+.gnp-btn:hover{background:var(--amber);color:white;border-color:var(--amber);}
+
+/* Session timeline panel */
+.session-timeline{border-bottom:1px solid var(--border);background:#111226;padding:0.6rem 1.5rem;display:flex;gap:1rem;align-items:center;flex-shrink:0;overflow-x:auto;}
+.session-pill{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.08em;padding:4px 12px;border-radius:2px;border:1px solid var(--border-strong);cursor:pointer;white-space:nowrap;background:none;color:var(--muted);transition:all 0.15s;}
+.session-pill:hover{border-color:var(--amber);color:var(--amber-dim);}
+.session-pill.active{background:var(--ink);color:var(--parchment);border-color:var(--ink);}
+.session-pill-label{display:block;font-size:0.55rem;opacity:0.6;margin-top:1px;}
+
+.btn{font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.1em;padding:6px 14px;border-radius:3px;cursor:pointer;border:1px solid var(--border-strong);background:none;color:var(--muted);transition:all 0.15s;}
+.btn:hover{background:var(--parchment-dark);}
+.btn-amber{border-color:var(--amber);color:var(--amber-dim);}
+.btn-amber:hover{background:var(--amber);color:white;}
+
+/* ── Session view styles ── */
+.session-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:1.5rem;box-shadow:var(--shadow);max-width:820px;}
+.session-vibe{font-style:italic;color:var(--muted);border-left:3px solid var(--amber);padding:0.6rem 0.85rem;margin:0.75rem 0;font-size:0.95rem;background:rgba(212,175,55,0.04);border-radius:0 3px 3px 0;}
+.session-moments{display:flex;flex-direction:column;gap:8px;margin-top:0.5rem;}
+.moment-card{background:var(--parchment-mid);border:1px solid var(--border);border-radius:3px;padding:0.7rem 0.9rem;}
+.moment-type{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.14em;color:var(--amber-dim);text-transform:uppercase;margin-bottom:3px;}
+.moment-desc{font-size:0.9rem;line-height:1.55;}
+.moment-pcs{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;}
+.moment-pc-chip{font-family:'JetBrains Mono',monospace;font-size:0.65rem;background:rgba(29,158,117,0.1);border:1px solid rgba(29,158,117,0.25);color:#0F6E56;padding:1px 7px;border-radius:10px;}
+.combat-stub{border:1px solid var(--border);border-radius:3px;overflow:hidden;cursor:pointer;transition:all 0.15s;}
+.combat-stub:hover{border-color:var(--amber);box-shadow:var(--shadow);}
+.combat-stub-header{display:flex;align-items:center;gap:10px;padding:0.7rem 1rem;background:var(--parchment-mid);}
+.combat-stub-name{font-family:'Cinzel',serif;font-size:0.85rem;font-weight:600;letter-spacing:0.06em;flex:1;}
+.combat-stub-rounds{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted-light);}
+.combat-stub-badge{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;padding:2px 8px;border-radius:2px;}
+.combat-stub-body{padding:0.6rem 1rem;font-size:0.85rem;color:var(--muted);font-style:italic;}
+.session-span-notice{background:rgba(181,212,244,0.2);border:1px solid rgba(55,138,221,0.25);border-radius:3px;padding:5px 10px;font-size:0.8rem;color:#185FA5;font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.08em;}
+
+/* ── Combat log styles ── */
+.combat-log-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:1.5rem;box-shadow:var(--shadow);max-width:900px;}
+.combat-session-strip{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;}
+.combat-session-chip{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;padding:3px 10px;border-radius:2px;border:1px solid var(--border-strong);cursor:pointer;color:var(--muted);background:none;transition:all 0.15s;}
+.combat-session-chip:hover,.combat-session-chip.active{background:var(--ink);color:var(--parchment);border-color:var(--ink);}
+.round-block{border:1px solid var(--border);border-radius:4px;margin-bottom:10px;overflow:hidden;}
+.round-header{display:flex;align-items:center;gap:10px;padding:0.55rem 1rem;background:var(--parchment-mid);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
+.round-num{font-family:'Cinzel',serif;font-size:0.78rem;font-weight:600;letter-spacing:0.1em;color:var(--ink);}
+.round-session-tag{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--muted-light);}
+.round-summary-chips{display:flex;gap:4px;flex:1;flex-wrap:wrap;}
+.round-summary-chip{font-size:0.68rem;padding:1px 6px;border-radius:10px;border:1px solid;}
+.chip-hit{background:rgba(29,158,117,0.1);color:#0F6E56;border-color:rgba(29,158,117,0.25);}
+.chip-miss{background:rgba(163,45,45,0.07);color:#791F1F;border-color:rgba(163,45,45,0.2);}
+.chip-crit{background:rgba(186,117,23,0.12);color:#633806;border-color:rgba(186,117,23,0.3);}
+.chip-death{background:rgba(90,90,80,0.1);color:#444441;border-color:rgba(90,90,80,0.2);}
+.chip-enemy{background:rgba(216,90,48,0.08);color:#712B13;border-color:rgba(216,90,48,0.2);}
+.round-toggle{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--muted-light);}
+.round-body{display:none;}
+.round-body.open{display:block;}
+.initiative-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.slot-row{display:flex;align-items:flex-start;gap:8px;padding:0.45rem 1rem;border-bottom:1px solid var(--border);font-size:0.88rem;}
+.slot-row:last-child{border-bottom:none;}
+.slot-row.odd{background:rgba(19,21,43,0.8);}
+.slot-row.left-col{border-right:1px solid var(--border);}
+.slot-num-badge{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--muted-light);min-width:14px;flex-shrink:0;margin-top:2px;}
+.slot-actor{font-family:'Cinzel',serif;font-size:0.72rem;font-weight:600;color:var(--ink);min-width:42px;flex-shrink:0;letter-spacing:0.04em;}
+.slot-action{flex:1;color:var(--ink);}
+.slot-result{font-family:'JetBrains Mono',monospace;font-size:0.68rem;flex-shrink:0;padding:1px 6px;border-radius:2px;}
+.result-hit{background:rgba(29,158,117,0.1);color:#0F6E56;}
+.result-miss{background:rgba(163,45,45,0.07);color:#791F1F;}
+.result-crit{background:rgba(186,117,23,0.12);color:#633806;}
+.result-death{background:rgba(90,90,80,0.1);color:#444441;}
+.result-save{background:rgba(55,138,221,0.1);color:#185FA5;}
+.result-neutral{background:var(--parchment-mid);color:var(--muted);}
+.slot-value{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--amber-dim);font-weight:500;margin-left:4px;}
+.slot-notes{font-size:0.78rem;color:var(--muted);font-style:italic;margin-top:2px;}
+.enemy-row{grid-column:1/-1;background:rgba(216,90,48,0.04);border-top:1px solid rgba(216,90,48,0.15);}
+.enemy-row .slot-actor{color:var(--rust);}
+.combat-outcome-banner{display:flex;align-items:center;gap:10px;padding:0.7rem 1rem;border-radius:3px;margin-bottom:1rem;font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.1em;}
+.outcome-victory{background:rgba(29,158,117,0.08);border:1px solid rgba(29,158,117,0.25);color:#0F6E56;}
+.outcome-paused{background:rgba(186,117,23,0.08);border:1px solid rgba(186,117,23,0.25);color:#633806;}
+.spans-sessions-badge{background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.25);color:#185FA5;font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;padding:2px 8px;border-radius:2px;}
+.combat-stat-row{display:flex;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap;}
+.combat-stat{text-align:center;padding:0.6rem 1rem;background:var(--parchment-mid);border-radius:3px;border:1px solid var(--border);}
+.combat-stat-num{font-family:'Cinzel',serif;font-size:1.2rem;font-weight:600;color:var(--ink);}
+.combat-stat-label{font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+
+/* ── Copyable error alert bar ── */
+#error-alert{
+  display:none;position:fixed;top:58px;left:0;right:0;z-index:200;
+  background:#1a0a08;border-bottom:2px solid var(--rust);
+  padding:0.65rem 1.25rem;
+  display:none;align-items:flex-start;gap:12px;
+}
+#error-alert.visible{display:flex;}
+.ea-icon{color:var(--rust);font-size:1.1rem;flex-shrink:0;margin-top:1px;}
+.ea-body{flex:1;}
+.ea-title{font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.1em;color:var(--rust);margin-bottom:3px;}
+.ea-msg{font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:#ffb8a8;line-height:1.6;
+  background:rgba(255,107,80,0.06);border:1px solid rgba(255,107,80,0.2);border-radius:3px;
+  padding:6px 10px;margin-top:4px;white-space:pre-wrap;word-break:break-all;cursor:text;
+  user-select:all;}
+.ea-actions{display:flex;gap:6px;margin-top:6px;}
+.ea-copy{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;padding:4px 10px;
+  border-radius:2px;border:1px solid rgba(255,107,80,0.4);background:none;color:var(--rust);
+  cursor:pointer;transition:all 0.15s;}
+.ea-copy:hover{background:rgba(255,107,80,0.1);}
+.ea-dismiss{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;padding:4px 10px;
+  border-radius:2px;border:1px solid var(--border);background:none;color:var(--muted);
+  cursor:pointer;transition:all 0.15s;}
+.ea-dismiss:hover{color:var(--text2);}
+
+/* ── Drive sync indicator ── */
+#sync-bar{
+  display:none;align-items:center;gap:8px;
+  font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.09em;
+  background:rgba(232,160,48,0.12);border:1px solid rgba(232,160,48,0.35);
+  border-radius:3px;padding:3px 10px;color:var(--amber);white-space:nowrap;
+}
+#sync-bar.stale{display:flex;}
+#sync-bar.current{display:flex;background:rgba(74,223,154,0.08);border-color:rgba(74,223,154,0.25);color:var(--green);}
+.sync-btn{
+  font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.08em;
+  padding:2px 8px;border-radius:2px;cursor:pointer;border:1px solid;
+  transition:all 0.15s;background:none;
+}
+.sync-btn.stale-btn{color:var(--amber);border-color:rgba(232,160,48,0.4);}
+.sync-btn.stale-btn:hover{background:rgba(232,160,48,0.15);}
+.sync-btn.current-btn{color:var(--green);border-color:rgba(74,223,154,0.3);}
+.sync-btn.current-btn:hover{background:rgba(74,223,154,0.1);}
+.sync-btn:disabled{opacity:0.4;cursor:not-allowed;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Chron<span>i</span>cle</div>
+  <nav class="nav-links">
+    <span class="nav-link" onclick="window.location='intake.html'">Session Intake</span>
+    <span class="nav-link" onclick="window.location='glossary.html'">OCR Glossary</span>
+    <span class="nav-link" onclick="window.location='delta-review.html'">Delta Review</span>
+    <span class="nav-link" onclick="window.location='integrity.html'">Integrity</span>
+    <span class="nav-link active" onclick="window.location='log-viewer.html'">Campaign Log</span>
+    <span class="nav-link" onclick="window.location='log-editor.html'">Log Editor</span>
+    <span class="nav-link" onclick="window.location='versions.html'">Versions</span>
+  </nav>
+  <div class="header-right">
+    <div style="display:flex;align-items:center;gap:12px;">
+    <div class="view-toggle">
+      <button class="view-btn active" onclick="switchView('browse',this)">Browse</button>
+      <button class="view-btn" onclick="switchView('graph',this)">Graph</button>
+    </div>
+    <div id="sync-bar" title="Drive data version vs embedded data version">
+      <span id="sync-label">Checking Drive…</span>
+      <button class="sync-btn" id="sync-btn" onclick="syncFromDrive()">Sync</button>
+    </div>
+    <div id="data-status" style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.1em;color:var(--muted);display:flex;align-items:center;gap:6px;"></div>
+    <button id="settings-btn" onclick="toggleSettings()" style="background:none;border:1px solid var(--border-strong);border-radius:3px;padding:4px 10px;font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.1em;cursor:pointer;color:var(--muted);transition:all 0.15s;" onmouseover="this.style.background='var(--parchment-dark)'" onmouseout="this.style.background='none'">⚙ Settings</button>
+  </div>
+  </div>
+</header>
+<div id="error-alert" role="alert">
+  <div class="ea-icon">✕</div>
+  <div class="ea-body">
+    <div class="ea-title">Error — copy the details below and paste into Claude for debugging</div>
+    <div class="ea-msg" id="error-msg"></div>
+    <div class="ea-actions">
+      <button class="ea-copy" onclick="copyError()">Copy error text</button>
+      <button class="ea-dismiss" onclick="dismissError()">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Settings panel (slides down from header) -->
+<div id="settings-panel" style="display:none;background:#181a35;border-bottom:1px solid var(--border-strong);padding:1rem 1.5rem;z-index:150;box-shadow:0 4px 24px rgba(0,0,0,0.5);">
+  <div style="max-width:680px;display:flex;flex-direction:column;gap:1rem;">
+    <div style="font-family:'Cinzel',serif;font-size:0.78rem;letter-spacing:0.12em;font-weight:600;">Chronicle Settings</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Google Drive File ID</div>
+        <div style="display:flex;gap:6px;">
+          <input id="drive-id-input" type="text" placeholder="Paste Drive file ID or share URL…" style="flex:1;padding:7px 10px;border:1px solid var(--border-strong);border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:0.75rem;background:white;color:var(--ink);outline:none;" oninput="parseDriveInput(this.value)">
+          <button onclick="loadFromDrive()" style="font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.08em;padding:7px 14px;border-radius:3px;border:1px solid var(--amber);background:var(--amber);color:white;cursor:pointer;">Load</button>
+        </div>
+        <div style="font-size:0.78rem;color:var(--muted);font-style:italic;margin-top:4px;" id="drive-id-hint">Paste the full sharing URL or just the file ID from Google Drive.</div>
+      </div>
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Mode</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="setMode('admin')" id="mode-admin-btn" style="flex:1;font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.08em;padding:7px;border-radius:3px;border:1px solid var(--border-strong);cursor:pointer;transition:all 0.15s;">Admin</button>
+          <button onclick="setMode('player')" id="mode-player-btn" style="flex:1;font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.08em;padding:7px;border-radius:3px;border:1px solid var(--border-strong);cursor:pointer;transition:all 0.15s;">Player</button>
+        </div>
+        <div style="font-size:0.78rem;color:var(--muted);font-style:italic;margin-top:4px;">Player mode hides admin navigation.</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:0.82rem;color:var(--muted);font-style:italic;" id="settings-status"></div>
+      <button onclick="toggleSettings()" style="font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.08em;padding:6px 14px;border-radius:3px;border:1px solid var(--border-strong);background:none;cursor:pointer;color:var(--muted);">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- ── Left sidebar ── -->
+  <aside>
+    <div class="search-wrap">
+      <div class="search-box">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="9.5" x2="13" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <input type="text" placeholder="Search everything…" id="search-input" oninput="handleSearch(this.value)">
+      </div>
+      <div class="search-results-count" id="search-count"></div>
+    </div>
+
+    <div class="cat-pills">
+      <span class="cat-pill active" data-cat="all" onclick="filterCat('all',this)" style="background:var(--ink);color:var(--parchment);border-color:var(--ink);">All</span>
+      <span class="cat-pill" data-cat="session" onclick="filterCat('session',this)" style="color:var(--c-session);border-color:var(--c-session);">Sessions</span>
+      <span class="cat-pill" data-cat="combat" onclick="filterCat('combat',this)" style="color:var(--c-combat);border-color:var(--c-combat);">Combats</span>
+      <span class="cat-pill" data-cat="pc" onclick="filterCat('pc',this)" style="color:var(--c-pc);border-color:var(--c-pc);">PCs</span>
+      <span class="cat-pill" data-cat="npc" onclick="filterCat('npc',this)" style="color:var(--c-npc);border-color:var(--c-npc);">NPCs</span>
+      <span class="cat-pill" data-cat="location" onclick="filterCat('location',this)" style="color:var(--c-loc);border-color:var(--c-loc);">Places</span>
+      <span class="cat-pill" data-cat="quest" onclick="filterCat('quest',this)" style="color:var(--c-quest);border-color:var(--c-quest);">Quests</span>
+      <span class="cat-pill" data-cat="item" onclick="filterCat('item',this)" style="color:var(--c-item);border-color:var(--c-item);">Items</span>
+      <span class="cat-pill" data-cat="lore" onclick="filterCat('lore',this)" style="color:var(--c-lore);border-color:var(--c-lore);">Lore</span>
+    </div>
+
+    <div class="entity-list" id="entity-list"></div>
+  </aside>
+
+  <!-- ── Main area ── -->
+  <div class="main-area">
+
+    <!-- Session timeline strip -->
+    <div class="session-timeline" id="session-timeline"></div>
+
+    <!-- BROWSE VIEW -->
+    <div class="browse-view active" id="browse-view">
+      <div id="browse-content">
+        <div class="empty-state" style="height:400px;">
+          <div class="empty-state-title">Select an entry from the left</div>
+          <div style="font-size:0.9rem;font-style:italic;color:var(--muted-light);">or search to find people, places, and events</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRAPH VIEW -->
+    <div class="graph-view" id="graph-view">
+      <div class="graph-toolbar">
+        <div class="graph-legend" id="graph-legend"></div>
+        <button class="btn" onclick="resetGraph()">Reset view</button>
+        <button class="btn btn-amber" onclick="focusParty()">Focus party</button>
+      </div>
+      <div class="graph-canvas">
+        <svg id="graph-svg"></svg>
+        <div class="graph-tooltip" id="graph-tooltip"></div>
+        <div class="graph-node-panel" id="graph-node-panel"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="../shared/config.js"></script>
+<script>
+
+// ── Copyable error alert ──────────────────────────────────────────
+function showError(msg, context) {
+  const bar = document.getElementById('error-alert');
+  const el  = document.getElementById('error-msg');
+  const full = [
+    'Chronicle Error Report',
+    '═══════════════════════════════════',
+    'Time:    ' + new Date().toISOString(),
+    'Page:    Campaign Log Viewer',
+    'Context: ' + (context || 'unknown'),
+    '───────────────────────────────────',
+    msg,
+    '───────────────────────────────────',
+    'Config:',
+    '  Proxy:     ' + (typeof CONFIG !== 'undefined' ? CONFIG.proxyUrl?.slice(0,60)+'…' : 'N/A'),
+    '  File ID:   ' + (typeof CONFIG !== 'undefined' ? CONFIG.campaignFileId : 'N/A'),
+    '═══════════════════════════════════',
+  ].join('\n');
+  el.textContent = full;
+  bar.classList.add('visible');
+}
+
+function dismissError() {
+  document.getElementById('error-alert').classList.remove('visible');
+}
+
+function copyError() {
+  const text = document.getElementById('error-msg').textContent;
+  navigator.clipboard.writeText(text).then(
+    () => {
+      const btn = document.querySelector('.ea-copy');
+      btn.textContent = '✓ Copied';
+      setTimeout(() => { btn.textContent = 'Copy error text'; }, 2000);
+    },
+    () => { window.prompt('Copy this:', text); }
+  );
+}
+
+// ── Drive sync indicator ────────────────────────────────────────────────────
+
+function updateSyncBar(driveDate) {
+  const bar      = document.getElementById('sync-bar');
+  const label    = document.getElementById('sync-label');
+  const btn      = document.getElementById('sync-btn');
+  if (!bar || !label || !btn) return;
+
+  CONFIG.driveDataDate = driveDate || CONFIG.driveDataDate;
+  const embedded = CONFIG.embeddedDataDate;  // e.g. '2026-03-27'
+  const live     = CONFIG.driveDataDate;
+
+  if (!live) {
+    // Haven't heard from Drive yet — hide bar
+    bar.className = '';
+    bar.style.display = 'none';
+    return;
+  }
+
+  if (live > embedded) {
+    // Drive is newer than embedded data
+    bar.className = 'stale';
+    label.textContent = 'Drive updated ' + live + ' · embedded ' + embedded;
+    btn.textContent   = '↻ Sync now';
+    btn.className     = 'sync-btn stale-btn';
+  } else {
+    // Embedded data matches or is ahead of Drive
+    bar.className = 'current';
+    label.textContent = 'Up to date · ' + live;
+    btn.textContent   = '↻ Refresh';
+    btn.className     = 'sync-btn current-btn';
+  }
+}
+
+async function syncFromDrive() {
+  const btn = document.getElementById('sync-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  setStatus('Syncing from Drive…', 'loading');
+  try {
+    const url  = CONFIG.proxyUrl + '?action=read&id=' + CONFIG.campaignFileId;
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Drive error');
+    const campaign = JSON.parse(json.raw);
+    ingestDriveData(campaign, CONFIG.campaignFileId);
+    // updateSyncBar is called inside ingestDriveData after this
+  } catch(e) {
+    setStatus('Sync failed: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Retry'; }
+  }
+}
+
+
+
+// ══════════════════════════════════════════════════════
+// CONFIG — edit these for your campaign
+// ══════════════════════════════════════════════════════
+const CONFIG = {
+  driveFileId:       localStorage.getItem('chronicle_drive_id') || window.CHRONICLE_CONFIG.campaignFileId,
+  campaignFileId:    window.CHRONICLE_CONFIG.campaignFileId,
+  proxyUrl:          window.CHRONICLE_CONFIG.proxyUrl,
+  mode:              localStorage.getItem('chronicle_mode') || 'admin',
+  campaignName:      'Magers Campaign',
+  lastLoaded:        null,
+  embeddedDataDate:  '2026-04-01',  // last_updated of the embedded campaign data
+  driveDataDate:     null,          // set after each successful Drive fetch
+};
+
+// ══════════════════════════════════════════════════════
+// DATA — populated from Drive or embedded fallback
+// ══════════════════════════════════════════════════════
+let DATA = null; // set by loadData()
+
+const EMBEDDED_DATA = {
+  meta:{campaign_name:'Magers Campaign',system:'D&D 5e',dm:'John Magers',session_count:5},
+  sessions:[
+    {id:'session_001',title:'The Coming of Age',date:'2026-02-10',summary:'Prologue at age 13 featuring the first Pylon event and a wolf fight; jumps 5 years to age 18. Lifelong childhood friends remain tight-knit.',narrative_vibe:'Nostalgic and ominous.',key_moments:[],mechanical_notes:[]},
+    {id:'session_002',title:'Vespons & Siege of Bagyers Farm (Part 1)',date:'2026-02-24',summary:'The party is in their treehouse in Atticus\'s clearing when a Vespon swarm is detected in the woods. Transitioned to defending Bagyers Farm from a new Pylon emergence.',narrative_vibe:'High-pitched buzzing; panic; frantic defense; smell of sulfur.',key_moments:[],mechanical_notes:[{type:'player_absence',pc_id:'pc_003',note:'Ashton piloted by David due to Frazer being sick.'}]},
+    {id:'session_003',title:'Siege Conclusion',date:'2026-03-03',summary:'The Pylon defense concluded with the destruction of the monolith. Ched Warmfire was killed in the battle. The party resolved to set out into the world following leads from Blair and Ched\'s past.',narrative_vibe:'Somber; heavy loss; sulfurous smell of black goo.',key_moments:['Death of Ched Warmfire','Pylon destruction by Ashton','Discovery of Bessel\'s Spellbook and local maps','Blair provides quests for Menne\'s Ranch and Belfar'],mechanical_notes:[]},
+    {id:'session_004',title:'To Menne\'s Ranch',date:'2026-03-10',summary:'Escorted Carly to Menne\'s Ranch. Successfully negotiated a trade agreement with Helen for potion components (rewarded 50GP). Helen then requested aid with a Quarry infestation.',narrative_vibe:'Classic adventure feel; echoes in the subterranean dark.',key_moments:['Escorting Carly to Menne\'s Ranch','Establishing trade agreement with Helen','Accepting the Quarry ROUS quest','The \'Goonies Slide\' in the Rat Cave'],mechanical_notes:[{type:'player_absence',pc_id:'pc_002',note:'Malachite piloted by David due to Lance\'s work schedule.'}]},
+    {id:'session_005',title:'The Road West',date:'2026-03-17',summary:'Finished the ROUS fight at the Quarry. Met travelers and agreed to escort them west to Lake Town due to goblin sightings. A goblin ambush began on the road.',narrative_vibe:'Tense; vigilant; smell of damp hills and goblin musk.',key_moments:['Clearing the Rat Cave','Meeting the Lake Town caravan'],mechanical_notes:[]},
+  ],
+  party:[
+    {id:'pc_001',name:'Zragar',nickname:'Goldie',cls:'Wizard',player:'David',level:2,notes:'Familiar: Index the Owl. Expert in historical adventure chronicles. Tail-less gold dragonborn bladesinger (longsword).',milestones:[{session_id:'session_003',event:'Level up to 2',note:'Reached after the Siege of Bagyers Farm.'}]},
+    {id:'pc_002',name:'Malachite',nickname:'Mal',cls:'Barbarian',player:'Lance',level:2,notes:'Aasimar. Recently discovered \'Healing Hands\' ability.',milestones:[{session_id:'session_003',event:'Level up to 2',note:'Reached after the Siege of Bagyers Farm.'}]},
+    {id:'pc_003',name:'Ashton',nickname:'Ash',cls:'Warlock',player:'Frazer',level:2,notes:'',milestones:[{session_id:'session_003',event:'Level up to 2',note:'Reached after the Siege of Bagyers Farm.'}]},
+    {id:'pc_004',name:'Asphodel',nickname:'Del',cls:'Monk',player:'Kevin',level:2,notes:'Familiar: Deer.',milestones:[{session_id:'session_003',event:'Level up to 2',note:'Reached after the Siege of Bagyers Farm.'}]},
+    {id:'pc_005',name:'Derwin',nickname:'Goli',cls:'Rogue',player:'Sam',level:2,notes:'Nephew of Ched Warmfire.',milestones:[{session_id:'session_003',event:'Level up to 2',note:'Reached after the Siege of Bagyers Farm.'}]},
+    {id:'pc_006',name:'Atticus',nickname:'Atti',cls:'Druid',player:'Jamie',level:2,notes:'Familiar: Bat.',milestones:[{session_id:'session_003',event:'Level up to 2',note:'Reached after the Siege of Bagyers Farm.'}]},
+  ],
+  npcs:[
+    {id:'npc_001',name:'Ched Warmfire',disposition:'deceased',notes:'Village leader, Goli\'s uncle. Retired Fighter. Bitter and protective after his original party was decimated. Killed during the Siege of Bagyers Farm.'},
+    {id:'npc_003',name:'Krustie Gnome',disposition:'neutral',notes:'Gnome at Quarry camp; provided directions to the Rat Cave location.'},
+    {id:'npc_004',name:'Blair',disposition:'friendly',notes:'Cleric survivor of Ched\'s old party. Skilled potion brewer; provided quests for Menne\'s Ranch and Belfar.'},
+    {id:'npc_007',name:'Helen',disposition:'friendly',notes:'Primary contact at Menne\'s Ranch. Negotiated potion trade agreement; provided Quarry ROUS quest. Paid 30 GP reward for completion of supply chain quest.'},
+    {id:'npc_008',name:'Carly',disposition:'friendly',notes:'Male caravan owner escorted safely to Menne\'s Ranch during the Axe Beak ambush in Session 4.'},
+    {id:'npc_009',name:'Bessel',disposition:'deceased',notes:'Fire/Wizard. Member of Ched\'s original party.'},
+    {id:'npc_010',name:'Hawk',disposition:'unknown',notes:'Ranger. Member of Ched\'s original party.'},
+    {id:'npc_011',name:'Darnell',disposition:'unknown',notes:'Contact in Belfar mentioned by Blair and on Ched\'s map.'},
+    {id:'npc_012',name:'Kiki',disposition:'unknown',notes:'Connection for jobs in Green Harbor.'},
+    {id:'npc_013',name:'The Low-Level Wizard',disposition:'',notes:'Traveling with the stone traders.'},
+  ],
+  locations:[
+    {id:'loc_001',name:'Riverbend',visibility:'visited',description:'Home village on bluffs above Merelane River.'},
+    {id:'loc_002',name:'The Quarry',visibility:'visited',description:'Dwarven/Gnomish site 2 days walk Southwest of Menne\'s Ranch. Site of ROUS infestation. Contains a camp of temporary tents and few permanent structures for workers.'},
+    {id:'loc_003',name:'Bagyers Farm',visibility:'visited',description:'Site of the Pylon emergence and Ched\'s death.'},
+    {id:'loc_004',name:'Menne\'s Ranch',visibility:'visited',description:'Horse-farming community North of Riverbend. Prime horse country with a Main Street featuring a Tavern and Shop.'},
+    {id:'loc_005',name:'The Rat Cave',visibility:'visited',description:'Infested cavern located near The Quarry. Accessed via a water slide into a dark, echoing chamber.'},
+    {id:'loc_006',name:'Belfar',visibility:'heard-of',description:'City to the Northeast. Primary destination for Pylon research.'},
+    {id:'loc_007',name:'The Northern Woods',visibility:'visited',description:'Dense forest extending north of Riverbend. Site of the Vespon Queen encounter (cbt_001). The party\'s childhood exploration grounds.'},
+    {id:'loc_008',name:'Atticus\'s Clearing',visibility:'visited',description:'A specific grove within the Northern Woods where Atticus grew up. Contains the party\'s childhood treehouse base. Site of the Vespon Queen encounter (cbt_001).',parent_location:'loc_007'},
+    {id:'loc_009',name:'Sholes Ford',visibility:'heard-of',description:'Name on Ched\'s Map. Contact: Fish. No other context recorded.'},
+    {id:'loc_010',name:'Western Unknown',visibility:'heard-of',description:'Marked with \'?\' on Ched\'s Map. Location and significance unknown.'},
+    {id:'loc_011',name:'Lake Town',visibility:'heard-of',description:'Approx. 2 days west of The Quarry. Current temporary destination.'},
+    {id:'loc_012',name:'Green Harbor',visibility:'heard-of',description:'Major port to the south.'},
+    {id:'loc_013',name:'Southern Unknown',visibility:'heard-of',description:'Marked with \'X\' on Ched\'s Map. Location and significance unknown.'},
+  ],
+  quests:[
+    {id:'qst_001',title:'Avenge Uncle Ched',status:'active',priority:'high',category:'long-term',motivation:'Ched\'s death demands retribution.',objectives:[{id:'obj_001',desc:'Find Darnell in Belfar to learn about Ched\'s past.',done:false}],progress:[{s:'session_003',e:'Ched killed by Pylon spawns.'},{s:'session_003',e:'Blair suggested finding Darnell in Belfar.'}],origin:'session_003'},
+    {id:'qst_002',title:'The Pylon Anomaly',status:'active',priority:'critical',category:'long-term',motivation:'',objectives:[{id:'obj_002',desc:'Seek information in Belfar about the Pylons.',done:false}],progress:[{s:'session_001',e:'First Pylon witnessed by the group.'},{s:'session_003',e:'Bagyers Farm Pylon neutralized via Eldritch Blast.'}],origin:'session_001'},
+    {id:'qst_003',title:'Escort to Lake Town',status:'active',priority:'medium',category:'short-term',motivation:'',objectives:[],progress:[{s:'session_005',e:'Accepted 6 GP/person contract to escort stone-trading caravan to Lake Town. Ambushed by goblins mid-route.'}],origin:'session_005'},
+    {id:'qst_004',title:'Blair\'s Potion Supply Chain',status:'completed',priority:'medium',category:'medium-term',motivation:'',objectives:[{id:'obj_003',desc:'Establish trade agreement with Helen at Menne\'s Ranch.',done:true}],progress:[{s:'session_004',e:'Escorted Carly (m) and established trade agreement with Helen at Menne\'s Ranch.'}],origin:'session_003'},
+    {id:'qst_005',title:'The Quarry ROUS Problem',status:'completed',priority:'medium',category:'short-term',motivation:'',objectives:[{id:'obj_004',desc:'Clear the ROUS infestation from the cave near The Quarry.',done:true}],progress:[{s:'session_004',e:'Received directions from Krustie; discovered the Rat Cave via a water slide into the cavern.'},{s:'session_005',e:'Cleared the nest. Provided tails to Krustie Gnome. Reward (100 GP Emerald) received.'}],origin:'session_004'},
+  ],
+  items:[
+    {id:'item_001',name:'Ched\'s Map',type:'map',session:'session_003',holder:'',notes:'Five markers: Darnell in Belfar (loc_006, npc_011), Kiki in Green Harbor (loc_012, npc_012), Fish in Sholes Ford (loc_009), Western \'?\' (loc_010), Southern \'X\' (loc_013).',quest:true},
+    {id:'item_002',name:'Bessel\'s Spellbook',type:'spellbook',session:'session_003',holder:'pc_001',notes:'Contains L1-L3 spells: Shield, MM, Mage Armor, Find Familiar, Absorb Elements, Detect Magic, Comp Languages, Misty Step, Scorching Ray, Knock, Spider Climb, Fireball, Tiny Hut. Note: Goldie will gain access to these as he grows in level.',quest:false},
+    {id:'item_003',name:'Potions of Healing',type:'consumable',session:'session_003',holder:'pc_005',notes:'4 potions found in an adventuring chest.',quest:false},
+    {id:'item_004',name:'+1 Moon Sickle',type:'weapon',session:'session_003',holder:'pc_006',notes:'',quest:false},
+    {id:'item_005',name:'Boots of Striding and Springing',type:'wondrous item',session:'session_003',holder:'pc_002',notes:'',quest:false},
+    {id:'item_006',name:'Cloak of Protection',type:'wondrous item',session:'session_003',holder:'pc_003',notes:'Corrected from \'Clock\' in notes.',quest:false},
+    {id:'item_007',name:'Gloves of Thievery',type:'wondrous item',session:'session_003',holder:'pc_005',notes:'',quest:false},
+    {id:'item_008',name:'+1 Brass Knuckles',type:'weapon',session:'session_003',holder:'pc_004',notes:'',quest:false},
+    {id:'item_009',name:'Trade Commission',type:'currency',session:'session_004',holder:'',notes:'30 GP total received from Helen at Menne\'s Ranch for the Potion Supply quest.',quest:false},
+    {id:'item_010',name:'Unrefined Emerald',type:'',session:'session_005',holder:'party_shared',notes:'Reward for ROUS cave. Valued at 100 GP.',quest:false},
+  ],
+  combats:[
+    {id:'cbt_001',name:'Vespon Queen & Swarm',location:'loc_007',sessions:['session_002'],outcome:'victory',totalRounds:4,narrativeContext:'Encounter in the woods near Atticus\'s clearing and treehouse.',finale:'Atti and Goldie used Mold Earth to entomb the sleeping swarm.',rounds:[{n:1,sid:'session_002',slots:[{s:1,a:'pc_002',act:'Trident Throw',res:'miss'},{s:2,a:'pc_001',act:'Firebolt',res:'unclear'},{s:3,a:'pc_006',act:'Starry Wisp',res:'hit',val:'3'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'10'},{s:5,a:'pc_004',act:'Toll the Dead',res:'save'},{s:6,a:'pc_005',act:'Shortbow',res:'hit',val:'4'}],enemy:[]},{n:2,sid:'session_002',slots:[{s:1,a:'pc_002',act:'Longsword',res:'hit',val:'13'},{s:2,a:'pc_001',act:'Firebolt',res:'hit',val:'1'},{s:3,a:'pc_006',act:'Starry Wisp',res:'hit',val:'3'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'miss'},{s:5,a:'pc_004',act:'Unarmed Strike',res:'crit',val:'9'},{s:6,a:'pc_005',act:'Shortbow',res:'miss'}],enemy:[{desc:'Queen: Sonic Buzz on Asphodel',impact:'Del DOWNED (12 dmg)'}]},{n:3,sid:'session_002',slots:[{s:1,a:'pc_002',act:'Longsword',res:'miss'},{s:2,a:'pc_001',act:'Firebolt',res:'hit',val:'2'},{s:3,a:'pc_006',act:'Healing Word',res:'hit',notes:'Target: Asphodel'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'7'},{s:5,a:'pc_004',act:'Unarmed Strike',res:'hit',val:'6'},{s:6,a:'pc_005',act:'Daggers',res:'hit',val:'9'}],enemy:[]},{n:4,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Sleep',res:'hit',notes:'Incapacitated swarm'},{s:2,a:'pc_006',act:'Starry Wisp',res:'hit',val:'4'},{s:3,a:'pc_004',act:'Melee (2 hits)',res:'hit',val:'13',notes:'★ Queen killed'},{s:4,a:'pc_003',act:'No Action',res:'neutral'},{s:5,a:'pc_002',act:'No Action',res:'neutral'},{s:6,a:'pc_005',act:'No Action',res:'neutral'}],enemy:[],summary:'Queen killed; remaining swarm put to sleep and entombed via Mold Earth.'}]},
+    {id:'cbt_002',name:'Siege of Bagyers Farm',location:'loc_003',sessions:['session_002','session_003'],outcome:'victory',totalRounds:19,narrativeContext:'Sulfur smell; Pylon pulses spawn Rock Lobsters. Mentor Ched Warmfire killed.',notes:'★ Ched fell during this encounter. Pylon destroyed Rd 11.',finale:'The party barely survived the 19-round siege. Ched Warmfire was killed in the chaos. Loot recovered from a chest in the aftermath.',rounds:[{n:1,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Magic Missile',res:'hit',val:'10',notes:'Target: Pylon'},{s:2,a:'pc_006',act:'Entangle',res:'hit',notes:'6 Rock Lobsters restrained'},{s:3,a:'pc_004',act:'Toll the Dead',res:'save'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'3',notes:'Target: Pylon'},{s:5,a:'pc_002',act:'Trident Throw',res:'hit',val:'12',notes:'Target: Rock Lobster'},{s:6,a:'pc_005',act:'Shortbow SA',res:'unclear'}],enemy:[]},{n:2,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'miss',notes:'Target: Pylon'},{s:2,a:'pc_006',act:'Ice Knife',res:'hit',notes:'3 Rocks killed'},{s:3,a:'pc_004',act:'Toll the Dead',res:'save'},{s:4,a:'pc_003',act:'Witch Bolt',res:'miss',notes:'Target: Pylon'},{s:5,a:'pc_002',act:'Longsword',res:'miss'},{s:6,a:'pc_005',act:'Shortbow SA',res:'unclear'}],enemy:[{desc:'Rock Lobster hits Ashton',impact:'Conc on Witch Bolt broken'}]},{n:3,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'3',notes:'Target: Pylon'},{s:2,a:'pc_006',act:'Starry Wisp',res:'hit',val:'4'},{s:3,a:'pc_004',act:'Melee',res:'hit',notes:'1 Rock killed'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'miss',notes:'Disadvantage'},{s:5,a:'pc_002',act:'Longsword',res:'hit',val:'8'},{s:6,a:'pc_005',act:'Main/Offhand',res:'hit'}],enemy:[]},{n:4,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'3',notes:'Target: Pylon'},{s:2,a:'pc_006',act:'Starry Wisp',res:'miss'},{s:3,a:'pc_004',act:'Melee',res:'hit'},{s:4,a:'pc_003',act:'Disengage',res:'neutral'},{s:5,a:'pc_002',act:'Longsword',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'3 Melee Attacks',res:'hit',notes:'3 Rocks killed'}],enemy:[{desc:'Rocks hit Goli, Del, Mal',impact:'Minor damage'}]},{n:5,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'10',notes:'Target: Pylon'},{s:2,a:'pc_006',act:'Starry Wisp',res:'hit',val:'7'},{s:3,a:'pc_004',act:'Punch x2',res:'crit',notes:'Nat 20 main hand'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'8'},{s:5,a:'pc_002',act:'Attack',res:'miss'},{s:6,a:'pc_005',act:'2 Attacks',res:'hit',notes:'Nat 20 main hand'}],enemy:[]},{n:6,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Magic Missile',res:'hit',val:'14',notes:'Target: Pylon'},{s:2,a:'pc_006',act:'Starry Wisp',res:'miss'},{s:3,a:'pc_004',act:'2 Attacks',res:'hit',notes:'1 Rock killed'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'miss'},{s:5,a:'pc_002',act:'Melee',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'2 Attacks',res:'hit',notes:'1 Rock killed'}],enemy:[{desc:'Rocks hit Goli & Del',impact:'Goli DOWNED · Del at 1HP'}]},{n:7,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'miss'},{s:2,a:'pc_006',act:'Starry Wisp',res:'miss'},{s:3,a:'pc_004',act:'Melee',res:'hit',notes:'2 Rocks killed'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'miss'},{s:5,a:'pc_002',act:'Melee',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'Death Save',res:'death',notes:'Success'}],enemy:[{desc:'Hit on Asphodel',impact:'Del DOWNED'}]},{n:8,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'miss',notes:'Nat 1'},{s:2,a:'pc_006',act:'Starry Wisp',res:'miss'},{s:3,a:'pc_004',act:'Death Save',res:'death',notes:'Failure'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'6'},{s:5,a:'pc_002',act:'Attack',res:'hit',val:'15',notes:'Target: Pylon'},{s:6,a:'pc_005',act:'Death Save',res:'death',notes:'Success'}],enemy:[]},{n:9,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Breath Weapon',res:'hit',notes:'3 Rocks killed'},{s:2,a:'pc_006',act:'Earth Tremor',res:'hit',notes:'2 killed'},{s:3,a:'pc_004',act:'Death Save',res:'death',notes:'2nd success'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'3'},{s:5,a:'pc_002',act:'Attack',res:'hit',val:'12',notes:'Target: Pylon'},{s:6,a:'pc_005',act:'Death Save',res:'death',notes:'Failure'}],enemy:[{desc:'Rock Lobster hits Malachite'}]},{n:10,sid:'session_002',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'4',notes:'OA missed'},{s:2,a:'pc_006',act:'Shillelagh',res:'miss'},{s:3,a:'pc_004',act:'Death Save',res:'death',notes:'Success — stable'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'1'},{s:5,a:'pc_002',act:'Attack',res:'crit',val:'21',notes:'★ Nat 20 on Pylon'},{s:6,a:'pc_005',act:'Death Save',res:'death',notes:'Failure'}],enemy:[{desc:'Rocks hit Goldie & Ashton'}]},{n:11,sid:'session_003',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'9'},{s:2,a:'pc_006',act:'Starry Wisp',res:'miss'},{s:3,a:'pc_004',act:'Death Save',res:'death',notes:'Success — stable'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'7',notes:'★★ PYLON DESTROYED'},{s:5,a:'pc_002',act:'Surround',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'Death Save',res:'death',notes:'Success'}],enemy:[{desc:'Rock Lobster hits Goldie',impact:'Gold at 1HP'}],summary:'Pylon collapses and begins to dissolve; spawns continue fighting.'},{n:12,sid:'session_003',slots:[{s:1,a:'pc_001',act:'Breath Weapon',res:'hit',val:'6'},{s:2,a:'pc_006',act:'Acid Splash',res:'hit'},{s:3,a:'pc_004',act:'Stable',res:'neutral'},{s:4,a:'pc_003',act:'Chill Touch',res:'miss'},{s:5,a:'pc_002',act:'Attack',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'Stable',res:'neutral'}],enemy:[{desc:'Rocks hit Atticus & Ashton',impact:'Ash DOWNED'}]},{n:13,sid:'session_003',slots:[{s:1,a:'pc_001',act:'Shocking Grasp',res:'miss'},{s:2,a:'pc_006',act:'Acid Splash',res:'hit',notes:'2 Rocks killed'},{s:3,a:'pc_004',act:'Stable',res:'neutral'},{s:4,a:'pc_003',act:'Death Save',res:'death',notes:'Failure'},{s:5,a:'pc_002',act:'Attack',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'Stable',res:'neutral'}],enemy:[{desc:'2 hits on Malachite'}]},{n:14,sid:'session_003',slots:[{s:1,a:'pc_001',act:'True Strike',res:'hit',val:'3'},{s:2,a:'pc_006',act:'Acid Splash',res:'hit',val:'1'},{s:3,a:'pc_004',act:'Stable',res:'neutral'},{s:4,a:'pc_003',act:'Death Save',res:'death',notes:'Success'},{s:5,a:'pc_002',act:'Healing Hands',res:'hit',val:'7',notes:'Self-heal (Aasimar)'},{s:6,a:'pc_005',act:'Stable',res:'neutral'}],enemy:[{desc:'Rock Lobster hits Atticus',impact:'Att DOWNED'}]},{n:15,sid:'session_003',slots:[{s:1,a:'pc_001',act:'Shocking Grasp',res:'hit',val:'3'},{s:2,a:'pc_006',act:'Death Save',res:'death',notes:'Failure'},{s:3,a:'pc_004',act:'Stable',res:'neutral'},{s:4,a:'pc_003',act:'Death Save',res:'death'},{s:5,a:'pc_002',act:'Attack',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'Stable',res:'neutral'}],enemy:[{desc:'Hit twice on Malachite'}]},{n:16,sid:'session_003',slots:[{s:1,a:'pc_001',act:'Shocking Grasp',res:'hit',notes:'1 Rock killed'},{s:2,a:'pc_006',act:'Death Save',res:'death',notes:'Success'},{s:3,a:'pc_004',act:'Stable',res:'neutral'},{s:4,a:'pc_003',act:'Death Save',res:'death',notes:'Success'},{s:5,a:'pc_002',act:'Attack',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'Stable',res:'neutral'}],enemy:[{desc:'Rock Lobster hits Malachite'}]},{n:17,sid:'session_003',slots:[{s:1,a:'pc_001',act:'Goodberry',res:'hit',notes:'Target: Ashton'},{s:2,a:'pc_006',act:'Death Save',res:'death',notes:'Success'},{s:3,a:'pc_004',act:'Stable',res:'neutral'},{s:4,a:'pc_003',act:'Goodberry',res:'hit',notes:'Target: Atticus'},{s:5,a:'pc_002',act:'Attack',res:'miss'},{s:6,a:'pc_005',act:'Stable',res:'neutral'}],enemy:[{desc:'Nat 20 on Malachite'}]},{n:18,sid:'session_003',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'1'},{s:2,a:'pc_006',act:'Goodberry',res:'hit',notes:'Target: Asphodel'},{s:3,a:'pc_004',act:'Goodberry',res:'hit',notes:'Target: Goli'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'5',notes:'Target dead'},{s:5,a:'pc_002',act:'Attack',res:'hit',notes:'1 Rock killed'},{s:6,a:'pc_005',act:'Shortbow SA',res:'hit',notes:'Target dead'}],enemy:[{desc:'Rock Lobster hits Malachite'}]},{n:19,sid:'session_003',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'miss'},{s:2,a:'pc_006',act:'Acid Splash',res:'hit',val:'5',notes:'1 dead'},{s:3,a:'pc_004',act:'Toll the Dead',res:'hit',val:'1'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'2'},{s:5,a:'pc_002',act:'Attack',res:'hit',notes:'★★ LAST ROCK KILLED — Victory'}],enemy:[],summary:'Victory. Pylon neutralized. All spawns defeated. Ched Warmfire confirmed dead.'}]},
+    {id:'cbt_003',name:'Axe Beak & Vespon Ambush',location:'loc_004',sessions:['session_004'],outcome:'victory',totalRounds:9,narrativeContext:'Road ambush while escorting Carly to Menne\'s Ranch. Horses killed.',aftermath:'Del, Atticus, and Goldie turned familiars into goats to pull the wagon to Menne\'s Ranch.',rounds:[{n:1,sid:'session_004',slots:[{s:1,a:'pc_004',act:'Toll the Dead',res:'save'},{s:2,a:'pc_001',act:'Firebolt',res:'hit',val:'4'},{s:3,a:'pc_002',act:'Trident throw',res:'hit',val:'11'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'miss'},{s:5,a:'pc_006',act:'Entangle',res:'hit'},{s:6,a:'pc_005',act:'Short bow',res:'hit',val:'4'}],enemy:[]},{n:4,sid:'session_004',slots:[{s:1,a:'pc_004',act:'Move to intercept',res:'neutral'},{s:2,a:'pc_001',act:'Ready: Firebolt',res:'hit',val:'4'},{s:3,a:'pc_002',act:'Healing Hands',res:'hit',val:'2'},{s:4,a:'pc_003',act:'EB fleeing Axe Beak',res:'hit'},{s:5,a:'pc_006',act:'Ready: Starry Wisp',res:'hit',val:'6'},{s:6,a:'pc_005',act:'Ready: Short bow',res:'miss'}],enemy:[]},{n:5,sid:'session_004',slots:[{s:1,a:'pc_004',act:'2 attacks',res:'miss'},{s:2,a:'pc_001',act:'Firebolt',res:'miss'},{s:3,a:'pc_002',act:'Melee attack',res:'miss'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'11'},{s:5,a:'pc_006',act:'Starry Wisp',res:'hit',val:'7'},{s:6,a:'pc_005',act:'Short bow',res:'hit',val:'5'}],enemy:[{desc:'1 swarm attacks each horse (2 total). Del hit.'}]},{n:6,sid:'session_004',slots:[{s:1,a:'pc_004',act:'2 attacks',res:'hit'},{s:2,a:'pc_001',act:'Sleep',res:'hit',notes:'2 Vespon failed save; wake up after.'},{s:3,a:'pc_002',act:'Melee attack',res:'hit',val:'12',notes:'1 swarm dead'},{s:4,a:'pc_003',act:'Witch Bolt',res:'miss'},{s:5,a:'pc_006',act:'Starry Wisp',res:'hit',val:'4'},{s:6,a:'pc_005',act:'Short bow',res:'miss'}],enemy:[]},{n:7,sid:'session_004',slots:[{s:1,a:'pc_004',act:'2 attacks',res:'hit',val:'6'},{s:2,a:'pc_001',act:'Firebolt',res:'hit',val:'4'},{s:3,a:'pc_002',act:'Attack',res:'hit'},{s:4,a:'pc_003',act:'BA: Witch Bolt / A: EB',res:'miss'},{s:5,a:'pc_006',act:'Starry Wisp',res:'miss'},{s:6,a:'pc_005',act:'Short bow SA',res:'hit'}],enemy:[{desc:'Both horses killed. Attack against Del takes him down.',impact:'Del DOWNED'}]},{n:8,sid:'session_004',slots:[{s:1,a:'pc_004',act:'Death save',res:'death',notes:'Success'},{s:2,a:'pc_001',act:'Firebolt',res:'hit',val:'7'},{s:3,a:'pc_002',act:'Melee',res:'hit',val:'9'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'miss'},{s:5,a:'pc_006',act:'Starry Wisp + HW',res:'hit',val:'1',notes:'HW on Del'},{s:6,a:'pc_005',act:'Short bow',res:'hit',val:'11'}],enemy:[{desc:'Hit Ash.'}]},{n:9,sid:'session_004',slots:[{s:1,a:'pc_004',act:'Toll the Dead',res:'miss'},{s:2,a:'pc_001',act:'Firebolt',res:'miss'},{s:3,a:'pc_002',act:'Melee',res:'miss'},{s:4,a:'pc_003',act:'Arms of Hadar',res:'hit',val:'7'},{s:5,a:'pc_006',act:'Starry Wisp',res:'miss'},{s:6,a:'pc_005',act:'Sneak attack',res:'hit',val:'10'}],enemy:[{desc:'Hit Ash.',impact:'Ash DOWNED'}]},{n:10,sid:'session_004',slots:[{s:1,a:'pc_004',act:'2 melee attacks',res:'miss'},{s:2,a:'pc_001',act:'Firebolt',res:'miss'},{s:3,a:'pc_002',act:'Melee attack',res:'hit',notes:'Vespon Dead'},{s:4,a:'pc_003',act:'Death save (Nat 20)',res:'death',notes:'Back to 1 HP'},{s:5,a:'pc_006',act:'Shillelagh',res:'miss'},{s:6,a:'pc_005',act:'Sneak attack',res:'hit',val:'13'}],enemy:[{desc:'Hit Atticus (Nat 20).'}]},{n:11,sid:'session_004',slots:[{s:1,a:'pc_004',act:'2 unarmed attacks',res:'hit'},{s:2,a:'pc_001',act:'Firebolt',res:'hit',val:'10'},{s:3,a:'pc_002',act:'Melee attack',res:'hit',val:'11',notes:'★ Last Vespon dead'},{s:4,a:'pc_003',act:'None',res:'neutral',notes:'Combat ended before turn'},{s:5,a:'pc_006',act:'None',res:'neutral',notes:'Combat ended before turn'},{s:6,a:'pc_005',act:'None',res:'neutral',notes:'Combat ended before turn'}],enemy:[]}]},
+    {id:'cbt_004',name:'The Rat Cave',location:'loc_005',sessions:['session_004','session_005'],outcome:'victory',totalRounds:7,narrativeContext:'Party entered via Goonies-style slide near the Quarry camp. ROUS infestation.',rounds:[{n:1,sid:'session_004',slots:[{s:1,a:'pc_001',act:'Breath Weapon',res:'hit',notes:'3 ROUS hit; 1 killed'},{s:2,a:'pc_002',act:'Throw trident',res:'hit',notes:'1 ROUS dead'},{s:3,a:'pc_005',act:'Short bow',res:'hit',notes:'1 ROUS dead'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',notes:'1 ROUS dead'},{s:5,a:'pc_006',act:'Starry Wisp',res:'hit',val:'3',notes:'1 ROUS dead'},{s:6,a:'pc_004',act:'Unarmed Strike',res:'hit',val:'5'}],enemy:[]},{n:2,sid:'session_004',slots:[{s:1,a:'pc_001',act:'Breath Weapon',res:'save',val:'5',notes:'4 ROUS saved; Shield reaction'},{s:2,a:'pc_002',act:'Melee (Sword)',res:'hit',notes:'1 ROUS killed'},{s:3,a:'pc_005',act:'Melee',res:'hit',notes:'1 ROUS killed'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'miss'},{s:5,a:'pc_006',act:'Starry Wisp',res:'miss',notes:'Nat 1'},{s:6,a:'pc_004',act:'Move',res:'neutral',notes:'Repositioned'}],enemy:[{desc:'ROUS hit Goli'}]},{n:3,sid:'session_004',slots:[{s:1,a:'pc_001',act:'Concussive Burst',res:'hit',notes:'2 saved, 1 failed'},{s:2,a:'pc_002',act:'Melee',res:'crit',notes:'★ SPLAT! 1 ROUS killed'},{s:3,a:'pc_005',act:'Melee',res:'hit',notes:'1 ROUS hit'},{s:4,a:'pc_003',act:'Arms of Hadar',res:'hit'},{s:5,a:'pc_006',act:'Acid Splash',res:'save'},{s:6,a:'pc_004',act:'Unarmed (x2)',res:'hit',notes:'2 ROUS killed'}],enemy:[{desc:'Party heavy damage',impact:'Goli 10 · Del 3 · Mal 4 · Ash 16'}]},{n:4,sid:'session_004',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',notes:'1 ROUS killed'},{s:2,a:'pc_002',act:'Melee',res:'hit',notes:'1 ROUS killed'},{s:3,a:'pc_005',act:'Melee',res:'hit',notes:'1 ROUS killed'},{s:4,a:'pc_003',act:'Arms of Hadar',res:'hit',notes:'2 ROUS killed'},{s:5,a:'pc_006',act:'HW + Starry Wisp',res:'hit',notes:'HW on Ash; Wisp missed'},{s:6,a:'pc_004',act:'Unarmed (x2)',res:'hit',notes:'2 ROUS killed'}],enemy:[{desc:'Del\'s familiar (Deer) killed'}]},{n:5,sid:'session_004',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'3'},{s:2,a:'pc_002',act:'Melee',res:'hit',notes:'1 ROUS killed'},{s:3,a:'pc_005',act:'Melee',res:'hit'},{s:4,a:'pc_003',act:'Disengage + Pact Weapon',res:'neutral'},{s:5,a:'pc_006',act:'Acid Splash',res:'hit',notes:'2 failed saves'},{s:6,a:'pc_004',act:'Unarmed (x2)',res:'hit',notes:'2 ROUS killed'}],enemy:[{desc:'Mal hit',impact:'11 total dmg'}]},{n:6,sid:'session_005',slots:[{s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'5'},{s:2,a:'pc_002',act:'Melee',res:'hit',notes:'1 ROUS killed'},{s:3,a:'pc_005',act:'Melee',res:'hit',notes:'1 ROUS killed'},{s:4,a:'pc_003',act:'Pact Weapon',res:'hit',val:'8'},{s:5,a:'pc_006',act:'Starry Wisp',res:'hit',notes:'1 ROUS killed'},{s:6,a:'pc_004',act:'Unarmed (x2)',res:'hit',notes:'1 ROUS killed'}],enemy:[]},{n:7,sid:'session_005',slots:[{s:1,a:'pc_001',act:'True Strike (Scimitar)',res:'miss'},{s:2,a:'pc_002',act:'Melee',res:'miss'},{s:3,a:'pc_005',act:'Melee',res:'hit',notes:'1 ROUS killed'},{s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'9',notes:'★ Final ROUS killed — Victory'}],enemy:[]}]},
+    {id:'cbt_005',name:'Goblin Ambush',location:'loc_002',sessions:['session_005'],outcome:'paused',totalRounds:3,narrativeContext:'Ambush on road west of the Quarry. Paused end of Round 3 — continues next session.',notes:'⚠ Combat continues in Session 006.',rounds:[{n:1,sid:'session_005',slots:[{s:1,a:'pc_004',act:'Move',res:'neutral',notes:'No attack'},{s:2,a:'pc_002',act:'Dash',res:'neutral',notes:'No attack'},{s:3,a:'pc_006',act:'Entangle',res:'hit',notes:'Targeted goblins'},{s:4,a:'pc_005',act:'Shortbow',res:'hit',val:'10',notes:'1 Goblin killed'},{s:5,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'13',notes:'Target: Ogre'},{s:6,a:'pc_001',act:'Firebolt',res:'miss'}],enemy:[{desc:'Goblins move; Ogre appears; Slinger hits Del'}]},{n:2,sid:'session_005',slots:[{s:1,a:'pc_004',act:'Unarmed (x2)',res:'hit',notes:'1 Goblin killed'},{s:2,a:'pc_002',act:'Melee',res:'hit',val:'16'},{s:3,a:'pc_006',act:'Cure Wounds',res:'hit',val:'5',notes:'Target: Del (just downed)'},{s:4,a:'pc_005',act:'Shortbow',res:'hit',val:'10',notes:'Target: Ogre'},{s:5,a:'pc_003',act:'Witch Bolt',res:'hit',val:'12',notes:'Target: Ogre'},{s:6,a:'pc_001',act:'Magic Missile',res:'hit',val:'9',notes:'Target: Ogre'}],enemy:[{desc:'Goblins: Del 3, Mal 3. Slingers: Del 7 — Del DOWNED. Ogre: Mal 10.'}]},{n:3,sid:'session_005',slots:[{s:1,a:'pc_004',act:'Unarmed (x2)',res:'hit',val:'7',notes:'Nat 1 on second'},{s:2,a:'pc_002',act:'Melee',res:'miss'},{s:3,a:'pc_006',act:'Ice Knife',res:'hit',val:'8',notes:'★ Ogre killed; Mal saved vs burst'},{s:4,a:'pc_005',act:'Shortbow',res:'hit',val:'14'},{s:5,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'7'},{s:6,a:'pc_001',act:'Sleep',res:'hit',notes:'1 fails; 2 succeed'}],enemy:[{desc:'Goblin: Mal 4. Ogre (pre-death): Mal 12. Slingers: Del 4.'}]}]},
+    {id:'cbt_006',name:'Wolf Fight',location:'loc_008',sessions:['session_001'],outcome:'victory',totalRounds:0,narrativeContext:'Prologue combat at age 13. The party\'s first encounter as a group. Took place near Atticus\'s Clearing.',notes:'Round-by-round details pending. Referenced in session_001 summary.',rounds:[]},
+  ],
+  lore:[
+    {id:'lore_001',title:'Historical Anomaly of Pylons',content:'No history of Pylons exists in Goldie\'s chronicles prior to 5 years ago.',reliability:'confirmed'},
+    {id:'lore_002',title:'Ched\'s Original Party',content:'Consisted of Ched (Fighter), Blair (Cleric), Bessel (Wizard), and Hawk (Ranger). They were decimated in the past.',reliability:'confirmed'},
+  ],
+  bestiary:[
+    {id:'mon_001',name:'Rock Lobster',traits:['Sulfur smell','Black goo on death'],reliability:'confirmed'},
+    {id:'mon_002',name:'Axe Beak',traits:['Large flightless bird','Aggressive charge attack','Targeted horses during cbt_003'],reliability:'confirmed',first_encountered:'session_004',combat_appearances:['cbt_003']},
+    {id:'mon_003',name:'Vespon Swarm',traits:['Insect swarm creature','Distinctive high-pitched buzzing','Can be put to sleep via Sleep spell','Entombed via Mold Earth in cbt_001 finale'],reliability:'confirmed',first_encountered:'session_002',combat_appearances:['cbt_001','cbt_003']},
+    {id:'mon_004',name:'Goblins',traits:['Cycle of boldness/retreat'],reliability:'confirmed'},
+    {id:'mon_005',name:'Vespon Queen',traits:['Queen-class Vespon','Sonic Buzz ability (downed Asphodel in Round 2 of cbt_001)','Commands the swarm','Killed by Asphodel in Round 4 of cbt_001'],reliability:'confirmed',first_encountered:'session_002',combat_appearances:['cbt_001']},
+    {id:'mon_006',name:'Goblin Slinger',traits:['Ranged goblin variant','Sling attacks at range','Operated in coordinated group with standard goblins and Ogre'],reliability:'confirmed',first_encountered:'session_005',combat_appearances:['cbt_005']},
+    {id:'mon_007',name:'Ogre',traits:['Appeared mid-combat after initial goblin wave','Killed by Atticus via Ice Knife in Round 3 of cbt_005','High melee damage output (12 damage on Malachite, Round 3)'],reliability:'confirmed',first_encountered:'session_005',combat_appearances:['cbt_005']},
+    {id:'mon_008',name:'Giant Rat (ROUS)',traits:['Referred to in-game as ROUS (Rodents of Unusual Size)','Pack creature, encountered in large numbers','Found in cavern accessed via water slide near The Quarry','Infestation cleared across cbt_004 (7 rounds)'],reliability:'confirmed',first_encountered:'session_004',combat_appearances:['cbt_004']},
+  ],
+  moments:[
+    {character_ids:['pc_006','pc_004'],type:'clutch_save',description:'Atticus healed Asphodel immediately after they were downed by a flurry of goblin/ogre attacks, keeping the frontline from collapsing.',parent_event_id:'cbt_005',origin_session:''},
+    {character_ids:['pc_002'],type:'combat_highlight',description:'Malachite landed a devastating critical hit on a ROUS, described narratively as a \'SPLAT!\' that set the tone for the cleanup.',parent_event_id:'cbt_004',origin_session:''},
+    {character_ids:['pc_001','pc_002','pc_003','pc_004','pc_005','pc_006'],type:'backstory_revelation',description:'The party shares a childhood history of playing at \'Atticus\'s Clearing,\' having utilized an expanded treehouse as their base for make-believe adventures long before becoming actual adventurers.',parent_event_id:'',origin_session:'session_001'},
+  ],
+}; // end EMBEDDED_DATA
+
+// ══════════════════════════════════════════════════════
+// DRIVE LOADER
+// ══════════════════════════════════════════════════════
+function extractDriveId(input) {
+  if (!input) return '';
+  // Full share URL: https://drive.google.com/file/d/FILE_ID/view
+  const m = input.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
+  if (m) return m[1];
+  // Direct ID (no slashes)
+  if (/^[a-zA-Z0-9_-]{25,}$/.test(input.trim())) return input.trim();
+  return '';
+}
+
+function parseDriveInput(val) {
+  const id = extractDriveId(val);
+  const hint = document.getElementById('drive-id-hint');
+  if (id) {
+    hint.textContent = `✓ File ID: ${id}`;
+    hint.style.color = 'var(--teal)';
+  } else if (val.length > 5) {
+    hint.textContent = 'Could not parse a Drive file ID from this input.';
+    hint.style.color = 'var(--rust)';
+  } else {
+    hint.textContent = 'Paste the full sharing URL or just the file ID from Google Drive.';
+    hint.style.color = 'var(--muted)';
+  }
+}
+
+async function loadFromDrive() {
+  const raw = document.getElementById('drive-id-input').value;
+  const id = extractDriveId(raw) || raw.trim();
+  if (!id) { setStatus('No file ID provided', 'error'); return; }
+  setStatus('Loading from Drive…', 'loading');
+  try {
+    const url = `${CONFIG.proxyUrl}?action=read&id=${id}`;
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Drive error');
+    const campaign = JSON.parse(json.raw);
+    ingestDriveData(campaign, id);
+  } catch(e) {
+    setStatus(`Drive load failed: ${e.message}`, 'error');
+    document.getElementById('settings-status').textContent = `Error: ${e.message}`;
+  }
+}
+
+function ingestDriveData(json, fileId) {
+  const diag = msg => { setStatus(msg, 'loading'); };
+  try {
+    diag('Normalising campaign JSON...');
+    DATA = normaliseCampaignJson(json);
+
+    CONFIG.driveFileId = fileId;
+    CONFIG.lastLoaded  = new Date().toLocaleString();
+    localStorage.setItem('chronicle_drive_id', fileId);
+    localStorage.setItem('chronicle_last_loaded', CONFIG.lastLoaded);
+
+    diag('Clearing ENTITIES...');
+    Object.keys(ENTITIES).forEach(k => delete ENTITIES[k]);
+
+    diag('registerAll...');
+    registerAll();
+
+    diag('renderSessionTimeline...');
+    renderSessionTimeline();
+
+    diag('renderSidebar...');
+    renderSidebar();
+
+    setStatus('Loaded \u00b7 ' + (DATA.sessions?.length||0) + ' sessions \u00b7 ' + (DATA.party?.length||0) + ' PCs \u00b7 ' + (DATA.combats?.length||0) + ' combats', 'ok');
+    const settingsStatus = document.getElementById('settings-status');
+    if (settingsStatus) settingsStatus.textContent = 'Campaign log loaded: ' + (DATA.sessions?.length||0) + ' sessions, ' + (DATA.party?.length||0) + ' PCs, ' + (DATA.npcs?.length||0) + ' NPCs.';
+    // Update the sync bar with the Drive data's last_updated date
+    const driveDate = json.meta?.last_updated || json._last_published || null;
+    updateSyncBar(driveDate);
+    const syncBtn = document.getElementById('sync-btn');
+    if (syncBtn) { syncBtn.disabled = false; }
+  } catch(e) {
+    const msg = 'ingestDriveData failed: ' + e.message;
+    console.error('[ingest] CRASH', e);
+    setStatus(msg, 'error');
+    try { showError(msg + '\n\nStack: ' + e.stack, 'ingestDriveData'); } catch(e2) {}
+  }
+}
+
+function normaliseCampaignJson(json) {
+  // If it already has our viewer shape (has 'sessions' key and 'combats' key), use directly
+  if (json.sessions && json.combats) return json;
+
+  // Handle magers-campaign.json format
+  if (json.combat_encounters && json.party) {
+    return {
+      sessions: (json.session_logs || []).map(s => ({
+        id:             s.session_id,
+        title:          s.title,
+        date:           s.session_date,
+        summary:        s.summary,
+        narrative_vibe: s.narrative_vibe,  // keep original name — viewer uses s.narrative_vibe
+        key_moments:    s.key_moments || [],
+        mechanical_notes: s.mechanical_notes || [],
+      })),
+      party: (json.party || []).map(p => ({
+        id:       p.id,
+        name:     p.name,
+        nickname: p.nickname,
+        player:   p.player,
+        cls:      p.class,
+        level:    p.current_level,
+        notes:    p.notes,
+        milestones: p.milestones || [],
+      })),
+      npcs:      json.npc_directory || [],
+      locations: json.locations     || [],
+      quests: (json.quest_ledger || []).map(q => ({
+        id:       q.id,
+        title:    q.title,
+        status:   q.status,
+        priority: q.priority,
+        category: q.category,
+        motivation: q.narrative_motivation,
+        objectives: q.objectives || [],
+        // Viewer accesses p.s and p.e — map from {session_id, entry}
+        progress: (q.progress_log || []).map(p => ({ s: p.session_id, e: p.entry })),
+        origin:   q.origin_session,
+      })),
+      items: (json.inventory_and_loot || []).map(i => ({
+        id:      i.id,
+        name:    i.name,
+        type:    i.type,
+        session: i.session_found || i.origin_session,
+        holder:  i.current_holder_id,
+        notes:   (i.notes || '') + (i.description ? ' ' + i.description : ''),
+        quest:   i.is_quest_item || false,
+      })),
+      // Map location_id → location so renderCombatDetail can look it up in ENTITIES
+      combats: (json.combat_encounters || []).map(cbt => Object.assign({}, cbt, {
+        location: cbt.location_id || cbt.location,
+      })),
+      lore:     json.world_lore   || [],
+      bestiary: json.bestiary     || [],
+      moments:  (json.character_moments || []).map(m => ({
+        character_ids:   m.character_ids,
+        type:            m.type,
+        description:     m.description,
+        parent_event_id: m.parent_event_id,
+        origin_session:  m.origin_session,
+      })),
+    };
+  }
+
+  // Unknown format — fall back to embedded data
+  console.warn('normaliseCampaignJson: unrecognised format, using embedded data.');
+  return EMBEDDED_DATA;
+}
+
+function setStatus(msg, type) {
+  // Route errors to the copyable alert bar as well
+  if (type === 'error') {
+    showError(msg, 'setStatus');
+  } else {
+    // Dismiss error bar when a non-error status arrives
+    document.getElementById('error-alert')?.classList.remove('visible');
+  }
+  const el = document.getElementById('data-status');
+  const colours = { ok:'var(--teal)', error:'var(--rust)', loading:'var(--amber-dim)' };
+  const dots = { ok:'●', error:'✕', loading:'◌' };
+  el.innerHTML = `<span style="color:${colours[type]||'var(--muted)'};">${dots[type]||'·'}</span><span style="font-size:0.58rem;">${msg}</span>`;
+}
+
+// ══════════════════════════════════════════════════════
+// MODE SYSTEM
+// ══════════════════════════════════════════════════════
+function setMode(mode) {
+  CONFIG.mode = mode;
+  localStorage.setItem('chronicle_mode', mode);
+  applyMode();
+  updateModeButtons();
+}
+
+function applyMode() {
+  const isAdmin = CONFIG.mode === 'admin';
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none';
+  });
+}
+
+function updateModeButtons() {
+  const adminBtn = document.getElementById('mode-admin-btn');
+  const playerBtn = document.getElementById('mode-player-btn');
+  if (!adminBtn) return;
+  const isAdmin = CONFIG.mode === 'admin';
+  adminBtn.style.background = isAdmin ? 'var(--ink)' : 'none';
+  adminBtn.style.color = isAdmin ? 'var(--parchment)' : 'var(--muted)';
+  adminBtn.style.borderColor = isAdmin ? 'var(--ink)' : 'var(--border-strong)';
+  playerBtn.style.background = !isAdmin ? 'var(--ink)' : 'none';
+  playerBtn.style.color = !isAdmin ? 'var(--parchment)' : 'var(--muted)';
+  playerBtn.style.borderColor = !isAdmin ? 'var(--ink)' : 'var(--border-strong)';
+}
+
+function toggleSettings() {
+  const panel = document.getElementById('settings-panel');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    // Pre-fill Drive ID if saved
+    const input = document.getElementById('drive-id-input');
+    if (input && CONFIG.driveFileId) input.value = CONFIG.driveFileId;
+    updateModeButtons();
+    const lastLoaded = localStorage.getItem('chronicle_last_loaded');
+    if (lastLoaded) document.getElementById('settings-status').textContent = `Last loaded from Drive: ${lastLoaded}`;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// RELATIONSHIP INDEX
+// ══════════════════════════════════════════════════════
+const RELS = {
+  'pc_001':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_002',label:'carries'},{type:'lore',id:'lore_001',label:'researched'} ],
+  'pc_002':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_005',label:'carries'},{type:'npc',id:'npc_001',label:'fought alongside'} ],
+  'pc_003':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_006',label:'carries'} ],
+  'pc_004':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_008',label:'carries'} ],
+  'pc_005':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_003',label:'carries'},{type:'item',id:'item_007',label:'carries'},{type:'npc',id:'npc_001',label:'nephew of'} ],
+  'pc_006':[ {type:'location',id:'loc_007',label:'has clearing in'},{type:'item',id:'item_004',label:'carries'} ],
+  'npc_001':[ {type:'pc',id:'pc_005',label:'uncle of'},{type:'npc',id:'npc_004',label:'party member'},{type:'npc',id:'npc_009',label:'party member'},{type:'npc',id:'npc_010',label:'party member'},{type:'location',id:'loc_003',label:'died at'},{type:'quest',id:'qst_001',label:'subject of'},{type:'item',id:'item_001',label:'left behind'} ],
+  'npc_003':[ {type:'location',id:'loc_002',label:'lives at'},{type:'quest',id:'qst_005',label:'gave info for'} ],
+  'npc_004':[ {type:'npc',id:'npc_001',label:'old party with'},{type:'quest',id:'qst_001',label:'gave'},{type:'quest',id:'qst_004',label:'gave'},{type:'location',id:'loc_006',label:'directed party to'} ],
+  'npc_007':[ {type:'location',id:'loc_004',label:'based at'},{type:'quest',id:'qst_004',label:'completed with'},{type:'quest',id:'qst_005',label:'gave'} ],
+  'npc_008':[ {type:'quest',id:'qst_004',label:'escorted for'},{type:'location',id:'loc_004',label:'delivered to'} ],
+  'npc_009':[ {type:'npc',id:'npc_001',label:'old party with'},{type:'item',id:'item_002',label:'owned'} ],
+  'npc_010':[ {type:'npc',id:'npc_001',label:'old party with'} ],
+  'npc_011':[ {type:'location',id:'loc_006',label:'lives in'},{type:'quest',id:'qst_001',label:'key to'},{type:'quest',id:'qst_002',label:'may know about'},{type:'item',id:'item_001',label:'marked on'} ],
+  'npc_012':[ {type:'location',id:'loc_012',label:'based in'},{type:'item',id:'item_001',label:'marked on'} ],
+  'npc_013':[ {type:'quest',id:'qst_003',label:'traveling with'} ],
+  'loc_002':[ {type:'combat',id:'cbt_005',label:'site of'},{type:'npc',id:'npc_003',label:'home of'} ],
+  'loc_003':[ {type:'combat',id:'cbt_002',label:'site of'},{type:'npc',id:'npc_001',label:'death of'},{type:'quest',id:'qst_002',label:'pylon at'} ],
+  'loc_004':[ {type:'combat',id:'cbt_003',label:'site of'},{type:'npc',id:'npc_007',label:'home of'} ],
+  'loc_005':[ {type:'combat',id:'cbt_004',label:'site of'} ],
+  'loc_007':[ {type:'combat',id:'cbt_001',label:'site of'} ],
+  'qst_001':[ {type:'npc',id:'npc_011',label:'key contact'},{type:'npc',id:'npc_001',label:'about'},{type:'npc',id:'npc_004',label:'given by'} ],
+  'qst_002':[ {type:'lore',id:'lore_001',label:'concerns'},{type:'location',id:'loc_003',label:'pylon at'},{type:'location',id:'loc_006',label:'research at'} ],
+  'qst_003':[ {type:'combat',id:'cbt_005',label:'threatened by'},{type:'npc',id:'npc_013',label:'involves'} ],
+  'qst_004':[ {type:'npc',id:'npc_004',label:'given by'},{type:'npc',id:'npc_007',label:'completed with'},{type:'npc',id:'npc_008',label:'involved'} ],
+  'qst_005':[ {type:'npc',id:'npc_003',label:'led by'},{type:'npc',id:'npc_007',label:'given by'},{type:'combat',id:'cbt_004',label:'resolved by'} ],
+  'item_001':[ {type:'npc',id:'npc_001',label:'belonged to'},{type:'npc',id:'npc_011',label:'marks'},{type:'npc',id:'npc_012',label:'marks'} ],
+  'item_002':[ {type:'npc',id:'npc_009',label:'belonged to'},{type:'pc',id:'pc_001',label:'held by'} ],
+  'cbt_002':[ {type:'location',id:'loc_003',label:'at'},{type:'npc',id:'npc_001',label:'Ched fell'},{type:'quest',id:'qst_002',label:'pylon destroyed'} ],
+  'lore_001':[ {type:'quest',id:'qst_002',label:'relevant to'} ],
+  'lore_002':[ {type:'npc',id:'npc_001',label:'about'},{type:'npc',id:'npc_004',label:'about'},{type:'npc',id:'npc_009',label:'about'},{type:'npc',id:'npc_010',label:'about'} ],
+};
+
+// ══════════════════════════════════════════════════════
+// ENTITY REGISTRY — flat lookup of all entities
+// ══════════════════════════════════════════════════════
+const ENTITIES = {};
+const TYPE_COLOUR = { pc:'var(--c-pc)', npc:'var(--c-npc)', location:'var(--c-loc)', quest:'var(--c-quest)', item:'var(--c-item)', combat:'var(--c-combat)', lore:'var(--c-lore)', session:'var(--c-session)' };
+const TYPE_HEX = { pc:'#1D9E75', npc:'#D85A30', location:'#378ADD', quest:'#BA7517', item:'#534AB7', combat:'#A32D2D', lore:'#3B6D11', session:'#5F5E5A' };
+
+function registerAll() {
+  DATA.sessions.forEach(e=>{ ENTITIES[e.id]={...e,_type:'session',_name:e.title,_search:[e.title,e.summary,e.date].join(' ')}; });
+  DATA.party.forEach(e=>{ ENTITIES[e.id]={...e,_type:'pc',_name:e.name,_search:[e.name,e.nickname,e.cls,e.player,e.notes].join(' ')}; });
+  DATA.npcs.forEach(e=>{ ENTITIES[e.id]={...e,_type:'npc',_name:e.name,_search:[e.name,e.notes].join(' ')}; });
+  DATA.locations.forEach(e=>{ ENTITIES[e.id]={...e,_type:'location',_name:e.name,_search:[e.name,e.description].join(' ')}; });
+  DATA.quests.forEach(e=>{ ENTITIES[e.id]={...e,_type:'quest',_name:e.title,_search:[e.title,e.motivation,e.objectives?.map(o=>o.desc).join(' ')].join(' ')}; });
+  DATA.items.forEach(e=>{ ENTITIES[e.id]={...e,_type:'item',_name:e.name,_search:[e.name,e.type,e.notes].join(' ')}; });
+  DATA.combats.forEach(e=>{ ENTITIES[e.id]={...e,_type:'combat',_name:e.name,_search:[e.name,e.narrativeContext,e.notes].join(' ')}; });
+  DATA.lore.forEach(e=>{ ENTITIES[e.id]={...e,_type:'lore',_name:e.title,_search:[e.title,e.content].join(' ')}; });
+  DATA.bestiary.forEach(e=>{ ENTITIES[e.id]={...e,_type:'lore',_name:e.name,_search:[e.name,e.traits?.join(' ')].join(' ')}; });
+}
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let state = { view:'browse', catFilter:'all', search:'', selectedId:null, sessionFilter:null };
+
+// ══════════════════════════════════════════════════════
+// SIDEBAR
+// ══════════════════════════════════════════════════════
+const CAT_ORDER = ['session','combat','pc','npc','location','quest','item','lore'];
+const CAT_LABELS = { session:'Sessions', combat:'Combat Encounters', pc:'Player Characters', npc:'NPCs', location:'Locations', quest:'Quests', item:'Items & Loot', lore:'Lore & Bestiary' };
+const CAT_SOURCES = { session:()=>DATA.sessions, pc:()=>DATA.party, npc:()=>DATA.npcs, location:()=>DATA.locations, quest:()=>DATA.quests, item:()=>DATA.items, combat:()=>DATA.combats, lore:()=>[...DATA.lore,...DATA.bestiary] };
+
+function renderSidebar() {
+  const q = state.search.toLowerCase();
+  const list = document.getElementById('entity-list');
+  let html = '';
+  let total = 0;
+
+
+
+  const cats = state.catFilter === 'all' ? CAT_ORDER : [state.catFilter];
+  cats.forEach(cat => {
+    const items = CAT_SOURCES[cat]().filter(e => {
+      const ent = ENTITIES[e.id];
+      if (!ent) return false;
+      const sessionOk = !state.sessionFilter || matchesSession(e, state.sessionFilter);
+      const searchOk = !q || ent._search.toLowerCase().includes(q);
+      return sessionOk && searchOk;
+    });
+
+    if (!items.length) return;
+    total += items.length;
+    html += `<div class="entity-group-header">${CAT_LABELS[cat]}</div>`;
+    items.forEach(e => {
+      try {
+      const ent = ENTITIES[e.id];
+      const isActive = state.selectedId === e.id;
+      const statusDot = ent._type === 'npc' ? `<span class="entity-status-dot" style="background:${e.disposition==='deceased'?'#A32D2D':e.disposition==='friendly'?'#1D9E75':e.disposition==='neutral'?'#BA7517':'#888'}"></span>` : '';
+      const tag = ent._type === 'quest' ? `<span class="entity-tag" style="color:${e.status==='completed'?'var(--teal)':e.priority==='critical'?'var(--rust)':'var(--muted)'};">${e.status}</span>` :
+                  ent._type === 'location' ? `<span class="entity-tag">${e.visibility||'unknown'}</span>` :
+                  ent._type === 'item' ? `<span class="entity-tag">${e.type||'item'}</span>` :
+                  ent._type === 'pc' ? `<span class="entity-tag">${e.nickname} · ${e.cls}</span>` :
+                  ent._type === 'session' ? `<span class="entity-tag">${e.date}</span>` :
+                  ent._type === 'combat' ? `<span class="entity-tag" style="color:${e.outcome==='victory'?'var(--teal)':e.outcome==='paused'?'var(--amber-dim)':'var(--muted)'};">${e.totalRounds}r · ${e.outcome}</span>` : '';
+      html += `<div class="entity-item${isActive?' active':''}" onclick="selectEntity('${e.id}')">
+        <span class="entity-dot" style="background:${TYPE_HEX[ent._type]};"></span>
+        ${statusDot}
+        <span class="entity-name">${ent._name}</span>
+        ${tag}
+      </div>`;
+      } catch(sidebarErr) {
+        console.error('[sidebar] CRASH on entity', e?.id, e?.name, sidebarErr.message);
+        html += `<div class="entity-item" style="color:var(--red);font-size:0.75rem;padding:4px 8px;">⚠ ${e?.id}: ${sidebarErr.message}</div>`;
+      }
+    });
+  });
+
+  list.innerHTML = html || '<div style="padding:1rem;font-size:0.88rem;color:var(--muted-light);font-style:italic;text-align:center;">No results</div>';
+  const countEl = document.getElementById('search-count');
+  countEl.textContent = q ? `${total} result${total!==1?'s':''} for "${state.search}"` : '';
+}
+
+function matchesSession(e, sid) {
+  return e.id === sid || e.session === sid || e.origin === sid || e.origin_session === sid ||
+    (e.sessions||[]).includes(sid) ||
+    (e.progress||[]).some(p=>p.s===sid) ||
+    (e.sessions_spanning||[]).includes(sid);
+}
+
+// ══════════════════════════════════════════════════════
+// ENTITY DETAIL VIEW
+// ══════════════════════════════════════════════════════
+function selectEntity(id) {
+  state.selectedId = id;
+  state.search = '';
+  document.getElementById('search-input').value = '';
+  renderSidebar();
+  renderDetail(id);
+  if (state.view === 'graph') focusNode(id);
+}
+
+function getName(id) { return ENTITIES[id]?._name || id; }
+function getType(id) { return ENTITIES[id]?._type || 'unknown'; }
+
+// ══════════════════════════════════════════════════════
+// SESSION DETAIL RENDERER
+// ══════════════════════════════════════════════════════
+function renderSessionDetail(sess) {
+  const bc = document.getElementById('browse-content');
+  const sidx = DATA.sessions.findIndex(s=>s.id===sess.id);
+  const prev = sidx > 0 ? DATA.sessions[sidx-1] : null;
+  const next = sidx < DATA.sessions.length-1 ? DATA.sessions[sidx+1] : null;
+
+  // Combats that have rounds in this session
+  const sessionCombats = DATA.combats.filter(c => (c.sessions||[]).includes(sess.id));
+
+  // Quests progressed this session
+  const progressedQuests = DATA.quests.filter(q => (q.progress||[]).some(p=>p.s===sess.id));
+
+  // Items found this session
+  const sessionItems = DATA.items.filter(i => i.session===sess.id || i.origin_session===sess.id);
+
+  // Character moments this session
+  const sessionMoments = DATA.moments.filter(m => m.origin_session===sess.id || sessionCombats.some(c=>c.id===m.parent_event_id));
+
+  // NPCs first appeared / mentioned
+  const sessionNPCs = DATA.npcs.filter(n => {
+    const mentioned = [n.notes||''].join(' ');
+    return sessionCombats.some(c => c.narrativeContext?.includes(n.name)) || progressedQuests.some(q=>(q.progress||[]).some(p=>p.s===sess.id&&p.e.includes(n.name)));
+  });
+
+  bc.innerHTML = `
+    <div class="session-card">
+      <!-- Navigation -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+        <div>
+          ${prev?`<button class="btn" onclick="selectEntity('${prev.id}')">← ${prev.title}</button>`:'<span></span>'}
+        </div>
+        <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;">Session ${sidx+1} of ${DATA.sessions.length}</div>
+        <div>
+          ${next?`<button class="btn" onclick="selectEntity('${next.id}')">→ ${next.title}</button>`:'<span></span>'}
+        </div>
+      </div>
+
+      <!-- Header -->
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
+        <div style="width:14px;height:14px;border-radius:50%;background:${TYPE_HEX.session};flex-shrink:0;margin-top:4px;"></div>
+        <div style="flex:1;">
+          <div style="font-family:'Cinzel',serif;font-size:1.4rem;font-weight:600;letter-spacing:0.06em;">${sess.title}</div>
+          <div style="font-size:0.88rem;color:var(--muted);margin-top:2px;">${sess.date}</div>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div style="margin-bottom:1.25rem;">
+        <div class="section-label">Session summary</div>
+        <div class="section-text" style="margin-top:0.4rem;">${sess.summary}</div>
+        ${sess.narrative_vibe ? `<div class="session-vibe">${sess.narrative_vibe}</div>` : ''}
+      </div>
+
+      <!-- Key moments -->
+      ${sess.key_moments?.length ? `
+        <div style="margin-bottom:1.25rem;">
+          <div class="section-label">Key moments</div>
+          <div style="margin-top:0.4rem;display:flex;flex-direction:column;gap:4px;">
+            ${sess.key_moments.map(m=>`<div style="display:flex;align-items:center;gap:8px;font-size:0.92rem;padding:4px 0;border-bottom:1px solid var(--border);">
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--amber);flex-shrink:0;"></div>${m}
+            </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+      <!-- Character moments -->
+      ${sessionMoments.length ? `
+        <div style="margin-bottom:1.25rem;">
+          <div class="section-label">Character moments</div>
+          <div class="session-moments" style="margin-top:0.4rem;">
+            ${sessionMoments.map(m=>`
+              <div class="moment-card">
+                <div class="moment-type">${m.type.replace(/_/g,' ')}</div>
+                <div class="moment-desc">${m.description}</div>
+                <div class="moment-pcs">${(m.character_ids||[]).map(pid=>{const pc=ENTITIES[pid];return pc?`<span class="moment-pc-chip" style="cursor:pointer;" onclick="selectEntity('${pid}')">${pc.nickname||pc.name}</span>`:''}).join('')}</div>
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+      <!-- Combat encounters this session -->
+      ${sessionCombats.length ? `
+        <div style="margin-bottom:1.25rem;">
+          <div class="section-label">Combat encounters</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:0.5rem;">
+            ${sessionCombats.map(c=>{
+              const sessionRounds = (c.rounds||[]).filter(r=>r.sid===sess.id);
+              const spansBadge = c.sessions.length > 1 ? `<span class="session-span-notice">spans ${c.sessions.length} sessions</span>` : '';
+              const outColour = c.outcome==='victory'?'var(--teal)':c.outcome==='paused'?'var(--amber-dim)':'var(--muted)';
+              return `<div class="combat-stub" onclick="selectEntity('${c.id}')">
+                <div class="combat-stub-header">
+                  <span style="width:10px;height:10px;border-radius:50%;background:#A32D2D;flex-shrink:0;display:inline-block;"></span>
+                  <span class="combat-stub-name">${c.name}</span>
+                  ${spansBadge}
+                  <span class="combat-stub-rounds" style="color:${outColour};">${sessionRounds.length} rd${sessionRounds.length!==1?'s':''} this session · ${c.totalRounds} total · ${c.outcome}</span>
+                  <span style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.1em;color:var(--amber-dim);">View full log →</span>
+                </div>
+                <div class="combat-stub-body">${c.narrativeContext}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+
+      <!-- Quest progress -->
+      ${progressedQuests.length ? `
+        <div style="margin-bottom:1.25rem;">
+          <div class="section-label">Quest progress</div>
+          <div style="margin-top:0.4rem;display:flex;flex-direction:column;gap:6px;">
+            ${progressedQuests.map(q=>{
+              const entries = (q.progress||[]).filter(p=>p.s===sess.id);
+              return `<div style="border:1px solid var(--border);border-radius:3px;padding:0.6rem 0.85rem;cursor:pointer;" onclick="selectEntity('${q.id}')">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:${TYPE_HEX.quest};flex-shrink:0;display:inline-block;"></span>
+                  <span style="font-family:'Cinzel',serif;font-size:0.8rem;font-weight:600;">${q.title}</span>
+                  <span style="font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;padding:2px 7px;border-radius:2px;border:1px solid;color:${q.status==='completed'?'var(--teal)':'var(--amber-dim)'};border-color:currentColor;">${q.status}</span>
+                </div>
+                ${entries.map(e=>`<div style="font-size:0.88rem;color:var(--muted);font-style:italic;padding-left:16px;">· ${e.e}</div>`).join('')}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+
+      <!-- Items found -->
+      ${sessionItems.length ? `
+        <div style="margin-bottom:1.25rem;">
+          <div class="section-label">Items found</div>
+          <div class="rel-chips" style="margin-top:0.4rem;">
+            ${sessionItems.map(i=>`<div class="rel-chip" onclick="selectEntity('${i.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX.item}"></span><div><div>${i.name}</div><div class="rel-chip-label">${i.type}</div></div></div>`).join('')}
+          </div>
+        </div>` : ''}
+
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// COMBAT DETAIL RENDERER
+// ══════════════════════════════════════════════════════
+const PARTY_LOOKUP = {
+  'pc_001':{nick:'Gold',cls:'Wizard'}, 'pc_002':{nick:'Mal',cls:'Barbarian'},
+  'pc_003':{nick:'Ash',cls:'Warlock'}, 'pc_004':{nick:'Del',cls:'Monk'},
+  'pc_005':{nick:'Goli',cls:'Rogue'}, 'pc_006':{nick:'Att',cls:'Druid'},
+};
+
+function resultClass(res) {
+  if (!res) return 'result-neutral';
+  const r = res.toLowerCase();
+  if (r==='crit'||r==='critical-hit') return 'result-crit';
+  if (r==='miss'||r==='unclear') return 'result-miss';
+  if (r==='death') return 'result-death';
+  if (r==='save'||r==='enemy-save') return 'result-save';
+  if (r==='hit') return 'result-hit';
+  return 'result-neutral';
+}
+function resultLabel(res) {
+  if (!res||res==='neutral') return '';
+  if (res==='crit'||res==='critical-hit') return 'CRIT';
+  if (res==='enemy-save') return 'save';
+  if (res==='death') return 'death sv';
+  if (res==='unclear') return '?';
+  return res;
+}
+function roundSummaryChips(round) {
+  const crits = round.slots.filter(s=>s.res==='crit'||s.res==='critical-hit').length;
+  const misses = round.slots.filter(s=>s.res==='miss').length;
+  const hits = round.slots.filter(s=>s.res==='hit').length;
+  const deaths = round.slots.filter(s=>s.res==='death').length;
+  let chips = '';
+  if (crits) chips += `<span class="round-summary-chip chip-crit">${crits} crit</span>`;
+  if (hits) chips += `<span class="round-summary-chip chip-hit">${hits} hit</span>`;
+  if (misses) chips += `<span class="round-summary-chip chip-miss">${misses} miss</span>`;
+  if (deaths) chips += `<span class="round-summary-chip chip-death">${deaths} death sv</span>`;
+  if (round.enemy?.length) chips += `<span class="round-summary-chip chip-enemy">enemy action</span>`;
+  return chips;
+}
+
+let openRounds = new Set();
+let combatSessionFilter = null;
+
+function renderCombatDetail(cbt) {
+  const bc = document.getElementById('browse-content');
+  const loc = cbt.location ? ENTITIES[cbt.location] : null;
+  const moments = DATA.moments.filter(m=>m.parent_event_id===cbt.id);
+  const spansMultiple = (cbt.sessions||[]).length > 1;
+
+  const filteredRounds = combatSessionFilter
+    ? (cbt.rounds||[]).filter(r=>r.sid===combatSessionFilter)
+    : (cbt.rounds||[]);
+
+  const totalHits = filteredRounds.flatMap(r=>r.slots).filter(s=>s.res==='hit').length;
+  const totalCrits = filteredRounds.flatMap(r=>r.slots).filter(s=>['crit','critical-hit'].includes(s.res)).length;
+  const totalMisses = filteredRounds.flatMap(r=>r.slots).filter(s=>s.res==='miss').length;
+  const totalDeaths = filteredRounds.flatMap(r=>r.slots).filter(s=>s.res==='death').length;
+
+  bc.innerHTML = `
+    <div class="combat-log-card">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
+        <div style="width:14px;height:14px;border-radius:50%;background:#A32D2D;flex-shrink:0;margin-top:4px;"></div>
+        <div style="flex:1;">
+          <div style="font-family:'Cinzel',serif;font-size:1.4rem;font-weight:600;letter-spacing:0.06em;">${cbt.name}</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap;">
+            ${loc?`<span style="font-size:0.88rem;color:var(--muted);cursor:pointer;" onclick="selectEntity('${cbt.location}')">@ ${loc._name}</span>`:''}
+            ${spansMultiple?`<span class="spans-sessions-badge">spans ${cbt.sessions.length} sessions</span>`:''}
+            ${cbt.notes?`<span style="font-size:0.82rem;color:var(--muted);font-style:italic;">${cbt.notes}</span>`:''}
+          </div>
+        </div>
+        <div>
+          <div class="combat-outcome-banner ${cbt.outcome==='victory'?'outcome-victory':'outcome-paused'}">
+            ${cbt.outcome==='victory'?'★ Victory':'⧖ Paused'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Narrative context -->
+      ${cbt.narrativeContext?`<div class="session-vibe" style="margin-bottom:1rem;">${cbt.narrativeContext}</div>`:''}
+
+      <!-- Stats row -->
+      <div class="combat-stat-row">
+        <div class="combat-stat"><div class="combat-stat-num">${cbt.totalRounds}</div><div class="combat-stat-label">Rounds</div></div>
+        <div class="combat-stat"><div class="combat-stat-num" style="color:var(--teal);">${totalHits}</div><div class="combat-stat-label">Hits</div></div>
+        <div class="combat-stat"><div class="combat-stat-num" style="color:var(--amber-dim);">${totalCrits}</div><div class="combat-stat-label">Crits</div></div>
+        <div class="combat-stat"><div class="combat-stat-num" style="color:var(--rust);">${totalMisses}</div><div class="combat-stat-label">Misses</div></div>
+        <div class="combat-stat"><div class="combat-stat-num" style="color:var(--muted);">${totalDeaths}</div><div class="combat-stat-label">Death Saves</div></div>
+        ${(cbt.sessions||[]).length>1?`<div class="combat-stat"><div class="combat-stat-num" style="color:#185FA5;">${(cbt.sessions||[]).length}</div><div class="combat-stat-label">Sessions</div></div>`:''}
+      </div>
+
+      <!-- Session filter (for multi-session combats) -->
+      ${spansMultiple ? `
+        <div style="margin-bottom:1rem;">
+          <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Filter rounds by session</div>
+          <div class="combat-session-strip">
+            <button class="combat-session-chip${!combatSessionFilter?' active':''}" onclick="setCombatSessionFilter(null,'${cbt.id}')">All rounds</button>
+            ${(cbt.sessions||[]).map(sid=>{const s=ENTITIES[sid]||{_name:sid};return`<button class="combat-session-chip${combatSessionFilter===sid?' active':''}" onclick="setCombatSessionFilter('${sid}','${cbt.id}')">${s._name||sid}</button>`;}).join('')}
+          </div>
+        </div>` : ''}
+
+      <!-- Initiative slots legend -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0.85rem;padding:0.6rem 0.85rem;background:var(--parchment-mid);border-radius:3px;border:1px solid var(--border);">
+        <span style="font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-right:4px;">Initiative</span>
+        ${Object.entries(PARTY_LOOKUP).map(([pid,pc],i)=>`
+          <span style="font-size:0.78rem;display:flex;align-items:center;gap:4px;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:var(--muted-light);">—</span>
+            <span style="font-family:'Cinzel',serif;font-size:0.72rem;font-weight:600;cursor:pointer;" onclick="selectEntity('${pid}')">${pc.nick}</span>
+            <span style="font-size:0.72rem;color:var(--muted);">${pc.cls}</span>
+          </span>`).join('')}
+        <span style="font-size:0.75rem;color:var(--muted-light);font-style:italic;margin-left:auto;">Initiative order varies per encounter — slot numbers shown</span>
+      </div>
+
+      <!-- Round blocks -->
+      <div id="round-blocks">
+        ${filteredRounds.map(round => renderRoundBlock(round, cbt.id)).join('')}
+        ${filteredRounds.length === 0 ? '<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;">No rounds recorded for this session filter.</div>' : ''}
+      </div>
+
+      <!-- Finale / aftermath -->
+      ${(cbt.finale||cbt.aftermath) ? `
+        <div style="margin:1rem 0;padding:0.85rem 1.1rem;background:rgba(212,175,55,0.07);border:1px solid rgba(212,175,55,0.22);border-radius:3px;">
+          <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--amber);text-transform:uppercase;margin-bottom:5px;">Finale</div>
+          <div style="font-size:0.95rem;line-height:1.7;color:var(--ink);font-style:italic;">${cbt.finale||cbt.aftermath}</div>
+        </div>` : ''}
+
+      <!-- Character moments -->
+      ${moments.length ? `
+        <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);">
+          <div class="section-label">Character moments</div>
+          <div class="session-moments" style="margin-top:0.5rem;">
+            ${moments.map(m=>`
+              <div class="moment-card">
+                <div class="moment-type">${m.type.replace(/_/g,' ')}</div>
+                <div class="moment-desc">${m.description}</div>
+                <div class="moment-pcs">${(m.character_ids||[]).map(pid=>{const pc=ENTITIES[pid];return pc?`<span class="moment-pc-chip" style="cursor:pointer;" onclick="selectEntity('${pid}')">${pc.nickname||pc.name}</span>`:''}).join('')}</div>
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+      <!-- Linked sessions -->
+      ${(cbt.sessions||[]).length ? `
+        <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);">
+          <div class="section-label">Sessions this encounter spans</div>
+          <div class="rel-chips" style="margin-top:0.4rem;">
+            ${(cbt.sessions||[]).map(sid=>{const s=ENTITIES[sid];return s?`<div class="rel-chip" onclick="selectEntity('${sid}')"><span class="rel-chip-dot" style="background:${TYPE_HEX.session}"></span><div><div>${s._name}</div><div class="rel-chip-label">${s.date}</div></div></div>`:''}).join('')}
+          </div>
+        </div>` : ''}
+
+    </div>`;
+}
+
+function renderRoundBlock(round, cbtId) {
+  const isOpen = openRounds.has(`${cbtId}-${round.n}`);
+  const summaryChips = roundSummaryChips(round);
+
+  // Arrange slots in grid: left col (1-3), right col (4-6)
+  const leftSlots = round.slots.filter(s=>s.s<=3);
+  const rightSlots = round.slots.filter(s=>s.s>=4);
+  const maxRows = Math.max(leftSlots.length, rightSlots.length);
+
+  let gridRows = '';
+  for (let i=0; i<maxRows; i++) {
+    const L = leftSlots[i];
+    const R = rightSlots[i];
+    gridRows += `
+      <div class="slot-row left-col${i%2===0?' odd':''}">
+        ${L ? slotHTML(L) : '<div style="flex:1;"></div>'}
+      </div>
+      <div class="slot-row${i%2===0?' odd':''}">
+        ${R ? slotHTML(R) : '<div style="flex:1;"></div>'}
+      </div>`;
+  }
+
+  const enemyRows = (round.enemy||[]).map(e=>`
+    <div class="slot-row enemy-row" style="grid-column:1/-1;padding:0.45rem 1rem;">
+      <span class="slot-actor" style="color:var(--rust);">Enemy</span>
+      <span class="slot-action" style="flex:1;">${e.desc}</span>
+      ${e.impact?`<span style="font-size:0.78rem;color:var(--rust);font-style:italic;">${e.impact}</span>`:''}
+    </div>`).join('');
+
+  const roundSummaryBlock = round.summary
+    ? `<div style="display:flex;align-items:flex-start;gap:8px;padding:0.6rem 0.85rem;background:rgba(212,175,55,0.06);border-top:1px solid rgba(212,175,55,0.12);font-size:0.9rem;color:var(--ink);">
+        <span style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.12em;color:var(--amber);text-transform:uppercase;flex-shrink:0;margin-top:2px;padding-right:8px;border-right:1px solid rgba(212,175,55,0.2);margin-right:4px;">Summary</span>
+        <span style="font-style:italic;line-height:1.55;">${round.summary}</span>
+      </div>` : '';
+
+  return `
+    <div class="round-block" id="round-${cbtId}-${round.n}">
+      <div class="round-header" onclick="toggleRound('${cbtId}',${round.n})">
+        <span class="round-num">Round ${round.n}</span>
+        <span class="round-session-tag">${round.sid}</span>
+        <div class="round-summary-chips">${summaryChips}</div>
+        <span class="round-toggle">${isOpen?'▲':'▼'}</span>
+      </div>
+      <div class="round-body${isOpen?' open':''}" id="round-body-${cbtId}-${round.n}">
+        <div class="initiative-grid">
+          ${gridRows}
+          ${enemyRows}
+        </div>
+        ${roundSummaryBlock}
+      </div>
+    </div>`;
+}
+
+function slotHTML(slot) {
+  const pc = PARTY_LOOKUP[slot.a] || {nick:slot.a,cls:''};
+  const rClass = resultClass(slot.res);
+  const rLabel = resultLabel(slot.res);
+  return `
+    <span class="slot-num-badge">${slot.s}</span>
+    <span class="slot-actor" style="cursor:pointer;" onclick="event.stopPropagation();selectEntity('${slot.a}')">${pc.nick}</span>
+    <div class="slot-action">
+      <div>${slot.act}${slot.val?`<span class="slot-value">${slot.val}</span>`:''}</div>
+      ${slot.notes?`<div class="slot-notes">${slot.notes}</div>`:''}
+    </div>
+    ${rLabel?`<span class="slot-result ${rClass}">${rLabel}</span>`:''}`;
+}
+
+function toggleRound(cbtId, n) {
+  const key = `${cbtId}-${n}`;
+  if (openRounds.has(key)) openRounds.delete(key);
+  else openRounds.add(key);
+  const body = document.getElementById(`round-body-${cbtId}-${n}`);
+  const toggle = document.querySelector(`#round-${cbtId}-${n} .round-toggle`);
+  if (body) body.classList.toggle('open', openRounds.has(key));
+  if (toggle) toggle.textContent = openRounds.has(key)?'▲':'▼';
+}
+
+function setCombatSessionFilter(sid, cbtId) {
+  combatSessionFilter = sid;
+  const cbt = ENTITIES[cbtId];
+  if (cbt) renderCombatDetail(cbt);
+}
+
+function renderDetail(id) {
+  const ent = ENTITIES[id];
+  if (!ent) return;
+  if (ent._type === 'session') { renderSessionDetail(ent); return; }
+  if (ent._type === 'combat') { openRounds.clear(); combatSessionFilter = null; renderCombatDetail(ent); return; }
+  const colour = TYPE_HEX[ent._type];
+  const bc = document.getElementById('browse-content');
+
+  // Build related-entity chips: find entities that share sessions/location/quest with this one
+  const rels = (() => {
+    const seen = new Set();
+    const results = [];
+    const addRel = (relId) => {
+      if (relId && relId !== id && !seen.has(relId) && ENTITIES[relId]) {
+        seen.add(relId);
+        results.push(ENTITIES[relId]);
+      }
+    };
+    // Find combats that reference this entity
+    (DATA.combats||[]).forEach(cbt => {
+      if (ent._type === 'location' && cbt.location === id) {
+        (cbt.sessions||[]).forEach(sid => addRel(sid));
+      }
+    });
+    // Find sessions this entity appears in
+    const entitySessions = new Set();
+    (DATA.combats||[]).forEach(cbt => {
+      if (cbt.location === id) (cbt.sessions||[]).forEach(s => entitySessions.add(s));
+    });
+    if (ent._type === 'npc' || ent._type === 'pc') {
+      (DATA.moments||[]).filter(m => m.character_ids?.includes(id))
+        .forEach(m => addRel(m.parent_event_id));
+    }
+    if (ent._type === 'item' && ent.holder) addRel(ent.holder);
+    if (ent._type === 'quest') {
+      (ent.objectives||[]).forEach(o => { if (o.related_entity) addRel(o.related_entity); });
+    }
+    return results;
+  })();
+
+  let body = '';
+
+  // ── PC ──
+  if (ent._type === 'pc') {
+    const items = DATA.items.filter(i=>i.holder===id);
+    const moments = DATA.moments.filter(m=>m.character_ids.includes(id));
+    body = `
+      <div class="detail-body">
+        <div class="detail-section">
+          <div class="section-label">Character</div>
+          <div class="section-text"><strong>${ent.cls}</strong> · Level ${ent.level} · Played by ${ent.player}<br><em>"${ent.nickname}"</em></div>
+        </div>
+        <div class="detail-section">
+          <div class="section-label">Notes</div>
+          <div class="section-text">${ent.notes}</div>
+        </div>
+        ${items.length ? `<div class="detail-section full">
+          <div class="section-label">Equipment</div>
+          <div class="rel-chips">${items.map(i=>`<div class="rel-chip" onclick="selectEntity('${i.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX.item}"></span><div><div>${i.name}</div><div class="rel-chip-label">${i.type}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+        ${moments.length ? `<div class="detail-section full">
+          <div class="section-label">Character Moments</div>
+          ${moments.map(m=>`<div style="font-size:0.9rem;line-height:1.6;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--amber-dim);">${m.type.replace('_',' ')}</span><br>${m.description}</div>`).join('')}
+        </div>` : ''}
+        ${rels.length ? `<div class="detail-section full">
+          <div class="section-label">Relationships</div>
+          <div class="rel-chips">${rels.map(r=>`<div class="rel-chip" onclick="selectEntity('${r.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX[r.type]||'#888'}"></span><div><div>${getName(r.id)}</div><div class="rel-chip-label">${r.label}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  // ── NPC ──
+  else if (ent._type === 'npc') {
+    const dispColour = ent.disposition==='deceased'?'#A32D2D':ent.disposition==='friendly'?'#1D9E75':ent.disposition==='neutral'?'#BA7517':'#888780';
+    body = `
+      <div class="detail-body">
+        <div class="detail-section">
+          <div class="section-label">Status</div>
+          <div class="section-text" style="color:${dispColour};font-weight:600;text-transform:capitalize;">${ent.disposition||'Unknown'}</div>
+        </div>
+        <div class="detail-section">
+          <div class="section-label">Notes (player perspective)</div>
+          <div class="section-text">${ent.notes||ent.description_as_observed||'Nothing recorded yet.'}</div>
+        </div>
+        ${rels.length ? `<div class="detail-section full">
+          <div class="section-label">Connections</div>
+          <div class="rel-chips">${rels.map(r=>`<div class="rel-chip" onclick="selectEntity('${r.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX[r.type]||'#888'}"></span><div><div>${getName(r.id)}</div><div class="rel-chip-label">${r.label}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  // ── LOCATION ──
+  else if (ent._type === 'location') {
+    const combatsHere = DATA.combats.filter(c=>c.location===id);
+    const visColour = ent.visibility==='visited'?'var(--teal)':ent.visibility==='heard-of'?'var(--amber-dim)':'var(--muted)';
+    body = `
+      <div class="detail-body">
+        <div class="detail-section">
+          <div class="section-label">Visibility</div>
+          <div class="section-text" style="color:${visColour};font-weight:600;text-transform:capitalize;">${ent.visibility}</div>
+        </div>
+        <div class="detail-section">
+          <div class="section-label">Description (as observed)</div>
+          <div class="section-text">${ent.description}</div>
+        </div>
+        ${combatsHere.length ? `<div class="detail-section full">
+          <div class="section-label">Encounters Here</div>
+          <div class="rel-chips">${combatsHere.map(c=>`<div class="rel-chip" onclick="selectEntity('${c.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX.combat}"></span><div><div>${c.name}</div><div class="rel-chip-label">${c.rounds} rounds · ${c.outcome}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+        ${rels.length ? `<div class="detail-section full">
+          <div class="section-label">Related</div>
+          <div class="rel-chips">${rels.map(r=>`<div class="rel-chip" onclick="selectEntity('${r.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX[r.type]||'#888'}"></span><div><div>${getName(r.id)}</div><div class="rel-chip-label">${r.label}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  // ── QUEST ──
+  else if (ent._type === 'quest') {
+    const priColour = ent.priority==='critical'?'var(--rust)':ent.priority==='high'?'var(--amber-dim)':'var(--teal)';
+    const statusColour = ent.status==='completed'?'var(--teal)':'var(--amber-dim)';
+    body = `
+      <div class="detail-body">
+        <div class="detail-section">
+          <div class="section-label">Status & Priority</div>
+          <div class="section-text"><span style="color:${statusColour};font-weight:600;">${ent.status}</span> · <span style="color:${priColour};">${ent.priority} priority</span> · ${ent.category}</div>
+        </div>
+        <div class="detail-section">
+          <div class="section-label">Motivation</div>
+          <div class="section-text">${ent.motivation}</div>
+        </div>
+        <div class="detail-section full">
+          <div class="section-label">Objectives</div>
+          <div class="quest-progress">${(ent.objectives||[]).map(o=>`<div class="obj-row"><div class="obj-check${o.done?' done':''}"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div><div>${o.desc}${o.notes?` <em style="color:var(--muted);font-size:0.82rem;">(${o.notes})</em>`:''}</div></div>`).join('')}</div>
+        </div>
+        <div class="detail-section full">
+          <div class="section-label">Progress Log</div>
+          <div class="timeline">${(ent.progress||[]).map(p=>`<div class="timeline-item"><div class="timeline-dot"></div><span class="timeline-session">${p.s}</span><span class="timeline-text">${p.e}</span></div>`).join('')}</div>
+        </div>
+        ${rels.length ? `<div class="detail-section full">
+          <div class="section-label">Key People & Places</div>
+          <div class="rel-chips">${rels.map(r=>`<div class="rel-chip" onclick="selectEntity('${r.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX[r.type]||'#888'}"></span><div><div>${getName(r.id)}</div><div class="rel-chip-label">${r.label}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  // ── ITEM ──
+  else if (ent._type === 'item') {
+    const holder = ent.holder && ENTITIES[ent.holder] ? ENTITIES[ent.holder] : null;
+    body = `
+      <div class="detail-body">
+        <div class="detail-section">
+          <div class="section-label">Type</div>
+          <div class="section-text" style="text-transform:capitalize;">${ent.type}</div>
+        </div>
+        <div class="detail-section">
+          <div class="section-label">Found</div>
+          <div class="section-text">${ent.session || ent.origin_session || '—'}</div>
+        </div>
+        ${holder ? `<div class="detail-section full">
+          <div class="section-label">Current Holder</div>
+          <div class="rel-chips"><div class="rel-chip" onclick="selectEntity('${ent.holder}')"><span class="rel-chip-dot" style="background:${TYPE_HEX.pc}"></span><div><div>${holder._name}</div><div class="rel-chip-label">${holder.cls}</div></div></div></div>
+        </div>` : ''}
+        ${ent.notes ? `<div class="detail-section full"><div class="section-label">Notes</div><div class="section-text">${ent.notes}</div></div>` : ''}
+        ${rels.length ? `<div class="detail-section full">
+          <div class="section-label">Connections</div>
+          <div class="rel-chips">${rels.map(r=>`<div class="rel-chip" onclick="selectEntity('${r.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX[r.type]||'#888'}"></span><div><div>${getName(r.id)}</div><div class="rel-chip-label">${r.label}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  // ── COMBAT ──
+  else if (ent._type === 'combat') {
+    const loc = ent.location ? ENTITIES[ent.location] : null;
+    const moments = DATA.moments.filter(m=>m.parent_event_id===id);
+    body = `
+      <div class="detail-body">
+        <div class="detail-section">
+          <div class="section-label">Outcome</div>
+          <div class="section-text" style="color:var(--teal);font-weight:600;text-transform:capitalize;">${ent.outcome}</div>
+        </div>
+        <div class="detail-section">
+          <div class="section-label">Rounds / Session</div>
+          <div class="section-text">${ent.rounds} rounds · ${ent.session}</div>
+        </div>
+        ${loc ? `<div class="detail-section full">
+          <div class="section-label">Location</div>
+          <div class="rel-chips"><div class="rel-chip" onclick="selectEntity('${ent.location}')"><span class="rel-chip-dot" style="background:${TYPE_HEX.location}"></span><div><div>${loc._name}</div><div class="rel-chip-label">location</div></div></div></div>
+        </div>` : ''}
+        ${ent.notes ? `<div class="detail-section full"><div class="section-label">Notes</div><div class="section-text">${ent.notes}</div></div>` : ''}
+        ${moments.length ? `<div class="detail-section full">
+          <div class="section-label">Character Moments</div>
+          ${moments.map(m=>`<div style="font-size:0.9rem;line-height:1.6;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--amber-dim);">${m.type.replace('_',' ')}</span><br>${m.description}</div>`).join('')}
+        </div>` : ''}
+        ${rels.length ? `<div class="detail-section full">
+          <div class="section-label">Connections</div>
+          <div class="rel-chips">${rels.map(r=>`<div class="rel-chip" onclick="selectEntity('${r.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX[r.type]||'#888'}"></span><div><div>${getName(r.id)}</div><div class="rel-chip-label">${r.label}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  // ── LORE / BESTIARY ──
+  else {
+    body = `
+      <div class="detail-body">
+        ${ent.content ? `<div class="detail-section full"><div class="section-label">Knowledge</div><div class="section-text">${ent.content}</div></div>` : ''}
+        ${ent.traits ? `<div class="detail-section full"><div class="section-label">Observed traits</div><div class="section-text">${ent.traits.map(t=>`<div style="padding:2px 0;">· ${t}</div>`).join('')}</div></div>` : ''}
+        <div class="detail-section"><div class="section-label">Reliability</div><div class="section-text" style="text-transform:capitalize;">${ent.reliability||'unknown'}</div></div>
+        ${rels.length ? `<div class="detail-section full">
+          <div class="section-label">Connections</div>
+          <div class="rel-chips">${rels.map(r=>`<div class="rel-chip" onclick="selectEntity('${r.id}')"><span class="rel-chip-dot" style="background:${TYPE_HEX[r.type]||'#888'}"></span><div><div>${getName(r.id)}</div><div class="rel-chip-label">${r.label}</div></div></div>`).join('')}</div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  const dispBadge = ent.disposition ? `<span class="detail-badge" style="color:${ent.disposition==='deceased'?'var(--rust)':ent.disposition==='friendly'?'var(--teal)':'var(--muted)'};border-color:currentColor;background:rgba(0,0,0,0.03);">${ent.disposition}</span>` : '';
+  const statusBadge = ent.status ? `<span class="detail-badge" style="color:${ent.status==='completed'?'var(--teal)':ent.status==='active'?'var(--amber-dim)':'var(--muted)'};border-color:currentColor;background:rgba(0,0,0,0.03);">${ent.status}</span>` : '';
+  const visBadge = ent.visibility ? `<span class="detail-badge" style="color:${ent.visibility==='visited'?'var(--teal)':'var(--muted)'};border-color:currentColor;background:rgba(0,0,0,0.03);">${ent.visibility}</span>` : '';
+  const typeBadge = `<span class="detail-badge" style="color:${colour};border-color:${colour};background:rgba(0,0,0,0.03);">${ent._type}</span>`;
+
+  bc.innerHTML = `
+    <div class="detail-card">
+      <div class="detail-header">
+        <div class="detail-type-dot" style="background:${colour};"></div>
+        <div>
+          <div class="detail-title">${ent._name}</div>
+          ${ent.nickname ? `<div class="detail-subtitle">"${ent.nickname}"${ent.player?` · ${ent.player}`:''}</div>` : ent.category ? `<div class="detail-subtitle">${ent.category}</div>` : ''}
+          <div class="detail-badges">${typeBadge}${dispBadge}${statusBadge}${visBadge}</div>
+        </div>
+        <button class="btn btn-amber" onclick="switchView('graph');focusNode('${id}')" style="margin-left:auto;flex-shrink:0;">Show in graph →</button>
+      </div>
+      ${body}
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// SEARCH
+// ══════════════════════════════════════════════════════
+function handleSearch(val) {
+  state.search = val;
+  state.selectedId = null;
+  renderSidebar();
+
+  if (!val.trim()) {
+    document.getElementById('browse-content').innerHTML = '<div class="empty-state" style="height:400px;"><div class="empty-state-title">Select an entry from the left</div></div>';
+    return;
+  }
+  const q = val.toLowerCase();
+  const results = Object.values(ENTITIES).filter(e => e._search.toLowerCase().includes(q));
+
+  function highlight(str) {
+    if (!str) return '';
+    return str.replace(new RegExp(`(${val.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'), '<mark>$1</mark>');
+  }
+
+  const bc = document.getElementById('browse-content');
+  if (!results.length) { bc.innerHTML = '<div class="empty-state" style="height:300px;"><div class="empty-state-title">No results found</div></div>'; return; }
+  bc.innerHTML = `<div class="search-results">${results.map(e=>`
+    <div class="search-result-card" onclick="selectEntity('${e.id}')">
+      <div class="sr-header">
+        <span class="entity-dot" style="background:${TYPE_HEX[e._type]};width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block;"></span>
+        <span class="sr-title">${highlight(e._name)}</span>
+        <span class="entity-tag" style="margin-left:auto;">${e._type}</span>
+      </div>
+      <div class="sr-snippet">${highlight(e._search.substring(0,180))}…</div>
+    </div>`).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// SESSION TIMELINE
+// ══════════════════════════════════════════════════════
+function renderSessionTimeline() {
+  const strip = document.getElementById('session-timeline');
+  strip.innerHTML = `<span style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;flex-shrink:0;">Filter:</span>
+    <button class="session-pill${!state.sessionFilter?' active':''}" onclick="filterSession(null)">All sessions</button>
+    ${DATA.sessions.map(s=>`<button class="session-pill${state.sessionFilter===s.id?' active':''}" onclick="filterSession('${s.id}')">
+      ${s.title}<span class="session-pill-label">${s.date}</span>
+    </button>`).join('')}`;
+}
+
+function filterSession(sid) {
+  state.sessionFilter = sid;
+  renderSessionTimeline();
+  renderSidebar();
+}
+
+// ══════════════════════════════════════════════════════
+// CATEGORY FILTER
+// ══════════════════════════════════════════════════════
+function filterCat(cat, el) {
+  state.catFilter = cat;
+  document.querySelectorAll('.cat-pill').forEach(p=>{
+    p.classList.remove('active');
+    p.style.background = 'none';
+    p.style.color = '';
+  });
+  el.classList.add('active');
+  el.style.background = TYPE_HEX[cat] || 'var(--ink)';
+  el.style.color = 'white';
+  renderSidebar();
+}
+
+// ══════════════════════════════════════════════════════
+// VIEW SWITCHING
+// ══════════════════════════════════════════════════════
+function switchView(which, btn) {
+  state.view = which;
+  document.getElementById('browse-view').classList.toggle('active', which==='browse');
+  document.getElementById('graph-view').classList.toggle('active', which==='graph');
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('.view-btn').forEach((b,i)=>{ if((i===0&&which==='browse')||(i===1&&which==='graph')) b.classList.add('active'); });
+  if (which === 'graph' && !graphInitialized) initGraph();
+}
+
+// ══════════════════════════════════════════════════════
+// FORCE GRAPH
+// ══════════════════════════════════════════════════════
+let graphInitialized = false;
+let simulation, svgSel, nodeGroup, linkGroup, labelGroup;
+
+function buildGraphData() {
+  const nodes = Object.values(ENTITIES).map(e=>({ id:e.id, name:e._name, type:e._type, ...e }));
+  const links = [];
+  const seen = new Set();
+  Object.entries(RELS).forEach(([src, rels]) => {
+    rels.forEach(r => {
+      const key = [src,r.id].sort().join('--');
+      if (!seen.has(key) && ENTITIES[src] && ENTITIES[r.id]) {
+        seen.add(key);
+        links.push({ source:src, target:r.id, label:r.label });
+      }
+    });
+  });
+  return { nodes, links };
+}
+
+function initGraph() {
+  graphInitialized = true;
+  const { nodes, links } = buildGraphData();
+  const svg = d3.select('#graph-svg');
+  const el = document.getElementById('graph-svg');
+  const W = el.clientWidth || 800, H = el.clientHeight || 600;
+
+  svg.selectAll('*').remove();
+  const g = svg.append('g');
+
+  svg.call(d3.zoom().scaleExtent([0.2,3]).on('zoom', e => g.attr('transform', e.transform)));
+
+  // Edge lines
+  linkGroup = g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke', '#c8bfae').attr('stroke-width', 0.8).attr('stroke-opacity', 0.5);
+
+  // Node circles
+  nodeGroup = g.append('g').selectAll('circle').data(nodes).join('circle')
+    .attr('r', d => d.type==='pc' ? 13 : d.type==='quest' ? 11 : d.type==='combat' ? 10 : 9)
+    .attr('fill', d => TYPE_HEX[d.type] || '#888')
+    .attr('fill-opacity', 0.9)
+    .attr('stroke', '#0f1020').attr('stroke-width', 1.5)
+    .style('cursor','pointer')
+    .on('mouseover', (e,d) => {
+      const tt = document.getElementById('graph-tooltip');
+      tt.textContent = d.name; tt.style.opacity='1';
+      tt.style.left=(e.offsetX+12)+'px'; tt.style.top=(e.offsetY-8)+'px';
+    })
+    .on('mousemove', (e) => {
+      const tt = document.getElementById('graph-tooltip');
+      tt.style.left=(e.offsetX+12)+'px'; tt.style.top=(e.offsetY-8)+'px';
+    })
+    .on('mouseout', () => { document.getElementById('graph-tooltip').style.opacity='0'; })
+    .on('click', (e,d) => { e.stopPropagation(); showNodePanel(d); })
+    .call(d3.drag()
+      .on('start', (e,d) => { if(!e.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (e,d) => { d.fx=e.x; d.fy=e.y; })
+      .on('end', (e,d) => { if(!e.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  // Labels
+  labelGroup = g.append('g').selectAll('text').data(nodes).join('text')
+    .text(d => d.name.length > 14 ? d.name.slice(0,13)+'…' : d.name)
+    .attr('font-size', '9px')
+    .attr('font-family', 'Cinzel, serif')
+    .attr('text-anchor','middle')
+    .attr('dy', d => (d.type==='pc'?13:d.type==='quest'?11:10) + 10)
+    .attr('fill', '#7d7a94')
+    .style('pointer-events','none');
+
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(80).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(-220))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide(22))
+    .on('tick', () => {
+      linkGroup.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+      nodeGroup.attr('cx',d=>d.x).attr('cy',d=>d.y);
+      labelGroup.attr('x',d=>d.x).attr('y',d=>d.y);
+    });
+
+  // Legend
+  document.getElementById('graph-legend').innerHTML = Object.entries(TYPE_HEX)
+    .filter(([t])=>t!=='session')
+    .map(([t,c])=>`<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${t}</div>`).join('');
+
+  svg.on('click', () => document.getElementById('graph-node-panel').classList.remove('visible'));
+}
+
+function showNodePanel(d) {
+  const panel = document.getElementById('graph-node-panel');
+  const rels = (RELS[d.id]||[]).slice(0,6);
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <span style="width:10px;height:10px;border-radius:50%;background:${TYPE_HEX[d.type]};flex-shrink:0;display:inline-block;"></span>
+      <div class="gnp-title">${d.name}</div>
+    </div>
+    <div class="gnp-type">${d.type}${d.cls?' · '+d.cls:d.status?' · '+d.status:''}</div>
+    ${rels.length ? `<div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:5px;">Connections</div>
+    <div class="gnp-rels">${rels.map(r=>`<div class="gnp-rel" onclick="showNodePanel(Object.values(ENTITIES).find(e=>e.id==='${r.id}'))"><span style="width:7px;height:7px;border-radius:50%;background:${TYPE_HEX[r.type]||'#888'};display:inline-block;flex-shrink:0;"></span><span class="gnp-rel-name">${getName(r.id)}</span><span style="font-size:0.72rem;color:var(--muted);margin-left:auto;">${r.label}</span></div>`).join('')}</div>` : ''}
+    <button class="gnp-btn" onclick="selectEntity('${d.id}');switchView('browse')">View full record →</button>`;
+  panel.classList.add('visible');
+  highlightNode(d.id);
+}
+
+function highlightNode(id) {
+  nodeGroup.attr('fill-opacity', d => {
+    const rels = RELS[id]||[];
+    return d.id===id || rels.some(r=>r.id===d.id) ? 1 : 0.25;
+  }).attr('stroke-width', d=>d.id===id?3:1.5);
+  linkGroup.attr('stroke-opacity', d => {
+    const sid = typeof d.source==='object'?d.source.id:d.source;
+    const tid = typeof d.target==='object'?d.target.id:d.target;
+    return sid===id||tid===id ? 0.9 : 0.1;
+  }).attr('stroke-width', d => {
+    const sid = typeof d.source==='object'?d.source.id:d.source;
+    const tid = typeof d.target==='object'?d.target.id:d.target;
+    return sid===id||tid===id ? 2 : 0.8;
+  });
+}
+
+function focusNode(id) {
+  if (!graphInitialized) { initGraph(); setTimeout(()=>focusNode(id),600); return; }
+  const d = Object.values(ENTITIES).find(e=>e.id===id);
+  if (d) showNodePanel(d);
+}
+
+function resetGraph() {
+  if (!graphInitialized) return;
+  nodeGroup.attr('fill-opacity',0.9).attr('stroke-width',1.5);
+  linkGroup.attr('stroke-opacity',0.5).attr('stroke-width',0.8);
+  document.getElementById('graph-node-panel').classList.remove('visible');
+  d3.select('#graph-svg').transition().duration(500).call(
+    d3.zoom().transform, d3.zoomIdentity.translate(0,0).scale(1)
+  );
+}
+
+function focusParty() {
+  if (!graphInitialized) return;
+  nodeGroup.attr('fill-opacity', d=>d.type==='pc'?1:0.2);
+  linkGroup.attr('stroke-opacity', d=>{
+    const s=typeof d.source==='object'?d.source.type:null;
+    const t=typeof d.target==='object'?d.target.type:null;
+    return s==='pc'||t==='pc'?0.8:0.1;
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+async function init() {
+  const diag = msg => { setStatus(msg, 'loading'); };
+
+  try {
+    diag('Step 1: assign EMBEDDED_DATA');
+    DATA = EMBEDDED_DATA;
+
+    diag('Step 2: applyMode');
+    applyMode();
+
+    diag('Step 3: updateModeButtons');
+    updateModeButtons();
+
+    diag('Step 4: registerAll — sessions:' + DATA.sessions.length + ' party:' + DATA.party.length);
+    registerAll();
+    diag('Step 4 done — ENTITIES:' + Object.keys(ENTITIES).length);
+
+    diag('Step 5: renderSessionTimeline');
+    renderSessionTimeline();
+
+    diag('Step 6: renderSidebar');
+    renderSidebar();
+
+    setStatus('Embedded data loaded', 'ok');
+  } catch(startupErr) {
+    const msg = 'Startup failed: ' + startupErr.message;
+    console.error('[init] CRASH', startupErr);
+    try { setStatus(msg, 'error'); } catch(e2) {}
+    try { showError(msg + '\n\nStack: ' + startupErr.stack, 'init-startup'); } catch(e2) {}
+    return;
+  }
+
+  // Local file (works when files are on a mapped Drive or local server)
+  try {
+    diag('Checking local magers-campaign.json...');
+    const localRes = await fetch('magers-campaign.json');
+    if (localRes.ok) {
+      const json = await localRes.json();
+      diag('Local file found — ingesting');
+      ingestDriveData(json, '');
+      return;
+    }
+  } catch(e) {
+    diag('No local file — will try Drive');
+  }
+
+  // Drive via proxy
+  if (CONFIG.campaignFileId) {
+    setStatus('Loading from Drive...', 'loading');
+    try {
+      const url = CONFIG.proxyUrl + '?action=read&id=' + CONFIG.campaignFileId;
+      diag('Drive fetch: ' + url.slice(0, 80));
+      const res  = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Drive error');
+      const campaign = JSON.parse(json.raw);
+      ingestDriveData(campaign, CONFIG.campaignFileId);
+      // updateSyncBar is called inside ingestDriveData
+    } catch(e) {
+      setStatus('Drive load failed: ' + e.message, 'error');
+      try { showError('Drive load failed: ' + e.message, 'init-drive'); } catch(e2) {}
+    }
+  }
+}
+
+init();
+</script>
+</body>
+</html>

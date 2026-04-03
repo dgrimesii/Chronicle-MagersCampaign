@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicle — Delta Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* ── Arcane Night ── */
+  --ink:#f0e8d0; --ink-inv:#0f1020;
+  --parchment:#0f1020; --parchment-dark:#13152b; --parchment-mid:#1e2040; --card-bg:#181a35;
+  --amber:#d4af37; --amber-dim:#a88820; --amber-light:#f0d060;
+  --rust:#ff6b50; --teal:#4a9e7a; --green:#4adf9a; --purple:#c090ff;
+  --muted:#7d7a94; --muted-light:#4a4870;
+  --border:rgba(212,175,55,0.12); --border-strong:rgba(212,175,55,0.28);
+  --shadow:0 4px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.08);
+  --shadow-md:0 8px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.12);
+  /* Entity colours — brightened for dark bg */
+  --c-pc:#4adf9a; --c-npc:#ff8c55; --c-loc:#5ab0ff; --c-quest:#ffd040;
+  --c-item:#c090ff; --c-combat:#ff6060; --c-lore:#80ff80; --c-session:#9090c0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Crimson Pro',Georgia,serif;background:#0f1020;color:#f0e8d0;
+  background-image:radial-gradient(ellipse at 20% 20%,rgba(74,59,140,0.25) 0%,transparent 55%),
+    radial-gradient(ellipse at 80% 80%,rgba(30,20,80,0.4) 0%,transparent 55%);color:var(--ink);height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;height:64px;background:rgba(13,15,40,0.95);position:relative;z-index:100;}
+.logo{font-family:"Cinzel",serif;font-size:1.05rem;font-weight:600;letter-spacing:0.12em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.logo span{color:var(--amber);}
+.header-right{display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;overflow:hidden;min-width:0;}
+.nav-links{display:flex;gap:0.9rem;justify-content:center;align-items:center;flex-wrap:nowrap;padding:0 2rem;}
+.nav-link{cursor:pointer;font-family:'Cinzel',serif;font-size:0.63rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;padding-bottom:2px;border-bottom:1px solid transparent;transition:all 0.15s;white-space:nowrap;cursor:pointer;}
+.nav-link:hover{color:var(--ink);}
+.nav-link.active{color:var(--amber);border-bottom-color:var(--amber);}
+.session-label{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;color:var(--muted);display:flex;align-items:center;gap:8px;}
+.session-badge{background:var(--ink);color:var(--parchment);padding:3px 10px;border-radius:2px;font-size:0.6rem;}
+
+/* ── Three-pane shell ── */
+.shell{display:grid;grid-template-columns:240px 1fr 320px;flex:1;overflow:hidden;min-height:0;}
+
+/* ═══════════════════════════════
+   LEFT: Queue panel
+═══════════════════════════════ */
+.queue-panel{border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:#13152b;overflow:hidden;}
+.queue-header{padding:0.75rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;}
+.queue-title{font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.12em;font-weight:600;}
+.queue-progress{margin-top:5px;display:flex;align-items:center;gap:8px;}
+.progress-track{flex:1;height:4px;background:var(--parchment-dark);border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--teal);border-radius:2px;transition:width 0.4s;}
+.progress-text{font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:var(--muted-light);white-space:nowrap;}
+.queue-scroll{flex:1;overflow-y:auto;}
+
+/* Queue group headers */
+.queue-group{padding:0.35rem 1rem 0.2rem;background:var(--parchment-mid);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.18em;color:var(--muted-light);text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;}
+.queue-group-count{font-family:'JetBrains Mono',monospace;font-size:0.6rem;}
+
+/* Queue items */
+.queue-item{padding:0.5rem 1rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;display:flex;align-items:flex-start;gap:8px;position:relative;}
+.queue-item:hover{background:rgba(212,175,55,0.06);}
+.queue-item.active{background:rgba(212,175,55,0.13);border-right:2px solid var(--amber);}
+.queue-item.approved{opacity:0.5;}
+.queue-item.needs-recheck{background:rgba(186,117,23,0.05);}
+.qi-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.qi-status.pending{background:var(--amber);opacity:0.8;}
+.qi-status.approved{background:var(--teal);}
+.qi-status.rejected{background:var(--muted-light);}
+.qi-status.uncertain{background:var(--rust-light);}
+.qi-status.recheck{background:var(--amber-light);border:1.5px solid var(--amber);}
+.qi-status.cascade-new{background:var(--purple);animation:pulse-purple 1.5s infinite;}
+@keyframes pulse-purple{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.qi-body{flex:1;min-width:0;}
+.qi-type{font-family:'Cinzel',serif;font-size:0.56rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted-light);margin-bottom:1px;}
+.qi-title{font-size:0.88rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink);}
+.qi-flag{font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:var(--rust);position:absolute;top:6px;right:8px;}
+
+/* Combat round sub-items */
+.queue-item.round-item{padding-left:1.75rem;}
+.queue-item.round-item .qi-title{font-family:'JetBrains Mono',monospace;font-size:0.78rem;}
+.round-combat-header{padding:0.45rem 1rem;background:rgba(163,45,45,0.06);border-bottom:1px solid rgba(163,45,45,0.12);font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;color:var(--rust);display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.round-combat-name{flex:1;}
+.round-progress{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--muted-light);}
+
+/* ═══════════════════════════════
+   CENTRE: Review card
+═══════════════════════════════ */
+.review-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--parchment);}
+.review-scroll{flex:1;overflow-y:auto;padding:1.25rem 1.5rem;}
+
+/* Delta type banner */
+.delta-banner{display:flex;align-items:center;gap:10px;margin-bottom:1rem;}
+.delta-type-pill{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.12em;padding:4px 12px;border-radius:2px;text-transform:uppercase;}
+.pill-new{background:rgba(45,106,63,0.12);color:var(--green);border:1px solid rgba(45,106,63,0.3);}
+.pill-mod{background:rgba(212,175,55,0.12);color:var(--amber-dim);border:1px solid rgba(212,175,55,0.3);}
+.pill-ct{background:rgba(42,107,107,0.12);color:var(--teal);border:1px solid rgba(42,107,107,0.3);}
+.pill-unc{background:rgba(139,58,30,0.1);color:var(--rust);border:1px solid rgba(139,58,30,0.25);}
+.pill-round{background:rgba(163,45,45,0.08);color:#ff6060;border:1px solid rgba(163,45,45,0.25);}
+.pill-cascade{background:rgba(74,59,140,0.1);color:var(--purple);border:1px solid rgba(74,59,140,0.25);}
+.delta-array-tag{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted-light);background:var(--parchment-mid);border:1px solid var(--border);padding:2px 8px;border-radius:2px;}
+.delta-flag{color:var(--rust);font-family:'JetBrains Mono',monospace;font-size:0.75rem;}
+
+/* Natural language card */
+.nl-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1rem;box-shadow:var(--shadow);}
+.nl-card-title{font-family:'Cinzel',serif;font-size:1.1rem;font-weight:600;letter-spacing:0.06em;margin-bottom:0.6rem;}
+.nl-narrative{font-size:1.02rem;line-height:1.8;color:var(--ink);}
+.nl-narrative strong{font-weight:600;}
+.nl-narrative em{font-style:italic;color:var(--muted);}
+.nl-narrative .highlight{background:rgba(212,175,55,0.12);border-radius:2px;padding:0 3px;}
+.nl-narrative .uncertain{background:rgba(139,58,30,0.08);border-bottom:1.5px dashed var(--rust-light);padding:0 3px;cursor:help;}
+
+/* Field rows for structured display */
+.field-grid{display:flex;flex-direction:column;gap:0;margin-top:0.85rem;border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+.field-row{display:grid;grid-template-columns:130px 1fr;align-items:baseline;border-bottom:1px solid var(--border);font-size:0.95rem;}
+.field-row:last-child{border-bottom:none;}
+.field-row.changed{background:rgba(212,175,55,0.05);}
+.field-row.uncertain-row{background:rgba(139,58,30,0.04);}
+.field-label{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;padding:0.55rem 0.85rem;background:var(--parchment-mid);align-self:stretch;display:flex;align-items:center;border-right:1px solid var(--border);}
+.field-val{padding:0.55rem 0.85rem;color:var(--ink);line-height:1.5;}
+.field-val .was{color:var(--muted);text-decoration:line-through;margin-right:8px;font-size:0.88rem;}
+.field-val .now{color:var(--teal);}
+.field-unc{color:var(--rust);font-style:italic;}
+.field-flag{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--rust);margin-left:6px;}
+
+/* Combat round display */
+.round-header-block{display:flex;align-items:center;gap:12px;margin-bottom:0.85rem;}
+.round-number-badge{font-family:'Cinzel',serif;font-size:1.2rem;font-weight:600;letter-spacing:0.06em;color:var(--ink);}
+.round-session-chip{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted-light);background:var(--parchment-mid);border:1px solid var(--border);padding:2px 8px;border-radius:2px;}
+.round-combat-chip{font-size:0.75rem;color:var(--muted);font-style:italic;}
+.slot-display{display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:3px;overflow:hidden;margin-bottom:0.85rem;}
+.slot-line{display:grid;grid-template-columns:28px 70px 1fr auto;align-items:center;gap:8px;padding:0.5rem 0.85rem;border-bottom:1px solid var(--border);font-size:0.95rem;}
+.slot-line:last-child{border-bottom:none;}
+.slot-line.odd{background:rgba(212,175,55,0.04);}
+.slot-line.uncertain-slot{background:rgba(139,58,30,0.04);}
+.slot-line.enemy-line{background:rgba(216,90,48,0.04);border-top:1px solid rgba(216,90,48,0.15);}
+.slot-num{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted-light);text-align:center;}
+.slot-actor{font-family:'Cinzel',serif;font-size:0.78rem;font-weight:600;color:var(--ink);}
+.slot-actor.enemy{color:var(--rust);}
+.slot-action{color:var(--ink);line-height:1.4;}
+.slot-action .note{display:block;font-size:0.78rem;color:var(--muted);font-style:italic;}
+.slot-result-chip{font-family:'JetBrains Mono',monospace;font-size:0.65rem;padding:2px 7px;border-radius:2px;white-space:nowrap;}
+.res-hit{background:rgba(29,158,117,0.1);color:#0F6E56;}
+.res-miss{background:rgba(163,45,45,0.07);color:#791F1F;}
+.res-crit{background:rgba(186,117,23,0.12);color:#633806;}
+.res-death{background:rgba(90,90,80,0.1);color:#444441;}
+.res-save{background:rgba(55,138,221,0.1);color:#185FA5;}
+.res-unc{background:rgba(139,58,30,0.08);color:var(--rust);border:1px dashed rgba(139,58,30,0.3);}
+.res-neutral{background:var(--parchment-mid);color:var(--muted);}
+
+/* Source evidence */
+.source-block{border-left:2px solid var(--border-strong);padding:0.6rem 0.85rem;margin:0.85rem 0;background:rgba(19,21,43,0.4);}
+.source-label{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;}
+.source-quote{font-size:0.88rem;color:var(--muted);font-style:italic;line-height:1.5;}
+.source-ref{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted-light);margin-top:3px;}
+
+/* Raw JSON toggle */
+.raw-toggle{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;color:var(--muted);cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:6px;border:none;background:none;}
+.raw-toggle:hover{color:var(--amber-dim);}
+.raw-block{display:none;background:#f0e8d0;border-radius:3px;padding:0.85rem;font-family:'JetBrains Mono',monospace;font-size:0.7rem;line-height:1.75;color:#c8bfae;overflow-x:auto;white-space:pre;max-height:200px;overflow-y:auto;margin-top:6px;}
+.raw-block.open{display:block;}
+
+/* Approval toolbar at bottom of centre */
+.approval-toolbar{flex-shrink:0;border-top:1px solid var(--border-strong);padding:0.85rem 1.5rem;background:var(--card-bg);display:flex;align-items:center;gap:8px;}
+.round-nav{display:flex;align-items:center;gap:6px;margin-right:auto;}
+.round-nav-btn{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.08em;padding:5px 12px;border-radius:3px;border:1px solid var(--border-strong);background:none;cursor:pointer;color:var(--muted);transition:all 0.15s;}
+.round-nav-btn:hover:not(:disabled){background:var(--parchment-dark);}
+.round-nav-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.round-counter{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--muted);padding:0 4px;}
+.btn{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;padding:7px 16px;border-radius:3px;cursor:pointer;transition:all 0.15s;border:1px solid transparent;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+.btn-approve{background:var(--teal);color:white;border-color:var(--teal);}
+.btn-approve:hover{background:#205555;}
+.btn-reject{border-color:var(--border-strong);color:var(--muted);background:none;}
+.btn-reject:hover{background:var(--parchment-dark);}
+.btn-uncertain{border-color:rgba(139,58,30,0.3);color:var(--rust);background:rgba(139,58,30,0.05);}
+.btn-uncertain:hover{background:rgba(139,58,30,0.1);}
+.status-chip{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.1em;padding:4px 10px;border-radius:2px;text-transform:uppercase;}
+.chip-approved{background:rgba(42,107,107,0.1);color:var(--teal);border:1px solid rgba(42,107,107,0.25);}
+.chip-rejected{background:rgba(212,175,55,0.006);color:var(--muted);border:1px solid var(--border-strong);}
+
+/* ═══════════════════════════════
+   RIGHT: AI assistant panel
+═══════════════════════════════ */
+.assistant-panel{border-left:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--card-bg);overflow:hidden;}
+.assistant-header{padding:0.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.assistant-title{font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.1em;font-weight:600;}
+.assistant-mode-chips{display:flex;gap:4px;margin-left:auto;}
+.mode-chip{font-family:'Cinzel',serif;font-size:0.56rem;letter-spacing:0.1em;padding:3px 8px;border-radius:2px;border:1px solid var(--border-strong);cursor:pointer;color:var(--muted);background:none;transition:all 0.12s;}
+.mode-chip.active{background:var(--ink);color:var(--parchment);border-color:var(--ink);}
+.assistant-scroll{flex:1;overflow-y:auto;padding:1rem;}
+.assistant-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted-light);gap:6px;text-align:center;padding:2rem;}
+.assistant-empty-title{font-family:'Cinzel',serif;font-size:0.82rem;letter-spacing:0.08em;}
+.assistant-empty-hint{font-size:0.82rem;font-style:italic;line-height:1.5;}
+
+/* Correction thread messages */
+.msg{margin-bottom:0.85rem;}
+.msg-meta{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;color:var(--muted-light);text-transform:uppercase;margin-bottom:3px;display:flex;align-items:center;gap:8px;}
+.msg-bubble{padding:0.7rem 0.85rem;border-radius:3px;font-size:0.92rem;line-height:1.6;}
+.msg-user .msg-bubble{background:var(--parchment-mid);border:1px solid var(--border);}
+.msg-ai .msg-bubble{background:rgba(42,107,107,0.06);border:1px solid rgba(42,107,107,0.2);}
+.msg-system .msg-bubble{background:rgba(74,59,140,0.06);border:1px solid rgba(74,59,140,0.2);}
+.msg-system .msg-meta{color:var(--purple);}
+
+/* Cascade notice */
+.cascade-notice{background:rgba(74,59,140,0.06);border:1px solid rgba(74,59,140,0.2);border-radius:3px;padding:0.75rem 0.85rem;margin:0.6rem 0;}
+.cascade-title{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--purple);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.cascade-item{display:flex;align-items:flex-start;gap:8px;font-size:0.88rem;padding:4px 0;border-bottom:1px solid rgba(74,59,140,0.1);}
+.cascade-item:last-child{border-bottom:none;}
+.cascade-dot{width:7px;height:7px;border-radius:50%;background:var(--purple);flex-shrink:0;margin-top:5px;}
+
+/* Global correction scope */
+.global-scope{background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:3px;padding:0.75rem 0.85rem;margin:0.6rem 0;}
+.global-scope-title{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--amber-dim);text-transform:uppercase;margin-bottom:6px;}
+.global-match{display:flex;align-items:center;gap:8px;font-size:0.85rem;padding:3px 0;}
+.global-match-check{width:14px;height:14px;border-radius:2px;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+.global-match-check.checked{background:var(--amber);border-color:var(--amber);}
+
+/* Modified data preview */
+.diff-preview{margin:0.6rem 0;}
+.diff-preview-title{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.diff-line{display:flex;align-items:baseline;gap:8px;font-size:0.88rem;padding:3px 0;border-bottom:1px solid var(--border);}
+.diff-line:last-child{border-bottom:none;}
+.diff-key{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted);min-width:90px;}
+.diff-old{color:var(--muted);text-decoration:line-through;font-size:0.85rem;}
+.diff-new{color:var(--teal);font-weight:500;}
+.diff-apply-bar{display:flex;gap:6px;margin-top:0.6rem;}
+
+/* Correction input */
+.correction-input-area{flex-shrink:0;border-top:1px solid var(--border);padding:0.75rem 1rem;display:flex;flex-direction:column;gap:6px;}
+.correction-scope-row{display:flex;gap:6px;align-items:center;}
+.scope-label{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;}
+.scope-btn{font-family:'Cinzel',serif;font-size:0.56rem;letter-spacing:0.08em;padding:3px 8px;border-radius:2px;border:1px solid var(--border-strong);background:none;cursor:pointer;color:var(--muted);transition:all 0.12s;}
+.scope-btn.active{background:var(--ink);color:var(--parchment);border-color:var(--ink);}
+.correction-textarea{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.95rem;resize:none;min-height:68px;outline:none;background:var(--parchment);color:var(--ink);transition:border-color 0.15s;line-height:1.55;}
+.correction-textarea:focus{border-color:var(--amber);background:var(--card-bg);}
+.correction-send-row{display:flex;justify-content:space-between;align-items:center;}
+.correction-hint{font-size:0.78rem;color:var(--muted-light);font-style:italic;}
+.btn-send{font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.1em;padding:7px 16px;border-radius:3px;background:var(--amber);color:white;border:1px solid var(--amber-dim);cursor:pointer;transition:all 0.15s;}
+.btn-send:hover{background:var(--amber-dim);}
+.btn-send:disabled{opacity:0.4;cursor:not-allowed;}
+.thinking-dot{display:inline-block;animation:bounce 0.6s infinite alternate;}
+@keyframes bounce{from{transform:translateY(0);}to{transform:translateY(-3px);}}
+
+/* Publish bar */
+.publish-bar{flex-shrink:0;border-top:1px solid var(--border-strong);padding:0.65rem 1.25rem;background:var(--parchment-mid);display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.publish-stats{display:flex;gap:1.25rem;}
+.pub-stat{font-family:'JetBrains Mono',monospace;font-size:0.7rem;display:flex;align-items:center;gap:5px;}
+.pub-dot{width:7px;height:7px;border-radius:50%;}
+.btn-publish{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;padding:7px 18px;border-radius:3px;background:var(--teal);color:white;border:1px solid var(--teal);cursor:pointer;transition:all 0.15s;}
+.btn-publish:hover{background:#205555;}
+.btn-publish:disabled{opacity:0.4;cursor:not-allowed;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Chron<span>i</span>cle</div>
+  <nav class="nav-links">
+    <span class="nav-link" onclick="window.location='intake.html'">Session Intake</span>
+    <span class="nav-link" onclick="window.location='glossary.html'">OCR Glossary</span>
+    <span class="nav-link active" onclick="window.location='delta-review.html'">Delta Review</span>
+    <span class="nav-link" onclick="window.location='integrity.html'">Integrity</span>
+    <span class="nav-link" onclick="window.location='log-viewer.html'">Campaign Log</span>
+    <span class="nav-link" onclick="window.location='log-editor.html'">Log Editor</span>
+    <span class="nav-link" onclick="window.location='versions.html'">Versions</span>
+  </nav>
+  <div class="header-right">
+    <div class="session-label">
+    <span class="session-badge">Session 006</span>
+    The Goblin Ambush Continues
+  </div>
+  </div>
+</header>
+
+<div class="shell">
+
+<!-- ═══════════ LEFT QUEUE ═══════════ -->
+<div class="queue-panel">
+  <div class="queue-header">
+    <div class="queue-title">Review Queue</div>
+    <div class="queue-progress">
+      <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <div class="progress-text" id="progress-text">0 / 0</div>
+    </div>
+  </div>
+  <div class="queue-scroll" id="queue-scroll"></div>
+</div>
+
+<!-- ═══════════ CENTRE REVIEW ═══════════ -->
+<div class="review-panel">
+  <div class="review-scroll" id="review-scroll">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;gap:8px;padding:3rem;">
+      <div style="font-family:'Cinzel',serif;font-size:1rem;letter-spacing:0.08em;">Select an item from the queue</div>
+      <div style="font-size:0.92rem;font-style:italic;">Review each delta in natural language.<br>Use the correction box on the right to flag issues.</div>
+    </div>
+  </div>
+  <div class="approval-toolbar" id="approval-toolbar" style="display:none;">
+    <div class="round-nav" id="round-nav" style="display:none;">
+      <button class="round-nav-btn" id="prev-round" onclick="navigateRound(-1)" disabled>← Prev round</button>
+      <span class="round-counter" id="round-counter"></span>
+      <button class="round-nav-btn" id="next-round" onclick="navigateRound(1)">Next round →</button>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;" id="action-buttons">
+      <button class="btn btn-reject" id="btn-reject" onclick="setItemStatus('rejected')">Reject</button>
+      <button class="btn btn-uncertain" id="btn-flag" onclick="setItemStatus('uncertain')">Flag [?]</button>
+      <button class="btn btn-approve" id="btn-approve" onclick="setItemStatus('approved')">Approve ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ RIGHT ASSISTANT ═══════════ -->
+<div class="assistant-panel">
+  <div class="assistant-header">
+    <div class="assistant-title">AI Corrections</div>
+    <div class="assistant-mode-chips">
+      <button class="mode-chip active" id="chip-item" onclick="setScope('item',this)">This item</button>
+      <button class="mode-chip" id="chip-global" onclick="setScope('global',this)">All items</button>
+    </div>
+  </div>
+  <div class="assistant-scroll" id="assistant-scroll">
+    <div class="assistant-empty" id="assistant-empty">
+      <div class="assistant-title">Correction assistant</div>
+      <div class="assistant-empty-hint">Select an item from the queue, then type a correction note below. The AI will propose a modified version for your approval.</div>
+    </div>
+  </div>
+  <div class="correction-input-area">
+    <div class="correction-scope-row">
+      <span class="scope-label">Scope:</span>
+      <button class="scope-btn active" id="scope-item" onclick="setScope('item',this)">This item only</button>
+      <button class="scope-btn" id="scope-global" onclick="setScope('global',this)">All pending items</button>
+    </div>
+    <textarea class="correction-textarea" id="correction-input" placeholder="Type a correction… e.g. &quot;Att's action in Round 10 was Shillelagh, not Challenge&quot; or &quot;The combat took place at the Old Bridge&quot;" rows="3"></textarea>
+    <div class="correction-send-row">
+      <span class="correction-hint" id="correction-hint">Enter to send · Shift+Enter for newline</span>
+      <button class="btn-send" id="send-btn" onclick="sendCorrection()">Send correction</button>
+    </div>
+  </div>
+  <!-- Publish bar at very bottom -->
+  <div class="publish-bar">
+    <div class="publish-stats">
+      <div class="pub-stat"><div class="pub-dot" style="background:var(--teal)"></div><span id="pub-approved">0 approved</span></div>
+      <div class="pub-stat"><div class="pub-dot" style="background:var(--amber)"></div><span id="pub-pending">0 pending</span></div>
+      <div class="pub-stat"><div class="pub-dot" style="background:var(--rust)"></div><span id="pub-flagged">0 flagged</span></div>
+    </div>
+    <button class="btn-publish" id="publish-btn" onclick="publish()" disabled>Publish approved →</button>
+  </div>
+</div>
+
+</div><!-- end shell -->
+
+<script src="../shared/config.js"></script>
+<script src="../shared/chronicle-ai.js"></script>
+<script>
+// ── Drive integration ─────────────────────────────────────────────────────────
+// All requests use GET to avoid CORS preflight. Write data is JSON-encoded
+// in the URL 'payload' parameter. The proxy returns { ok, raw } for reads
+// and { ok, ... } for mutations.
+
+const DRIVE_PROXY    = window.CHRONICLE_CONFIG.proxyUrl;
+const CAMPAIGN_FILE  = window.CHRONICLE_CONFIG.campaignFileId;
+
+async function driveGet(params) {
+  var url = DRIVE_PROXY + '?';
+  var parts = [];
+  Object.keys(params).forEach(function(k) {
+    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+  });
+  url += parts.join('&');
+  const res  = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Drive error');
+  return data;
+}
+
+// Read campaign JSON — returns the parsed campaign object
+async function fetchCampaignFromDrive() {
+  const data = await driveGet({ action: 'read', id: CAMPAIGN_FILE });
+  // Proxy returns { ok: true, raw: "<json string>" }
+  return JSON.parse(data.raw);
+}
+
+// Write uses POST with Content-Type: text/plain to avoid CORS preflight.
+// text/plain is a CORS "simple" type — no OPTIONS request is sent.
+async function writeCampaignToDrive(campaignObj) {
+  const body = JSON.stringify({ action: 'write', fileId: CAMPAIGN_FILE, data: campaignObj });
+  const res  = await fetch(DRIVE_PROXY, {
+    method:  'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body:    body,
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Drive write error');
+  return data;
+}
+
+
+// Create a backup copy
+async function backupCampaignOnDrive(label) {
+  return driveGet({
+    action: 'backup',
+    id:     CAMPAIGN_FILE,
+    label:  label || '',
+  });
+}
+
+// List existing backups
+async function listDriveBackups() {
+  return driveGet({ action: 'listBackups', id: CAMPAIGN_FILE });
+}
+
+// Compatibility shim — routes write to POST, everything else to GET
+async function driveRequest(action, extra) {
+  if (action === 'write') {
+    const data = (extra || {}).data;
+    if (!data) throw new Error('driveRequest write: data required');
+    return writeCampaignToDrive(data);
+  }
+  var params = Object.assign({ action: action, id: CAMPAIGN_FILE }, extra || {});
+  return driveGet(params);
+}
+
+
+// ══════════════════════════════════════════════════════
+// PARTY LOOKUP
+// ══════════════════════════════════════════════════════
+const PARTY = {
+  pc_001:{name:'Zragar',nick:'Gold'},  pc_002:{name:'Malachite',nick:'Mal'},
+  pc_003:{name:'Ashton',nick:'Ash'},   pc_004:{name:'Asphodel',nick:'Del'},
+  pc_005:{name:'Derwin',nick:'Goli'},  pc_006:{name:'Atticus',nick:'Att'},
+};
+const nick = id => PARTY[id]?.nick || id;
+
+// ══════════════════════════════════════════════════════
+// DELTA QUEUE — Session 006
+// Each item has:
+//   id, type (NEW/MOD/CT/UNC), array, status
+//   combatId (if round), roundNumber (if round)
+//   nlRender() → HTML string (natural language)
+//   rawData → for JSON toggle
+//   sourceQuote, sourceRef
+//   flags → [{text, roundAffected}]
+// ══════════════════════════════════════════════════════
+let items = [
+
+  // ── Session log ──────────────────────────────────────
+  { id:'d_sess', type:'NEW', array:'session_logs', group:'Session', status:'pending', flags:[],
+    title:'Session 006 log entry',
+    sourceQuote:'Notes describe rounds 10–14 of the goblin ambush on the road west.',
+    sourceRef:'Narrative notes + combat log pages 1–2',
+    rawData:{ session_id:'session_006', title:'The Goblin Ambush Continues', summary:'Rounds 10–14 of the goblin ambush. Party stabilised downed members under fire and repelled the attack.', session_date:'2026-03-24' },
+    nlRender() { return `
+      <div class="nl-narrative">
+        This entry records <strong>Session 006 — "The Goblin Ambush Continues"</strong>, played on <strong>24 March 2026</strong>.
+      </div>
+      <div class="field-grid" style="margin-top:0.85rem;">
+        <div class="field-row"><div class="field-label">Title</div><div class="field-val">The Goblin Ambush Continues</div></div>
+        <div class="field-row"><div class="field-label">Summary</div><div class="field-val">Rounds 10–14 of the goblin ambush on the road west. Party stabilised downed members under fire and ultimately repelled the attack.</div></div>
+        <div class="field-row"><div class="field-label">Vibe</div><div class="field-val"><em>Desperate; ragged; smell of blood and road dust.</em></div></div>
+        <div class="field-row"><div class="field-label">Key moments</div><div class="field-val">Ash near-death across Rds 10–13 · Att goes down Rd 14 · Gold lands killing blow Rd 14</div></div>
+        <div class="field-row"><div class="field-label">Date</div><div class="field-val">2026-03-24</div></div>
+      </div>`; }
+  },
+
+  // ── Combat encounter header (cbt_005) ────────────────
+  { id:'d_cbt_header', type:'MOD', array:'combat_encounters', group:'Combat: Goblin Ambush', status:'pending', flags:[],
+    title:'Update cbt_005 — Goblin Ambush metadata',
+    sourceQuote:'Combat ends Rd 14. All goblins routed.',
+    sourceRef:'Narrative notes, end of session',
+    rawData:{ id:'cbt_005', outcome:'victory', final_round:14, sessions_spanning:['session_005','session_006'] },
+    nlRender() { return `
+      <div class="nl-narrative">
+        The <strong>Goblin Ambush</strong> (<em>cbt_005</em>) is now complete. The outcome is updated to <strong class="highlight">Victory</strong>. The encounter spanned two sessions: <strong>Session 005</strong> (Rounds 1–9) and <strong>Session 006</strong> (Rounds 10–14), ending on <strong>Round 14</strong>.
+      </div>
+      <div class="field-grid" style="margin-top:0.85rem;">
+        <div class="field-row changed"><div class="field-label">Outcome</div><div class="field-val"><span class="was">paused</span> → <span class="now">victory</span></div></div>
+        <div class="field-row changed"><div class="field-label">Final round</div><div class="field-val"><span class="was">3</span> → <span class="now">14</span></div></div>
+        <div class="field-row"><div class="field-label">Sessions</div><div class="field-val">session_005, session_006</div></div>
+      </div>`; }
+  },
+
+  // ── Rounds 10–14 ─────────────────────────────────────
+  ...[
+    { n:10, sid:'session_006', status:'pending',
+      slots:[
+        {s:1,a:'pc_001',act:'Move + Firebolt',res:'hit',val:'9'},
+        {s:2,a:'pc_006',act:'Shillelagh [?]',res:'miss',uncertain:true,flagText:'OCR read "shallge" — best guess Shillelagh (druid cantrip)'},
+        {s:3,a:'pc_004',act:'Death save',res:'death',notes:'Success (1st)'},
+        {s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',notes:'Critical hit'},
+        {s:5,a:'pc_002',act:'Attack',res:'miss',notes:'Nat 20 notation unclear — may be target AC 21'},
+        {s:6,a:'pc_005',act:'Death save',res:'death',notes:'Failure'},
+      ],
+      enemy:[{desc:'Hit Gold and Ash'}]},
+    { n:11, sid:'session_006', status:'pending',
+      slots:[
+        {s:1,a:'pc_001',act:'Firebolt',res:'hit',val:'9'},
+        {s:2,a:'pc_006',act:'Sacred Weapon',res:'miss'},
+        {s:3,a:'pc_004',act:'Death save',res:'death',notes:'Success (2nd)'},
+        {s:4,a:'pc_003',act:'Eldritch Blast',res:'hit',val:'7'},
+        {s:5,a:'pc_002',act:'Surrender [?]',res:'hit',notes:'2 goblins dead — "Surround" or "Surrender" unclear',uncertain:true,flagText:'OCR ambiguous — context suggests "Surround" (tactical manoeuvre)'},
+        {s:6,a:'pc_005',act:'Death save',res:'death',notes:'Success'},
+      ],
+      enemy:[{desc:'Hit Gold (1HP left)'}]},
+    { n:12, sid:'session_006', status:'pending',
+      slots:[
+        {s:1,a:'pc_001',act:'Breath Weapon',res:'hit',val:'6'},
+        {s:2,a:'pc_006',act:'Acid Splash',res:'hit'},
+        {s:3,a:'pc_004',act:'Stable',res:'neutral'},
+        {s:4,a:'pc_003',act:'Chill Touch',res:'miss'},
+        {s:5,a:'pc_002',act:'Attack',res:'hit',notes:'Enemy dead'},
+        {s:6,a:'pc_005',act:'Stable',res:'neutral'},
+      ],
+      enemy:[{desc:'Hit Att and Ash'}]},
+    { n:13, sid:'session_006', status:'pending',
+      slots:[
+        {s:1,a:'pc_001',act:'Sacred Flame',res:'miss'},
+        {s:2,a:'pc_006',act:'Acid Splash (2 targets) [?]',res:'hit',uncertain:true,flagText:'Notes read "Acid (2 deck)" — interpreted as Acid Splash targeting 2 creatures'},
+        {s:3,a:'pc_004',act:'Stable',res:'neutral'},
+        {s:4,a:'pc_003',act:'Death save',res:'death',notes:'Failure (3rd — still alive per Rd 14)'},
+        {s:5,a:'pc_002',act:'Attack',res:'hit',notes:'Enemy dead'},
+        {s:6,a:'pc_005',act:'Stable',res:'neutral'},
+      ],
+      enemy:[{desc:'Hit Mal twice'}]},
+    { n:14, sid:'session_006', status:'pending',
+      slots:[
+        {s:1,a:'pc_001',act:'True Strike (Scimitar)',res:'hit',val:'1',notes:'Killing blow — combat ends'},
+        {s:2,a:'pc_006',act:'Acid Splash',res:'hit',val:'1',notes:'Att downed (0HP)'},
+        {s:3,a:'pc_004',act:'Stable',res:'neutral'},
+        {s:4,a:'pc_003',act:'Death save',res:'death',notes:'Success — back to 1HP'},
+        {s:5,a:'pc_002',act:'Healed',res:'neutral',val:'7'},
+        {s:6,a:'pc_005',act:'Stable',res:'neutral'},
+      ],
+      enemy:[]},
+  ].map(r => ({
+    id: `d_rnd_${r.n}`,
+    type: 'NEW',
+    array: 'combat_encounters',
+    group: 'Combat: Goblin Ambush',
+    combatId: 'cbt_005',
+    combatName: 'Goblin Ambush',
+    roundNumber: r.n,
+    status: 'pending',
+    flags: r.slots.filter(s=>s.uncertain).map(s=>({text:s.flagText,slot:s.s})),
+    title: `Round ${r.n}`,
+    isRound: true,
+    roundData: r,
+    sourceRef: `Handwritten combat log, Rd ${r.n}`,
+    rawData: { round_number:r.n, session_id:r.sid, initiative_slots: r.slots.map(s=>({slot:s.s,actor_id:s.a,action:s.act,result:s.res,value:s.val||null,notes:s.notes||null})), enemy_actions:r.enemy },
+    nlRender() { return renderRoundNL(this.roundData); }
+  })),
+
+  // ── Character moment ─────────────────────────────────
+  { id:'d_moment', type:'NEW', array:'character_moments', group:'Other', status:'pending', flags:[],
+    title:'Character moment — Ash: Death saves under fire',
+    sourceQuote:'Ash made 4 death saves across 5 rounds while still attacking from 0HP.',
+    sourceRef:'Combat log Rds 10–14',
+    rawData:{ character_ids:['pc_003'], type:'clutch_save', description:'Ashton made four Death saving throws over five rounds while continuing to land hits from the ground.', parent_event_id:'cbt_005' },
+    nlRender() { return `
+      <div class="nl-narrative">
+        A <strong>Clutch Save</strong> moment is recorded for <strong>Ash (Ashton)</strong>.<br><br>
+        Ashton made <strong>four Death saving throws</strong> across five rounds (Rds 10–14), landing an Eldritch Blast critical in Round 10 while at 0HP, before going fully unconscious in Round 13.
+        This is linked to the <em>Goblin Ambush (cbt_005)</em>.
+      </div>`; }
+  },
+
+  // ── NPC ──────────────────────────────────────────────
+  { id:'d_npc', type:'NEW', array:'npc_directory', group:'Other', status:'pending', flags:[],
+    title:'New NPC — Goblin Warband (Road West)',
+    sourceQuote:'Goblins responsible for the ambush on the road west. Several killed Rds 12–14.',
+    sourceRef:'Narrative notes + combat log',
+    rawData:{ id:'npc_014', name:'Goblin Warband (Road West)', disposition:'hostile', notes:'Attacked the caravan escort on the road west.' },
+    nlRender() { return `
+      <div class="nl-narrative">
+        A new group NPC is created: <strong>Goblin Warband (Road West)</strong>, disposition <strong class="highlight">Hostile</strong>.<br><br>
+        This warband ambushed the caravan escort on the road west of the Quarry. Several were killed during Rounds 12–14 of the ambush. No identified leader. Suspected connection to the goblin sightings that prompted the escort contract.
+      </div>
+      <div class="field-grid" style="margin-top:0.85rem;">
+        <div class="field-row"><div class="field-label">ID</div><div class="field-val" style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;">npc_014</div></div>
+        <div class="field-row"><div class="field-label">Name</div><div class="field-val">Goblin Warband (Road West)</div></div>
+        <div class="field-row"><div class="field-label">Disposition</div><div class="field-val" style="color:var(--rust);">Hostile</div></div>
+        <div class="field-row"><div class="field-label">Connected to</div><div class="field-val">qst_003 — Escort to Lake Town</div></div>
+      </div>`; }
+  },
+
+  // ── Quest update ─────────────────────────────────────
+  { id:'d_quest', type:'MOD', array:'quest_ledger', group:'Other', status:'pending', flags:[],
+    title:'qst_003 — Escort progress update',
+    sourceQuote:'Caravan survived the extended goblin ambush. Party held the line.',
+    sourceRef:'Narrative notes',
+    rawData:{ id:'qst_003', _mod:'progress_log append', new_entry:{ session_id:'session_006', entry:'Caravan defended through Rds 10–14 of goblin ambush. No civilian casualties. Road clear.' }},
+    nlRender() { return `
+      <div class="nl-narrative">
+        The quest <strong>"Escort to Lake Town"</strong> (qst_003) gets a progress log entry for Session 006.
+      </div>
+      <div class="field-grid" style="margin-top:0.85rem;">
+        <div class="field-row"><div class="field-label">Quest</div><div class="field-val">qst_003 — Escort to Lake Town</div></div>
+        <div class="field-row"><div class="field-label">Status</div><div class="field-val">Still <strong>active</strong> — destination not yet reached</div></div>
+        <div class="field-row changed"><div class="field-label">New log entry</div><div class="field-val">Caravan defended through Rounds 10–14 of goblin ambush on the road west. No civilian casualties noted. Road now clear.</div></div>
+      </div>`; }
+  },
+];
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let selectedId = null;
+let correctionScope = 'item'; // 'item' | 'global'
+let correctionThread = {}; // itemId → [{role, content, cascades, diffs}]
+let cascadeItems = []; // items added mid-review via corrections
+
+// ── Round navigation state ──
+function getRoundsForCombat(combatId) {
+  return items.filter(i=>i.combatId===combatId&&i.isRound);
+}
+function getCurrentRoundIndex() {
+  const sel = getItem(selectedId);
+  if (!sel?.isRound) return -1;
+  const rounds = getRoundsForCombat(sel.combatId);
+  return rounds.findIndex(r=>r.id===selectedId);
+}
+
+function getItem(id) { return [...items,...cascadeItems].find(i=>i.id===id); }
+
+// ══════════════════════════════════════════════════════
+// ROUND NATURAL LANGUAGE RENDERER
+// ══════════════════════════════════════════════════════
+function resultChip(res, uncertain) {
+  if (uncertain) return `<span class="slot-result-chip res-unc">[?]</span>`;
+  const map = {hit:'res-hit',miss:'res-miss',crit:'res-crit',death:'res-death',save:'res-save',neutral:'res-neutral','enemy-save':'res-save'};
+  const label = {hit:'hit',miss:'miss',crit:'crit',death:'death sv',save:'save',neutral:'—','enemy-save':'save'};
+  const cls = map[res] || 'res-neutral';
+  const txt = label[res] || res || '';
+  return txt ? `<span class="slot-result-chip ${cls}">${txt}</span>` : '';
+}
+
+function renderRoundNL(r) {
+  const slotRows = r.slots.map((s,i) => {
+    const isUncertain = !!s.uncertain;
+    return `<div class="slot-line${i%2===0?' odd':''}${isUncertain?' uncertain-slot':''}">
+      <div class="slot-num">${s.s}</div>
+      <div class="slot-actor">${nick(s.a)}</div>
+      <div class="slot-action">
+        ${isUncertain ? `<span class="uncertain" title="${s.flagText||''}">${s.act}</span>` : s.act}
+        ${s.val ? `<strong style="color:var(--amber-dim);margin-left:6px;">${s.val}</strong>` : ''}
+        ${s.notes ? `<span class="note">${s.notes}</span>` : ''}
+      </div>
+      ${resultChip(s.res, isUncertain)}
+    </div>`;
+  }).join('');
+  const enemyRows = r.enemy.map(e => `
+    <div class="slot-line enemy-line">
+      <div class="slot-num">—</div>
+      <div class="slot-actor enemy">Enemy</div>
+      <div class="slot-action">${e.desc}${e.impact?`<span class="note">${e.impact}</span>`:''}</div>
+      <div></div>
+    </div>`).join('');
+  return `
+    <div class="round-header-block">
+      <div class="round-number-badge">Round ${r.n}</div>
+      <span class="round-session-chip">${r.sid}</span>
+      <span class="round-combat-chip">Goblin Ambush · cbt_005</span>
+    </div>
+    <div class="slot-display">${slotRows}${enemyRows}</div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// QUEUE RENDERING
+// ══════════════════════════════════════════════════════
+function renderQueue() {
+  const all = [...items,...cascadeItems];
+  const scroll = document.getElementById('queue-scroll');
+
+  // Group by group label
+  const groups = {};
+  all.forEach(item => {
+    const g = item.group || 'Other';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(item);
+  });
+
+  let html = '';
+  Object.entries(groups).forEach(([group, groupItems]) => {
+    // For combat groups, show combat header + round sub-items
+    const isCombatGroup = group.startsWith('Combat:');
+    const approvedCount = groupItems.filter(i=>i.status==='approved').length;
+
+    if (isCombatGroup) {
+      const rounds = groupItems.filter(i=>i.isRound);
+      const nonRounds = groupItems.filter(i=>!i.isRound);
+      const roundDone = rounds.filter(i=>i.status==='approved').length;
+
+      nonRounds.forEach(item => {
+        html += queueItemHTML(item);
+      });
+
+      if (rounds.length) {
+        html += `<div class="round-combat-header" onclick="toggleCombatRounds('${group.replace(/[^a-z0-9]/gi,'_')}')">
+          <span class="round-combat-name">Rounds (${rounds[0].combatName})</span>
+          <span class="round-progress">${roundDone}/${rounds.length} confirmed</span>
+        </div>`;
+        html += `<div id="rounds_${group.replace(/[^a-z0-9]/gi,'_')}">`;
+        rounds.forEach(item => { html += queueItemHTML(item, true); });
+        html += `</div>`;
+      }
+    } else {
+      html += `<div class="queue-group">${group}<span class="queue-group-count">${approvedCount}/${groupItems.length}</span></div>`;
+      groupItems.forEach(item => { html += queueItemHTML(item); });
+    }
+  });
+
+  scroll.innerHTML = html;
+  updateProgress();
+}
+
+function queueItemHTML(item, isRound=false) {
+  const isActive = selectedId === item.id;
+  const statusClass = item.status;
+  const flagged = item.flags?.length > 0;
+  const typeLabel = item.isRound ? `Rd ${item.roundNumber}` : item.type;
+  const extraClass = item.isCascade ? ' cascade-new' : item.status === 'uncertain' ? ' uncertain' : '';
+  const dotClass = item.isCascade ? 'cascade-new' : item.status;
+
+  return `<div class="queue-item${isRound?' round-item':''} ${statusClass}${isActive?' active':''}${item.needsRecheck?' needs-recheck':''}" onclick="selectItem('${item.id}')">
+    <div class="qi-status ${dotClass}"></div>
+    <div class="qi-body">
+      <div class="qi-type">${typeLabel} · ${item.array}</div>
+      <div class="qi-title">${item.title}</div>
+    </div>
+    ${flagged ? `<span class="qi-flag">[?]</span>` : ''}
+  </div>`;
+}
+
+function toggleCombatRounds(key) {
+  const el = document.getElementById('rounds_'+key);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════
+// PROGRESS
+// ══════════════════════════════════════════════════════
+function updateProgress() {
+  const all = [...items,...cascadeItems];
+  const done = all.filter(i=>i.status!=='pending').length;
+  const total = all.length;
+  const pct = total ? Math.round((done/total)*100) : 0;
+  document.getElementById('progress-fill').style.width = pct+'%';
+  document.getElementById('progress-text').textContent = `${done} / ${total}`;
+  const approved = all.filter(i=>i.status==='approved').length;
+  const pending = all.filter(i=>i.status==='pending').length;
+  const flagged = all.filter(i=>i.status==='uncertain').length;
+  document.getElementById('pub-approved').textContent = `${approved} approved`;
+  document.getElementById('pub-pending').textContent = `${pending} pending`;
+  document.getElementById('pub-flagged').textContent = `${flagged} flagged`;
+  document.getElementById('publish-btn').disabled = approved === 0;
+}
+
+// ══════════════════════════════════════════════════════
+// ITEM SELECTION + REVIEW RENDER
+// ══════════════════════════════════════════════════════
+function selectItem(id) {
+  selectedId = id;
+  renderQueue();
+  renderReview();
+  renderAssistant();
+}
+
+function renderReview() {
+  const item = getItem(selectedId);
+  if (!item) return;
+
+  const typeClass = {NEW:'pill-new',MOD:'pill-mod',CT:'pill-ct',UNC:'pill-unc'}[item.type] || 'pill-new';
+  const typeLabel = {NEW:'New entry',MOD:'Modification',CT:'Connective tissue',UNC:'Uncertainty'}[item.type] || item.type;
+  const roundLabel = item.isRound ? 'pill-round' : null;
+
+  const flagsHtml = item.flags?.length ? `
+    <div style="background:rgba(139,58,30,0.05);border:1px solid rgba(139,58,30,0.2);border-radius:3px;padding:0.6rem 0.85rem;margin-bottom:0.85rem;">
+      <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.12em;color:var(--rust);text-transform:uppercase;margin-bottom:4px;">⚠ Uncertainty flags in this item</div>
+      ${item.flags.map(f=>`<div style="font-size:0.88rem;color:var(--ink);padding:2px 0;">· ${f.text||f}</div>`).join('')}
+    </div>` : '';
+
+  const rawJson = JSON.stringify(item.rawData, null, 2)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  document.getElementById('review-scroll').innerHTML = `
+    <div class="delta-banner">
+      <span class="delta-type-pill ${roundLabel||typeClass}">${item.isRound ? `Round ${item.roundNumber}` : typeLabel}</span>
+      ${item.isCascade ? `<span class="delta-type-pill pill-cascade">Cascade</span>` : ''}
+      <span class="delta-array-tag">${item.array}</span>
+      ${item.flags?.length ? `<span class="delta-flag">[?] ${item.flags.length} flag${item.flags.length>1?'s':''}</span>` : ''}
+      <span style="margin-left:auto;font-size:0.82rem;color:var(--muted);font-style:italic;">${item.sourceRef||''}</span>
+    </div>
+
+    <div class="nl-card">
+      <div class="nl-card-title">${item.title}</div>
+      ${item.nlRender()}
+    </div>
+
+    ${flagsHtml}
+
+    ${item.sourceQuote ? `
+      <div class="source-block">
+        <div class="source-label">Source evidence</div>
+        <div class="source-quote">"${item.sourceQuote}"</div>
+        <div class="source-ref">${item.sourceRef}</div>
+      </div>` : ''}
+
+    <button class="raw-toggle" onclick="toggleRaw('raw_${item.id}')">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="3" y1="4" x2="7" y2="4" stroke="currentColor" stroke-width="1"/><line x1="3" y1="6" x2="6" y2="6" stroke="currentColor" stroke-width="1"/></svg>
+      Show proposed JSON
+    </button>
+    <div class="raw-block" id="raw_${item.id}">${rawJson}</div>
+  `;
+
+  // Toolbar
+  const toolbar = document.getElementById('approval-toolbar');
+  toolbar.style.display = 'flex';
+
+  // Round navigation
+  const roundNav = document.getElementById('round-nav');
+  const isRound = !!item.isRound;
+  roundNav.style.display = isRound ? 'flex' : 'none';
+  if (isRound) {
+    const rounds = getRoundsForCombat(item.combatId);
+    const idx = rounds.findIndex(r=>r.id===selectedId);
+    document.getElementById('round-counter').textContent = `Rd ${item.roundNumber} · ${idx+1} of ${rounds.length}`;
+    document.getElementById('prev-round').disabled = idx === 0;
+    document.getElementById('next-round').disabled = idx === rounds.length-1;
+  }
+
+  // Status buttons
+  const btnApprove = document.getElementById('btn-approve');
+  const btnReject = document.getElementById('btn-reject');
+  if (item.status === 'approved') {
+    btnApprove.textContent = '✓ Approved';
+    btnApprove.style.background = '#205555';
+  } else {
+    btnApprove.textContent = 'Approve ✓';
+    btnApprove.style.background = 'var(--teal)';
+  }
+}
+
+function toggleRaw(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+function navigateRound(dir) {
+  const item = getItem(selectedId);
+  if (!item?.isRound) return;
+  const rounds = getRoundsForCombat(item.combatId);
+  const idx = rounds.findIndex(r=>r.id===selectedId);
+  const next = rounds[idx + dir];
+  if (next) selectItem(next.id);
+}
+
+// ══════════════════════════════════════════════════════
+// APPROVAL
+// ══════════════════════════════════════════════════════
+function setItemStatus(status) {
+  const item = getItem(selectedId);
+  if (!item) return;
+  item.status = item.status === status ? 'pending' : status;
+  renderQueue();
+  renderReview();
+  updateProgress();
+
+  // If approving a round, auto-advance to next pending round
+  if (status === 'approved' && item.isRound) {
+    const rounds = getRoundsForCombat(item.combatId);
+    const nextPending = rounds.find(r=>r.status==='pending'&&r.id!==selectedId);
+    if (nextPending) setTimeout(()=>selectItem(nextPending.id), 200);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// CORRECTION SCOPE
+// ══════════════════════════════════════════════════════
+function setScope(scope, el) {
+  correctionScope = scope;
+  document.querySelectorAll('.mode-chip, .scope-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('chip-'+scope)?.classList.add('active');
+  document.getElementById('scope-'+scope)?.classList.add('active');
+  const hint = document.getElementById('correction-hint');
+  hint.textContent = scope === 'global' ? 'This correction will be evaluated against all pending items' : 'Enter to send · Shift+Enter for newline';
+}
+
+// ══════════════════════════════════════════════════════
+// CORRECTIONS + AI SIMULATION
+// ══════════════════════════════════════════════════════
+function renderAssistant() {
+  const item = getItem(selectedId);
+  const empty = document.getElementById('assistant-empty');
+  const scroll = document.getElementById('assistant-scroll');
+  const thread = correctionThread[selectedId] || [];
+
+  if (!item) { scroll.innerHTML = ''; scroll.appendChild(createEmptyState()); return; }
+
+  empty && empty.remove();
+
+  if (!thread.length) {
+    scroll.innerHTML = `<div style="font-size:0.88rem;color:var(--muted-light);font-style:italic;text-align:center;padding:1.5rem 1rem;line-height:1.6;">No corrections yet for this item.<br>Type a note below to propose a change.</div>`;
+    return;
+  }
+
+  scroll.innerHTML = thread.map(msg => {
+    let extra = '';
+    if (msg.cascades?.length) {
+      extra += `<div class="cascade-notice">
+        <div class="cascade-title">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 4v3M6 8.5v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Cascade — new items queued
+        </div>
+        ${msg.cascades.map(c=>`<div class="cascade-item"><div class="cascade-dot"></div><div><strong>${c.type}</strong>: ${c.desc}</div></div>`).join('')}
+      </div>`;
+    }
+    if (msg.globalScope?.length) {
+      extra += `<div class="global-scope">
+        <div class="global-scope-title">Matches found across ${msg.globalScope.length} pending items</div>
+        ${msg.globalScope.map(m=>`<div class="global-match">
+          <div class="global-match-check checked" onclick="toggleGlobalMatch(this)"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+          <span>${m.title}</span>
+        </div>`).join('')}
+        <div style="margin-top:8px;display:flex;gap:6px;">
+          <button class="btn btn-send" style="font-size:0.62rem;padding:4px 12px;" onclick="applyGlobalCorrection('${msg.id}')">Apply to checked items</button>
+        </div>
+      </div>`;
+    }
+    if (msg.diffs?.length) {
+      extra += `<div class="diff-preview">
+        <div class="diff-preview-title">Proposed changes</div>
+        ${msg.diffs.map(d=>`<div class="diff-line"><span class="diff-key">${d.k}</span>${d.old?`<span class="diff-old">${d.old}</span><span style="color:var(--muted);margin:0 4px;">→</span>`:'<span style="color:var(--muted);margin-right:4px;">+</span>'}<span class="diff-new">${d.new}</span></div>`).join('')}
+        <div class="diff-apply-bar">
+          <button class="btn btn-approve" style="font-size:0.62rem;padding:4px 12px;" onclick="applyDiff('${msg.id}')">Apply these changes ✓</button>
+          <button class="btn btn-reject" style="font-size:0.62rem;padding:4px 12px;" onclick="rejectDiff('${msg.id}')">Discard</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="msg msg-${msg.role}">
+      <div class="msg-meta">${msg.role==='user'?'You':msg.role==='system'?'System':'Chronicle AI'} · ${msg.time}</div>
+      <div class="msg-bubble">${msg.content}</div>
+      ${extra}
+    </div>`;
+  }).join('');
+
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+function createEmptyState() {
+  const d = document.createElement('div');
+  d.className = 'assistant-empty';
+  d.innerHTML = `<div class="assistant-title">Correction assistant</div><div class="assistant-empty-hint">Select an item from the queue, then type a correction note below.</div>`;
+  return d;
+}
+
+function sendCorrection() {
+  const input = document.getElementById('correction-input');
+  const text = input.value.trim();
+  if (!text || !selectedId) return;
+
+  const item = getItem(selectedId);
+  if (!item) return;
+
+  if (!correctionThread[selectedId]) correctionThread[selectedId] = [];
+  const thread = correctionThread[selectedId];
+  const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  const msgId = 'msg_' + Date.now();
+
+  // User message + thinking indicator
+  thread.push({ id:msgId+'_u', role:'user', content:text, time:now });
+  input.value = '';
+  renderAssistant();
+  thread.push({ id:msgId+'_thinking', role:'ai', content:ChronicleAI.THINKING_HTML, time:now });
+  renderAssistant();
+
+  const itemContext = { title:item.title, type:item.type, array:item.array,
+    roundNumber:item.roundNumber, rawData:item.rawData };
+  const allPending = [...items,...cascadeItems].filter(i=>i.status==='pending'&&i.id!==selectedId);
+
+  const handleResponse = response => {
+    thread.pop(); // remove thinking
+    thread.push({
+      id:msgId+'_r', role:'ai', time:now,
+      content:      response.content || '',
+      diffs:        response.diffs?.length        ? response.diffs        : null,
+      cascades:     response.cascades?.length     ? response.cascades     : null,
+      globalScope:  response.globalScope?.length  ? response.globalScope.map(t=>({title:t})) : null,
+    });
+    if (response.cascades?.length) {
+      response.cascades.forEach(casc => {
+        const newItem = _buildCascadeItem(casc, text);
+        if (newItem) { newItem.isCascade=true; newItem.group='Other'; cascadeItems.push(newItem); }
+      });
+    }
+    renderAssistant();
+    renderQueue();
+    updateProgress();
+  };
+
+  ChronicleAI.sendCorrectionToAI({
+    correctionText: text,
+    itemContext,
+    scope: correctionScope,
+    pendingItems: allPending,
+    onLoading: () => {},
+    onResult:  response => handleResponse(response),
+    onError:   ()       => handleResponse(ChronicleAI.demoCorrectionResponse(text, itemContext)),
+  });
+}
+
+// Build a minimal cascade queue item from an AI-returned entityHint
+function _buildCascadeItem(casc, correctionText) {
+  const hint = casc.entityHint || {};
+  const typeMap = {location:'locations',npc:'npc_directory',item:'inventory_and_loot',quest:'quest_ledger'};
+  return {
+    id: 'd_cascade_'+Date.now(), type:'NEW', array:typeMap[hint.type]||'locations',
+    group:'Other', status:'pending', flags:[], isCascade:true,
+    title:`New ${hint.type||'entry'} — ${hint.name||'unnamed'}`,
+    sourceQuote:`Correction note: "${correctionText}"`,
+    sourceRef:`Cascade from ${casc.type}`,
+    rawData:{ name:hint.name, type:hint.type, description:casc.desc },
+    nlRender(){ return `<div class="nl-narrative">A new <strong>${hint.type||'entry'}</strong> was identified: <strong>${hint.name||'unnamed'}</strong>.<br><br>${casc.desc||''}</div>`; },
+  };
+}
+
+// ── AI corrections handled by ChronicleAI module (chronicle-ai.js) ──
+
+
+function applyDiff(msgId) {
+  // In production: apply diffs to item.rawData and re-render
+  const item = getItem(selectedId);
+  if (!item) return;
+  // Remove uncertainty flags related to this correction
+  item.flags = item.flags?.filter(f=>false) || []; // clear for demo
+
+  // Find and update the message
+  const thread = correctionThread[selectedId] || [];
+  const msg = thread.find(m=>m.id===msgId);
+  if (msg) {
+    msg.diffs = null;
+    msg.content += ' <span style="color:var(--teal);font-size:0.82rem;">✓ Applied</span>';
+  }
+
+  renderAssistant();
+  renderReview();
+  renderQueue();
+}
+
+function rejectDiff(msgId) {
+  const thread = correctionThread[selectedId] || [];
+  const msg = thread.find(m=>m.id===msgId);
+  if (msg) { msg.diffs = null; msg.content += ' <span style="color:var(--muted);font-size:0.82rem;">(discarded)</span>'; }
+  renderAssistant();
+}
+
+function applyGlobalCorrection(msgId) {
+  const thread = correctionThread[selectedId] || [];
+  const msg = thread.find(m=>m.id===msgId);
+  if (msg) { msg.globalScope = null; msg.content += ` <span style="color:var(--teal);font-size:0.82rem;">✓ Applied to checked items</span>`; }
+  renderAssistant();
+}
+
+function toggleGlobalMatch(el) { el.classList.toggle('checked'); }
+
+// ══════════════════════════════════════════════════════
+// KEYBOARD
+// ══════════════════════════════════════════════════════
+document.getElementById('correction-input').addEventListener('keydown', e => {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendCorrection(); }
+});
+
+// ══════════════════════════════════════════════════════
+// PUBLISH
+// ══════════════════════════════════════════════════════
+async function publish() {
+  const approved = [...items,...cascadeItems].filter(i=>i.status==='approved');
+  if (!approved.length) { alert('No approved items to publish.'); return; }
+
+  const btn = document.getElementById('publish-btn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = 'Publishing…'; btn.disabled = true; }
+
+  try {
+    // Step 1 — pre-publish backup
+    setPublishStatus('Creating backup…', 'loading');
+    const sessionLabel = items.find(i=>i.array==='session_logs')?.id || 'pre-publish';
+    await driveRequest('backup', { label: sessionLabel });
+
+    // Step 2 — fetch current campaign JSON from Drive
+    setPublishStatus('Fetching current log…', 'loading');
+    const campaign = await fetchCampaignFromDrive();
+
+    // Step 3 — apply approved deltas to the campaign object
+    setPublishStatus('Applying deltas…', 'loading');
+    const updated = applyDeltasToCampaign(campaign, approved);
+
+    // Step 4 — write the updated JSON back to Drive
+    setPublishStatus('Writing to Drive…', 'loading');
+    await driveRequest('write', { data: updated });
+
+    // Step 5 — done
+    const n = approved.length;
+    setPublishStatus(`✓ Published ${n} delta${n!==1?'s':''} · backup created`, 'ok');
+    approved.forEach(i => { i.status = 'published'; });
+    renderQueue();
+    updateProgress();
+
+  } catch(e) {
+    setPublishStatus(`Publish failed: ${e.message}`, 'error');
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = false; }
+  }
+}
+
+function setPublishStatus(msg, state) {
+  const el = document.getElementById('publish-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = state === 'ok' ? 'var(--green)' : state === 'error' ? 'var(--red)' : 'var(--amber)';
+}
+
+// Apply the approved review-queue deltas to a campaign JSON object.
+// Returns a new object — does not mutate the input.
+function applyDeltasToCampaign(campaign, approved) {
+  const out = JSON.parse(JSON.stringify(campaign)); // deep clone
+
+  for (const delta of approved) {
+    const arr = delta.array;
+    if (!arr || !out[arr]) continue;
+
+    if (delta.type === 'NEW') {
+      // Append new entity (avoid duplicates by id)
+      const id = delta.rawData?.id;
+      if (id && out[arr].some(e => e.id === id)) continue;
+      if (delta.rawData) out[arr].push(delta.rawData);
+
+    } else if (delta.type === 'MOD') {
+      // Patch fields on an existing entity
+      const id = delta.rawData?.id || delta.targetId;
+      const idx = out[arr].findIndex(e => e.id === id);
+      if (idx > -1 && delta.rawData) {
+        Object.assign(out[arr][idx], delta.rawData);
+      }
+
+    } else if (delta.type === 'ROUND') {
+      // Insert a round into combat_encounters
+      const cbtIdx = out.combat_encounters?.findIndex(c => c.id === delta.combatId);
+      if (cbtIdx > -1 && delta.rawData) {
+        const rounds = out.combat_encounters[cbtIdx].rounds || [];
+        const exists = rounds.findIndex(r => r.n === delta.rawData.n);
+        if (exists > -1) {
+          rounds[exists] = delta.rawData;
+        } else {
+          rounds.push(delta.rawData);
+          rounds.sort((a, b) => a.n - b.n);
+        }
+        out.combat_encounters[cbtIdx].rounds = rounds;
+      }
+    }
+  }
+
+  // Update schema metadata
+  out._last_published = new Date().toISOString();
+  out._delta_count    = (out._delta_count || 0) + approved.length;
+
+  return out;
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+renderQueue();
+updateProgress();
+</script>
+</body>
+</html>
