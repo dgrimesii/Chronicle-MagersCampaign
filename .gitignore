@@ -1,0 +1,2 @@
+# Local config — contains API key, never commit
+shared/config.js

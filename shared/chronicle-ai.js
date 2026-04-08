@@ -58,11 +58,24 @@ const ChronicleAI = (() => {
    * onLoading(bool)    — called with true before fetch, false after (optional)
    */
   async function call({ system, messages, onResult, onError, onLoading }) {
+    const apiKey = window.CHRONICLE_CONFIG?.anthropicApiKey;
+    if (!apiKey || apiKey === 'YOUR_KEY_HERE' || apiKey.trim() === '') {
+      if (typeof onError === 'function') {
+        onError('Anthropic API key not configured. Add your key to shared/config.js.');
+      }
+      return;
+    }
+
     onLoading?.(true);
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
         body: JSON.stringify({
           model: MODEL,
           max_tokens: MAX_TOKENS,

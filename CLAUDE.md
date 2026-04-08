@@ -222,3 +222,7 @@ via the GitHub Contents API.
             Rationale: write reimplementation deferred to Phase 2
 2026-04-03  Removed EMBEDDED_DATA, build.js, sync indicator
             Rationale: all three existed solely to manage the Drive read lag
+2026-04-08  Anthropic API key stored in shared/config.js only
+            Rationale: Key never committed to repo — config.js is gitignored.
+            Each admin user holds their own copy locally. Browser calls Anthropic
+            directly with anthropic-dangerous-direct-browser-access header.
