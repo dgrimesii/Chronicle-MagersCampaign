@@ -5,98 +5,144 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chronicle — Magers Campaign</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --ink:#f0e8d0;
-  --parchment:#0f1020;
-  --parchment-dark:#13152b;
-  --amber:#d4af37;
-  --amber-light:#f0d060;
-  --amber-dim:#a88820;
-  --muted:#7d7a94;
-  --border-strong:rgba(212,175,55,0.28);
+  --ink: #f0e8d0;
+  --parchment: #0f1020;
+  --amber: #d4af37;
+  --amber-light: #f0d060;
 }
-*{box-sizing:border-box;margin:0;padding:0;}
-body{
-  font-family:'Crimson Pro',Georgia,serif;
-  background:var(--parchment);
-  color:var(--ink);
-  min-height:100vh;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  background-image:
-    radial-gradient(ellipse at 20% 20%,rgba(74,59,140,0.25) 0%,transparent 55%),
-    radial-gradient(ellipse at 80% 80%,rgba(30,20,80,0.4) 0%,transparent 55%);
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Cinzel', serif;
+  background: var(--parchment);
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
 }
-.entry-card{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:2rem;
-  padding:3rem 4rem;
+
+/* ── Background image ── */
+#bg-image {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+  filter: brightness(0.45) saturate(0.8);
 }
-.logo{
-  font-family:'Cinzel',serif;
-  font-size:2.8rem;
-  font-weight:600;
-  letter-spacing:0.15em;
-  color:var(--ink);
+
+/* ── Content card ── */
+.card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 3.5rem 4.5rem;
+  background: rgba(10, 11, 30, 0.78);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  border-radius: 4px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
-.logo span{color:var(--amber);}
-.campaign-name{
-  font-family:'Cinzel',serif;
-  font-size:0.85rem;
-  letter-spacing:0.3em;
-  color:var(--muted);
-  text-transform:uppercase;
-  margin-top:-1rem;
+
+/* ── Title ── */
+.title {
+  font-size: 3rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+  line-height: 1;
 }
-.divider{
-  width:120px;
-  height:1px;
-  background:linear-gradient(to right,transparent,var(--amber-dim),transparent);
+.title em {
+  font-style: normal;
+  color: rgba(212, 175, 55, 0.7);
 }
-.btn-player{
-  font-family:'Cinzel',serif;
-  font-size:0.9rem;
-  letter-spacing:0.18em;
-  text-transform:uppercase;
-  padding:14px 48px;
-  border-radius:4px;
-  border:2px solid var(--amber);
-  background:var(--amber);
-  color:var(--parchment);
-  cursor:pointer;
-  transition:all 0.2s;
-  font-weight:600;
+
+/* ── Subtitle ── */
+.subtitle {
+  font-size: 0.68rem;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  font-variant: small-caps;
+  color: rgba(240, 232, 208, 0.45);
+  margin-top: -0.5rem;
 }
-.btn-player:hover{background:var(--amber-light);border-color:var(--amber-light);}
-.admin-link{
-  font-family:'Cinzel',serif;
-  font-size:0.62rem;
-  letter-spacing:0.18em;
-  text-transform:uppercase;
-  color:var(--muted);
-  cursor:pointer;
-  border:none;
-  background:none;
-  padding:4px 0;
-  border-bottom:1px solid transparent;
-  transition:all 0.2s;
+
+/* ── Divider ── */
+.divider {
+  width: 100px;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(212, 175, 55, 0.4), transparent);
 }
-.admin-link:hover{color:var(--ink);border-bottom-color:var(--muted);}
+
+/* ── CTA container ── */
+.cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* ── Primary button ── */
+.btn-enter {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: #d4af37;
+  color: #0f1020;
+  border: none;
+  padding: 0.9rem 3rem;
+  border-radius: 3px;
+  cursor: pointer;
+  width: fit-content;
+  transition: background 0.15s, transform 0.1s;
+}
+.btn-enter:hover  { background: #f0d060; transform: translateY(-1px); }
+.btn-enter:active { transform: translateY(0); }
+
+/* ── Secondary admin link ── */
+.btn-admin {
+  font-family: 'Cinzel', serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(240, 232, 208, 0.35);
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-top: 1.25rem;
+  transition: color 0.15s;
+}
+.btn-admin:hover { color: rgba(240, 232, 208, 0.7); }
 </style>
 </head>
 <body>
-<div class="entry-card">
-  <div class="logo">Chron<span>i</span>cle</div>
-  <div class="campaign-name">Magers Campaign</div>
+
+<img id="bg-image" alt="">
+
+<div class="card">
+  <div class="title">Chron<em>i</em>cle</div>
+  <div class="subtitle">Magers Campaign</div>
   <div class="divider"></div>
-  <button class="btn-player" onclick="window.location='player/'">Enter Chronicle</button>
-  <button class="admin-link" onclick="window.location='admin/log-viewer.html'">Admin Access</button>
+  <div class="cta">
+    <button class="btn-enter" onclick="window.location='player/'">Enter Chronicle</button>
+    <button class="btn-admin" onclick="window.location='admin/log-viewer.html'">Admin Access</button>
+  </div>
 </div>
+
+<script>
+  document.getElementById('bg-image').src = 'images/Netherees-Background.jpg';
+</script>
 </body>
 </html>
