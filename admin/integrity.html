@@ -236,6 +236,29 @@ code{font-family:"JetBrains Mono",monospace;font-size:0.78rem;color:var(--muted)
   border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s;}
 .ctx-tab:hover{color:var(--text2);}
 .ctx-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+/* Error state */
+.ws-error{color:var(--red);background:rgba(255,107,80,0.08);border:1px solid rgba(255,107,80,0.3);border-radius:4px;padding:1rem;font-size:0.92rem;line-height:1.6;}
+/* Page layout for thinking panel */
+.page-wrap{display:flex;min-height:calc(100vh - 64px);align-items:stretch;}
+.page-main{flex:1;min-width:0;}
+/* Thinking panel */
+#thinking-panel{width:340px;flex-shrink:0;border-left:1px solid var(--border-strong);display:flex;flex-direction:column;background:#0d0f22;height:calc(100vh - 64px);position:sticky;top:64px;overflow-y:auto;font-size:0.72rem;}
+.tp-header{padding:0.75rem 1rem;border-bottom:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#0d0f22;z-index:10;}
+.tp-title{font-family:"Cinzel",serif;font-size:0.65rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;}
+.tp-status{font-size:0.62rem;color:var(--muted);font-family:"JetBrains Mono",monospace;}
+.tp-status.calling{color:var(--amber);}
+.tp-status.ok{color:var(--green);}
+.tp-status.error{color:var(--red);}
+.tp-section{padding:0.75rem 1rem;border-bottom:1px solid rgba(255,255,255,0.06);}
+.tp-section-label{font-family:"Cinzel",serif;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem;}
+.tp-section-sub{font-size:0.6rem;color:var(--muted);margin:0.4rem 0 0.2rem;text-transform:uppercase;letter-spacing:0.08em;}
+.tp-pre{white-space:pre-wrap;word-break:break-word;color:#c8c8d8;font-family:"JetBrains Mono",monospace;font-size:0.65rem;line-height:1.5;margin:0;background:rgba(255,255,255,0.03);border-radius:3px;padding:0.5rem;max-height:200px;overflow-y:auto;}
+.tp-log{display:flex;flex-direction:column;gap:0.3rem;}
+.tp-log-entry{font-family:"JetBrains Mono",monospace;font-size:0.62rem;color:#9898b0;line-height:1.4;}
+.tp-log-entry.info{color:#9898b0;}
+.tp-log-entry.ok{color:var(--green);}
+.tp-log-entry.warn{color:var(--amber);}
+.tp-log-entry.error{color:var(--red);}
 </style>
 </head>
 <body>
@@ -252,12 +275,37 @@ code{font-family:"JetBrains Mono",monospace;font-size:0.78rem;color:var(--muted)
   </nav>
   <div class="header-right"><button onclick="window.location='../player/'" style="background:none;border:1px solid var(--border-strong);border-radius:3px;padding:4px 10px;font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.1em;cursor:pointer;color:var(--muted);transition:all 0.15s;" onmouseover="this.style.color='var(--ink)';this.style.background='var(--parchment-dark)'" onmouseout="this.style.color='var(--muted)';this.style.background='none'">⇄ Player View</button></div>
 </header>
+<div class="page-wrap">
+<div class="page-main">
 <div class="page">
   <div class="ctx-tabs">
     <button class="ctx-tab active" onclick="setCtx('intake',this)">Intake view</button>
     <button class="ctx-tab" onclick="setCtx('review',this)">Delta Review view</button>
   </div>
   <div id="root"></div>
+</div>
+</div>
+<div id="thinking-panel">
+  <div class="tp-header">
+    <span class="tp-title">LLM Debug</span>
+    <span id="tp-status" class="tp-status">Idle</span>
+  </div>
+  <div class="tp-section" id="tp-prompt-section" style="display:none">
+    <div class="tp-section-label">Prompt sent</div>
+    <div class="tp-section-sub">System</div>
+    <pre id="tp-system" class="tp-pre"></pre>
+    <div class="tp-section-sub">User message</div>
+    <pre id="tp-user" class="tp-pre"></pre>
+  </div>
+  <div class="tp-section" id="tp-response-section" style="display:none">
+    <div class="tp-section-label">Raw response</div>
+    <pre id="tp-response" class="tp-pre"></pre>
+  </div>
+  <div class="tp-section" id="tp-log-section">
+    <div class="tp-section-label">Log</div>
+    <div id="tp-log" class="tp-log"></div>
+  </div>
+</div>
 </div>
 <div class="gate">
   <div class="gate-in">
@@ -451,6 +499,8 @@ function renderWS(c,ws){
   let body="";
   if(ws.stage==="proc"){
     body=`<div class="proc-box"><div class="spin"></div><div><div class="proc-t">${ws.path==="img"?"Extracting from image…":"Generating round data…"}</div><div class="proc-s">${c.cbtName} · Rounds ${ws.sel?.join(", ")} · ${c.sessHint}</div></div></div>`;
+  } else if(ws.stage==="error"){
+    body=`<div class="ws-error"><strong>API call failed</strong><br>${ws.errorMsg}<br><br><small>Check that your Anthropic API key is set in shared/config.js and that the file is loaded by this page.</small></div>`;
   } else if(!ws.path){
     body=`<div style="margin-bottom:.75rem;"><div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:5px;">Which rounds to fill:</div><div class="rsel"><span class="rchip all${allSel?" sel":""}" onclick="selAll('${c.id}')">${allSel?"Deselect all":"Select all"}</span>${chips}</div>${!ws.sel?.length?`<div style="font-size:.82rem;color:var(--subtle);font-style:italic;margin-top:4px;">Select rounds to enable paths below</div>`:""}</div><div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">How to provide the data:</div><div class="paths"><button class="path-btn" onclick="setPath('${c.id}','img')" ${disPath?"disabled":""} ><div class="pb-icon">📷</div><span class="pb-title">Reprocess handwritten notes</span><span class="pb-desc">Upload a photo of the notes page. The AI extracts round data using the same OCR pipeline as session intake.</span></button><button class="path-btn" onclick="setPath('${c.id}','txt')" ${disPath?"disabled":""}><div class="pb-icon">✍</div><span class="pb-title">Type it in</span><span class="pb-desc">Describe what happened in plain language. The AI converts it to the round schema and shows you a preview.</span></button></div>`;
   } else if(ws.path==="img"){
@@ -528,20 +578,50 @@ function attachDrop(){
   });
 }
 
+/* ─── Thinking panel helpers ─── */
+
+function tpLog(msg, level="info"){
+  const log=document.getElementById("tp-log");if(!log)return;
+  const entry=document.createElement("div");
+  entry.className="tp-log-entry "+level;
+  const t=new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  entry.textContent=t+" "+msg;
+  log.appendChild(entry);log.scrollTop=log.scrollHeight;
+}
+function tpSetStatus(msg,level=""){
+  const el=document.getElementById("tp-status");if(!el)return;
+  el.textContent=msg;el.className="tp-status "+level;
+}
+function tpShowPrompt(system,userMsg){
+  document.getElementById("tp-system").textContent=system||"";
+  document.getElementById("tp-user").textContent=typeof userMsg==="string"?userMsg:JSON.stringify(userMsg,null,2);
+  document.getElementById("tp-prompt-section").style.display="";
+  tpLog("Prompt prepared — "+(system?.length||0)+" chars system, "+(typeof userMsg==="string"?userMsg.length:JSON.stringify(userMsg).length)+" chars user");
+}
+function tpShowResponse(raw){
+  document.getElementById("tp-response").textContent=raw||"(empty)";
+  document.getElementById("tp-response-section").style.display="";
+  tpLog("Response received — "+(raw?.length||0)+" chars","ok");
+}
+window.tpShowPrompt=tpShowPrompt;
+window.tpShowResponse=tpShowResponse;
+
 /* ─── AI calls ─── */
 
 async function procImg(id){
   const ws=workspaces[id];const ch=checks().find(c=>c.id===id);if(!ws||!ch)return;
   ws.stage="proc";go();
+  tpSetStatus("Calling API…","calling");
+  tpLog("Preparing image extraction for rounds: "+ws.sel.join(", "));
   await ChronicleAI.fillRoundsFromImage({
     images: ws.imgs,
     combatName: ch.cbtName,
     combatId:   ch.cbtId,
     sessionId:  ch.sessHint||"session_004",
     roundNumbers: ws.sel,
-    onLoading: loading=>{ if(!loading){ws.stage="review";go();} },
-    onResult:  proposals=>{ _mergeProposals(id,proposals); go(); },
-    onError:   ()=>{ _mergeProposals(id,ChronicleAI.demoRoundProposals(ws.sel,ch.sessHint||"session_004","img")); go(); },
+    onLoading: loading=>{ if(loading){tpSetStatus("Calling API…","calling");tpLog("API call in flight…");} else {ws.stage="review";go();} },
+    onResult:  proposals=>{ tpSetStatus("Response received","ok");tpLog("Parsed "+proposals.length+" round proposal(s)","ok");_mergeProposals(id,proposals);go(); },
+    onError:   (err)=>{ tpSetStatus("Error","error");tpLog("API error: "+(err?.message||"unknown"),"error");ws.stage="error";ws.errorMsg=err?.message||"Unknown error";go(); },
   });
 }
 async function procTxt(id){
@@ -550,15 +630,17 @@ async function procTxt(id){
   const txt=ta?.value?.trim()||ws?.txt?.trim()||"";
   if(!ws||!ch||!txt)return;
   ws.txt=txt;ws.stage="proc";go();
+  tpSetStatus("Calling API…","calling");
+  tpLog("Preparing round gap fill for rounds: "+ws.sel.join(", "));
   await ChronicleAI.fillRoundsFromText({
     text: txt,
     combatName: ch.cbtName,
     combatId:   ch.cbtId,
     sessionId:  ch.sessHint||"session_004",
     roundNumbers: ws.sel,
-    onLoading: loading=>{ if(!loading){ws.stage="review";go();} },
-    onResult:  proposals=>{ _mergeProposals(id,proposals); go(); },
-    onError:   ()=>{ _mergeProposals(id,ChronicleAI.demoRoundProposals(ws.sel,ch.sessHint||"session_004","txt")); go(); },
+    onLoading: loading=>{ if(loading){tpSetStatus("Calling API…","calling");tpLog("API call in flight…");} else {ws.stage="review";go();} },
+    onResult:  proposals=>{ tpSetStatus("Response received","ok");tpLog("Parsed "+proposals.length+" round proposal(s)","ok");_mergeProposals(id,proposals);go(); },
+    onError:   (err)=>{ tpSetStatus("Error","error");tpLog("API error: "+(err?.message||"unknown"),"error");ws.stage="error";ws.errorMsg=err?.message||"Unknown error";go(); },
   });
 }
 // _mergeProposals: integrates proposals from ChronicleAI into workspace

@@ -100,6 +100,7 @@ const ChronicleAI = (() => {
         .map(b => b.text)
         .join('');
 
+      window.tpShowResponse?.(text);
       onResult(text);
     } catch (err) {
       onError(err);
@@ -175,19 +176,60 @@ const ChronicleAI = (() => {
   // round-gap filling workflow.  Returns round proposal objects
   // in the shape the integrity checker expects.
   // ─────────────────────────────────────────────────────────
-  const ROUND_SYSTEM_BASE = `You are a D&D 5e session log assistant. Output ONLY valid JSON, no explanation.
+  const ROUND_SYSTEM_BASE = `You are a D&D 5e combat log transcription assistant.
+Your ONLY job is to convert the user's description into structured JSON.
 
-Party (use these exact actor IDs):
+STRICT RULES — not guidelines:
+1. Every value in the JSON must be directly stated in the user's text.
+   If no damage number was given, value must be omitted or null.
+   If hit/miss was not stated, result must be "unclear".
+2. Use the EXACT action name the user wrote. Never substitute a different
+   spell or ability name even if you think it is equivalent.
+3. Do not use your knowledge of D&D or these characters to fill gaps.
+   Absent information stays absent.
+4. Include only enemy actions explicitly described by the user.
+5. Output ONE JSON object only. No explanation, no markdown fences.
+
+Party actor IDs (use exactly as shown):
 ${PARTY_CONTEXT}
 
 Output schema:
-{"rounds":[{"round_number":<n>,"session_id":"<sid>","initiative_grid":[{"slot":<1-6>,"actor_id":"pc_XXX","action":"...","result":"hit|miss|crit|save|success|neutral","value":"...","notes":"..."}],"enemy_actions":[{"description":"...","impact":"..."}],"round_summary":"..."}]}
+{"rounds":[{"round_number":<n>,"session_id":"<sid>","initiative_grid":[{"slot":<1-6>,"actor_id":"pc_XXX","action":"<exact text from description>","result":"hit|miss|crit|save|success|neutral|unclear","value":<number or null>,"notes":"<string or null>"}],"enemy_actions":[{"description":"<string>","impact":"<string or null>"}]}]}
 
-Rules:
-- Fill all 6 slots (use all six PCs)
-- Omit keys whose value would be null or empty
-- result must be one of: hit, miss, crit, save, success, neutral
-- round_summary is a single narrative sentence; omit if nothing notable`;
+If a slot was not described, include it with action:"not described", result:"unclear", value:null.`;
+
+  // Strict transcription system prompt for text-based round generation
+  const ROUND_SYSTEM_STRICT = `You are a D&D 5e combat log transcription assistant. Your only job is to
+convert a human-written round description into structured JSON.
+
+RULES — these are absolute, not guidelines:
+
+1. TRANSCRIBE, DO NOT INVENT.
+   Every value in the JSON must come directly from the text the user provided.
+   If the user did not state a damage number, value must be null.
+   If the user did not state whether an attack hit or missed, result must be "unclear".
+   Do not use your knowledge of D&D, the characters, or prior rounds to fill gaps.
+
+2. ACTION NAMES ARE LITERAL.
+   Use the exact action name the user wrote. If the user wrote "Concussive Burst",
+   the action field must say "Concussive Burst". Never substitute a different spell
+   or ability name, even if you believe it is equivalent or more accurate.
+
+3. NULL MEANS NULL.
+   If a field has no value in the user's description, output null for that field.
+   Do not estimate, interpolate, or use "likely" values.
+
+4. ENEMY ACTIONS ONLY FROM TEXT.
+   Only include enemy_actions entries for enemies explicitly described by the user.
+   Do not add enemy actions that seem likely or consistent with the combat context.
+
+5. SLOT ORDER IS FIXED.
+   Slots are numbered exactly as the user provided them. Do not reorder.
+
+6. ONE JSON OBJECT ONLY.
+   Output a single JSON object. No explanation, no preamble, no markdown fences.
+   If you cannot parse a slot from the user's text, include it with
+   action: "unclear", result: "unclear", value: null, notes: null.`;
 
   /**
    * fillRoundsFromImage({ images, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading })
@@ -206,9 +248,12 @@ Rules:
       ],
     }];
 
+    let responded = false;
     await call({
-      system, messages, onLoading,
+      system, messages,
+      onLoading: loading => { if (loading || !responded) onLoading?.(loading); },
       onResult: raw => {
+        responded = true;
         try {
           const parsed = parseJSON(raw);
           onResult(_normaliseRoundProposals(parsed.rounds || [], roundNumbers, sessionId, 'image'));
@@ -216,7 +261,7 @@ Rules:
           onError(e);
         }
       },
-      onError,
+      onError: e => { responded = true; onError(e); },
     });
   }
 
@@ -226,13 +271,64 @@ Rules:
    * onResult receives an array of normalised proposal objects.
    */
   async function fillRoundsFromText({ text, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading }) {
-    const system = `${ROUND_SYSTEM_BASE}\nCombat: ${combatName} (${combatId}). Session: ${sessionId}. Generate data for Rounds: ${roundNumbers.join(', ')}.`;
+    const rosterLines = [
+      'slot 1: Zragar/Goldie (pc_001)',
+      'slot 2: Malachite/Mal (pc_002)',
+      'slot 3: Ashton/Ash (pc_003)',
+      'slot 4: Asphodel/Del (pc_004)',
+      'slot 5: Derwin/Goli (pc_005)',
+      'slot 6: Atticus/Att (pc_006)',
+    ].join('\n');
 
-    const messages = [{ role: 'user', content: text }];
+    const schemaExample = '{"rounds":[{\n' +
+      '  "round_number": <number>,\n' +
+      '  "session_id": "<string>",\n' +
+      '  "initiative_grid": [\n' +
+      '    {\n' +
+      '      "slot": <number>,\n' +
+      '      "actor_id": "<pc_id>",\n' +
+      '      "action": "<exact action name from description>",\n' +
+      '      "result": "hit|miss|crit|unclear",\n' +
+      '      "value": <number or null>,\n' +
+      '      "notes": "<string or null>"\n' +
+      '    }\n' +
+      '  ],\n' +
+      '  "enemy_actions": [\n' +
+      '    {\n' +
+      '      "description": "<string>",\n' +
+      '      "impact": "<string or null>"\n' +
+      '    }\n' +
+      '  ]\n' +
+      '}]}';
 
+    const roundLabel = roundNumbers.length === 1
+      ? 'round ' + roundNumbers[0]
+      : 'rounds ' + roundNumbers.join(', ');
+
+    const userMessage =
+      'Convert the following combat description to JSON for ' + roundLabel + '.' +
+      '\n\nCombat: ' + combatName +
+      '\nSession: ' + sessionId +
+      '\nParty roster for this combat (use these actor_ids exactly):\n' +
+      rosterLines +
+      '\n\nUser description (treat as authoritative ground truth):\n' +
+      text +
+      '\n\nRequired JSON schema:\n' + schemaExample +
+      '\n\nRemember: output ONLY the JSON. null for any field not stated above.';
+
+    const messages = [{ role: 'user', content: userMessage }];
+
+    window.tpShowPrompt?.(ROUND_SYSTEM_STRICT, userMessage);
+
+    // Track whether onResult has fired to prevent onLoading(false) from
+    // triggering a duplicate render in the caller.
+    let responded = false;
     await call({
-      system, messages, onLoading,
+      system: ROUND_SYSTEM_STRICT,
+      messages,
+      onLoading: loading => { if (loading || !responded) onLoading?.(loading); },
       onResult: raw => {
+        responded = true;
         try {
           const parsed = parseJSON(raw);
           onResult(_normaliseRoundProposals(parsed.rounds || [], roundNumbers, sessionId, 'text'));
@@ -240,7 +336,7 @@ Rules:
           onError(e);
         }
       },
-      onError,
+      onError: e => { responded = true; onError(e); },
     });
   }
 
