@@ -98,6 +98,8 @@ If you are unsure whether a change warrants a README update, update it. Over-doc
 - CSS variables defined at `:root` in each file individually — there is no shared stylesheet
 - Nav links use `onclick="window.location='filename.html'"` with same-folder relative paths
 - Script tags for shared modules appear at the bottom of `<body>`, before the page's own `<script>` block
+- D3.js is locked to v7.9 from cdnjs. Do not upgrade the version without explicit instruction and thorough graph testing — the force simulation parameters in both viewers are tuned to v7 behaviour.
+- `localStorage` is used only by `admin/versions.html` for its backup ledger. Do not introduce `localStorage` in any other page. Warn in comments wherever `localStorage` is read that the data is volatile — cleared if the user clears site data or opens the app in a different browser.
 
 ---
 
@@ -164,6 +166,16 @@ async function loadCampaignData() {
 ## Shared AI module rules
 
 `shared/chronicle-ai.js` is loaded by `intake.html`, `delta-review.html`, and `integrity.html` only. If you add AI capability to a new page, load both `config.js` and `chronicle-ai.js` before the page script. The API key is read from `window.CHRONICLE_CONFIG.anthropicApiKey` — never pass it any other way.
+
+The Anthropic API is called directly from the browser using the `anthropic-dangerous-direct-browser-access: true` header. This header must remain in all `chronicle-ai.js` fetch calls — remove it and the requests will be rejected. Never attempt to proxy AI requests through the Drive Apps Script endpoint.
+
+`ChronicleAI.PARTY_ROSTER` is a string of party nicknames injected into AI prompts. If the party roster changes (new PC, renamed nickname), update `PARTY_ROSTER` in `shared/chronicle-ai.js` as part of the same task.
+
+When to use which method:
+- `.call()` — raw API access, use when building a new AI feature or when none of the specific methods fit
+- `.fillRoundsFromImage()` — OCR from uploaded session photos (intake, integrity)
+- `.fillRoundsFromText()` — round fill from typed description (integrity)
+- `.sendCorrectionToAI()` — delta item correction chat (delta-review only)
 
 ---
 
@@ -281,6 +293,49 @@ Do not change `_schema_version` without explicit instruction. It lives at the ro
 
 ---
 
+## Known broken features — do not use as patterns
+
+These features exist in the codebase but are broken. Do not treat them as reference implementations. Fix them properly when asked; do not work around them by copying the broken pattern elsewhere.
+
+| File | Broken feature | Status |
+|---|---|---|
+| `admin/log-editor.html` | Fetches `magers-campaign.json` (wrong path — should be `../data/magers-campaign.json`) | Fix when editing this file |
+| `admin/log-editor.html` | AI draft panel calls `ChronicleAI.call()` but `chronicle-ai.js` is not loaded | Fix by loading the script |
+| `admin/log-editor.html` | Edits are in-memory only — no write-back to JSON or Drive | Document clearly; do not add fake "save" affordances |
+| `admin/intake.html` | "Send to Delta Review" navigates to `chronicle_delta_review_v2.html` which does not exist | Fix target to `delta-review.html` |
+| `admin/integrity.html` | Combat list is hardcoded, not fetched from `/data/` | Fix by adding `fetch('../data/magers-campaign.json')` on init before touching combat logic |
+| `admin/drive-test.html` | `?action=read` test calls the proxy read endpoint — reads moved to same-origin fetch in Phase 1 | Do not use this as a pattern for data reads |
+
+---
+
+## After making changes — what to verify
+
+After any code change, open the affected page in a browser and check:
+
+**For any page that fetches campaign data:**
+- [ ] Page loads without JS console errors
+- [ ] No `undefined` values visible in the UI
+- [ ] Party panel shows all 6 PCs with correct name, class, and level
+- [ ] If you changed normaliseCampaignJson: check it in BOTH files
+
+**For combat changes:**
+- [ ] Open cbt_002 (Siege of Bagyers Farm) — confirm round viewer shows all 14+ rounds and Ched's death event is visible
+- [ ] Slot data shows action names, not `undefined`
+- [ ] `val` fields display as numbers where data exists, blank where null
+
+**For schema/JSON changes:**
+- [ ] `_schema_version` is unchanged unless you were explicitly told to update it
+- [ ] All new IDs are in the correct format and not already used
+- [ ] `meta.last_updated` reflects today's date
+- [ ] No game state fields (HP, spell slots, conditions) were added
+
+**For admin tool changes:**
+- [ ] Nav bar order matches the 7-item canonical order
+- [ ] Active page nav link has `class="nav-link active"`
+- [ ] "⇄ Player View" button is present in the header right
+
+---
+
 ## Workflow: updating campaign data after a session
 
 The DM manages the post-session workflow through the admin tools, then manually replaces the JSON file. When asked to update `data/magers-campaign.json` directly:
@@ -302,6 +357,38 @@ The DM manages the post-session workflow through the admin tools, then manually 
 4. Load `../shared/config.js` at the bottom of `<body>` before the page script
 5. Load `../shared/chronicle-ai.js` only if the page uses AI features
 6. If the page needs campaign data, fetch `../data/magers-campaign.json` at init — not from Drive
+
+---
+
+## Workflow: delta-review publish cycle
+
+Delta Review reads the campaign JSON from Drive (not from `/data/`). After a v4 migration or any direct edit to `data/magers-campaign.json`, the Drive copy will be stale until manually synced.
+
+The full post-session workflow:
+1. Session Intake (`intake.html`) — upload photos, AI extracts round data
+2. Delta Review (`delta-review.html`) — approve/reject/correct AI proposals, then Publish. This writes the updated JSON to Drive.
+3. Download the updated JSON from Drive (via Versions page or direct Drive)
+4. Replace `data/magers-campaign.json` in the repo with the downloaded file
+5. Commit and push to `main` — GitHub Pages redeploys automatically
+
+After a direct edit to `data/magers-campaign.json` (bypassing the workflow):
+- The Drive copy is now stale. Before using Delta Review, manually upload the current JSON to Drive or use the Versions page to create a backup that will become the new Drive source.
+
+---
+
+## Workflow: v3 → v4 schema migration
+
+When updating `normaliseCampaignJson` to consume the v4 JSON:
+
+1. Update the function in `admin/log-viewer.html` first
+2. Copy the identical changes to `player/index.html` — they must stay in sync
+3. Use optional chaining for all v4 nested field reads (e.g. `c.mechanics?.outcome`)
+4. Add shim comments on every remapped field (old path, new path, when to remove)
+5. Test by opening both views and checking all sections render without `undefined`
+6. Update the README Schema field mapping table
+7. Update the "Next available IDs" section in this file if the JSON was replaced
+
+The full field mapping is in `docs/chronicle-v3-to-v4-conversion-plan.md`.
 
 ---
 
