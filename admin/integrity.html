@@ -323,26 +323,10 @@ code{font-family:"JetBrains Mono",monospace;font-size:0.78rem;color:var(--muted)
 const PARTY={pc_001:{nick:"Gold",cls:"Wizard"},pc_002:{nick:"Mal",cls:"Barbarian"},pc_003:{nick:"Ash",cls:"Warlock"},pc_004:{nick:"Del",cls:"Monk"},pc_005:{nick:"Goli",cls:"Rogue"},pc_006:{nick:"Att",cls:"Druid"}};
 const nick=id=>PARTY[id]?.nick||id;
 
-const CAMPAIGN={
-  session_logs:[
-    {session_id:"session_001",session_date:"2026-02-10"},
-    {session_id:"session_002",session_date:"2026-02-24"},
-    {session_id:"session_003",session_date:"2026-03-03"},
-    {session_id:"session_004",session_date:"2026-03-10"},
-    {session_id:"session_005",session_date:"2026-03-17"},
-  ],
-  npc_directory:Array.from({length:13},(_,i)=>({id:`npc_${String(i+1).padStart(3,"0")}`})),
-  locations:[{id:"loc_001"},{id:"loc_002"},{id:"loc_003"},{id:"loc_004"},{id:"loc_005"},{id:"loc_006"},{id:"loc_007"},{id:"loc_011"},{id:"loc_012"}],
-  inventory_and_loot:Array.from({length:10},(_,i)=>({id:`item_${String(i+1).padStart(3,"0")}`})),
-  quest_ledger:Array.from({length:5},(_,i)=>({id:`qst_${String(i+1).padStart(3,"0")}`})),
-  combat_encounters:[
-    {id:"cbt_001",name:"Vespon Queen & Swarm",totalRounds:4,sessions:["session_002"],rounds:[{n:1},{n:2},{n:3},{n:4}]},
-    {id:"cbt_002",name:"Siege of Bagyers Farm",totalRounds:19,sessions:["session_002","session_003"],rounds:Array.from({length:19},(_,i)=>({n:i+1}))},
-    {id:"cbt_003",name:"Axe Beak & Vespon Ambush",totalRounds:9,sessions:["session_004"],rounds:[{n:1},{n:4},{n:5},{n:6},{n:7},{n:8},{n:9},{n:10},{n:11}]},
-    {id:"cbt_004",name:"The Rat Cave",totalRounds:7,sessions:["session_004","session_005"],rounds:Array.from({length:7},(_,i)=>({n:i+1}))},
-    {id:"cbt_005",name:"Goblin Ambush",totalRounds:3,sessions:["session_005"],rounds:[{n:1},{n:2},{n:3}]},
-  ],
-};
+// CAMPAIGN is populated by initCampaignData() at DOMContentLoaded.
+// Previously this was a hardcoded object — replaced with a live fetch so the
+// combat selector always reflects the actual JSON rather than a stale snapshot.
+let CAMPAIGN = null;
 
 const INCOMING=[
   {type:"NEW",array:"session_logs",label:"Session 006 log entry",id:"d_sess"},
@@ -688,11 +672,46 @@ function setCtx(ctx,btn){
   document.getElementById("nl-review").classList.toggle("active",ctx==="review");
   go();
 }
+// Fetch live campaign data from the repo JSON and build the CAMPAIGN.combat_encounters
+// array that checks() reads. Replaces the old hardcoded CAMPAIGN constant — without
+// this fetch the combat selector would show stale data and miss any new combats added
+// after the last time someone hand-edited this file.
+async function initCampaignData() {
+  const root = document.getElementById("root");
+  try {
+    const res = await fetch('../data/magers-campaign.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+
+    // Build the minimal CAMPAIGN shape that checks() needs from the v4 JSON.
+    // Only combat_encounters is used by checks() — other sections are not needed here.
+    CAMPAIGN = {
+      combat_encounters: (json.combat_encounters || []).map(c => ({
+        id:          c.id,
+        name:        c.name,
+        totalRounds: c.mechanics?.total_rounds_logged ?? null,  // v4: mechanics.total_rounds_logged
+        sessions:    c.mechanics?.sessions            ?? [],    // v4: mechanics.sessions
+        // Rounds are at root in v4; integrity checker only needs each round's n value
+        rounds:      (c.rounds || []).map(r => ({ n: r.n })),
+      })),
+    };
+
+    go(); // Run the integrity checks now that real data is loaded
+  } catch(e) {
+    // Show a visible error — do not silently proceed with null CAMPAIGN
+    root.innerHTML = `<div style="padding:2rem;color:var(--red);font-family:'Cinzel',serif;">
+      Failed to load campaign data: ${e.message}<br>
+      <small style="color:var(--muted);">Check that data/magers-campaign.json is accessible from this page.</small>
+    </div>`;
+    console.error('[integrity] fetch failed:', e);
+  }
+}
+
 document.addEventListener("DOMContentLoaded",()=>{
   const s=document.createElement("style");
   s.textContent="@keyframes pr{0%,100%{opacity:1;}50%{opacity:.35;}}";
   document.head.appendChild(s);
-  go();
+  initCampaignData(); // replaces the old synchronous go() call — data must load first
 });
 
 </script>

@@ -29,7 +29,7 @@ Chronicle-MagersCampaign/
 │   ├── config.js               # GITIGNORED — Drive proxy URL, campaign file ID, Anthropic API key
 │   └── chronicle-ai.js         # Shared Anthropic API module — exports window.ChronicleAI
 ├── data/
-│   └── magers-campaign.json    # Campaign data — single source of truth, schema version 3.3.0
+│   └── magers-campaign.json    # Campaign data — single source of truth, schema version 4.0.0
 ├── scripts/
 │   └── build.js                # STALE — injected EMBEDDED_DATA into HTML files; markers removed in Phase 1, script is now dead code
 ├── notes/
@@ -84,44 +84,72 @@ Phase 2 goal (not yet implemented): Publish commits directly to the repo via the
 ## Schema
 
 File: `data/magers-campaign.json`  
-Schema version: `3.3.0` (stored as `_schema_version` at root, not inside `meta`)
+Schema version: `4.0.0` (stored as `_schema_version` at root)
+
+v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. Mechanical facts (queryable, structured) live in `mechanics`; prose for human readers lives in `narrative`. The `normaliseCampaignJson` function translates v4 paths into the flat shape the renderers already expect — the rendering code is unchanged.
 
 ### Top-level sections
 
 | Key | Contents |
 |---|---|
-| `_schema_version` | Schema version string (root level, not inside `meta`) |
-| `meta` | Campaign name, system, DM, start date, session count |
+| `_schema_version` | Schema version string (root level) |
 | `party` | Six player characters (pc_001–pc_006) |
-| `session_logs` | One entry per session with summary, vibe, key moments, mechanical notes |
-| `character_moments` | Significant individual character moments keyed by character_ids |
-| `npc_directory` | Named NPCs with disposition and notes |
-| `bestiary` | Monster entries with traits and combat appearances |
-| `world_lore` | Campaign lore entries with reliability rating |
-| `inventory_and_loot` | Items with holder, session, quest flag |
-| `locations` | Named locations with visibility and description |
-| `quest_ledger` | Quests with objectives, progress log, status |
-| `combat_encounters` | Combats with compact round/slot format |
+| `session_logs` | One entry per session; summary/tone in `narrative`, mechanics in `mechanics` |
+| `character_moments` | Significant character moments; character_ids/refs in `mechanics`, prose in `narrative` |
+| `npc_directory` | Named NPCs; disposition in `mechanics`, description in `narrative` |
+| `bestiary` | Monster entries; reliability/appearances in `mechanics`, description in `narrative` |
+| `world_lore` | Lore entries; reliability in `mechanics`, content prose in `narrative` |
+| `inventory_and_loot` | Items; item_type/holder/found_session/is_quest_relevant in `mechanics`, description in `narrative` |
+| `locations` | Named locations; visibility in `mechanics`, description in `narrative` |
+| `quest_ledger` | Quests; status/priority/objectives/progress_log in `mechanics`, motivation in `narrative` |
+| `combat_encounters` | Combats; outcome/location/sessions in `mechanics`, setup/finale/aftermath in `narrative`; slots have nested `action` object; enemy turns use `enemy_turns[]` |
 
-### Field name mappings (JSON → normalised in viewer)
+### Field name mappings (v4 JSON → normalised viewer shape)
 
-The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html` and `player/index.html`) applies these renames when loading data at runtime:
+The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html` and `player/index.html`) translates v4 paths at runtime. The renderers consume the normalised shape and are not aware of the v4 sub-object structure.
 
-| JSON field | Viewer field |
-|---|---|
-| `session_id` | `id` |
-| `session_date` | `date` |
-| `class` | `cls` |
-| `current_level` | `level` |
-| `npc_directory` | `npcs` |
-| `world_lore` | `lore` |
-| `quest_ledger` | `quests` |
-| `inventory_and_loot` | `items` |
-| `current_holder_id` | `holder` |
-| `session_found` or `origin_session` | `session` |
-| `is_quest_item` | `quest` (boolean) |
-| `progress_log[{session_id, entry}]` | `progress[{s, e}]` |
-| `location_id` | `location` (added to each combat) |
+| v4 JSON path | Viewer field | Notes |
+|---|---|---|
+| `session_logs[].id` | `sessions[].id` | was `session_id` in v3 |
+| `session_logs[].date` | `sessions[].date` | was `session_date` in v3 |
+| `session_logs[].narrative.summary` | `sessions[].summary` | was root-level in v3 |
+| `session_logs[].narrative.tone` | `sessions[].narrative_vibe` | was root-level in v3 |
+| `session_logs[].narrative.key_moments[].description` | `sessions[].key_moments[]` (string) | v4 moments are objects; normaliser flattens to string array |
+| `party[].mechanics.class` | `party[].cls` | was `p.class` in v3 |
+| `party[].mechanics.level` | `party[].level` | was `p.current_level` in v3 |
+| `party[].campaign_notes` | `party[].notes` | was `p.notes` in v3 |
+| `npc_directory[].mechanics.disposition` | `npcs[].disposition` | was root-level in v3 |
+| `npc_directory[].narrative.description` | `npcs[].description` | was root-level in v3 |
+| `locations[].mechanics.visibility` | `locations[].visibility` | was root-level in v3 |
+| `locations[].narrative.description` | `locations[].description` | was root-level in v3 |
+| `quest_ledger[].mechanics.status/priority/category` | `quests[].status/priority/category` | was root-level in v3 |
+| `quest_ledger[].narrative.motivation` | `quests[].motivation` | was `narrative_motivation` root-level in v3 |
+| `quest_ledger[].mechanics.objectives[].description` | `quests[].objectives[].desc` | was `o.desc` in v3 |
+| `quest_ledger[].mechanics.objectives[].is_completed` | `quests[].objectives[].done` | was `o.done` in v3 |
+| `quest_ledger[].mechanics.progress_log[].fact` | `quests[].progress[].e` | was `.entry` in v3 |
+| `quest_ledger[].mechanics.origin_session` | `quests[].origin` | was root-level in v3 |
+| `inventory_and_loot[].mechanics.item_type` | `items[].type` | was root-level `type` in v3 |
+| `inventory_and_loot[].mechanics.current_holder` | `items[].holder` | was `current_holder_id` in v3 |
+| `inventory_and_loot[].mechanics.found_session` | `items[].session` | was `session_found` in v3 |
+| `inventory_and_loot[].mechanics.is_quest_relevant` | `items[].quest` (boolean) | was `is_quest_item` in v3 |
+| `combat_encounters[].mechanics.outcome` | `combats[].outcome` | was root-level in v3 |
+| `combat_encounters[].mechanics.location` | `combats[].location` | was `location_id` in v3 |
+| `combat_encounters[].mechanics.sessions` | `combats[].sessions` | was root-level in v3 |
+| `combat_encounters[].mechanics.total_rounds_logged` | `combats[].totalRounds` | was root-level in v3 |
+| `combat_encounters[].narrative.setup` | `combats[].narrativeContext` | was root-level in v3 |
+| `combat_encounters[].narrative.finale` | `combats[].finale` | was root-level in v3 |
+| `combat_encounters[].narrative.aftermath` | `combats[].aftermath` | was root-level in v3 |
+| `rounds[].slots[].action.name` | `rounds[].slots[].act` | v4 nests action; normaliser flattens |
+| `rounds[].slots[].action.res` | `rounds[].slots[].res` | v4 nests action; normaliser flattens |
+| `rounds[].slots[].action.val` | `rounds[].slots[].val` | v4 nests action; normaliser flattens |
+| `rounds[].enemy_turns[]` | `rounds[].enemy[{desc, impact}]` | v4 richer structure; normaliser builds desc/impact strings |
+| `world_lore[].narrative.content` | `lore[].content` | was root-level in v3 |
+| `world_lore[].mechanics.reliability` | `lore[].reliability` | was root-level in v3 |
+| `bestiary[].mechanics.reliability` | `bestiary[].reliability` | was root-level in v3 |
+| `character_moments[].mechanics.character_ids` | `moments[].character_ids` | was root-level in v3 |
+| `character_moments[].narrative.description` | `moments[].description` | was root-level in v3 |
+| `character_moments[].mechanics.parent_event_id` | `moments[].parent_event_id` | was root-level in v3 |
+| `character_moments[].mechanics.origin_session` | `moments[].origin_session` | was root-level in v3 |
 
 ### Combat viewer format (compact slots)
 
@@ -195,7 +223,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - Loads `../shared/config.js` and `../shared/chronicle-ai.js`
 - Uses `ChronicleAI.call()` with vision to extract handwritten combat notes from uploaded images
 - Does not fetch `magers-campaign.json` — operates on uploaded image data only
-- "Send to Delta Review" button navigates to a route (`chronicle_delta_review_v2.html`) that does not exist in the current repo structure — navigation is broken
+- "Send to Delta Review" button navigates to `delta-review.html`
 
 ---
 
@@ -232,7 +260,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - Loads `../shared/config.js` and `../shared/chronicle-ai.js`
 - Has a debug/log panel (TP panel) showing raw AI prompts and responses
 - Uses `ChronicleAI.fillRoundsFromImage()` for photo-based round extraction and `ChronicleAI.fillRoundsFromText()` for typed descriptions
-- Combat data is hardcoded from `magers-campaign.json` at build time (currently the combats are listed inline in the page JS — combat list does not fetch from `/data/`)
+- Fetches `../data/magers-campaign.json` at init to populate the combat selector; shows an error state if fetch fails
 - Includes a "LLM Log" panel showing raw prompt/response traffic for debugging
 
 ---
@@ -243,10 +271,10 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - **Audience:** DM only
 - In-browser editor for party, NPC, location, quest, item, and lore entries
 - Loads `../shared/config.js`
-- At init, attempts to fetch `magers-campaign.json` (relative, no path prefix) — this path is wrong for a file in `admin/`; the correct path would be `../data/magers-campaign.json`. The fetch silently fails and the page falls back to a hardcoded set of ENTITIES defined inline in the page script
+- Fetches `../data/magers-campaign.json` at init and rebuilds the ENTITIES list from live v4 JSON; shows a toast error (rather than silently falling back) if fetch fails
+- Loads `../shared/config.js` and `../shared/chronicle-ai.js` — AI draft panel (`ChronicleAI.call()`) is wired and available
 - Edits are applied to the in-memory ENTITIES array only — there is no write-back to the JSON file or Drive. "Save" commits changes locally within the browser session; they are lost on page reload
 - The `previewChanges()` function shows an alert describing pending edits; it does not produce a real JSON diff or write to any file
-- Has an AI draft panel (`ChronicleAI.call()`) — but `chronicle-ai.js` is not loaded; AI draft buttons will produce errors
 
 ---
 
@@ -323,18 +351,14 @@ Public API (`window.ChronicleAI`):
 | Issue | File | Detail |
 |---|---|---|
 | `scripts/build.js` is dead code | `scripts/build.js` | EMBEDDED_DATA markers were removed from all HTML files in Phase 1. Running the script produces "SKIP (markers not found)" warnings and changes nothing. |
-| Wrong fetch path for campaign data | `admin/log-editor.html` | Fetches `magers-campaign.json` (bare filename). Should be `../data/magers-campaign.json`. Silently falls back to hardcoded ENTITIES. |
+| `scripts/build.js` is dead code | `scripts/build.js` | EMBEDDED_DATA markers were removed from all HTML files in Phase 1. Running the script produces "SKIP (markers not found)" warnings and changes nothing. |
 | Log editor edits are in-memory only | `admin/log-editor.html` | No write-back to JSON or Drive. Changes are lost on page reload. |
-| Log editor AI draft won't work | `admin/log-editor.html` | The AI draft panel calls `ChronicleAI.call()` but `chronicle-ai.js` is not loaded in this file. |
-| "Send to Delta Review" navigation broken | `admin/intake.html` | Navigates to `chronicle_delta_review_v2.html` which does not exist. |
 | Player view links to admin | `player/index.html` | Has a "⇄ Admin" button linking to `../admin/log-viewer.html`. |
 | drive-test campaign-read test obsolete | `admin/drive-test.html` | Tests `?action=read` on the proxy, which the main app no longer calls. |
 | cbt_006 Wolf Fight has no rounds | `data/magers-campaign.json` | `rounds: []` — combat detail is pending. |
 | npc_013 has no name | `data/magers-campaign.json` | The Low-Level Wizard: no proper name, no session link. |
-| qst_003 Escort to Lake Town incomplete | `data/magers-campaign.json` | No objectives, no narrative_motivation — currently active. |
-| pc_003 Ashton notes empty | `data/magers-campaign.json` | Notes field is empty. |
+| qst_003 Escort to Lake Town incomplete | `data/magers-campaign.json` | No objectives, no narrative.motivation — currently active. |
 | loc_009, loc_010, loc_013 are stubs | `data/magers-campaign.json` | Map markers only — no description or context. |
-| Integrity checker combat list is hardcoded | `admin/integrity.html` | Combat data does not fetch from `/data/` — it is embedded in the page script. |
 
 ---
 

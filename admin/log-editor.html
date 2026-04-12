@@ -272,6 +272,7 @@ aside{border-right:1px solid var(--border-strong);display:flex;flex-direction:co
 <div class="toast" id="toast"></div>
 
 <script src="../shared/config.js"></script>
+<script src="../shared/chronicle-ai.js"></script><!-- required for AI draft panel; load before page script -->
 <script>
 // ══════════════════════════════════════════════════════
 // CAMPAIGN DATA (from campaign log)
@@ -1081,31 +1082,99 @@ function showToast(msg) {
 // ══════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════
-// ── Load from magers-campaign.json if available, then render ──
+// ── Load live campaign data from the repo JSON, then render the entity list ──
+// Why: the hardcoded ENTITIES array below is stale. Fetching the live JSON at init
+// ensures the editor always reflects the current campaign state.
+// Edits are still in-memory only — no write-back to JSON or Drive exists yet.
 (async () => {
   try {
-    const res = await fetch('magers-campaign.json');
-    if (res.ok) {
-      const json = await res.json();
-      // Rebuild ENTITIES from live data
-      ENTITIES.length = 0;
-      const party    = json.party             || [];
-      const npcs     = json.npc_directory     || [];
-      const locs     = json.locations         || [];
-      const quests   = json.quest_ledger      || [];
-      const items    = json.inventory_and_loot|| [];
-      const lore     = json.world_lore        || [];
+    // Correct path from admin/ to data/ — was bare 'magers-campaign.json' (wrong)
+    const res = await fetch('../data/magers-campaign.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
 
-      party.forEach(p  => ENTITIES.push({ id:p.id, type:'pc',       name:p.name,        sub:`${p.class} · Lv ${p.current_level} · ${p.player}`,  data:{nickname:p.nickname||'',player:p.player||'',class:p.class||'',status:'active',current_level:p.current_level||1,notes:p.notes||'',milestones:p.milestones||[],backstory:'',personality:'',appearance:''} }));
-      npcs.forEach(n   => ENTITIES.push({ id:n.id, type:'npc',      name:n.name,        sub:n.disposition||'',       data:{disposition:n.disposition||'',notes:n.notes||'',description:'',lore:'',intel_log:[]} }));
-      locs.forEach(l   => ENTITIES.push({ id:l.id, type:'location', name:l.name,        sub:l.visibility||'',        data:{description:l.description||'',visibility:l.visibility||'',areas:[],lore:''} }));
-      quests.forEach(q => ENTITIES.push({ id:q.id, type:'quest',    name:q.title,       sub:q.status||'',            data:{status:q.status||'',priority:q.priority||'',category:q.category||'',motivation:q.narrative_motivation||'',objectives:q.objectives||[],progress:q.progress_log||[]} }));
-      items.forEach(i  => ENTITIES.push({ id:i.id, type:'item',     name:i.name,        sub:i.type||'',              data:{item_type:i.type||'',session_found:i.session_found||'',holder:i.current_holder_id||'',notes:(i.notes||'')+(i.description?' '+i.description:''),lore:'',is_quest_item:!!i.is_quest_item} }));
-      lore.forEach(l   => ENTITIES.push({ id:l.id, type:'lore',     name:l.title,       sub:'World Lore',            data:{content:l.content||'',reliability:l.reliability||'',source:l.source||''} }));
-      showToast('Loaded from magers-campaign.json');
-    }
+    // Rebuild ENTITIES from live v4 JSON. All mechanics fields are nested in
+    // entity.mechanics; narrative prose is in entity.narrative.
+    ENTITIES.length = 0;
+    const party    = json.party              || [];
+    const npcs     = json.npc_directory      || [];
+    const locs     = json.locations          || [];
+    const quests   = json.quest_ledger       || [];
+    const items    = json.inventory_and_loot || [];
+    const lore     = json.world_lore         || [];
+
+    party.forEach(p => ENTITIES.push({
+      id:p.id, type:'pc', name:p.name,
+      // v4: class and level are inside p.mechanics
+      sub:`${p.mechanics?.class||'?'} · Lv ${p.mechanics?.level||'?'} · ${p.player||''}`,
+      data:{
+        nickname:      p.nickname               || '',
+        player:        p.player                 || '',
+        class:         p.mechanics?.class       || '',   // v4: p.mechanics.class
+        status:        p.status                 || 'active',
+        current_level: p.mechanics?.level       || 1,   // v4: p.mechanics.level
+        notes:         p.campaign_notes         || '',   // v4: p.campaign_notes (was p.notes)
+        milestones:    p.milestones             || [],
+        backstory:'', personality:'', appearance:'',
+      },
+    }));
+    npcs.forEach(n => ENTITIES.push({
+      id:n.id, type:'npc', name:n.name,
+      sub: n.mechanics?.disposition || '',                          // v4: n.mechanics.disposition
+      data:{
+        disposition: n.mechanics?.disposition  || '',
+        notes:       n.notes                   || '',
+        description: n.narrative?.description  || '',              // v4: n.narrative.description
+        lore:'', intel_log:[],
+      },
+    }));
+    locs.forEach(l => ENTITIES.push({
+      id:l.id, type:'location', name:l.name,
+      sub: l.mechanics?.visibility || '',                           // v4: l.mechanics.visibility
+      data:{
+        description: l.narrative?.description  || '',              // v4: l.narrative.description
+        visibility:  l.mechanics?.visibility   || '',
+        areas:[], lore:'',
+      },
+    }));
+    quests.forEach(q => ENTITIES.push({
+      id:q.id, type:'quest', name:q.title,
+      sub: q.mechanics?.status || '',                               // v4: q.mechanics.status
+      data:{
+        status:     q.mechanics?.status        || '',
+        priority:   q.mechanics?.priority      || '',
+        category:   q.mechanics?.category      || '',
+        motivation: q.narrative?.motivation    || '',               // v4: q.narrative.motivation
+        objectives: q.mechanics?.objectives    || [],
+        progress:   q.mechanics?.progress_log  || [],
+      },
+    }));
+    items.forEach(i => ENTITIES.push({
+      id:i.id, type:'item', name:i.name,
+      sub: i.mechanics?.item_type || '',                            // v4: i.mechanics.item_type
+      data:{
+        item_type:    i.mechanics?.item_type       || '',
+        session_found:i.mechanics?.found_session   || '',           // v4: i.mechanics.found_session
+        holder:       i.mechanics?.current_holder  || '',           // v4: i.mechanics.current_holder
+        notes:        (i.notes||'') + (i.narrative?.description ? ' ' + i.narrative.description : ''),
+        lore:'', is_quest_item: !!i.mechanics?.is_quest_relevant,   // v4: i.mechanics.is_quest_relevant
+      },
+    }));
+    lore.forEach(l => ENTITIES.push({
+      id:l.id, type:'lore', name:l.title, sub:'World Lore',
+      data:{
+        content:     l.narrative?.content     || '',                // v4: l.narrative.content
+        reliability: l.mechanics?.reliability || '',
+        source:      l.mechanics?.source      || '',
+      },
+    }));
+
+    showToast('Loaded from magers-campaign.json');
   } catch(e) {
-    // Use embedded ENTITIES — no action needed
+    // Fetch failed — show a visible error rather than silently using stale embedded data.
+    // The hardcoded ENTITIES array below is stale (pre-v4) and should not be relied on.
+    showToast('Error loading campaign data: ' + e.message);
+    console.error('[log-editor] fetch failed:', e);
   }
   renderEntityList();
 })();

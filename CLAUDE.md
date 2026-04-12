@@ -236,30 +236,22 @@ outcome: c.mechanics?.outcome ?? c.outcome ?? '',
 
 ### Combat slot format
 
-In v4, each slot's action fields are nested inside a `slot.action` object. The combat viewer was written for the v3 flat format. The normaliser must flatten them:
+In v4, each slot's action fields are nested inside a `slot.action` object. The normaliser's `flattenSlot` helper translates to the flat shape the combat viewer expects:
 
 ```javascript
-// v4 nests act/res/val inside slot.action. Flatten here so the combat
-// viewer works unchanged. Remove this shim when the viewer is updated
-// to read slot.action directly.
-slot.act   = slot.action?.name ?? slot.act   ?? '';
-slot.res   = slot.action?.res  ?? slot.res   ?? '';
-slot.val   = slot.action?.val  ?? slot.val   ?? null;
-slot.notes = slot.notes ?? slot.action?.notes ?? '';
+// flattenSlot: v4 nests act/res/val inside slot.action — renderer uses flat fields.
+{ s, a, act: slot.action?.name, res: slot.action?.res, val: slot.action?.val, notes: slot.notes || slot.action?.notes }
 ```
 
-`slot.val` is an integer in v4 and a numeric string in v3. Always normalise to a number: `val = val != null ? Number(val) : null`.
-
-Enemy turns: v3 used `round.enemy[]` with `{desc, impact}`. v4 uses `round.enemy_turns[]` with `{actor_id, actor_label, action, special_events}`. Map them:
+Enemy turns: v4 uses `round.enemy_turns[]` with `{actor_id, action:{name,res,val}, special_events:[{description}]}`. The normaliser's `flattenEnemyTurn` helper builds `{desc, impact}` for the renderer:
 
 ```javascript
-// enemy_turns is the v4 key. Fall back to enemy[] if enemy_turns is
-// absent so half-migrated data does not break the viewer.
-round.enemy = (round.enemy_turns || round.enemy || []).map(et => ({
-  desc:   et.desc   ?? et.action ?? '',
-  impact: et.impact ?? (et.special_events || []).join('; '),
-}));
+// flattenEnemyTurn: builds desc from actor_id + action; impact from special_events[].description
+desc   = actor_id + ': ' + action.name + ' (' + action.res + ', ' + action.val + ')';
+impact = special_events.map(ev => ev.description).join('; ') || null;
 ```
+
+The `flattenSlot` and `flattenEnemyTurn` helpers are nested functions inside `normaliseCampaignJson`. They are not exported.
 
 ### What the JSON must never store
 
@@ -299,11 +291,7 @@ These features exist in the codebase but are broken. Do not treat them as refere
 
 | File | Broken feature | Status |
 |---|---|---|
-| `admin/log-editor.html` | Fetches `magers-campaign.json` (wrong path — should be `../data/magers-campaign.json`) | Fix when editing this file |
-| `admin/log-editor.html` | AI draft panel calls `ChronicleAI.call()` but `chronicle-ai.js` is not loaded | Fix by loading the script |
 | `admin/log-editor.html` | Edits are in-memory only — no write-back to JSON or Drive | Document clearly; do not add fake "save" affordances |
-| `admin/intake.html` | "Send to Delta Review" navigates to `chronicle_delta_review_v2.html` which does not exist | Fix target to `delta-review.html` |
-| `admin/integrity.html` | Combat list is hardcoded, not fetched from `/data/` | Fix by adding `fetch('../data/magers-campaign.json')` on init before touching combat logic |
 | `admin/drive-test.html` | `?action=read` test calls the proxy read endpoint — reads moved to same-origin fetch in Phase 1 | Do not use this as a pattern for data reads |
 
 ---

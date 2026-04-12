@@ -486,72 +486,179 @@ function ingestDriveData(json, fileId) {
 }
 
 function normaliseCampaignJson(json) {
-  // If it already has our viewer shape (has 'sessions' key and 'combats' key), use directly
+  // Fast path: data is already in viewer shape. Handles any future pre-normalised format.
   if (json.sessions && json.combats) return json;
 
-  // Handle magers-campaign.json format
+  // v4 campaign format (schema 4.0.0): root keys are combat_encounters and party.
+  // v4 moves flat fields into mechanics/narrative sub-objects on every entity type.
   if (json.combat_encounters && json.party) {
+
+    // Flatten a v4 slot to the compact shape the renderer expects.
+    // v4 slot: {s, a, action:{name, res, val, ...}, notes}
+    // viewer:  {s, a, act, res, val, notes}
+    function flattenSlot(slot) {
+      return {
+        s:     slot.s,
+        a:     slot.a,
+        act:   slot.action?.name  ?? '—',    // v4: slot.action.name  (was top-level slot.act)
+        res:   slot.action?.res   ?? null,    // v4: slot.action.res   (was top-level slot.res)
+        val:   slot.action?.val   ?? null,    // v4: slot.action.val   (was top-level slot.val)
+        notes: slot.notes || slot.action?.notes || null,
+      };
+    }
+
+    // Map a v4 enemy_turn entry to the {desc, impact} shape the combat renderer uses.
+    // v4 enemy_turn: {actor_id, action:{name, res, val}, special_events:[{type, description}]}
+    function flattenEnemyTurn(et) {
+      const act = et.action;
+      let desc = et.actor_id || '?';
+      if (act?.name) {
+        desc += ': ' + act.name;
+        if (act.res) desc += ' (' + act.res + (act.val != null ? ', ' + act.val : '') + ')';
+      }
+      // special_events carry narrative impacts like downed/killed markers
+      const impact = (et.special_events || []).map(ev => ev.description).filter(Boolean).join('; ') || null;
+      return { desc, impact };
+    }
+
     return {
+      // ── Sessions ──────────────────────────────────────────────────────────────
+      // v4: id/date promoted to root; summary/tone moved into narrative sub-object;
+      //     key_moments are now objects {description, type, ref} — flatten to strings for viewer
       sessions: (json.session_logs || []).map(s => ({
-        id:             s.session_id,
+        id:             s.id,                                        // v4: s.id            (was s.session_id)
         title:          s.title,
-        date:           s.session_date,
-        summary:        s.summary,
-        narrative_vibe: s.narrative_vibe,  // keep original name — viewer uses s.narrative_vibe
-        key_moments:    s.key_moments || [],
+        date:           s.date,                                      // v4: s.date           (was s.session_date)
+        summary:        s.narrative?.summary       ?? null,          // v4: s.narrative.summary (was s.summary)
+        narrative_vibe: s.narrative?.tone          ?? null,          // v4: s.narrative.tone    (was s.narrative_vibe)
+        key_moments:    (s.narrative?.key_moments  ?? []).map(
+                          km => typeof km === 'string' ? km : (km.description ?? '')
+                        ),                                           // v4: objects → flatten to strings for renderSessionDetail
         mechanical_notes: s.mechanical_notes || [],
       })),
+
+      // ── Party ─────────────────────────────────────────────────────────────────
+      // v4: class/level moved into mechanics; free-text notes renamed campaign_notes; milestones at root
       party: (json.party || []).map(p => ({
-        id:       p.id,
-        name:     p.name,
-        nickname: p.nickname,
-        player:   p.player,
-        cls:      p.class,
-        level:    p.current_level,
-        notes:    p.notes,
-        milestones: p.milestones || [],
+        id:         p.id,
+        name:       p.name,
+        nickname:   p.nickname,
+        player:     p.player,
+        cls:        p.mechanics?.class ?? null,    // v4: p.mechanics.class (was p.class)
+        level:      p.mechanics?.level ?? null,    // v4: p.mechanics.level (was p.current_level)
+        notes:      p.campaign_notes   ?? null,    // v4: p.campaign_notes  (was p.notes)
+        milestones: p.milestones       || [],      // v4: p.milestones still at root
       })),
-      npcs:      json.npc_directory || [],
-      locations: json.locations     || [],
+
+      // ── NPCs ──────────────────────────────────────────────────────────────────
+      // v4: disposition inside mechanics; description inside narrative; spread retains all other fields
+      npcs: (json.npc_directory || []).map(n => ({
+        ...n,
+        disposition: n.mechanics?.disposition ?? null,  // v4: n.mechanics.disposition (was n.disposition)
+        description: n.narrative?.description ?? null,  // v4: n.narrative.description (was n.description)
+      })),
+
+      // ── Locations ─────────────────────────────────────────────────────────────
+      // v4: visibility inside mechanics; description inside narrative
+      locations: (json.locations || []).map(l => ({
+        ...l,
+        visibility:  l.mechanics?.visibility  ?? null,  // v4: l.mechanics.visibility  (was l.visibility)
+        description: l.narrative?.description ?? null,  // v4: l.narrative.description (was l.description)
+      })),
+
+      // ── Quests ────────────────────────────────────────────────────────────────
+      // v4: all mechanic fields inside q.mechanics; motivation inside q.narrative;
+      //     progress_log text renamed .entry → .fact; objectives renamed description→desc, is_completed→done
       quests: (json.quest_ledger || []).map(q => ({
-        id:       q.id,
-        title:    q.title,
-        status:   q.status,
-        priority: q.priority,
-        category: q.category,
-        motivation: q.narrative_motivation,
-        objectives: q.objectives || [],
-        // Viewer accesses p.s and p.e — map from {session_id, entry}
-        progress: (q.progress_log || []).map(p => ({ s: p.session_id, e: p.entry })),
-        origin:   q.origin_session,
+        id:         q.id,
+        title:      q.title,
+        status:     q.mechanics?.status    ?? null,   // v4: q.mechanics.status    (was q.status)
+        priority:   q.mechanics?.priority  ?? null,   // v4: q.mechanics.priority  (was q.priority)
+        category:   q.mechanics?.category  ?? null,   // v4: q.mechanics.category  (was q.category)
+        motivation: q.narrative?.motivation ?? null,  // v4: q.narrative.motivation (was q.narrative_motivation)
+        // v4 objectives: {id, description, is_completed} → viewer uses {desc, done}
+        objectives: (q.mechanics?.objectives || []).map(o => ({
+          desc:  o.description  ?? '',     // v4: o.description  (was o.desc)
+          done:  o.is_completed ?? false,  // v4: o.is_completed (was o.done)
+          notes: o.notes        ?? null,
+        })),
+        // v4 progress_log: entry text renamed .entry → .fact; viewer accesses p.s and p.e
+        progress: (q.mechanics?.progress_log || []).map(p => ({
+          s: p.session_id,
+          e: p.fact ?? p.entry ?? '',     // v4: p.fact (was p.entry); fallback keeps older data readable
+        })),
+        origin: q.mechanics?.origin_session ?? null,  // v4: q.mechanics.origin_session (was q.origin_session)
       })),
+
+      // ── Items ─────────────────────────────────────────────────────────────────
+      // v4: item_type/current_holder/found_session/is_quest_relevant inside mechanics;
+      //     description inside narrative
       items: (json.inventory_and_loot || []).map(i => ({
         id:      i.id,
         name:    i.name,
-        type:    i.type,
-        session: i.session_found || i.origin_session,
-        holder:  i.current_holder_id,
-        notes:   (i.notes || '') + (i.description ? ' ' + i.description : ''),
-        quest:   i.is_quest_item || false,
+        type:    i.mechanics?.item_type       ?? null,   // v4: i.mechanics.item_type      (was i.type)
+        session: i.mechanics?.found_session   ?? null,   // v4: i.mechanics.found_session  (was i.session_found)
+        holder:  i.mechanics?.current_holder  ?? null,   // v4: i.mechanics.current_holder (was i.current_holder_id)
+        notes:   (i.notes || '') + (i.narrative?.description ? ' ' + i.narrative.description : ''),
+        quest:   i.mechanics?.is_quest_relevant ?? false, // v4: i.mechanics.is_quest_relevant (was i.is_quest_item)
       })),
-      // Map location_id → location so renderCombatDetail can look it up in ENTITIES
-      combats: (json.combat_encounters || []).map(cbt => Object.assign({}, cbt, {
-        location: cbt.location_id || cbt.location,
+
+      // ── Combats ───────────────────────────────────────────────────────────────
+      // v4: outcome/location/sessions/total_rounds_logged inside mechanics;
+      //     setup/finale/aftermath inside narrative; slots have nested action object;
+      //     enemy array renamed enemy_turns with richer structure
+      combats: (json.combat_encounters || []).map(c => ({
+        ...c,
+        // Flat fields the sidebar and detail renderer look up directly
+        outcome:          c.mechanics?.outcome             ?? null,  // v4: c.mechanics.outcome
+        location:         c.mechanics?.location            ?? null,  // v4: c.mechanics.location (was c.location_id)
+        sessions:         c.mechanics?.sessions            ?? [],    // v4: c.mechanics.sessions
+        totalRounds:      c.mechanics?.total_rounds_logged ?? null,  // v4: c.mechanics.total_rounds_logged
+        // Narrative prose the combat detail panel renders
+        narrativeContext: c.narrative?.setup               ?? null,  // v4: c.narrative.setup    (was c.narrativeContext)
+        finale:           c.narrative?.finale              ?? null,  // v4: c.narrative.finale
+        aftermath:        c.narrative?.aftermath           ?? null,  // v4: c.narrative.aftermath
+        // Remap rounds: flatten slots and convert enemy_turns → enemy[]
+        rounds: (c.rounds || []).map(round => ({
+          ...round,
+          slots: (round.slots || []).map(flattenSlot),
+          enemy: (round.enemy_turns || round.enemy || []).map(flattenEnemyTurn), // v4: round.enemy_turns (was round.enemy)
+        })),
       })),
-      lore:     json.world_lore   || [],
-      bestiary: json.bestiary     || [],
-      moments:  (json.character_moments || []).map(m => ({
-        character_ids:   m.character_ids,
+
+      // ── Lore ──────────────────────────────────────────────────────────────────
+      // v4: content inside narrative; reliability inside mechanics; title unchanged
+      lore: (json.world_lore || []).map(l => ({
+        ...l,
+        content:     l.narrative?.content     ?? null,  // v4: l.narrative.content (was l.content)
+        reliability: l.mechanics?.reliability ?? null,  // v4: l.mechanics.reliability
+      })),
+
+      // ── Bestiary ──────────────────────────────────────────────────────────────
+      // v4: reliability/first_encountered/combat_appearances inside mechanics;
+      //     no flat traits[] — observed_abilities is an array of objects inside mechanics
+      bestiary: (json.bestiary || []).map(b => ({
+        ...b,
+        reliability:        b.mechanics?.reliability        ?? null,  // v4: b.mechanics.reliability
+        first_encountered:  b.mechanics?.first_encountered  ?? null,  // v4: b.mechanics.first_encountered
+        combat_appearances: b.mechanics?.combat_appearances ?? [],    // v4: b.mechanics.combat_appearances
+      })),
+
+      // ── Character moments ─────────────────────────────────────────────────────
+      // v4: character_ids/parent_event_id/origin_session inside mechanics; description inside narrative
+      moments: (json.character_moments || []).map(m => ({
+        character_ids:   m.mechanics?.character_ids   ?? [],    // v4: m.mechanics.character_ids   (was m.character_ids)
         type:            m.type,
-        description:     m.description,
-        parent_event_id: m.parent_event_id,
-        origin_session:  m.origin_session,
+        description:     m.narrative?.description     ?? null,  // v4: m.narrative.description     (was m.description)
+        parent_event_id: m.mechanics?.parent_event_id ?? null,  // v4: m.mechanics.parent_event_id (was m.parent_event_id)
+        origin_session:  m.mechanics?.origin_session  ?? null,  // v4: m.mechanics.origin_session  (was m.origin_session)
       })),
     };
   }
 
-  // Unknown format
-  throw new Error('normaliseCampaignJson: unrecognised JSON format');
+  // Unrecognised format — include schema version in error if present
+  const v = json._schema_version;
+  throw new Error('normaliseCampaignJson: unrecognised JSON format' + (v ? ' (schema v' + v + ')' : ''));
 }
 
 function setStatus(msg, type) {

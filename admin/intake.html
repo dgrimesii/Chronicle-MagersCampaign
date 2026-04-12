@@ -1114,7 +1114,7 @@ function sendToAnalysis() {
   // Brief confirmation before handing off to Delta Review
   setTimeout(() => {
     if (confirm(`Session document assembled:\n• ${pageData.length} page(s) processed\n• Ready for Delta Review\n\nOpen Delta Review now?`)) {
-      window.location = 'chronicle_delta_review_v2.html';
+      window.location = 'delta-review.html'; // was chronicle_delta_review_v2.html — that file never existed
     }
   }, 200);
 }
