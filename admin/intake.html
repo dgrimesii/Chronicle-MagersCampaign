@@ -294,9 +294,26 @@
     background: var(--amber);
     animation: pulse 1.5s infinite;
   }
-  .status-dot.done { background: var(--teal); animation: none; }
+  .status-dot.done  { background: var(--teal); animation: none; }
+  /* Red dot + no pulse when OCR fails — distinguishes failure from processing */
+  .status-dot.error { background: #c0392b; animation: none; }
   @keyframes pulse {
     0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+
+  /* Error banner shown in the OCR text pane when an API/FileReader failure
+     occurs. Sits between the pane label and the textarea so the DM cannot
+     miss it before editing or confirming. Fix #22. */
+  .ocr-error-banner {
+    display: none; /* shown via JS when page.ocrFailed is true */
+    background: rgba(192, 57, 43, 0.15);
+    border: 1px solid #c0392b;
+    border-radius: 4px;
+    color: #e07070;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
   }
 
   /* Page tabs */
@@ -733,6 +750,12 @@
           <span>Extracted Text — Edit to Correct</span>
           <span class="flag-count" id="flag-count" style="display:none;">0 flags</span>
         </div>
+        <!-- Shown by switchPage() when page.ocrFailed is true (Fix #22).
+             Hidden by default; JS toggles display:block/none per page. -->
+        <div class="ocr-error-banner" id="ocr-error-banner">
+          ⚠ OCR failed — API key missing or not configured in <code>shared/config.js</code>.
+          The text area below is empty. Type or paste the content from your notes before confirming.
+        </div>
         <textarea class="ocr-textarea" id="ocr-textarea" placeholder="OCR output will appear here..."></textarea>
       </div>
     </div>
@@ -817,7 +840,9 @@ function handleImageFiles(files) {
   Array.from(files).forEach(f => {
     if (!imageFiles.find(x => x.name === f.name && x.size === f.size)) {
       imageFiles.push(f);
-      pageData.push({ file: f, imageURL: URL.createObjectURL(f), ocrText: '', confirmed: false });
+      // ocrFailed is set to true if the API call or FileReader fails (Fix #22) —
+      // triggers the error banner in switchPage() so the DM sees the failure.
+      pageData.push({ file: f, imageURL: URL.createObjectURL(f), ocrText: '', confirmed: false, ocrFailed: false });
     }
   });
   renderImageList();
@@ -978,23 +1003,34 @@ Output exactly this format. If a value is unclear, write [?] after it. Session: 
           switchPage(idx);
           simulateOCR(idx + 1);
         },
-        onError: () => {
-          // API call failed — fall back to sample text so the workflow can continue
-          page.ocrText    = generateSampleOCR(idx);
+        onError: (err) => {
+          // Fix #22: API call failed (missing/invalid key, network error, etc.).
+          // Do NOT use generateSampleOCR() — fake data looks like real OCR output
+          // and could be confirmed into the campaign log undetected.
+          // Instead: mark the page as failed, leave the textarea empty, and show
+          // a red status dot + error banner so the DM knows OCR did not run.
+          page.ocrText    = '';
+          page.ocrFailed  = true;
           page.confirmed  = false;
           page.processing = false;
-          dot.classList.add('done');
+          dot.classList.remove('done');
+          dot.classList.add('error');
+          text.textContent = `OCR failed on page ${idx + 1} — check API key in shared/config.js`;
           buildTabs();
           switchPage(idx);
           simulateOCR(idx + 1);
         },
       });
     }).catch(function() {
-      // FileReader failed — fall back to sample text
-      page.ocrText    = generateSampleOCR(idx);
+      // Fix #22: FileReader failed — same error-state treatment as onError above.
+      // Never fill with sample data on a real image failure.
+      page.ocrText    = '';
+      page.ocrFailed  = true;
       page.confirmed  = false;
       page.processing = false;
-      dot.classList.add('done');
+      dot.classList.remove('done');
+      dot.classList.add('error');
+      text.textContent = `Could not read image file for page ${idx + 1}`;
       buildTabs();
       switchPage(idx);
       simulateOCR(idx + 1);
@@ -1067,6 +1103,10 @@ function switchPage(idx) {
   imgPane.appendChild(lblEl);
   // Update textarea
   document.getElementById('ocr-textarea').value = pageData[idx].ocrText;
+  // Show error banner when this page failed OCR (Fix #22); hide it otherwise.
+  // This ensures the banner tracks the current page as the DM navigates.
+  const errBanner = document.getElementById('ocr-error-banner');
+  if (errBanner) errBanner.style.display = pageData[idx].ocrFailed ? 'block' : 'none';
   // Update nav
   document.getElementById('prev-page-btn').disabled = idx === 0;
   document.getElementById('next-page-btn').disabled = idx === pageData.length - 1;
