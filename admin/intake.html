@@ -1031,8 +1031,12 @@ function finishOCR() {
 }
 
 function switchPage(idx) {
-  // Save current edits
-  if (pageData[currentPage]) {
+  // Save textarea edits only when navigating AWAY from the current page.
+  // Skipping the save when idx === currentPage prevents a same-page OCR refresh
+  // (called from onResult/onError after writing page.ocrText) from reading the
+  // still-empty textarea and overwriting the fresh OCR text with ''.
+  // Fix #21: was unconditionally saving, which erased OCR output on page 0.
+  if (pageData[currentPage] && currentPage !== idx) {
     pageData[currentPage].ocrText = document.getElementById('ocr-textarea').value;
   }
   currentPage = idx;
