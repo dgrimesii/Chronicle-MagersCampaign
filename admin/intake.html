@@ -841,9 +841,10 @@ function handleImageFiles(files) {
   Array.from(files).forEach(f => {
     if (!imageFiles.find(x => x.name === f.name && x.size === f.size)) {
       imageFiles.push(f);
-      // ocrFailed is set to true if the API call or FileReader fails (Fix #22) —
-      // triggers the error banner in switchPage() so the DM sees the failure.
-      pageData.push({ file: f, imageURL: URL.createObjectURL(f), ocrText: '', confirmed: false, ocrFailed: false });
+      // ocrFailed / ocrErrorReason: set by simulateOCR onError/catch (Fix #22, #26).
+      // ocrErrorReason is displayed in the error banner so the DM sees the specific
+      // failure cause even after finishOCR() overwrites the status bar text.
+      pageData.push({ file: f, imageURL: URL.createObjectURL(f), ocrText: '', confirmed: false, ocrFailed: false, ocrErrorReason: '' });
     }
   });
   renderImageList();
@@ -1005,16 +1006,17 @@ Output exactly this format. If a value is unclear, write [?] after it. Session: 
           simulateOCR(idx + 1);
         },
         onError: (err) => {
-          // Fix #22: API call failed — do NOT use generateSampleOCR() (fake data
-          // could be confirmed into the campaign log undetected).
-          // Fix #24: surface the actual error message rather than hardcoding a
-          // generic "check API key" string that misdirects when the key is fine
-          // (e.g. invalid model ID, rate limit, network failure).
+          // Fix #22: do NOT use generateSampleOCR() on failure.
+          // Fix #24: surface actual error message, not hardcoded "check API key".
+          // Fix #26: store reason on page.ocrErrorReason so switchPage() can put
+          // it in the error banner — prevents finishOCR() from erasing it by
+          // overwriting the status bar text before the user can read it.
           const reason = (err && (err.message || String(err))) || 'Unknown error';
-          page.ocrText    = '';
-          page.ocrFailed  = true;
-          page.confirmed  = false;
-          page.processing = false;
+          page.ocrText        = '';
+          page.ocrFailed      = true;
+          page.ocrErrorReason = reason;
+          page.confirmed      = false;
+          page.processing     = false;
           dot.classList.remove('done');
           dot.classList.add('error');
           text.textContent = `OCR failed on page ${idx + 1}: ${reason}`;
@@ -1024,15 +1026,17 @@ Output exactly this format. If a value is unclear, write [?] after it. Session: 
         },
       });
     }).catch(function() {
-      // Fix #22: FileReader failed — same error-state treatment as onError above.
-      // Never fill with sample data on a real image failure.
-      page.ocrText    = '';
-      page.ocrFailed  = true;
-      page.confirmed  = false;
-      page.processing = false;
+      // Fix #22 / #26: FileReader failed — same treatment as onError.
+      // Store reason on page so switchPage() shows it in the banner.
+      const reason = 'Could not read image file';
+      page.ocrText        = '';
+      page.ocrFailed      = true;
+      page.ocrErrorReason = reason;
+      page.confirmed      = false;
+      page.processing     = false;
       dot.classList.remove('done');
       dot.classList.add('error');
-      text.textContent = `Could not read image file for page ${idx + 1}`;
+      text.textContent = `OCR failed on page ${idx + 1}: ${reason}`;
       buildTabs();
       switchPage(idx);
       simulateOCR(idx + 1);
@@ -1063,8 +1067,17 @@ function generateSampleOCR(idx) {
 }
 
 function finishOCR() {
+  // Fix #26: check whether any page failed before writing a success message.
+  // If failures exist, the status bar reflects that so the DM isn't misled by
+  // a "success" message while the error banner is also showing.
+  const failCount = pageData.filter(p => p.ocrFailed).length;
   document.getElementById('ocr-status-dot').classList.add('done');
-  document.getElementById('ocr-status-text').textContent = 'All pages extracted — review each below';
+  if (failCount > 0) {
+    document.getElementById('ocr-status-text').textContent =
+      `${failCount} of ${pageData.length} page(s) failed OCR — see error detail in the panel below`;
+  } else {
+    document.getElementById('ocr-status-text').textContent = 'All pages extracted — review each below';
+  }
   switchPage(0);
 }
 
@@ -1105,10 +1118,20 @@ function switchPage(idx) {
   imgPane.appendChild(lblEl);
   // Update textarea
   document.getElementById('ocr-textarea').value = pageData[idx].ocrText;
-  // Show error banner when this page failed OCR (Fix #22); hide it otherwise.
-  // This ensures the banner tracks the current page as the DM navigates.
+  // Show error banner when this page failed OCR (Fix #22, #26).
+  // Include the stored ocrErrorReason so the DM sees the specific cause
+  // even after finishOCR() has overwritten the status bar text.
   const errBanner = document.getElementById('ocr-error-banner');
-  if (errBanner) errBanner.style.display = pageData[idx].ocrFailed ? 'block' : 'none';
+  if (errBanner) {
+    if (pageData[idx].ocrFailed) {
+      const reason = pageData[idx].ocrErrorReason || 'Unknown error';
+      errBanner.innerHTML = `⚠ OCR failed: <strong>${reason}</strong><br>
+        The text area below is empty. Type or paste the content from your notes before confirming.`;
+      errBanner.style.display = 'block';
+    } else {
+      errBanner.style.display = 'none';
+    }
+  }
   // Update nav
   document.getElementById('prev-page-btn').disabled = idx === 0;
   document.getElementById('next-page-btn').disabled = idx === pageData.length - 1;
