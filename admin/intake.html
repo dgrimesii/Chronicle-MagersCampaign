@@ -750,10 +750,11 @@
           <span>Extracted Text — Edit to Correct</span>
           <span class="flag-count" id="flag-count" style="display:none;">0 flags</span>
         </div>
-        <!-- Shown by switchPage() when page.ocrFailed is true (Fix #22).
+        <!-- Shown by switchPage() when page.ocrFailed is true (Fix #22, #24).
+             Text is generic — the specific error appears in the status bar above.
              Hidden by default; JS toggles display:block/none per page. -->
         <div class="ocr-error-banner" id="ocr-error-banner">
-          ⚠ OCR failed — API key missing or not configured in <code>shared/config.js</code>.
+          ⚠ OCR failed — check the status bar above for the error detail.
           The text area below is empty. Type or paste the content from your notes before confirming.
         </div>
         <textarea class="ocr-textarea" id="ocr-textarea" placeholder="OCR output will appear here..."></textarea>
@@ -1004,18 +1005,19 @@ Output exactly this format. If a value is unclear, write [?] after it. Session: 
           simulateOCR(idx + 1);
         },
         onError: (err) => {
-          // Fix #22: API call failed (missing/invalid key, network error, etc.).
-          // Do NOT use generateSampleOCR() — fake data looks like real OCR output
-          // and could be confirmed into the campaign log undetected.
-          // Instead: mark the page as failed, leave the textarea empty, and show
-          // a red status dot + error banner so the DM knows OCR did not run.
+          // Fix #22: API call failed — do NOT use generateSampleOCR() (fake data
+          // could be confirmed into the campaign log undetected).
+          // Fix #24: surface the actual error message rather than hardcoding a
+          // generic "check API key" string that misdirects when the key is fine
+          // (e.g. invalid model ID, rate limit, network failure).
+          const reason = (err && (err.message || String(err))) || 'Unknown error';
           page.ocrText    = '';
           page.ocrFailed  = true;
           page.confirmed  = false;
           page.processing = false;
           dot.classList.remove('done');
           dot.classList.add('error');
-          text.textContent = `OCR failed on page ${idx + 1} — check API key in shared/config.js`;
+          text.textContent = `OCR failed on page ${idx + 1}: ${reason}`;
           buildTabs();
           switchPage(idx);
           simulateOCR(idx + 1);

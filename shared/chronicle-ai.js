@@ -27,7 +27,9 @@ const ChronicleAI = (() => {
   // Config
   // ─────────────────────────────────────────────────────────
   const API_URL  = 'https://api.anthropic.com/v1/messages';
-  const MODEL    = 'claude-sonnet-4-20250514';
+  // Fix #23: was 'claude-sonnet-4-20250514' (pre-release/beta snapshot ID that
+  // the production API rejects with HTTP 400). Use the canonical production alias.
+  const MODEL    = 'claude-sonnet-4-6';
   const MAX_TOKENS = 1200;
 
   // ─────────────────────────────────────────────────────────
