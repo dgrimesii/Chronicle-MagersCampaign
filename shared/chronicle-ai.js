@@ -87,7 +87,16 @@ const ChronicleAI = (() => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        // Fix #25: read the response body before throwing so the Anthropic error
+        // message (e.g. "model not found", "invalid api key") is included in the
+        // thrown error and surfaced to the DM in the status bar.
+        // Without this, all failures show as "HTTP 400: Bad Request" with no detail.
+        let detail = response.statusText;
+        try {
+          const errBody = await response.json();
+          detail = errBody?.error?.message || JSON.stringify(errBody);
+        } catch (_) { /* body not JSON — keep statusText */ }
+        throw new Error(`HTTP ${response.status}: ${detail}`);
       }
 
       const data = await response.json();
