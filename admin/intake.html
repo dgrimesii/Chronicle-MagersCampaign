@@ -901,7 +901,11 @@ function removeText() {
 // ══════════════════════════════════════════════════════
 function checkReadyToRun() {
   const btn = document.getElementById('run-ocr-btn');
-  btn.disabled = !(imageFiles.length > 0 && textFile);
+  // Fix #19: only images are required to start OCR — the narrative text file
+  // is assembled into the session document in Step 3 (buildSessionDoc) and
+  // is not read during the image OCR pipeline at all. Requiring it here
+  // blocked the workflow when the DM had images but no text file yet.
+  btn.disabled = !(imageFiles.length > 0);
 }
 
 // ══════════════════════════════════════════════════════
@@ -949,40 +953,54 @@ ROUND SUMMARY: <one sentence>
 ---
 Output exactly this format. If a value is unclear, write [?] after it. Session: ${sessionHint}${combatHint ? '. Combat: ' + combatHint : ''}.`;
 
-  if (page.imageDataURL) {
-    // Real image — call Vision API
-    ChronicleAI.call({
-      system,
-      messages: [{
-        role: 'user',
-        content: [
-          ChronicleAI.imageContent(page.imageDataURL),
-          { type: 'text', text: `Extract all combat round data from this handwritten notes page.` },
-        ],
-      }],
-      onLoading: () => {},
-      onResult: (text) => {
-        page.ocrText    = text;
-        page.confirmed  = false;
-        page.processing = false;
-        dot.classList.add('done');
-        buildTabs();
-        switchPage(idx);
-        simulateOCR(idx + 1);
-      },
-      onError: () => {
-        // Fall back to sample text
-        page.ocrText    = generateSampleOCR(idx);
-        page.confirmed  = false;
-        page.processing = false;
-        dot.classList.add('done');
-        buildTabs();
-        switchPage(idx);
-        simulateOCR(idx + 1);
-      },
+  if (page.imageURL) {
+    // Fix #20: was checking page.imageDataURL (always undefined) so the Vision
+    // API was never called. The correct property is page.imageURL (blob URL set
+    // by handleImageFiles). imageContent() requires a base64 data URL, not a
+    // blob URL, so we convert via readFileAsDataURL before calling the API.
+    ChronicleAI.readFileAsDataURL(page.file).then(function(dataURL) {
+      ChronicleAI.call({
+        system,
+        messages: [{
+          role: 'user',
+          content: [
+            ChronicleAI.imageContent(dataURL),
+            { type: 'text', text: 'Extract all combat round data from this handwritten notes page.' },
+          ],
+        }],
+        onLoading: () => {},
+        onResult: (text) => {
+          page.ocrText    = text;
+          page.confirmed  = false;
+          page.processing = false;
+          dot.classList.add('done');
+          buildTabs();
+          switchPage(idx);
+          simulateOCR(idx + 1);
+        },
+        onError: () => {
+          // API call failed — fall back to sample text so the workflow can continue
+          page.ocrText    = generateSampleOCR(idx);
+          page.confirmed  = false;
+          page.processing = false;
+          dot.classList.add('done');
+          buildTabs();
+          switchPage(idx);
+          simulateOCR(idx + 1);
+        },
+      });
+    }).catch(function() {
+      // FileReader failed — fall back to sample text
+      page.ocrText    = generateSampleOCR(idx);
+      page.confirmed  = false;
+      page.processing = false;
+      dot.classList.add('done');
+      buildTabs();
+      switchPage(idx);
+      simulateOCR(idx + 1);
     });
   } else {
-    // No image — use placeholder/sample text
+    // No image file present — use placeholder/sample text (demo/offline mode)
     setTimeout(() => {
       page.ocrText    = generateSampleOCR(idx);
       page.confirmed  = false;
@@ -996,11 +1014,14 @@ Output exactly this format. If a value is unclear, write [?] after it. Session: 
 }
 
 function generateSampleOCR(idx) {
+  // Returns a plain string — callers assign this directly to page.ocrText which
+  // is then rendered into the textarea. Fix #20: was returning { text: "..." }
+  // (an object) which caused the textarea to display "[object Object]".
   const pages = [
     `ROUND 1\nInitiative: Zara (18), Goblin Chief (15), Morcant (12), Cultist A (10), Thalia (8)\n\nZara — Eldritch Blast → Goblin Chief. Hit. 2d10+4 = 14 dmg.\nGoblin Chief — Greataxe → Morcant. Hit. 2d6+3 = 9 dmg.\nMorcant — Shield of Faith (conc). Action Surge. Longsword → Cultist A. CRIT. 4d8+4 = 28 dmg.\nCultist A — Spiritual weapon vs Thalia. Miss.\nThalia — Healing Word → Morcant. +1d4+4 = 7 HP. Guiding Bolt → Goblin Chief. Hit. 4d6 = 18 dmg. Disadvantage next attack.\n\nROUND 2\nZara — Misty Step behind pillar. Eldritch Blast → Chief. Hit. 11 dmg.\nGoblin Chief — Reckless attack → Zara. Hit 17 dmg. Zara at 6 HP.\nMorcant — Divine Smite (2nd lvl). Longsword → Chief. Hit. 2d8+2d8+4 = 26 dmg. CHIEF DOWN.\nCultist A — flees through east door.\nThalia — Healing Word → Zara. +8 HP. Sacred Flame → Cultist A (fleeing). DEX save DC13 fail. 2d8 = 9 dmg. Cultist A DOWN.`,
     `POST COMBAT NOTES\nAll PCs stabilised. Short rest taken in the shrine antechamber.\n\nLoot from Goblin Chief:\n- Greataxe +1 (magical, faint aura)\n- Pouch: 34 GP, 2x smoky quartz (est. 25 GP each)\n- Folded note (sealed, unknown wax emblem — crescent over a closed eye)\n\nThalia inspects the altar. Arcana check 19. Detects lingering transmutation magic, not divine. Conclusion: the shrine is a fake — the cult was using it as a front.\n\nZara finds a trapdoor behind the altar. Perception 22. Stone worn smooth from recent use.\n\nMorcant questions the bound cultist (survivor). Intimidation 14. Cultist reveals:\n- "The Pale Warden" is their leader, met only once\n- Next gathering is at the mill outside Thornwick — three days hence\n- Password: "the river remembers"`
   ];
-  return { text: pages[idx % pages.length] };
+  return pages[idx % pages.length];
 }
 
 function finishOCR() {
