@@ -190,8 +190,9 @@ button{font-family:"Cinzel",serif;font-size:0.65rem;letter-spacing:0.08em;paddin
 <script src="../shared/config.js"></script>
 <script>
 var PROXY     = window.CHRONICLE_CONFIG.proxyUrl;
-var FILE_ID   = window.CHRONICLE_CONFIG.campaignFileId;
-var TEST_FILE = window.CHRONICLE_CONFIG.campaignFileId;
+// Use the resolver so diagnostic tests target the test Drive file when safeTestMode is on.
+var FILE_ID   = window.CHRONICLE_CONFIG.getCampaignFileId();
+var TEST_FILE = window.CHRONICLE_CONFIG.getCampaignFileId();
 var FOLDER    = '1BJQxOS4MspOlPzCt70r7zOY_8LnwAwPY';
 var DUMMY     = 'aAbBcCdDeEfFgGhHiIjJkKlLmMnNoO123';
 

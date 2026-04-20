@@ -248,6 +248,93 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .btn-publish{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;padding:7px 18px;border-radius:3px;background:var(--teal);color:white;border:1px solid var(--teal);cursor:pointer;transition:all 0.15s;}
 .btn-publish:hover{background:#205555;}
 .btn-publish:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* ═══════════════════════════════
+   INTEGRITY PANEL (Phase B)
+   Gap-detection pre-flight above the approval queue.
+═══════════════════════════════ */
+
+/* Compact strip at the top of the queue panel — shows gap status at a glance */
+.integrity-queue-chip{padding:0.4rem 1rem;font-family:'Cinzel',serif;font-size:0.62rem;
+  letter-spacing:0.1em;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.12s;display:flex;align-items:center;gap:6px;}
+.integrity-queue-chip:hover{background:rgba(212,175,55,0.06);}
+.integrity-chip-warn{color:#ffbb33;background:rgba(255,187,51,0.05);}
+.integrity-chip-ok{color:var(--teal);background:rgba(42,107,107,0.05);}
+
+/* Center panel — integrity header banners */
+.integrity-header-bar{background:rgba(255,170,0,0.06);border:1px solid rgba(255,170,0,0.22);
+  border-radius:4px;padding:0.85rem 1.25rem;margin-bottom:1rem;font-family:'Cinzel',serif;
+  font-size:0.88rem;letter-spacing:0.06em;color:#ffbb33;display:flex;flex-direction:column;gap:4px;}
+.integrity-subhead{font-family:'Crimson Pro',serif;font-size:0.85rem;color:var(--muted);letter-spacing:0;}
+.integrity-resolved-banner{background:rgba(42,107,107,0.1);border:1px solid rgba(42,107,107,0.28);
+  border-radius:4px;padding:0.85rem 1.25rem;margin-bottom:1rem;font-family:'Cinzel',serif;
+  font-size:0.88rem;letter-spacing:0.06em;color:var(--teal);}
+
+/* Gap cards */
+.gap-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;
+  padding:1rem 1.25rem;margin-bottom:0.75rem;box-shadow:var(--shadow);}
+.gap-card.gap-resolved{opacity:0.62;border-color:rgba(212,175,55,0.08);}
+.gap-card-header{display:flex;align-items:center;gap:8px;margin-bottom:0.5rem;flex-wrap:wrap;}
+.gap-combat-name{font-family:'Cinzel',serif;font-size:0.88rem;font-weight:600;color:var(--ink);}
+.gap-type-chip{font-family:'JetBrains Mono',monospace;font-size:0.6rem;padding:2px 8px;border-radius:2px;}
+.gap-sev-critical{background:rgba(163,45,45,0.1);color:var(--rust);border:1px solid rgba(163,45,45,0.22);}
+.gap-sev-warning{background:rgba(212,175,55,0.08);color:var(--amber-dim);border:1px solid rgba(212,175,55,0.18);}
+.gap-badge{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.08em;padding:2px 10px;border-radius:2px;margin-left:auto;}
+.gap-badge-accepted{background:rgba(42,107,107,0.12);color:var(--teal);border:1px solid rgba(42,107,107,0.28);}
+.gap-badge-deferred{background:rgba(212,175,55,0.1);color:#ffbb33;border:1px solid rgba(212,175,55,0.22);}
+.gap-badge-filled{background:rgba(74,59,140,0.1);color:var(--purple);border:1px solid rgba(74,59,140,0.22);}
+.gap-detail{font-size:0.9rem;color:var(--ink);margin-bottom:0.35rem;line-height:1.5;}
+.gap-detail code{font-family:'JetBrains Mono',monospace;font-size:0.8em;background:var(--parchment-mid);padding:0 4px;border-radius:2px;}
+.gap-ctx{font-size:0.82rem;color:var(--muted);font-style:italic;margin-bottom:0.75rem;}
+
+/* Three-button triad and edit actions */
+.gap-actions,.gap-edit-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.btn-gap{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.08em;padding:5px 14px;
+  border-radius:3px;cursor:pointer;transition:all 0.12s;border:1px solid var(--border-strong);
+  background:none;color:var(--muted);}
+.btn-gap:hover:not(:disabled){background:var(--parchment-dark);color:var(--ink);}
+.btn-gap:disabled{opacity:0.3;cursor:not-allowed;}
+.btn-gap-accept{color:var(--teal);border-color:rgba(42,107,107,0.38);}
+.btn-gap-accept:hover{background:rgba(42,107,107,0.1) !important;}
+.btn-gap-defer{color:#ffbb33;border-color:rgba(255,187,51,0.3);}
+.btn-gap-defer:hover{background:rgba(255,187,51,0.08) !important;}
+.btn-gap-edit,.btn-gap-img,.btn-gap-txt{color:var(--amber-dim);border-color:rgba(212,175,55,0.28);}
+.btn-gap-approve{color:var(--teal);border-color:rgba(42,107,107,0.38);}
+.btn-gap-cancel{color:var(--muted);font-size:0.6rem;}
+
+/* Edit sub-panel */
+.gap-edit-panel{margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;
+  display:flex;flex-direction:column;gap:0.5rem;}
+.gap-edit-label{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;}
+.gap-edit-footer{display:flex;justify-content:flex-end;margin-top:0.25rem;}
+.gap-textarea{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:3px;
+  font-family:'Crimson Pro',serif;font-size:0.92rem;resize:none;outline:none;background:var(--parchment);
+  color:var(--ink);line-height:1.55;transition:border-color 0.15s;}
+.gap-textarea:focus{border-color:var(--amber);background:var(--card-bg);}
+
+/* Proposals */
+.gap-proposals{margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;}
+.gap-proposal{background:var(--parchment-mid);border:1px solid var(--border);border-radius:3px;
+  padding:0.75rem 0.85rem;margin-bottom:0.5rem;}
+.gap-proposal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;}
+.gap-proposal-label{font-family:'Cinzel',serif;font-size:0.72rem;font-weight:600;}
+.gap-proposal-source{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--muted-light);}
+.gap-slot-display{border:1px solid var(--border);border-radius:2px;overflow:hidden;margin-bottom:0.5rem;}
+.gap-slot-row{display:grid;grid-template-columns:24px 60px 1fr 50px;gap:6px;padding:0.35rem 0.6rem;
+  font-size:0.85rem;border-bottom:1px solid var(--border);}
+.gap-slot-row:last-child{border-bottom:none;}
+.gap-slot-row.odd{background:rgba(212,175,55,0.03);}
+.gap-slot-row.gap-enemy-row{background:rgba(163,45,45,0.04);}
+.gap-slot-n{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted-light);}
+.gap-slot-a{font-family:'Cinzel',serif;font-size:0.72rem;font-weight:600;}
+.gap-slot-act{color:var(--ink);}
+.gap-slot-res{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted-light);text-align:right;}
+.gap-proposal-summary{font-size:0.82rem;color:var(--muted);font-style:italic;margin-bottom:0.5rem;}
+.gap-proposal-actions{display:flex;gap:6px;}
+
+/* Pending-confirm state: all rounds filled but DM hasn't explicitly closed the gap yet */
+.gap-filled-notice{background:rgba(42,107,107,0.06);border:1px solid rgba(42,107,107,0.2);
+  border-radius:3px;padding:0.5rem 0.85rem;font-size:0.85rem;color:var(--teal);margin-bottom:0.5rem;}
 </style>
 </head>
 <body>
@@ -346,9 +433,12 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
   </div>
 </div>
 
+<!-- Hidden file input for integrity gap image fills — shared across all gaps -->
+<input type="file" id="gap-img-input" accept="image/*" style="display:none;">
 </div><!-- end shell -->
 
 <script src="../shared/config.js"></script>
+<script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script>
 // ── Drive integration ─────────────────────────────────────────────────────────
@@ -357,7 +447,8 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 // and { ok, ... } for mutations.
 
 const DRIVE_PROXY    = window.CHRONICLE_CONFIG.proxyUrl;
-const CAMPAIGN_FILE  = window.CHRONICLE_CONFIG.campaignFileId;
+// Use the resolver so Drive writes target the test Drive file when safeTestMode is on.
+const CAMPAIGN_FILE  = window.CHRONICLE_CONFIG.getCampaignFileId();
 
 async function driveGet(params) {
   var url = DRIVE_PROXY + '?';
@@ -709,7 +800,9 @@ function renderQueue() {
     }
   });
 
-  scroll.innerHTML = html;
+  // Prepend the integrity status chip so the DM always sees gap state at the top
+  // of the queue panel, regardless of which queue item is active.
+  scroll.innerHTML = integrityQueueChipHTML() + html;
   updateProgress();
 }
 
@@ -752,7 +845,12 @@ function updateProgress() {
   document.getElementById('pub-approved').textContent = `${approved} approved`;
   document.getElementById('pub-pending').textContent = `${pending} pending`;
   document.getElementById('pub-flagged').textContent = `${flagged} flagged`;
-  document.getElementById('publish-btn').disabled = approved === 0;
+  // Publish requires both approved items AND all integrity gaps resolved.
+  // If gaps are unresolved, the Publish button is disabled with a tooltip explaining why.
+  const gapsOk   = allGapsResolved();
+  const pubBtn   = document.getElementById('publish-btn');
+  pubBtn.disabled = approved === 0 || !gapsOk;
+  pubBtn.title    = !gapsOk ? 'Resolve all integrity gaps to publish' : '';
 }
 
 // ══════════════════════════════════════════════════════
@@ -760,6 +858,8 @@ function updateProgress() {
 // ══════════════════════════════════════════════════════
 function selectItem(id) {
   selectedId = id;
+  // Selecting a queue item exits the integrity panel view — center now shows the item
+  showingIntegrityPanel = false;
   renderQueue();
   renderReview();
   renderAssistant();
@@ -1159,6 +1259,20 @@ function applyDeltasToCampaign(campaign, approved) {
     }
   }
 
+  // Append any deferred integrity gaps to the published JSON.
+  // These persist version-controlled alongside the campaign data so the future
+  // campaign scanner can present them as a correction queue.
+  if (deferredGaps.length > 0) {
+    if (!Array.isArray(out.deferred_gaps)) out.deferred_gaps = [];
+    // Only append gaps that aren't already in the array (by id) — guard against
+    // re-publish after a partial publish failure.
+    for (const dg of deferredGaps) {
+      if (!out.deferred_gaps.some(existing => existing.id === dg.id)) {
+        out.deferred_gaps.push(dg);
+      }
+    }
+  }
+
   // Update schema metadata
   out._last_published = new Date().toISOString();
   out._delta_count    = (out._delta_count || 0) + approved.length;
@@ -1167,10 +1281,543 @@ function applyDeltasToCampaign(campaign, approved) {
 }
 
 // ══════════════════════════════════════════════════════
+// INTEGRITY PANEL (Phase B)
+//
+// WHY THIS EXISTS
+// ---------------
+// Gap detection runs before the DM begins reviewing queue items. If the
+// staged delta has missing rounds (gaps in INCOMING) or those gaps expose
+// holes in the existing campaign data, the DM must make an explicit decision
+// on each gap before publishing. This prevents committing structurally
+// incomplete combat records that are harder to find and fix post-publish.
+//
+// DATA FLOW
+// ---------
+// 1. initIntegrity() fetches ../data/magers-campaign.json at page load.
+//    This is the same-origin repo copy — NOT the Drive copy that publish()
+//    writes to. The two can diverge; integrity checks against the repo copy.
+// 2. buildIncomingFromItems() extracts combatId+roundNumber from items[]
+//    to form the INCOMING data that ChronicleIntegrity.checks() needs.
+// 3. Each gap gets a state object in gapStates{} tracking its decision.
+// 4. The Publish button is gated on allGapsResolved() — every gap must have
+//    an explicit Accept or Defer decision before publishing is allowed.
+// 5. Deferred gaps are appended to deferred_gaps[] in the publish payload.
+// ══════════════════════════════════════════════════════
+
+let campaignIntegrityData = null; // v4 JSON shaped for ChronicleIntegrity.checks()
+let gapResults       = [];        // gap objects returned by ChronicleIntegrity.checks()
+let gapStates        = {};        // gapId → { decision, proposals, approvedRounds }
+let deferredGaps     = [];        // deferred gap records — appended to publish payload
+let deferredGapCount = 0;         // counter for gap_NNN ID assignment
+let showingIntegrityPanel = false; // true when the center shows the integrity view
+
+// Build the INCOMING array that ChronicleIntegrity.checks() expects from the
+// existing items[] and cascadeItems[]. Round items carry combatId + roundNumber.
+// Non-round items (session logs, NPCs, quests) are ignored by checks().
+function buildIncomingFromItems() {
+  return [...items, ...cascadeItems]
+    .filter(i => i.combatId && i.roundNumber != null)
+    .map(i => ({ combatId: i.combatId, roundNumber: i.roundNumber }));
+}
+
+// Fetch live campaign data and run gap detection. Called once at init.
+// Non-fatal on error — if the fetch fails, gapResults stays [] and the
+// integrity panel is silently skipped rather than blocking the review.
+async function initIntegrity() {
+  try {
+    // Route through the Safe Test Mode resolver so test runs target the fixture.
+    // Falls back to the hardcoded path when config.js is absent (GitHub Pages).
+    const res = await fetch(window.CHRONICLE_CONFIG?.getCampaignPath?.() ?? '../data/magers-campaign.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+
+    // Build the minimal campaign shape that ChronicleIntegrity.checks() needs.
+    // Only combat_encounters is used — other arrays are not needed here.
+    campaignIntegrityData = {
+      combat_encounters: (json.combat_encounters || []).map(c => ({
+        id:          c.id,
+        name:        c.name,
+        // v4 stores round count in mechanics sub-object; fall back to null if absent
+        totalRounds: c.mechanics?.total_rounds_logged ?? null,
+        sessions:    c.mechanics?.sessions            ?? [],
+        rounds:      (c.rounds || []).map(r => ({ n: r.n })),
+      })),
+    };
+
+    gapResults = ChronicleIntegrity.checks(campaignIntegrityData, buildIncomingFromItems());
+
+    // Initialise a state record for each gap
+    gapResults.forEach(g => {
+      gapStates[g.id] = { decision: null, proposals: [], approvedRounds: [] };
+    });
+
+    if (gapResults.length > 0) {
+      // Auto-show integrity panel in center — DM sees gaps before any queue item
+      showIntegrityPanel();
+    }
+  } catch(e) {
+    // Log but do not block — the review queue works independently of integrity
+    console.warn('[delta-review] integrity fetch failed (non-fatal):', e.message);
+    gapResults = [];
+  }
+  // Re-run progress now that we know whether gaps exist, updating Publish gate
+  updateProgress();
+  // Re-render queue to show integrity status chip
+  renderQueue();
+}
+
+// Returns true when every gap has an explicit Accept or Defer decision.
+// Used to gate the Publish button — all gaps must be decided before publishing.
+function allGapsResolved() {
+  if (!gapResults.length) return true;
+  return gapResults.every(g => isGapResolved(g.id));
+}
+
+// Returns true if the given gap has an explicit Accept or Defer decision.
+// "Editing" and "pending-confirm" do NOT count as resolved — the DM must
+// explicitly close the gap even after approving fill proposals.
+function isGapResolved(gapId) {
+  const st = gapStates[gapId];
+  return st?.decision === 'accepted' || st?.decision === 'deferred';
+}
+
+// Show the integrity panel in the center review area.
+// Sets showingIntegrityPanel so refreshIntegrityIfVisible() can detect it.
+function showIntegrityPanel() {
+  const scroll  = document.getElementById('review-scroll');
+  const toolbar = document.getElementById('approval-toolbar');
+  if (toolbar) toolbar.style.display = 'none';
+  showingIntegrityPanel = true;
+  selectedId = null; // no queue item is active
+  scroll.innerHTML = renderIntegrityPanelHTML();
+  renderQueue(); // update queue chip state
+}
+
+// Build the full integrity panel HTML for the center review area
+function renderIntegrityPanelHTML() {
+  if (!gapResults.length) {
+    return '<div class="integrity-resolved-banner">✓ Integrity — no gaps found</div>';
+  }
+
+  const unresolved = gapResults.filter(g => !isGapResolved(g.id));
+
+  if (unresolved.length === 0) {
+    return `<div class="integrity-resolved-banner">✓ Integrity — clear. All ${gapResults.length} gap${gapResults.length > 1 ? 's' : ''} resolved.</div>`
+      + gapResults.map(g => renderGapCard(g)).join('');
+  }
+
+  return `<div class="integrity-header-bar">
+      ⚠ Integrity — ${unresolved.length} gap${unresolved.length > 1 ? 's' : ''} found in staged session data
+      <span class="integrity-subhead">Resolve all gaps before publishing. Accept, Defer, or fill each gap below.</span>
+    </div>`
+    + gapResults.map(g => renderGapCard(g)).join('');
+}
+
+// Render one gap card. Adapts its content based on the gap's current decision state.
+function renderGapCard(g) {
+  const st       = gapStates[g.id];
+  const decision = st?.decision;
+  const resolved = isGapResolved(g.id);
+  const sevClass = g.sev === 'critical' ? 'gap-sev-critical' : 'gap-sev-warning';
+  const typeLabel = g.isNew ? 'Incoming gap' : g.group === 'misc' ? 'Count mismatch' : 'Existing gap';
+
+  // Status badge shown in the card header when a decision has been made
+  let statusBadge = '';
+  if (decision === 'accepted')       statusBadge = '<span class="gap-badge gap-badge-accepted">Accepted</span>';
+  else if (decision === 'deferred')  statusBadge = '<span class="gap-badge gap-badge-deferred">Deferred</span>';
+  else if (decision === 'pending-confirm') statusBadge = '<span class="gap-badge gap-badge-filled">Filled — confirm</span>';
+
+  // Render the appropriate action area based on decision state
+  let actionArea = '';
+  if (!resolved) {
+    if (!decision || decision === null) {
+      // Initial state: three-button triad
+      actionArea = `<div class="gap-actions">
+        <button class="btn-gap btn-gap-accept" onclick="gapAccept('${g.id}')">Accept</button>
+        <button class="btn-gap btn-gap-defer"  onclick="gapDefer('${g.id}')">Defer</button>
+        <button class="btn-gap btn-gap-edit"   onclick="gapEdit('${g.id}')">Edit</button>
+      </div>`;
+    } else if (decision === 'editing') {
+      // Edit state: fill sub-panel with image / text / reprocess options
+      actionArea = renderGapEditPanel(g, st);
+    } else if (decision === 'pending-confirm') {
+      // All rounds filled via proposals — DM must still explicitly close the gap
+      const filledList = st.approvedRounds.join(', ');
+      actionArea = `<div class="gap-filled-notice">Gap resolved — Round${st.approvedRounds.length > 1 ? 's' : ''} ${filledList} filled and added to the queue.</div>
+        <div class="gap-actions">
+          <button class="btn-gap btn-gap-accept" onclick="gapAccept('${g.id}')">Accept</button>
+          <button class="btn-gap btn-gap-defer"  onclick="gapDefer('${g.id}')">Defer</button>
+          <button class="btn-gap btn-gap-edit"   onclick="gapReEdit('${g.id}')">Re-edit</button>
+        </div>`;
+    }
+  }
+
+  // Proposals section (populated when AI returns results during Edit)
+  const proposalsHtml = (st?.proposals || []).length
+    ? `<div class="gap-proposals">${st.proposals.map((p, i) => renderGapProposal(g.id, p, i)).join('')}</div>`
+    : '';
+
+  return `<div class="gap-card${resolved ? ' gap-resolved' : ''}" id="gap-card-${g.id}">
+    <div class="gap-card-header">
+      <span class="gap-combat-name">${g.cbtName}</span>
+      <span class="gap-type-chip ${sevClass}">${typeLabel}</span>
+      ${statusBadge}
+    </div>
+    ${!resolved ? `<div class="gap-detail">${g.detail}</div><div class="gap-ctx">${g.ctx}</div>` : ''}
+    ${actionArea}
+    ${proposalsHtml}
+  </div>`;
+}
+
+// Render the Edit sub-panel (Fill from image / Fill from text / Reprocess placeholder)
+function renderGapEditPanel(g, st) {
+  const hasText = !!document.getElementById(`gap-txt-${g.id}`)?.value?.trim();
+  return `<div class="gap-edit-panel">
+    <div class="gap-edit-label">Fill missing rounds (${g.miss.join(', ')}):</div>
+    <div class="gap-edit-actions">
+      <button class="btn-gap btn-gap-img" onclick="gapFillFromImage('${g.id}')">Fill from image</button>
+      <button class="btn-gap btn-gap-txt" onclick="gapFillFromText('${g.id}')">Fill from text</button>
+      <!--
+        REPROCESS — PLACEHOLDER (not yet implemented)
+        =============================================
+
+        PURPOSE
+        -------
+        Reprocess would allow the DM to re-run AI extraction on the same source
+        image or text but get a different result. This is distinct from Edit
+        (manual correction) — it is for cases where the DM believes the AI made
+        a genuine OCR or interpretation error and wants to try again with guidance.
+
+
+        OPEN QUESTIONS TO RESOLVE BEFORE BUILDING
+        ------------------------------------------
+
+        1. How does the user elicit a different outcome from the same inputs?
+           The AI's output is deterministic for a given prompt + image. To get
+           a different result from the same image, the prompt must change.
+           Options:
+             A. "Correction hint" textarea — DM types what was wrong
+                (e.g. "slot 6 is Atti not Mal") and the hint is prepended to
+                the system prompt before rescan.
+             B. "What was wrong?" dialogue — show the previous output, ask the DM
+                to annotate the error; the annotation becomes context for rescan.
+             C. Expose the full system prompt for DM editing — powerful but
+                complex and error-prone for non-technical users.
+           Risk with any hint approach: DM guidance that contradicts the source
+           image will cause the AI to hallucinate a "correction". The Edit path
+           (manual correction) is always the safer choice when the issue is
+           judgment rather than OCR error.
+
+        2. Can the rescan target a specific gap without affecting other rounds?
+           fillRoundsFromImage() already accepts a specific roundNumbers[] array,
+           so the API call is already targeted. The problem is the source image
+           itself — it contains all rounds, and the AI may reference context
+           outside the target range even when instructed not to.
+           Options:
+             A. Prompt engineering — explicitly instruct "return data ONLY for
+                rounds [N, M]; ignore all other rounds in the image."
+                (This is a prompting fix, not an architecture fix.)
+             B. Image cropping UI — let the DM crop or select the specific area
+                of the photo that contains the target rounds before uploading.
+             C. Accept that context bleed is a known limitation and document it.
+           This is likely a prompting problem first; explore Option A before
+           building a cropping UI.
+
+        3. Does reprocess happen in delta-review or does it send the user back
+           to intake?
+           Sending back to intake would lose the entire delta-review state —
+           there is no mechanism to preserve it across page navigation.
+           Reprocess should happen here, in delta-review, using the same
+           ChronicleAI.fillRoundsFromImage() call but with modified prompt context.
+           What changes between initial fill and reprocess is the prompt, not
+           the page. A future "refine" mode could show the previous AI output
+           alongside the image so the DM can annotate exactly what was wrong
+           before triggering the rescan.
+
+
+        IMPLEMENTATION SKETCH (when ready to build)
+        --------------------------------------------
+        1. Enable the Reprocess button.
+        2. On click, show a "What was wrong?" textarea above the previous proposals.
+        3. On submit, call fillRoundsFromImage() (or fillRoundsFromText()) with
+           the original source + the correction hint injected into the system prompt.
+        4. Render new proposals alongside (not replacing) the previous ones so
+           the DM can compare.
+        5. Each proposal set is labelled: "Attempt 1", "Attempt 2", etc.
+      -->
+      <button class="btn-gap" disabled
+        title="Reprocess with guidance — not yet implemented. See code comments.">
+        Reprocess ⚠
+      </button>
+    </div>
+    <textarea id="gap-txt-${g.id}" class="gap-textarea"
+      placeholder="Describe what happened in the missing rounds…" rows="3"></textarea>
+    <div class="gap-edit-footer">
+      <button class="btn-gap btn-gap-cancel" onclick="gapCancelEdit('${g.id}')">← Back</button>
+    </div>
+  </div>`;
+}
+
+// Render a single AI-returned fill proposal inside a gap card
+function renderGapProposal(gapId, proposal, idx) {
+  const slotRows = (proposal.slots || []).map((sl, i) => `
+    <div class="gap-slot-row${i % 2 === 0 ? ' odd' : ''}">
+      <span class="gap-slot-n">${sl.s || i + 1}</span>
+      <span class="gap-slot-a">${nick(sl.a) || sl.a || '—'}</span>
+      <span class="gap-slot-act">${sl.act || '—'}</span>
+      <span class="gap-slot-res">${sl.res || ''}</span>
+    </div>`).join('');
+  const enemyRows = (proposal.enemy || []).map(e => `
+    <div class="gap-slot-row gap-enemy-row">
+      <span class="gap-slot-n">—</span>
+      <span class="gap-slot-a" style="color:var(--rust)">Enemy</span>
+      <span class="gap-slot-act">${e.desc || ''}</span>
+      <span></span>
+    </div>`).join('');
+  const srcLabel = proposal.source === 'image' ? 'From image' : 'From text';
+
+  return `<div class="gap-proposal">
+    <div class="gap-proposal-header">
+      <span class="gap-proposal-label">Round ${proposal.n} proposal</span>
+      <span class="gap-proposal-source">${srcLabel}</span>
+    </div>
+    <div class="gap-slot-display">${slotRows}${enemyRows}</div>
+    ${proposal.summary ? `<div class="gap-proposal-summary">${proposal.summary}</div>` : ''}
+    <div class="gap-proposal-actions">
+      <button class="btn-gap btn-gap-approve" onclick="approveGapProposal('${gapId}', ${idx})">Approve ✓</button>
+      <button class="btn-gap" onclick="rejectGapProposal('${gapId}', ${idx})">Reject</button>
+    </div>
+  </div>`;
+}
+
+// ── Gap action handlers ────────────────────────────────────────────────────────
+
+// Accept: DM acknowledges the gap as intentionally empty — nothing recorded.
+// No record is written to deferred_gaps. The gap is marked closed.
+function gapAccept(gapId) {
+  gapStates[gapId].decision = 'accepted';
+  _afterGapDecision();
+}
+
+// Defer: DM flags the gap for future correction after this publish cycle.
+// Creates a deferred_gaps entry that travels to Drive with the publish payload.
+function gapDefer(gapId) {
+  const g = gapResults.find(x => x.id === gapId);
+  if (!g) return;
+  gapStates[gapId].decision = 'deferred';
+
+  // The session_id of the current publish cycle — used as "deferred_at" so
+  // the future scanner knows which session created this deferred flag.
+  const currentSessionId = items.find(i => i.array === 'session_logs')?.rawData?.session_id
+    || 'unknown_session';
+
+  deferredGapCount++;
+  deferredGaps.push({
+    id:             `gap_${String(deferredGapCount).padStart(3, '0')}`,
+    combat_id:      g.cbtId,
+    combat_name:    g.cbtName,
+    session_id:     g.sessHint || currentSessionId,
+    missing_rounds: g.miss,
+    // gap_type distinguishes incoming data gaps from continuity jumps
+    gap_type:       g.isNew ? 'incoming' : 'continuity',
+    deferred_at:    currentSessionId,
+    status:         'pending', // 'resolved' when the future scanner addresses it
+  });
+
+  _afterGapDecision();
+}
+
+// Edit: expand the gap card to show fill options (image / text / reprocess)
+function gapEdit(gapId) {
+  gapStates[gapId].decision = 'editing';
+  gapStates[gapId].proposals = [];
+  refreshIntegrityIfVisible();
+}
+
+// Re-edit: return a pending-confirm gap back to editing state
+function gapReEdit(gapId) {
+  gapStates[gapId].decision = 'editing';
+  gapStates[gapId].approvedRounds = [];
+  refreshIntegrityIfVisible();
+}
+
+// Cancel edit: return to the initial three-button triad
+function gapCancelEdit(gapId) {
+  gapStates[gapId].decision = null;
+  gapStates[gapId].proposals = [];
+  refreshIntegrityIfVisible();
+}
+
+// Fill from image: open the shared file input, read the image, call ChronicleAI
+function gapFillFromImage(gapId) {
+  const g = gapResults.find(x => x.id === gapId);
+  if (!g) return;
+  const input = document.getElementById('gap-img-input');
+  if (!input) return;
+
+  // One-shot change listener — removed after first fire to avoid stacking handlers
+  const handler = async () => {
+    input.removeEventListener('change', handler);
+    const file = input.files[0];
+    if (!file) return;
+    input.value = ''; // reset so re-selecting the same file works next time
+
+    const reader = new FileReader();
+    reader.onload = async e => {
+      const imageDataUrl = e.target.result;
+      const cbt = campaignIntegrityData?.combat_encounters?.find(c => c.id === g.cbtId);
+      const combatCtx = { id: g.cbtId, name: g.cbtName,
+        sessions: cbt?.sessions ?? [], totalRounds: cbt?.totalRounds ?? null };
+      try {
+        const proposals = await ChronicleAI.fillRoundsFromImage(imageDataUrl, combatCtx, g.miss);
+        gapStates[gapId].proposals = proposals || [];
+        refreshIntegrityIfVisible();
+      } catch(err) {
+        console.error('[gap fill] image error:', err);
+        alert('AI fill failed: ' + err.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  input.addEventListener('change', handler);
+  input.click();
+}
+
+// Fill from text: read the textarea in the edit panel and call ChronicleAI.
+// If the textarea is empty, focus it so the DM knows to type first.
+async function gapFillFromText(gapId) {
+  const g  = gapResults.find(x => x.id === gapId);
+  if (!g) return;
+  const ta = document.getElementById(`gap-txt-${gapId}`);
+  const txt = ta?.value?.trim();
+  if (!txt) { ta?.focus(); return; }
+
+  const cbt = campaignIntegrityData?.combat_encounters?.find(c => c.id === g.cbtId);
+  const combatCtx = { id: g.cbtId, name: g.cbtName,
+    sessions: cbt?.sessions ?? [], totalRounds: cbt?.totalRounds ?? null };
+  try {
+    const proposals = await ChronicleAI.fillRoundsFromText(txt, combatCtx, g.miss);
+    gapStates[gapId].proposals = proposals || [];
+    refreshIntegrityIfVisible();
+  } catch(err) {
+    console.error('[gap fill] text error:', err);
+    alert('AI fill failed: ' + err.message);
+  }
+}
+
+// Approve a fill proposal: add it to the review queue, track the covered round.
+// The new item lands in the queue as an auto-approved round from integrity fill.
+function approveGapProposal(gapId, proposalIdx) {
+  const g  = gapResults.find(x => x.id === gapId);
+  const st = gapStates[gapId];
+  if (!g || !st) return;
+  const proposal = st.proposals[proposalIdx];
+  if (!proposal) return;
+
+  // Track which round numbers are now covered so we can detect full resolution
+  if (proposal.n && !st.approvedRounds.includes(proposal.n)) {
+    st.approvedRounds.push(proposal.n);
+  }
+
+  // Build a first-class delta item that joins the approval queue.
+  // type 'NEW' with array 'combat_encounters' and isRound:true matches the
+  // shape that applyDeltasToCampaign() handles via the ROUND branch.
+  // Status starts 'approved' because the DM just explicitly approved the proposal.
+  const newItem = {
+    id:          `d_fill_${gapId}_r${proposal.n}`,
+    type:        'NEW',
+    array:       'combat_encounters',
+    group:       'Integrity Fills',
+    combatId:    g.cbtId,
+    combatName:  g.cbtName,
+    roundNumber: proposal.n,
+    status:      'approved',
+    flags:       [],
+    isRound:     true,
+    title:       `Round ${proposal.n} (integrity fill)`,
+    sourceRef:   `Integrity fill — ${proposal.source === 'image' ? 'from image' : 'from text'}`,
+    sourceQuote: proposal.summary || '',
+    rawData: {
+      n:           proposal.n,
+      session_id:  g.sessHint || 'unknown',
+      slots:       proposal.slots  || [],
+      enemy_turns: proposal.enemy  || [],
+    },
+    // roundData shape matches renderRoundNL() expectations
+    roundData: { n: proposal.n, sid: g.sessHint || '', slots: proposal.slots || [], enemy: proposal.enemy || [] },
+    nlRender() { return renderRoundNL(this.roundData); },
+  };
+
+  // Guard against double-approval of the same round (e.g. two proposals for same n)
+  if (!items.some(i => i.id === newItem.id)) {
+    items.push(newItem);
+  }
+
+  // Remove this proposal from the list — others for remaining rounds stay
+  st.proposals.splice(proposalIdx, 1);
+
+  // Check if all missing rounds are now covered
+  const allCovered = g.miss.every(n => st.approvedRounds.includes(n));
+  if (allCovered) {
+    // Transition to pending-confirm: DM must still explicitly Accept or Defer
+    st.decision = 'pending-confirm';
+  }
+
+  refreshIntegrityIfVisible();
+  renderQueue();
+  updateProgress();
+}
+
+// Reject a fill proposal: remove it from the gap's proposal list.
+// If no proposals remain and no rounds were approved, return to initial triad.
+function rejectGapProposal(gapId, proposalIdx) {
+  const st = gapStates[gapId];
+  if (!st) return;
+  st.proposals.splice(proposalIdx, 1);
+  if (!st.proposals.length && !st.approvedRounds.length) {
+    st.decision = null; // no progress — return to triad
+  }
+  refreshIntegrityIfVisible();
+}
+
+// Shared logic run after any Accept or Defer decision
+function _afterGapDecision() {
+  refreshIntegrityIfVisible();
+  updateProgress();
+}
+
+// Re-render the integrity panel in the center if it is currently displayed.
+// A queue item click replaces the center and sets showingIntegrityPanel false,
+// so this function is a no-op when the DM is reviewing a queue item.
+function refreshIntegrityIfVisible() {
+  if (!showingIntegrityPanel) return;
+  const scroll = document.getElementById('review-scroll');
+  if (scroll) scroll.innerHTML = renderIntegrityPanelHTML();
+  renderQueue(); // update the queue chip (unresolved count may have changed)
+}
+
+// Returns the HTML for the compact integrity status chip in the queue panel.
+// Clicking it shows the integrity panel in the center review area.
+function integrityQueueChipHTML() {
+  if (!gapResults.length) return '';
+  const unresolved = gapResults.filter(g => !isGapResolved(g.id));
+  if (unresolved.length === 0) {
+    return `<div class="integrity-queue-chip integrity-chip-ok" onclick="showIntegrityPanel()">✓ Integrity clear</div>`;
+  }
+  return `<div class="integrity-queue-chip integrity-chip-warn" onclick="showIntegrityPanel()">⚠ ${unresolved.length} integrity gap${unresolved.length > 1 ? 's' : ''} — resolve before publishing</div>`;
+}
+
+// ══════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════
 renderQueue();
 updateProgress();
+// Run integrity checks asynchronously after the queue is visible.
+// If gaps are found, showIntegrityPanel() replaces the center placeholder
+// and updateProgress() re-gates the Publish button. If the fetch fails,
+// initIntegrity() logs a warning and the review proceeds without integrity checking.
+initIntegrity();
 </script>
 </body>
 </html>

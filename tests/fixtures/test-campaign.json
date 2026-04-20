@@ -1,0 +1,205 @@
+{
+  "_schema_version": "4.0.0",
+  "meta": {
+    "campaign_name": "Test Campaign",
+    "system": "D&D 5e",
+    "last_updated": "2026-04-20",
+    "note": "Synthetic test data — no real Magers campaign content"
+  },
+  "party": [
+    {
+      "id": "pc_001",
+      "name": "Aldric",
+      "mechanics": { "class": "Fighter", "level": 3, "race": "Human" },
+      "narrative": { "background": "Soldier" },
+      "campaign_notes": "Test PC 1"
+    },
+    {
+      "id": "pc_002",
+      "name": "Sable",
+      "mechanics": { "class": "Rogue", "level": 3, "race": "Halfling" },
+      "narrative": { "background": "Criminal" },
+      "campaign_notes": "Test PC 2"
+    }
+  ],
+  "session_logs": [
+    {
+      "id": "session_001",
+      "date": "2026-01-01",
+      "narrative": {
+        "summary": "The party arrived at the test location and encountered the first combat.",
+        "tone": "tense",
+        "key_moments": [
+          { "description": "Aldric defeated the lead goblin" },
+          { "description": "Sable found a hidden door" }
+        ]
+      },
+      "mechanics": {
+        "xp_awarded": 300,
+        "combats": ["cbt_001"],
+        "locations_visited": ["loc_001"]
+      }
+    },
+    {
+      "id": "session_002",
+      "date": "2026-01-08",
+      "narrative": {
+        "summary": "The party explored the ruins and resolved the goblin quest.",
+        "tone": "hopeful",
+        "key_moments": [
+          { "description": "The quest was completed" }
+        ]
+      },
+      "mechanics": {
+        "xp_awarded": 200,
+        "combats": [],
+        "locations_visited": ["loc_002"]
+      }
+    }
+  ],
+  "combat_encounters": [
+    {
+      "id": "cbt_001",
+      "name": "Goblin Skirmish",
+      "mechanics": {
+        "outcome": "victory",
+        "location": "loc_001",
+        "sessions": ["session_001"],
+        "total_rounds_logged": 3
+      },
+      "narrative": {
+        "setup": "Three goblins ambushed the party on the road.",
+        "finale": "Aldric struck down the last goblin.",
+        "aftermath": "The party searched the bodies and found a crude map."
+      },
+      "rounds": [
+        {
+          "n": 1,
+          "slots": [
+            { "s": 1, "a": "pc_001", "action": { "name": "Longsword", "res": "hit", "val": 8 }, "notes": null },
+            { "s": 2, "a": "pc_002", "action": { "name": "Sneak Attack", "res": "hit", "val": 11 }, "notes": null }
+          ],
+          "enemy_turns": [
+            { "actor_id": "Goblin A", "action": { "name": "Scimitar", "res": "miss", "val": 0 }, "special_events": [] }
+          ]
+        },
+        {
+          "n": 2,
+          "slots": [
+            { "s": 1, "a": "pc_001", "action": { "name": "Longsword", "res": "crit", "val": 16 }, "notes": null },
+            { "s": 2, "a": "pc_002", "action": { "name": "Shortbow", "res": "miss", "val": 0 }, "notes": null }
+          ],
+          "enemy_turns": [
+            { "actor_id": "Goblin B", "action": { "name": "Scimitar", "res": "hit", "val": 5 }, "special_events": [] }
+          ]
+        },
+        {
+          "n": 3,
+          "slots": [
+            { "s": 1, "a": "pc_001", "action": { "name": "Longsword", "res": "hit", "val": 9 }, "notes": "final blow" },
+            { "s": 2, "a": "pc_002", "action": { "name": "Disengage", "res": "success", "val": null }, "notes": null }
+          ],
+          "enemy_turns": []
+        }
+      ]
+    }
+  ],
+  "npc_directory": [
+    {
+      "id": "npc_001",
+      "name": "Grak",
+      "mechanics": { "disposition": "hostile", "affiliation": null, "first_seen": "session_001" },
+      "narrative": { "description": "Leader of the goblin skirmish group. Defeated in session 1." }
+    },
+    {
+      "id": "npc_002",
+      "name": "Elder Wynn",
+      "mechanics": { "disposition": "friendly", "affiliation": "Village Council", "first_seen": "session_001" },
+      "narrative": { "description": "Village elder who hired the party to clear the road." }
+    },
+    {
+      "id": "npc_003",
+      "name": "Mira",
+      "mechanics": { "disposition": "neutral", "affiliation": null, "first_seen": "session_002" },
+      "narrative": { "description": "Traveller encountered at the ruins. Knows about the hidden cache." }
+    }
+  ],
+  "locations": [
+    {
+      "id": "loc_001",
+      "name": "North Road Ambush Site",
+      "mechanics": { "visibility": "known" },
+      "narrative": { "description": "The stretch of road where the goblin ambush took place." }
+    },
+    {
+      "id": "loc_002",
+      "name": "Crumbled Watch Tower",
+      "mechanics": { "visibility": "known" },
+      "narrative": { "description": "Ancient ruins the party explored in session 2." }
+    }
+  ],
+  "quest_ledger": [
+    {
+      "id": "qst_001",
+      "name": "Clear the North Road",
+      "mechanics": {
+        "status": "complete",
+        "priority": "main",
+        "category": "combat",
+        "origin_session": "session_001",
+        "objectives": [
+          { "description": "Defeat the goblin ambush group", "is_completed": true }
+        ],
+        "progress_log": [
+          { "fact": "Goblins defeated in session 1" }
+        ]
+      },
+      "narrative": { "motivation": "Elder Wynn offered payment to make the road safe." }
+    },
+    {
+      "id": "qst_002",
+      "name": "Find the Hidden Cache",
+      "mechanics": {
+        "status": "active",
+        "priority": "side",
+        "category": "exploration",
+        "origin_session": "session_002",
+        "objectives": [
+          { "description": "Locate the cache beneath the ruins", "is_completed": false }
+        ],
+        "progress_log": [
+          { "fact": "Mira hinted the cache is below the east tower" }
+        ]
+      },
+      "narrative": { "motivation": "The crude map from the goblins pointed to a hidden stash." }
+    }
+  ],
+  "inventory_and_loot": [
+    {
+      "id": "item_001",
+      "name": "Crude Map",
+      "mechanics": {
+        "item_type": "document",
+        "current_holder": "pc_001",
+        "found_session": "session_001",
+        "is_quest_relevant": true
+      },
+      "narrative": { "description": "A hand-drawn map found on the goblin leader. Marks a location in the ruins." }
+    },
+    {
+      "id": "item_002",
+      "name": "Goblin Scimitar",
+      "mechanics": {
+        "item_type": "weapon",
+        "current_holder": "pc_002",
+        "found_session": "session_001",
+        "is_quest_relevant": false
+      },
+      "narrative": { "description": "A battered short blade looted from the ambush. Functional but ugly." }
+    }
+  ],
+  "bestiary": [],
+  "world_lore": [],
+  "character_moments": [],
+  "deferred_gaps": []
+}

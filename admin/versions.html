@@ -250,7 +250,8 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 // and { ok, ... } for mutations.
 
 const DRIVE_PROXY    = window.CHRONICLE_CONFIG.proxyUrl;
-const CAMPAIGN_FILE  = window.CHRONICLE_CONFIG.campaignFileId;
+// Use the resolver so Drive writes target the test Drive file when safeTestMode is on.
+const CAMPAIGN_FILE  = window.CHRONICLE_CONFIG.getCampaignFileId();
 
 async function driveGet(params) {
   var url = DRIVE_PROXY + '?';

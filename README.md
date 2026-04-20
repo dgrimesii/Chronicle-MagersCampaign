@@ -27,13 +27,26 @@ Chronicle-MagersCampaign/
 │   └── drive-test.html         # Drive proxy diagnostics (write path only) — no nav bar
 ├── shared/
 │   ├── config.js               # GITIGNORED — Drive proxy URL, campaign file ID, Anthropic API key
-│   └── chronicle-ai.js         # Shared Anthropic API module — exports window.ChronicleAI
+│   ├── chronicle-ai.js         # Shared Anthropic API module — exports window.ChronicleAI
+│   └── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
 ├── data/
 │   └── magers-campaign.json    # Campaign data — single source of truth, schema version 4.0.0
 ├── scripts/
 │   └── build.js                # STALE — injected EMBEDDED_DATA into HTML files; markers removed in Phase 1, script is now dead code
 ├── notes/
 │   └── phase1-claude-code-prompt.md  # Historical prompt used to migrate data reads from Drive to repo fetch
+├── docs/
+│   └── chronicle-issue-prompt.md     # Reusable five-phase prompt template for completing GitHub issues
+├── tests/
+│   ├── run-all.js                    # Test runner — runs all test files, reports pass/fail summary
+│   ├── integrity.test.js             # Tests for shared/chronicle-integrity.js
+│   ├── intake-image.test.js          # Group A — OCR round-data shape validation
+│   ├── intake-preparation.test.js    # Group C — session data preparation checks
+│   ├── delta-schema.test.js          # Group E — delta item schema validation
+│   ├── fixtures/
+│   │   └── test-campaign.json        # Minimal v4.0.0 synthetic campaign for automated tests
+│   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
+│   └── ai-input-fixtures/            # Captured AI response fixtures for offline test runs
 ├── .gitignore                  # Ignores shared/config.js
 ├── CLAUDE.md                   # Behavioural instructions for Claude Code
 └── README.md                   # This file
@@ -103,6 +116,7 @@ v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. 
 | `locations` | Named locations; visibility in `mechanics`, description in `narrative` |
 | `quest_ledger` | Quests; status/priority/objectives/progress_log in `mechanics`, motivation in `narrative` |
 | `combat_encounters` | Combats; outcome/location/sessions in `mechanics`, setup/finale/aftermath in `narrative`; slots have nested `action` object; enemy turns use `enemy_turns[]` |
+| `deferred_gaps` | Workflow state array written by delta-review when the DM defers an integrity gap. Each entry: `{ id, combat_id, combat_name, session_id, missing_rounds[], gap_type, deferred_at, status }`. Not campaign narrative — persists alongside the JSON so the future campaign scanner can surface pending entries as a correction queue. |
 
 ### Field name mappings (v4 JSON → normalised viewer shape)
 
@@ -244,24 +258,23 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/delta-review.html`
 - **Audience:** DM only
 - Reviews AI-proposed session deltas (new entities, round data, quest updates) before committing them to the campaign JSON
-- Loads `../shared/config.js` and `../shared/chronicle-ai.js`
+- Loads `../shared/config.js`, `../shared/chronicle-integrity.js`, and `../shared/chronicle-ai.js`
 - Uses `ChronicleAI.sendCorrectionToAI()` to refine individual delta items via an AI assistant chat panel
-- **Publish** action: fetches current campaign JSON from Drive (not from `/data/`), applies approved deltas, writes the result back to Drive via the proxy
+- **Integrity pre-flight panel**: on load, fetches `../data/magers-campaign.json` and runs `ChronicleIntegrity.checks()` against the staged session data. If gaps are found, an integrity panel appears in the center area before the review queue. Each gap presents three options: **Accept** (acknowledged, no record written), **Defer** (flagged for future correction — written to `deferred_gaps[]` in the published JSON), or **Edit** (AI-assisted fill via image or typed description; approved proposals join the approval queue). The Publish button is blocked until every gap has an explicit Accept or Defer decision. The **Reprocess** sub-option under Edit is a disabled placeholder — see code comments for design decisions required before building
+- **Publish** action: fetches current campaign JSON from Drive (not from `/data/`), applies approved deltas, appends any deferred gap records to `deferred_gaps[]`, then writes the result back to Drive via the proxy
 - Approval workflow: each queue item can be Approved, Rejected, or sent for AI correction. Items include session metadata, NPC entries, location entries, combat rounds, and quest updates
-- Does not read from `data/magers-campaign.json` — the DM downloads the Drive copy and manually replaces the repo file after review
+- Does not read campaign data from Drive for the integrity check — uses `../data/magers-campaign.json` (same-origin repo copy). The Drive copy and repo copy can diverge; integrity checks against whichever is currently in the repo
 
 ---
 
-### `admin/integrity.html` — Integrity Checker
+### `admin/integrity.html` — Campaign Integrity (placeholder)
 
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/integrity.html`
 - **Audience:** DM only
-- Checks combat entries for missing round data and provides a workflow to fill gaps using AI
-- Loads `../shared/config.js` and `../shared/chronicle-ai.js`
-- Has a debug/log panel (TP panel) showing raw AI prompts and responses
-- Uses `ChronicleAI.fillRoundsFromImage()` for photo-based round extraction and `ChronicleAI.fillRoundsFromText()` for typed descriptions
-- Fetches `../data/magers-campaign.json` at init to populate the combat selector; shows an error state if fetch fails
-- Includes a "LLM Log" panel showing raw prompt/response traffic for debugging
+- Fetches `../data/magers-campaign.json` at init. Loads `../shared/config.js`, `../shared/chronicle-integrity.js`, and `../shared/chronicle-ai.js`
+- The intake gap-checker that formerly lived here was moved to `delta-review.html` (Phase B). This page is now a placeholder shell for the future campaign quality scanner
+- The **Run Scan** button is present but disabled — functionality is not yet implemented. When built, this tool will surface structural gaps and quality improvement opportunities across the full campaign JSON. It will also display the `deferred_gaps[]` queue (entries created when the DM chose Defer during a delta-review session)
+- See the page script comments for the full planned feature set (scan types, output format, write-back options)
 
 ---
 
@@ -318,7 +331,19 @@ GET for all operations except writes avoids CORS preflight. POST uses `Content-T
 
 ---
 
-## Shared AI module — `shared/chronicle-ai.js`
+## Shared modules
+
+### `shared/chronicle-integrity.js`
+
+Loaded by `delta-review.html` and `integrity.html`. Exports `window.ChronicleIntegrity` with a single method:
+
+- `.checks(campaignData, incomingData)` — pure gap-detection function. Takes a campaign object and an array of incoming delta items; returns a flat array of gap objects. No DOM access, no API calls. Load order when all three shared modules are needed: `config.js` → `chronicle-integrity.js` → `chronicle-ai.js` → page script.
+
+Gap object shape: `{ id, group, sev, block, isNew, cbtId, cbtName, sessHint, miss, have, rmin, rmax, title, detail, ctx }`
+
+---
+
+### `shared/chronicle-ai.js`
 
 Loaded by `intake.html`, `delta-review.html`, and `integrity.html` via `<script src="../shared/chronicle-ai.js">`. The module reads the Anthropic API key from `window.CHRONICLE_CONFIG.anthropicApiKey` (set by `config.js`). Calls go directly from the browser to the Anthropic API using the `anthropic-dangerous-direct-browser-access` header — there is no server-side proxy for AI requests.
 
@@ -351,14 +376,66 @@ Public API (`window.ChronicleAI`):
 | Issue | File | Detail |
 |---|---|---|
 | `scripts/build.js` is dead code | `scripts/build.js` | EMBEDDED_DATA markers were removed from all HTML files in Phase 1. Running the script produces "SKIP (markers not found)" warnings and changes nothing. |
-| `scripts/build.js` is dead code | `scripts/build.js` | EMBEDDED_DATA markers were removed from all HTML files in Phase 1. Running the script produces "SKIP (markers not found)" warnings and changes nothing. |
 | Log editor edits are in-memory only | `admin/log-editor.html` | No write-back to JSON or Drive. Changes are lost on page reload. |
 | Player view links to admin | `player/index.html` | Has a "⇄ Admin" button linking to `../admin/log-viewer.html`. |
 | drive-test campaign-read test obsolete | `admin/drive-test.html` | Tests `?action=read` on the proxy, which the main app no longer calls. |
+| Campaign scanner not yet implemented | `admin/integrity.html` | Run Scan button is disabled. Page is a placeholder shell. See page script comments for planned functionality. |
+| Reprocess sub-option is a placeholder | `admin/delta-review.html` | The Reprocess button under Edit in the integrity panel is disabled. See code comments for design decisions required before building. |
 | cbt_006 Wolf Fight has no rounds | `data/magers-campaign.json` | `rounds: []` — combat detail is pending. |
 | npc_013 has no name | `data/magers-campaign.json` | The Low-Level Wizard: no proper name, no session link. |
 | qst_003 Escort to Lake Town incomplete | `data/magers-campaign.json` | No objectives, no narrative.motivation — currently active. |
 | loc_009, loc_010, loc_013 are stubs | `data/magers-campaign.json` | Map markers only — no description or context. |
+
+---
+
+## Test infrastructure
+
+### Directory layout
+
+```
+tests/
+├── run-all.js                      # Runs every test file; exits 1 if any fail
+├── integrity.test.js               # Tests for shared/chronicle-integrity.js
+├── intake-image.test.js            # Group A — OCR round-data shape validation
+├── intake-preparation.test.js      # Group C — session data preparation checks
+├── delta-schema.test.js            # Group E — delta item schema validation
+├── fixtures/
+│   └── test-campaign.json          # Minimal v4.0.0 synthetic campaign — no real data
+├── ocr-ground-truth/
+│   └── README.md                   # Ground-truth pair format (image + expected JSON)
+└── ai-input-fixtures/
+    └── README.md                   # AI response fixture naming conventions
+```
+
+### Running tests
+
+```
+node tests/run-all.js          # Full suite (all groups except ground-truth OCR)
+node tests/integrity.test.js   # Individual file
+```
+
+All tests are plain Node.js — no install required.
+
+### Safe Test Mode
+
+`shared/config.js` (gitignored) contains two fields and two resolver functions that redirect data reads and Drive writes to test targets:
+
+| Field | Default | Purpose |
+|---|---|---|
+| `safeTestMode` | `false` | When `true`, all reads and Drive writes target test data |
+| `testCampaignFileId` | `''` | Drive file ID of the test campaign copy |
+
+When `safeTestMode: true`:
+- `getCampaignPath()` returns `'../tests/fixtures/test-campaign.json'` instead of `'../data/magers-campaign.json'`
+- `getCampaignFileId()` returns `testCampaignFileId` instead of `campaignFileId`
+
+All HTML pages call these resolvers rather than using hardcoded paths. This means switching test mode on or off requires changing only `config.js`.
+
+**Never commit `safeTestMode: true`** — it would redirect all data reads for anyone who deploys the page locally.
+
+### Test fixture
+
+`tests/fixtures/test-campaign.json` is a minimal v4.0.0 campaign with synthetic data (no real Magers campaign content). It contains: 2 party members, 2 sessions, 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. All automated tests run against this fixture.
 
 ---
 

@@ -1088,8 +1088,9 @@ function showToast(msg) {
 // Edits are still in-memory only — no write-back to JSON or Drive exists yet.
 (async () => {
   try {
-    // Correct path from admin/ to data/ — was bare 'magers-campaign.json' (wrong)
-    const res = await fetch('../data/magers-campaign.json');
+    // Route through the Safe Test Mode resolver so test runs target the fixture.
+    // Falls back to the hardcoded path when config.js is absent (GitHub Pages).
+    const res = await fetch(window.CHRONICLE_CONFIG?.getCampaignPath?.() ?? '../data/magers-campaign.json');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
 

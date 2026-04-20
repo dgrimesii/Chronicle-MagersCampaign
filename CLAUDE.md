@@ -163,6 +163,21 @@ async function loadCampaignData() {
 
 ---
 
+## Shared module load order
+
+When a page needs all three shared modules, load them in this order — each depends on the previous:
+
+```html
+<script src="../shared/config.js"></script>
+<script src="../shared/chronicle-integrity.js"></script>
+<script src="../shared/chronicle-ai.js"></script>
+<!-- page script here -->
+```
+
+`chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` when a page only needs gap detection and no AI calls.
+
+---
+
 ## Shared AI module rules
 
 `shared/chronicle-ai.js` is loaded by `intake.html`, `delta-review.html`, and `integrity.html` only. If you add AI capability to a new page, load both `config.js` and `chronicle-ai.js` before the page script. The API key is read from `window.CHRONICLE_CONFIG.anthropicApiKey` — never pass it any other way.
@@ -204,6 +219,32 @@ All IDs follow `<type>_<zero-padded-number>`:
 | Session | `session_` | `session_006` |
 
 Never reuse a voided or skipped ID. The current gap IDs in the NPC registry (`npc_002`, `npc_005`, `npc_006`) are permanently voided.
+
+### `deferred_gaps` — workflow state array
+
+`deferred_gaps[]` is a root-level array written by `delta-review.html` when the DM chooses **Defer** on an integrity gap during a publish cycle. It persists in the campaign JSON alongside narrative data and is version-controlled.
+
+Each entry shape:
+```json
+{
+  "id":             "gap_001",
+  "combat_id":      "cbt_005",
+  "combat_name":    "Goblin Ambush",
+  "session_id":     "session_006",
+  "missing_rounds": [9],
+  "gap_type":       "incoming",
+  "deferred_at":    "session_006",
+  "status":         "pending"
+}
+```
+
+Rules:
+- IDs follow `gap_001`, `gap_002`, etc. Assign the next by reading the current array length.
+- `gap_type` is `'incoming'` (gap in staged data) or `'continuity'` (jump between sessions).
+- `deferred_at` is the `session_id` of the publish cycle that created the record.
+- Only update `status` — from `'pending'` to `'resolved'` — when a gap is fixed. Do not rename or remove entries.
+- The future campaign scanner (`integrity.html`) will surface `pending` entries as a correction queue.
+- This array is workflow state, not campaign narrative. Do not add game data to it.
 
 ### Next available IDs (as of v4.0.0 — sessions 006 and 007 are placeholders)
 
@@ -282,6 +323,7 @@ Do not change `_schema_version` without explicit instruction. It lives at the ro
 - Do not remove data from existing campaign objects without explicit instruction
 - Do not commit or reference `shared/config.js` — it is gitignored and must stay that way
 - Do not run `node scripts/build.js` — it is dead code
+- **Never commit `safeTestMode: true`** in `shared/config.js` — it redirects all campaign data reads to the test fixture and all Drive writes to the test file ID, which would affect any admin working locally from the same config
 
 ---
 
