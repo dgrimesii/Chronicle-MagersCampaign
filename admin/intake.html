@@ -956,12 +956,71 @@ function buildTabs() {
   `).join('');
 }
 
+/**
+ * compressImageForOCR(file) → Promise<string>
+ *
+ * Why it exists: the Anthropic API hard-rejects base64 image data over 5MB
+ * (Fix #27). Phone camera photos are commonly 6–20MB raw, which always
+ * exceeds this limit when base64-encoded (base64 adds ~33% overhead).
+ *
+ * What it does: loads the file into a hidden canvas, resizes it so the
+ * longest side is at most MAX_DIMENSION pixels, then re-encodes as JPEG
+ * at QUALITY. A 6MB phone photo typically compresses to ~0.8–1.5MB —
+ * well under the 5MB cap and still sharp enough to read handwriting.
+ *
+ * Returns a data URL string that ChronicleAI.imageContent() accepts.
+ * If Canvas or Image loading fails, the Promise rejects — the existing
+ * .catch() in simulateOCR() will handle it as a normal OCR failure.
+ */
+function compressImageForOCR(file) {
+  const MAX_DIMENSION = 1800; // px — sufficient for OCR on handwritten notes
+  const QUALITY       = 0.85; // JPEG quality — good balance of size vs clarity
+
+  return new Promise(function(resolve, reject) {
+    const img    = new Image();
+    const blobUrl = URL.createObjectURL(file);
+
+    img.onload = function() {
+      URL.revokeObjectURL(blobUrl); // free the object URL now that the image is loaded
+
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+
+      // Only resize when at least one dimension exceeds the cap.
+      // Preserves original resolution for smaller images (e.g. screenshots).
+      if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
+        if (w >= h) {
+          h = Math.round(h * MAX_DIMENSION / w);
+          w = MAX_DIMENSION;
+        } else {
+          w = Math.round(w * MAX_DIMENSION / h);
+          h = MAX_DIMENSION;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', QUALITY));
+    };
+
+    img.onerror = function() {
+      URL.revokeObjectURL(blobUrl);
+      reject(new Error('Could not load image for compression'));
+    };
+
+    img.src = blobUrl;
+  });
+}
+
 function simulateOCR(idx) {
   if (idx >= pageData.length) { finishOCR(); return; }
   const dot  = document.getElementById('ocr-status-dot');
   const text = document.getElementById('ocr-status-text');
   dot.classList.remove('done');
-  text.textContent = `Processing page ${idx+1} of ${pageData.length}…`;
+  // "Compressing" reflects that Canvas resize happens before the API call (Fix #27)
+  text.textContent = `Compressing and processing page ${idx+1} of ${pageData.length}…`;
 
   const page = pageData[idx];
 
@@ -981,11 +1040,11 @@ ROUND SUMMARY: <one sentence>
 Output exactly this format. If a value is unclear, write [?] after it. Session: ${sessionHint}${combatHint ? '. Combat: ' + combatHint : ''}.`;
 
   if (page.imageURL) {
-    // Fix #20: was checking page.imageDataURL (always undefined) so the Vision
-    // API was never called. The correct property is page.imageURL (blob URL set
-    // by handleImageFiles). imageContent() requires a base64 data URL, not a
-    // blob URL, so we convert via readFileAsDataURL before calling the API.
-    ChronicleAI.readFileAsDataURL(page.file).then(function(dataURL) {
+    // Fix #20: use page.imageURL (blob URL) not page.imageDataURL (undefined).
+    // Fix #27: use compressImageForOCR() instead of readFileAsDataURL() —
+    // raw phone photos exceed the Anthropic API 5MB base64 limit; Canvas
+    // compression resizes to 1800px max and re-encodes as JPEG before sending.
+    compressImageForOCR(page.file).then(function(dataURL) {
       ChronicleAI.call({
         system,
         messages: [{
