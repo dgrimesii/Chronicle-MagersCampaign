@@ -316,6 +316,131 @@
     line-height: 1.4;
   }
 
+  /* ── OCR Re-run controls (issue #28) ──────────────────────────────────────
+     These sit below the OCR textarea and give the DM three correction paths:
+     1. Re-run OCR (no steering) — same prompt, fresh API call
+     2. Re-run with steering — DM context prepended to the system prompt
+     3. Manual edit — unchanged textarea (no new styles needed)
+     ───────────────────────────────────────────────────────────────────────── */
+
+  /* Wrapper rendered by renderRerunSection(); appears below the textarea */
+  .ocr-rerun-section {
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Top row: Re-run button + Add context toggle link */
+  .rerun-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Re-run OCR button — smaller than .btn-secondary, same visual language */
+  .btn-rerun {
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    padding: 6px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--ink);
+    transition: all 0.15s;
+  }
+  .btn-rerun:hover:not(:disabled) { background: var(--parchment-dark); }
+  /* Disabled when processing — prevents double-fire on slow connections */
+  .btn-rerun:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Collapsible steering field — display toggled via inline style by JS */
+  .steering-input {
+    width: 100%;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 10px;
+    font-family: 'Crimson Pro', Georgia, serif;
+    font-size: 0.88rem;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .steering-input:focus { border-color: var(--amber); }
+  .steering-input::placeholder { color: var(--muted-light); font-style: italic; }
+
+  /* Post-steered-rerun prompt logging suggestion.
+     Only visible after a successful steered re-run; dismissed on click. */
+  .log-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: rgba(212,175,55,0.06);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+  }
+  .log-suggestion-hint {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-style: italic;
+    flex: 1;
+    min-width: 0;
+  }
+  .btn-log-suggestion {
+    font-family: 'Cinzel', serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    padding: 5px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid var(--amber-dim);
+    background: rgba(212,175,55,0.1);
+    color: var(--amber);
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .btn-log-suggestion:hover { background: rgba(212,175,55,0.2); }
+
+  /* ── OCR processing indicator (issue #32) ─────────────────────────────────
+     Three reinforcing signals shown while any page is actively being processed:
+     1. Amber pulsing banner above the page tabs
+     2. Confirm / Prev / Next buttons disabled (managed by updateProcessingUI())
+     3. Status text container promoted to amber + larger font
+     All three clear automatically when all pages complete (pass or fail).
+     ───────────────────────────────────────────────────────────────────────── */
+
+  /* Processing banner — displayed by updateProcessingUI() when anyProcessing is true */
+  .ocr-processing-banner {
+    background: rgba(212,175,55,0.1);
+    border: 1px solid var(--amber-dim);
+    border-radius: 4px;
+    color: var(--amber);
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    padding: 0.65rem 1rem;
+    margin-bottom: 1rem;
+    text-align: center;
+    /* Reuse the same pulse animation as the status dot for thematic consistency */
+    animation: pulse 1.5s infinite;
+  }
+
+  /* Status text container becomes amber and visually prominent during processing.
+     Class toggled by updateProcessingUI() — reverts automatically when done. */
+  .ocr-status.processing {
+    color: var(--amber);
+    font-size: 1rem;   /* up from 0.88rem */
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
   /* Page tabs */
   .page-tabs {
     display: flex;
@@ -354,6 +479,22 @@
   .page-tab.confirmed .tab-check {
     background: var(--teal);
     border-color: var(--teal);
+  }
+  /* Processing: amber pulsing dot — mirrors the top-of-panel banner animation (issue #33) */
+  .page-tab.processing .tab-check {
+    background: var(--amber);
+    border-color: var(--amber);
+    animation: pulse 1.5s infinite;
+  }
+  /* OCR complete but not yet DM-confirmed: teal outline with no fill (issue #33) */
+  .page-tab.ocr-done .tab-check {
+    background: none;
+    border-color: var(--teal);
+  }
+  /* OCR failed: rust/red filled dot (issue #33) */
+  .page-tab.ocr-failed .tab-check {
+    background: var(--rust);
+    border-color: var(--rust);
   }
 
   /* Side-by-side OCR panel */
@@ -735,6 +876,15 @@
       Review each page carefully before continuing. <strong>Flagged words</strong> (shown in rust) indicate low OCR confidence. Correct any errors — the AI will never see the raw scan, only your verified text.
     </div>
 
+    <!-- Processing banner: shown by updateProcessingUI() while any page is still
+         being OCR'd; hidden automatically once all pages complete or fail.
+         The <span> is updated with the current page count on each call. -->
+    <div class="ocr-processing-banner" id="ocr-processing-banner" style="display:none;">
+      ⚙ OCR in progress —
+      <span id="ocr-processing-label">processing page 1 of 1</span>
+      — do not navigate away
+    </div>
+
     <div class="page-tabs" id="page-tabs"></div>
 
     <div class="ocr-panel">
@@ -758,6 +908,9 @@
           The text area below is empty. Type or paste the content from your notes before confirming.
         </div>
         <textarea class="ocr-textarea" id="ocr-textarea" placeholder="OCR output will appear here..."></textarea>
+        <!-- Re-run controls: built by renderRerunSection() after each page's OCR completes.
+             Empty on load; populated when switchPage() is called with a valid idx. -->
+        <div id="ocr-rerun-section"></div>
       </div>
     </div>
 
@@ -818,7 +971,10 @@ let imageFiles = [];
 let textFile = null;
 let narrativeText = '';
 let currentPage = 0;
-let pageData = []; // { file, imageURL, ocrText, confirmed }
+// pageData shape (one entry per uploaded image):
+// { file, imageURL, ocrText, confirmed, ocrFailed, ocrErrorReason,
+//   steeringText, steeringExpanded, showLogSuggestion, lastRunSteered, processing }
+let pageData = [];
 
 // ══════════════════════════════════════════════════════
 // Step navigation helpers
@@ -844,7 +1000,21 @@ function handleImageFiles(files) {
       // ocrFailed / ocrErrorReason: set by simulateOCR onError/catch (Fix #22, #26).
       // ocrErrorReason is displayed in the error banner so the DM sees the specific
       // failure cause even after finishOCR() overwrites the status bar text.
-      pageData.push({ file: f, imageURL: URL.createObjectURL(f), ocrText: '', confirmed: false, ocrFailed: false, ocrErrorReason: '' });
+      // steeringText / steeringExpanded / showLogSuggestion / lastRunSteered / processing:
+      // used by the re-run correction surface (issue #28).
+      pageData.push({
+        file: f,
+        imageURL: URL.createObjectURL(f),
+        ocrText: '',
+        confirmed: false,
+        ocrFailed: false,
+        ocrErrorReason: '',
+        steeringText: '',        // DM-typed context prepended to OCR prompt on steered re-run
+        steeringExpanded: false, // whether the steering input is currently visible
+        showLogSuggestion: false,// show "Log as prompt improvement" after a steered run
+        lastRunSteered: false,   // was the most recent successful run a steered one?
+        processing: false,       // true while an OCR API call is in flight
+      });
     }
   });
   renderImageList();
@@ -947,71 +1117,144 @@ function startOCR() {
   simulateOCR(0);
 }
 
+/**
+ * buildTabs() — renders the per-page tab strip from scratch.
+ *
+ * Why: called once at OCR start and again after page-set changes. Each tab
+ * gets a state class derived from pageData so the dot colour is correct from
+ * first render — rather than waiting for a switchPage call to apply it.
+ *
+ * State priority (highest first): confirmed → ocr-failed → processing → ocr-done → (none = queued)
+ * Uses currentPage (not hardcoded 0) for the active class so a mid-session
+ * rebuild lands on the correct tab (issue #33).
+ */
 function buildTabs() {
   const tabs = document.getElementById('page-tabs');
-  tabs.innerHTML = pageData.map((p, i) => `
-    <button class="page-tab${i === 0 ? ' active' : ''}" id="tab-${i}" onclick="switchPage(${i})">
+  tabs.innerHTML = pageData.map((p, i) => {
+    // Derive visual state in priority order — confirmed beats failed beats processing beats done
+    const stateClass = p.confirmed  ? 'confirmed'
+                     : p.ocrFailed  ? 'ocr-failed'
+                     : p.processing ? 'processing'
+                     : p.ocrText    ? 'ocr-done'
+                     : '';
+    return `<button class="page-tab${i === currentPage ? ' active' : ''}${stateClass ? ' ' + stateClass : ''}" id="tab-${i}" onclick="switchPage(${i})">
       <span class="tab-check"></span>Page ${i+1}
-    </button>
-  `).join('');
+    </button>`;
+  }).join('');
 }
 
 /**
  * compressImageForOCR(file) → Promise<string>
  *
- * Why it exists: the Anthropic API hard-rejects base64 image data over 5MB
- * (Fix #27). Phone camera photos are commonly 6–20MB raw, which always
+ * Why it exists: the Anthropic API hard-rejects base64 image data over 5 MB
+ * (Fix #27). Phone camera photos are commonly 6–20 MB raw, which always
  * exceeds this limit when base64-encoded (base64 adds ~33% overhead).
  *
  * What it does: loads the file into a hidden canvas, resizes it so the
- * longest side is at most MAX_DIMENSION pixels, then re-encodes as JPEG
- * at QUALITY. A 6MB phone photo typically compresses to ~0.8–1.5MB —
- * well under the 5MB cap and still sharp enough to read handwriting.
+ * longest side is at most 1800 px, re-encodes as JPEG at 0.85 quality,
+ * then checks the resulting base64 length. If the first pass is still too
+ * large (rare on very high-DPI scans) it retries at 1400 px / 0.75 quality.
+ * If the retry is still too large, it rejects with a user-readable message
+ * so the DM knows to crop or reduce the scan DPI (issue #33).
+ *
+ * MAX_BASE64_CHARS is set to 6 MB (≈ 4.5 MB actual binary) which leaves
+ * comfortable headroom under the 5 MB API limit while still accepting
+ * almost all compressed phone photos.
  *
  * Returns a data URL string that ChronicleAI.imageContent() accepts.
  * If Canvas or Image loading fails, the Promise rejects — the existing
  * .catch() in simulateOCR() will handle it as a normal OCR failure.
  */
 function compressImageForOCR(file) {
-  const MAX_DIMENSION = 1800; // px — sufficient for OCR on handwritten notes
-  const QUALITY       = 0.85; // JPEG quality — good balance of size vs clarity
+  const MAX_BASE64_CHARS = 6 * 1024 * 1024; // 6 MB encoded length ≈ 4.5 MB binary
 
   return new Promise(function(resolve, reject) {
-    const img    = new Image();
-    const blobUrl = URL.createObjectURL(file);
+    const reader = new FileReader();
 
-    img.onload = function() {
-      URL.revokeObjectURL(blobUrl); // free the object URL now that the image is loaded
+    reader.onload = function(e) {
+      const img = new Image();
 
-      let w = img.naturalWidth;
-      let h = img.naturalHeight;
+      img.onload = function() {
+        /**
+         * attempt(maxDim, quality) — one compression pass.
+         * If the result exceeds MAX_BASE64_CHARS and we haven't tried the
+         * fallback dimensions yet, calls itself at 1400 px / 0.75.
+         * If the fallback also exceeds the limit, rejects with a user message.
+         */
+        function attempt(maxDim, quality) {
+          const canvas = document.createElement('canvas');
+          // Scale uniformly so the longest side is at most maxDim — preserves
+          // aspect ratio and avoids distortion on portrait or landscape pages.
+          const scale  = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+          canvas.width  = Math.round(img.naturalWidth  * scale);
+          canvas.height = Math.round(img.naturalHeight * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      // Only resize when at least one dimension exceeds the cap.
-      // Preserves original resolution for smaller images (e.g. screenshots).
-      if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
-        if (w >= h) {
-          h = Math.round(h * MAX_DIMENSION / w);
-          w = MAX_DIMENSION;
-        } else {
-          w = Math.round(w * MAX_DIMENSION / h);
-          h = MAX_DIMENSION;
+          const dataURL = canvas.toDataURL('image/jpeg', quality);
+
+          if (dataURL.length > MAX_BASE64_CHARS && maxDim > 1400) {
+            // First pass still too large — retry at reduced dimensions before giving up
+            return attempt(1400, 0.75);
+          }
+          if (dataURL.length > MAX_BASE64_CHARS) {
+            // Retry also too large — image is unusually dense; DM must intervene
+            return reject(new Error('Image too large even after compression — try cropping or scanning at lower DPI'));
+          }
+          resolve(dataURL);
         }
-      }
 
-      const canvas = document.createElement('canvas');
-      canvas.width  = w;
-      canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', QUALITY));
+        attempt(1800, 0.85);
+      };
+
+      img.onerror = function() {
+        // File decoded by FileReader but Image refused to load it — likely corrupt
+        // or an unsupported format (e.g. a renamed non-image file).
+        reject(new Error('File could not be read — it may be corrupt or an unsupported format'));
+      };
+
+      img.src = e.target.result;
     };
 
-    img.onerror = function() {
-      URL.revokeObjectURL(blobUrl);
-      reject(new Error('Could not load image for compression'));
+    reader.onerror = function() {
+      reject(new Error('File could not be read — it may be corrupt or an unsupported format'));
     };
 
-    img.src = blobUrl;
+    reader.readAsDataURL(file);
   });
+}
+
+/**
+ * buildOCRSystemPrompt(steeringText) → string
+ *
+ * Why it exists: extracted from simulateOCR so the re-run button (issue #28)
+ * can produce an identical prompt to the initial OCR pass, with the option to
+ * prepend DM-provided steering context before the base instructions.
+ *
+ * steeringText — free-text context the DM typed for this page (may be empty).
+ *   When non-empty, it is prepended before the base system prompt so the model
+ *   sees the DM's clarification before reading the format instructions.
+ *   Example: "On this page AoO = Attack of Opportunity, not a character name."
+ *
+ * Returns the complete system prompt string ready for ChronicleAI.call().
+ */
+function buildOCRSystemPrompt(steeringText) {
+  const sessionHint = document.getElementById('session-id-input')?.value?.trim() || 'session_006';
+  const combatHint  = document.getElementById('combat-id-input')?.value?.trim()  || '';
+
+  const base = `You are a D&D 5e session log OCR assistant. Extract handwritten combat notes into structured text.
+Party: ${ChronicleAI.PARTY_ROSTER}
+For each round you find, output:
+ROUND <n> [session: <session_id>]
+Slot 1: <actor nickname> — <action>, <result> [<value>] [<notes>]
+...
+ENEMY ACTIONS: <description> | <impact>
+ROUND SUMMARY: <one sentence>
+---
+Output exactly this format. If a value is unclear, write [?] after it. Session: ${sessionHint}${combatHint ? '. Combat: ' + combatHint : ''}.`;
+
+  const steering = (steeringText || '').trim();
+  // Prepend steering text so model sees DM's context before the format rules.
+  return steering ? `${steering}\n\n${base}` : base;
 }
 
 function simulateOCR(idx) {
@@ -1023,21 +1266,16 @@ function simulateOCR(idx) {
   text.textContent = `Compressing and processing page ${idx+1} of ${pageData.length}…`;
 
   const page = pageData[idx];
+  // Mark processing so the Re-run button is disabled during the initial OCR pass.
+  // All exit paths (onResult, onError, .catch) reset this to false.
+  page.processing = true;
+  // Show the banner and disable buttons immediately — before the async API call
+  // returns — so the DM has visual feedback right away (issue #32).
+  updateProcessingUI();
 
-  // Build context for the AI
-  const sessionHint = document.getElementById('session-id-input')?.value?.trim() || 'session_006';
-  const combatHint  = document.getElementById('combat-id-input')?.value?.trim()  || '';
-
-  const system = `You are a D&D 5e session log OCR assistant. Extract handwritten combat notes into structured text.
-Party: ${ChronicleAI.PARTY_ROSTER}
-For each round you find, output:
-ROUND <n> [session: <session_id>]
-Slot 1: <actor nickname> — <action>, <result> [<value>] [<notes>]
-...
-ENEMY ACTIONS: <description> | <impact>
-ROUND SUMMARY: <one sentence>
----
-Output exactly this format. If a value is unclear, write [?] after it. Session: ${sessionHint}${combatHint ? '. Combat: ' + combatHint : ''}.`;
+  // Delegate to buildOCRSystemPrompt so initial and re-run paths share prompt logic.
+  // No steering text on the initial pass — DM hasn't had a chance to add any yet.
+  const system = buildOCRSystemPrompt('');
 
   if (page.imageURL) {
     // Fix #20: use page.imageURL (blob URL) not page.imageDataURL (undefined).
@@ -1125,19 +1363,37 @@ function generateSampleOCR(idx) {
   return pages[idx % pages.length];
 }
 
+/**
+ * finishOCR() — called once all per-page OCR promises have settled.
+ *
+ * Why: centralises the post-OCR status message and focuses the DM on the
+ * right page immediately — failed pages are named explicitly in the message
+ * so the DM doesn't have to hunt for which page errored (issue #33).
+ *
+ * If any page failed, auto-focuses the first failed page instead of page 0
+ * so the error banner and re-run controls are visible without a manual click.
+ */
 function finishOCR() {
-  // Fix #26: check whether any page failed before writing a success message.
-  // If failures exist, the status bar reflects that so the DM isn't misled by
-  // a "success" message while the error banner is also showing.
-  const failCount = pageData.filter(p => p.ocrFailed).length;
+  // Build an array of human-readable names for every page that failed OCR
+  const failedPages = pageData
+    .map((p, i) => p.ocrFailed ? `Page ${i + 1}` : null)
+    .filter(Boolean);
+
   document.getElementById('ocr-status-dot').classList.add('done');
-  if (failCount > 0) {
+
+  if (failedPages.length === 0) {
     document.getElementById('ocr-status-text').textContent =
-      `${failCount} of ${pageData.length} page(s) failed OCR — see error detail in the panel below`;
+      `OCR complete — ${pageData.length} page(s) ready to review`;
+    switchPage(0);
   } else {
-    document.getElementById('ocr-status-text').textContent = 'All pages extracted — review each below';
+    // Name each failed page in the message so the DM sees which ones need attention
+    document.getElementById('ocr-status-text').textContent =
+      `OCR complete — ${failedPages.join(', ')} failed. Review errors and re-run if needed.`;
+    // Auto-focus the first failed page so the error banner is immediately visible
+    switchPage(pageData.findIndex(p => p.ocrFailed));
   }
-  switchPage(0);
+
+  updateProcessingUI();
 }
 
 function switchPage(idx) {
@@ -1150,18 +1406,22 @@ function switchPage(idx) {
     pageData[currentPage].ocrText = document.getElementById('ocr-textarea').value;
   }
   currentPage = idx;
-  // Update tabs
+  // Update tabs — re-derive the full state class for every tab on every switch
+  // so that processing, ocr-done, ocr-failed, and confirmed states all stay in
+  // sync without requiring separate code paths (issue #33). Inline styles on the
+  // .tab-check dot are cleared here so CSS classes take full control of the colour.
   document.querySelectorAll('.page-tab').forEach((t, i) => {
-    t.classList.toggle('active', i === idx);
-    t.classList.toggle('confirmed', pageData[i] && pageData[i].confirmed);
+    const p = pageData[i];
+    // State priority: confirmed beats failed beats processing beats done
+    const stateClass = p?.confirmed  ? 'confirmed'
+                     : p?.ocrFailed  ? 'ocr-failed'
+                     : p?.processing ? 'processing'
+                     : p?.ocrText    ? 'ocr-done'
+                     : '';
+    t.className = 'page-tab' + (i === idx ? ' active' : '') + (stateClass ? ' ' + stateClass : '');
+    // Clear legacy inline styles that were set before CSS classes managed dot colour
     const check = t.querySelector('.tab-check');
-    if (pageData[i] && pageData[i].confirmed) {
-      check.style.background = 'var(--teal)';
-      check.style.borderColor = 'var(--teal)';
-    } else {
-      check.style.background = '';
-      check.style.borderColor = '';
-    }
+    if (check) { check.style.background = ''; check.style.borderColor = ''; }
   });
   // Update image
   const imgPane = document.getElementById('ocr-image-pane');
@@ -1192,10 +1452,14 @@ function switchPage(idx) {
     }
   }
   // Update nav
-  document.getElementById('prev-page-btn').disabled = idx === 0;
-  document.getElementById('next-page-btn').disabled = idx === pageData.length - 1;
   document.getElementById('page-progress-note').textContent = `Page ${idx+1} of ${pageData.length}`;
   updateAllConfirmedBtn();
+  // Rebuild the re-run controls for the page now showing (issue #28).
+  renderRerunSection(idx);
+  // updateProcessingUI() is the single source of truth for Prev/Next/Confirm
+  // disabled states — it replaces the former inline `disabled = idx === 0` lines
+  // and also factors in whether the current page is actively processing (issue #32).
+  updateProcessingUI();
 }
 
 function changePage(dir) {
@@ -1206,20 +1470,360 @@ function changePage(dir) {
 function confirmPage() {
   pageData[currentPage].ocrText = document.getElementById('ocr-textarea').value;
   pageData[currentPage].confirmed = true;
-  const tab = document.getElementById(`tab-${currentPage}`);
-  tab.classList.add('confirmed');
-  const check = tab.querySelector('.tab-check');
-  check.style.background = 'var(--teal)';
-  check.style.borderColor = 'var(--teal)';
   updateAllConfirmedBtn();
-  // Auto-advance to next unconfirmed
+  // Auto-advance to next unconfirmed page. When all pages are confirmed, stay
+  // on the current page — switchPage(currentPage) skips the re-save (idx === currentPage
+  // guard) but still re-derives all tab state classes, so the confirmed dot appears
+  // correctly without separate inline-style code (issue #33).
   const nextUnconfirmed = pageData.findIndex((p, i) => i > currentPage && !p.confirmed);
-  if (nextUnconfirmed !== -1) switchPage(nextUnconfirmed);
+  switchPage(nextUnconfirmed !== -1 ? nextUnconfirmed : currentPage);
 }
 
 function updateAllConfirmedBtn() {
   const allDone = pageData.every(p => p.confirmed);
   document.getElementById('all-confirmed-btn').disabled = !allDone;
+}
+
+// ══════════════════════════════════════════════════════
+// OCR processing indicator (issue #32)
+// ══════════════════════════════════════════════════════
+
+/**
+ * updateProcessingUI()
+ *
+ * Why it exists: three separate UI elements must reflect the same underlying
+ * "is OCR running?" state — the amber banner, the Confirm/Prev/Next button
+ * disabled states, and the status text CSS class. Centralising these into one
+ * function means every code path that changes page.processing only needs to
+ * call this once instead of duplicating the same DOM updates.
+ *
+ * Called from:
+ *   - simulateOCR()  — immediately after page.processing = true
+ *   - switchPage()   — at the end, replacing the standalone prev/next disabled lines
+ *   - rerunOCR()     — after page.processing = true AND in all three exit paths
+ *                      (rerunOCR does not call switchPage(), so must be explicit)
+ *
+ * What breaks if removed: banner never appears; Confirm stays enabled during
+ * OCR; Prev/Next are no longer disabled on the active processing page.
+ */
+function updateProcessingUI() {
+  // anyProcessing: true if at least one page is waiting for an API response.
+  // Controls the banner and the Confirm button.
+  const anyProcessing     = pageData.some(p => p.processing);
+  // currentProcessing: true only if the page currently on-screen is in flight.
+  // Controls Prev/Next — the DM can still navigate to already-completed pages.
+  const currentProcessing = !!pageData[currentPage]?.processing;
+
+  // ── Banner ──────────────────────────────────────────────────────────────
+  const banner = document.getElementById('ocr-processing-banner');
+  if (banner) {
+    banner.style.display = anyProcessing ? 'block' : 'none';
+    if (anyProcessing) {
+      // Find which page is actively processing to show an accurate count.
+      // findIndex returns the first processing page; +1 for 1-based display.
+      const processingIdx = pageData.findIndex(p => p.processing);
+      const label = document.getElementById('ocr-processing-label');
+      if (label) {
+        label.textContent = `processing page ${processingIdx + 1} of ${pageData.length}`;
+      }
+    }
+  }
+
+  // ── Confirm button ───────────────────────────────────────────────────────
+  // Disabled while ANY page is still processing — the DM must not confirm
+  // a page whose OCR may still change.
+  const confirmBtn = document.getElementById('confirm-page-btn');
+  if (confirmBtn) confirmBtn.disabled = anyProcessing;
+
+  // ── Prev / Next buttons ──────────────────────────────────────────────────
+  // Disabled on boundary pages OR while the currently-visible page is in flight.
+  // The DM CAN navigate to already-completed pages during multi-page processing.
+  const prevBtn = document.getElementById('prev-page-btn');
+  const nextBtn = document.getElementById('next-page-btn');
+  if (prevBtn) prevBtn.disabled = currentProcessing || currentPage === 0;
+  if (nextBtn) nextBtn.disabled = currentProcessing || currentPage === pageData.length - 1;
+
+  // ── Status text prominence ───────────────────────────────────────────────
+  // Toggle the .processing CSS class which makes the status text amber and
+  // larger; reverts automatically once all pages complete.
+  const statusContainer = document.querySelector('.ocr-status');
+  if (statusContainer) statusContainer.classList.toggle('processing', anyProcessing);
+}
+
+// ══════════════════════════════════════════════════════
+// OCR Re-run correction surface (issue #28)
+// ══════════════════════════════════════════════════════
+
+/**
+ * renderRerunSection(idx)
+ *
+ * Why it exists: the re-run controls must reflect per-page state
+ * (processing flag, steering text, log suggestion visibility). Rather than
+ * scattering DOM updates across multiple functions, all state-to-DOM
+ * translation for the re-run section lives here. Called from switchPage()
+ * whenever the visible page changes.
+ *
+ * What it builds inside #ocr-rerun-section:
+ *   Row 1: [↻ Re-run OCR] [+ Add context / ▲ Hide context]
+ *   Row 2: [steering text input] — collapsed by default
+ *   Row 3: [✦ Log as prompt improvement] — only after a steered run succeeds
+ */
+function renderRerunSection(idx) {
+  const section = document.getElementById('ocr-rerun-section');
+  if (!section) return;
+
+  const page = pageData[idx];
+  // No page or no file (demo mode) — leave section empty.
+  if (!page || !page.file) { section.innerHTML = ''; return; }
+
+  const disabledAttr    = page.processing ? ' disabled' : '';
+  const rerunLabel      = page.processing ? '↻ Re-running…' : '↻ Re-run OCR';
+  const steeringDisplay = page.steeringExpanded ? 'block' : 'none';
+  const contextLabel    = page.steeringExpanded ? '▲ Hide context' : '+ Add context';
+  // Escape any DM-typed quotes so they don't break the value="" attribute.
+  const steeringEscaped = (page.steeringText || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  let html = `
+    <div class="rerun-controls">
+      <button class="btn btn-rerun" onclick="rerunOCR(${idx})"${disabledAttr}>${rerunLabel}</button>
+      <button class="btn-ghost" onclick="toggleSteering(${idx})">${contextLabel}</button>
+    </div>
+    <div id="steering-collapse-${idx}" style="display:${steeringDisplay}">
+      <input type="text" class="steering-input" id="steering-input-${idx}"
+        placeholder="Add context for this page — e.g. AoO = Attack of Opportunity"
+        value="${steeringEscaped}"
+        oninput="pageData[${idx}].steeringText = this.value">
+    </div>`;
+
+  if (page.showLogSuggestion) {
+    // Shown after a steered re-run succeeds.
+    // The DM can dismiss this by clicking — it writes to sessionStorage and collapses.
+    html += `
+    <div class="log-suggestion">
+      <span class="log-suggestion-hint">Steering helped — save for prompt improvement?</span>
+      <button class="btn-log-suggestion" onclick="logPromptImprovement(${idx})">
+        ✦ Log as prompt improvement suggestion
+      </button>
+    </div>`;
+  }
+
+  section.innerHTML = html;
+}
+
+/**
+ * rerunOCR(idx)
+ *
+ * Why it exists: the first OCR pass may misread notation or produce a poor
+ * result due to model variability. This re-sends the image through the same
+ * pipeline for a single page without requiring the DM to restart from Step 1.
+ *
+ * Reads page.steeringText — if non-empty, the text is prepended to the system
+ * prompt (via buildOCRSystemPrompt) so the model gets the DM's clarification.
+ * After a successful steered run, sets showLogSuggestion so the DM can
+ * optionally record the steering text as a prompt improvement entry.
+ *
+ * What breaks if removed: the Re-run OCR button becomes non-functional.
+ */
+function rerunOCR(idx) {
+  const page = pageData[idx];
+  // Guard: don't double-fire if a call is already in flight.
+  if (!page || page.processing) return;
+
+  const isSteered = !!(page.steeringText || '').trim();
+
+  page.processing        = true;
+  page.confirmed         = false;  // DM must re-confirm after a re-run
+  page.ocrFailed         = false;
+  page.ocrErrorReason    = '';
+  page.showLogSuggestion = false;
+
+  renderRerunSection(idx);
+  updateAllConfirmedBtn();
+  // Show banner and disable buttons for the re-run (issue #32).
+  // rerunOCR() does not call switchPage(), so updateProcessingUI() must be
+  // called explicitly here and in every exit path below.
+  updateProcessingUI();
+
+  // Update status bar to reflect re-run in progress
+  const dot        = document.getElementById('ocr-status-dot');
+  const statusText = document.getElementById('ocr-status-text');
+  dot.classList.remove('done', 'error');
+  statusText.textContent = `Re-running OCR on page ${idx + 1}${isSteered ? ' with context' : ''}…`;
+
+  // Build system prompt — steering text prepended when present
+  const system = buildOCRSystemPrompt(page.steeringText);
+
+  compressImageForOCR(page.file).then(function(dataURL) {
+    ChronicleAI.call({
+      system,
+      messages: [{
+        role: 'user',
+        content: [
+          ChronicleAI.imageContent(dataURL),
+          { type: 'text', text: 'Extract all combat round data from this handwritten notes page.' },
+        ],
+      }],
+      onLoading: () => {},
+      onResult: function(text) {
+        page.ocrText           = text;
+        page.ocrFailed         = false;
+        page.ocrErrorReason    = '';
+        page.confirmed         = false;
+        page.processing        = false;
+        // Only offer logging after a steered re-run — unsteered re-runs have
+        // nothing new to log as a prompt improvement.
+        page.showLogSuggestion = isSteered;
+        page.lastRunSteered    = isSteered;
+
+        // Update textarea if this is still the visible page
+        if (currentPage === idx) {
+          document.getElementById('ocr-textarea').value = text;
+          const errBanner = document.getElementById('ocr-error-banner');
+          if (errBanner) errBanner.style.display = 'none';
+        }
+
+        buildTabs();
+        renderRerunSection(idx);
+        updateAllConfirmedBtn();
+        updateProcessingUI(); // hide banner and re-enable buttons (issue #32)
+        document.getElementById('ocr-status-dot').classList.remove('error');
+        document.getElementById('ocr-status-dot').classList.add('done');
+        document.getElementById('ocr-status-text').textContent =
+          `Page ${idx + 1} re-processed${isSteered ? ' with context' : ''} — review and confirm`;
+      },
+      onError: function(err) {
+        const reason = (err && (err.message || String(err))) || 'Unknown error';
+        page.ocrText           = '';
+        page.ocrFailed         = true;
+        page.ocrErrorReason    = reason;
+        page.confirmed         = false;
+        page.processing        = false;
+        page.showLogSuggestion = false;
+
+        if (currentPage === idx) {
+          document.getElementById('ocr-textarea').value = '';
+          const errBanner = document.getElementById('ocr-error-banner');
+          if (errBanner) {
+            errBanner.innerHTML = `⚠ Re-run failed: <strong>${reason}</strong><br>
+              The text area is empty. Type or paste the content from your notes before confirming.`;
+            errBanner.style.display = 'block';
+          }
+        }
+
+        buildTabs();
+        renderRerunSection(idx);
+        updateAllConfirmedBtn();
+        updateProcessingUI(); // hide banner and re-enable buttons (issue #32)
+        document.getElementById('ocr-status-dot').classList.remove('done');
+        document.getElementById('ocr-status-dot').classList.add('error');
+        document.getElementById('ocr-status-text').textContent =
+          `Re-run failed on page ${idx + 1}: ${reason}`;
+      },
+    });
+  }).catch(function(err) {
+    // compressImageForOCR() failed — treat as OCR error
+    const reason = (err && (err.message || String(err))) || 'Could not read image file';
+    page.ocrText           = '';
+    page.ocrFailed         = true;
+    page.ocrErrorReason    = reason;
+    page.confirmed         = false;
+    page.processing        = false;
+    page.showLogSuggestion = false;
+
+    if (currentPage === idx) {
+      document.getElementById('ocr-textarea').value = '';
+      const errBanner = document.getElementById('ocr-error-banner');
+      if (errBanner) {
+        errBanner.innerHTML = `⚠ Re-run failed: <strong>${reason}</strong><br>
+          The text area is empty. Type or paste the content from your notes before confirming.`;
+        errBanner.style.display = 'block';
+      }
+    }
+
+    buildTabs();
+    renderRerunSection(idx);
+    updateAllConfirmedBtn();
+    updateProcessingUI(); // hide banner and re-enable buttons (issue #32)
+    document.getElementById('ocr-status-dot').classList.remove('done');
+    document.getElementById('ocr-status-dot').classList.add('error');
+    document.getElementById('ocr-status-text').textContent =
+      `Re-run failed on page ${idx + 1}: ${reason}`;
+  });
+}
+
+/**
+ * toggleSteering(idx)
+ * Expands or collapses the steering text input for the given page.
+ * State is stored in pageData[idx].steeringExpanded so it survives
+ * tab navigation — when the DM returns to a page, the field stays open.
+ */
+function toggleSteering(idx) {
+  if (!pageData[idx]) return;
+  pageData[idx].steeringExpanded = !pageData[idx].steeringExpanded;
+  renderRerunSection(idx);
+  // Focus the input immediately after expanding so the DM can type right away
+  if (pageData[idx].steeringExpanded) {
+    const input = document.getElementById(`steering-input-${idx}`);
+    if (input) input.focus();
+  }
+}
+
+/**
+ * logPromptImprovement(idx)
+ *
+ * Why it exists: when a steered re-run fixes an OCR interpretation error,
+ * the DM's steering text is valuable signal for improving the base OCR
+ * prompt. This captures it as a structured entry for future review.
+ *
+ * Where it writes: sessionStorage key 'chronicle_prompt_improvement_log'
+ * (JSON array). Entries are ephemeral here — they are merged into the
+ * campaign JSON's prompt_improvement_log[] array when delta-review runs
+ * its publish function (issue #29). pil_NNN IDs are assigned at that point,
+ * not here, so entries in sessionStorage have no id field.
+ * NOTE: sessionStorage is cleared when the tab closes. If publish has not
+ * run yet when the tab closes, the entries are lost. The DM should complete
+ * the publish cycle in the same browser session after using steering.
+ *
+ * What breaks if removed: the "Log as prompt improvement" button becomes
+ * non-functional; clicking it has no effect.
+ */
+function logPromptImprovement(idx) {
+  const page = pageData[idx];
+  if (!page) return;
+
+  const entry = {
+    // No id field here — pil_NNN IDs are assigned by delta-review at publish time
+    // based on the current length of prompt_improvement_log[] in the campaign JSON
+    session_id:      document.getElementById('session-id-input')?.value?.trim() || 'session_006',
+    page_index:      idx,
+    steering_text:   page.steeringText || '',
+    // Use the stored error reason as context for what the original run got wrong.
+    // If no error was recorded (e.g. the original run succeeded but was inaccurate),
+    // use a generic summary so the field is always populated.
+    failure_summary: page.ocrErrorReason
+                       ? `OCR error: ${page.ocrErrorReason}`
+                       : 'Inaccurate initial OCR — steering corrected interpretation',
+    corrected:       true,
+    // ISO date-only string matches the prompt_improvement_log schema (issue #29)
+    logged_at:       new Date().toISOString().slice(0, 10),
+    status:          'pending_review',
+  };
+
+  // Append to the sessionStorage log array (create if absent).
+  // IMPORTANT: sessionStorage is volatile — cleared when the tab closes.
+  // Entries remain here until the next delta-review publish merges them.
+  const storageKey = 'chronicle_prompt_improvement_log';
+  const existing   = JSON.parse(sessionStorage.getItem(storageKey) || '[]');
+  existing.push(entry);
+  sessionStorage.setItem(storageKey, JSON.stringify(existing));
+
+  // Collapse the log suggestion UI — one-click, no second confirmation needed
+  page.showLogSuggestion = false;
+  renderRerunSection(idx);
+
+  // Confirm in the status bar (brief feedback, no modal)
+  document.getElementById('ocr-status-text').textContent =
+    `Prompt improvement logged for page ${idx + 1} (${existing.length} total in session — see sessionStorage)`;
 }
 
 // ══════════════════════════════════════════════════════
@@ -1232,6 +1836,19 @@ function showConsolidation() {
   buildSessionDoc();
 }
 
+/**
+ * buildSessionDoc() — assembles the consolidated session document shown in Step 3.
+ *
+ * Why: the DM reviews the combined OCR text + narrative before sending to AI
+ * analysis. Keeping this as a rendered HTML view (rather than a raw textarea)
+ * makes it easier to spot problems per-page before committing to the analysis call.
+ *
+ * Large-session limitation: this function concatenates ALL confirmed OCR pages
+ * into a single string that is later passed to the AI in one call. Sessions with
+ * more than ~8 dense pages may approach the model's context limit. If analysis
+ * starts returning truncated or confused output, consider splitting across calls
+ * per-combat rather than per-session.
+ */
 function buildSessionDoc() {
   const view = document.getElementById('session-doc-view');
   const stats = document.getElementById('session-doc-stats');

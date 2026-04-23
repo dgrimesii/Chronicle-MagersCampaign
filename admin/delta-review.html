@@ -1273,6 +1273,29 @@ function applyDeltasToCampaign(campaign, approved) {
     }
   }
 
+  // Merge any prompt improvement log entries captured in sessionStorage during
+  // this intake session (issue #29). Entries are written there by logPromptImprovement()
+  // in intake.html when the DM clicks "Log as prompt improvement" after a steered re-run.
+  // They are ephemeral in sessionStorage — this publish call is the point where they
+  // become permanent in the campaign JSON with proper pil_NNN IDs.
+  const storedPilRaw = sessionStorage.getItem('chronicle_prompt_improvement_log');
+  const storedPilEntries = storedPilRaw ? JSON.parse(storedPilRaw) : [];
+  if (storedPilEntries.length > 0) {
+    if (!Array.isArray(out.prompt_improvement_log)) out.prompt_improvement_log = [];
+    // Assign sequential IDs starting from 1 beyond the current array length.
+    // pil_001, pil_002, etc. — left-padded to 3 digits to match the schema convention.
+    let nextPilIdx = out.prompt_improvement_log.length + 1;
+    for (const entry of storedPilEntries) {
+      const id = 'pil_' + String(nextPilIdx).padStart(3, '0');
+      out.prompt_improvement_log.push(Object.assign({ id }, entry));
+      nextPilIdx++;
+    }
+    // Clear the sessionStorage log now that entries are committed to the JSON.
+    // If publish fails (Drive write error), entries are already gone — the DM
+    // would need to re-log them. This is acceptable given the low cost of the action.
+    sessionStorage.removeItem('chronicle_prompt_improvement_log');
+  }
+
   // Update schema metadata
   out._last_published = new Date().toISOString();
   out._delta_count    = (out._delta_count || 0) + approved.length;

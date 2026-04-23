@@ -217,6 +217,7 @@ All IDs follow `<type>_<zero-padded-number>`:
 | Bestiary | `mon_` | `mon_009` |
 | Lore | `lore_` | `lore_003` |
 | Session | `session_` | `session_006` |
+| Prompt Improvement Log | `pil_` | `pil_001` |
 
 Never reuse a voided or skipped ID. The current gap IDs in the NPC registry (`npc_002`, `npc_005`, `npc_006`) are permanently voided.
 
@@ -248,7 +249,7 @@ Rules:
 
 ### Next available IDs (as of v4.0.0 — sessions 006 and 007 are placeholders)
 
-`pc_007`, `npc_015`, `loc_014`, `qst_006`, `item_012`, `cbt_007`, `session_008`, `mon_009`, `lore_004`, `moment_002`
+`pc_007`, `npc_015`, `loc_014`, `qst_006`, `item_012`, `cbt_007`, `session_008`, `mon_009`, `lore_004`, `moment_002`, `pil_001`
 
 Voided/skipped NPC IDs (never reuse): `npc_002`, `npc_005`, `npc_006`
 

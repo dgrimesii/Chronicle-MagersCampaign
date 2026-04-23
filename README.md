@@ -117,6 +117,7 @@ v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. 
 | `quest_ledger` | Quests; status/priority/objectives/progress_log in `mechanics`, motivation in `narrative` |
 | `combat_encounters` | Combats; outcome/location/sessions in `mechanics`, setup/finale/aftermath in `narrative`; slots have nested `action` object; enemy turns use `enemy_turns[]` |
 | `deferred_gaps` | Workflow state array written by delta-review when the DM defers an integrity gap. Each entry: `{ id, combat_id, combat_name, session_id, missing_rounds[], gap_type, deferred_at, status }`. Not campaign narrative — persists alongside the JSON so the future campaign scanner can surface pending entries as a correction queue. |
+| `prompt_improvement_log` | Workflow state array written by delta-review publish when the DM logged steering context during an OCR re-run in Session Intake. Each entry: `{ id, session_id, page_index, steering_text, failure_summary, corrected, logged_at, status }`. IDs use `pil_NNN` prefix. `status` starts as `'pending_review'`. Not campaign narrative — captures OCR prompt failure cases for future prompt improvement review (placeholder UI in `integrity.html`). |
 
 ### Field name mappings (v4 JSON → normalised viewer shape)
 
@@ -235,8 +236,9 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - **Audience:** DM only
 - Three-step wizard: (1) upload session photos, (2) review OCR output page-by-page, (3) consolidate into session document
 - Loads `../shared/config.js` and `../shared/chronicle-ai.js`
-- Uses `ChronicleAI.call()` with vision to extract handwritten combat notes from uploaded images
+- Uses `ChronicleAI.call()` with vision to extract handwritten combat notes from uploaded images; images are compressed to ≤1800px before sending to stay within the Anthropic 5MB base64 limit
 - Does not fetch `magers-campaign.json` — operates on uploaded image data only
+- **OCR review correction modes (Step 2):** three paths per page — (a) manual textarea edit, (b) re-run OCR with the same prompt, (c) re-run with steering (DM-typed context prepended to the system prompt). Steering text can be logged as a prompt improvement suggestion via sessionStorage (key `chronicle_prompt_improvement_log`)
 - "Send to Delta Review" button navigates to `delta-review.html`
 
 ---
@@ -347,7 +349,7 @@ Gap object shape: `{ id, group, sev, block, isNew, cbtId, cbtName, sessHint, mis
 
 Loaded by `intake.html`, `delta-review.html`, and `integrity.html` via `<script src="../shared/chronicle-ai.js">`. The module reads the Anthropic API key from `window.CHRONICLE_CONFIG.anthropicApiKey` (set by `config.js`). Calls go directly from the browser to the Anthropic API using the `anthropic-dangerous-direct-browser-access` header — there is no server-side proxy for AI requests.
 
-Model: `claude-sonnet-4-20250514`
+Model: `claude-sonnet-4-6`
 
 Public API (`window.ChronicleAI`):
 - `.call({system, messages, onResult, onError, onLoading})` — raw API call

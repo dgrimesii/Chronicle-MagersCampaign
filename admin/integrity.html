@@ -115,6 +115,70 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
         <button class="btn-scan" disabled title="Run Scan — not yet implemented">Run Scan</button>
         <div class="fetch-error" id="fetch-error"></div>
       </div>
+
+      <!-- ── Prompt Improvement Log placeholder (issue #29) ──────────────────────
+           The prompt_improvement_log[] array is written to the campaign JSON by
+           delta-review's publish function when the DM logged steering context
+           during an OCR re-run (via intake.html → logPromptImprovement()).
+
+           Each entry shape:
+             { id, session_id, page_index, steering_text, failure_summary,
+               corrected, logged_at, status: 'pending_review' }
+
+           OPEN DESIGN QUESTIONS — to resolve before building the review UI:
+
+           1. REVIEW WORKFLOW FORMAT
+              What does the review UI look like? Options:
+              - Simple list sorted by date (most recent first)
+              - Grouped by failure_summary similarity (requires text clustering)
+              - Frequency-ranked — entries with similar steering_text grouped
+                to surface recurring prompt weaknesses first
+              A flat list is simplest to build and sufficient until volume grows.
+
+           2. WHO ACTS ON ENTRIES
+              Is this a DM tool (you notice a pattern and adjust how you write
+              session notes), a developer tool (I update the OCR system prompt),
+              or both? The answer determines whether "resolve" actions are
+              UI-level (mark reviewed, hide) or produce something actionable
+              (a prompt diff suggestion, a GitHub issue, a glossary entry).
+
+           3. WHAT DOES "RESOLVE" MEAN
+              Options:
+              - Mark as reviewed (status: 'reviewed') — simple acknowledgment
+              - Convert to a glossary entry (writes to the OCR glossary)
+              - Convert to a prompt change (opens a GitHub issue with the
+                steering text as a proposed system prompt addition)
+              - Delete the entry once actioned
+              - Auto-close after N sessions with no repeat (see question 4)
+
+           4. AUTO-EXPIRY
+              Should entries auto-expire after N sessions if they have never
+              been actioned? Arguments for: avoids accumulating stale noise.
+              Arguments against: patterns may recur infrequently but still be
+              worth fixing. A reasonable default: surface entries from the last
+              10 sessions; archive older ones unless manually kept.
+
+           5. BATCH / SIMILARITY VIEW
+              Should similar steering notes be grouped into a single suggestion?
+              Example: three entries all containing "AoO = Attack of Opportunity"
+              → surfaced as one "recurring ambiguity" item rather than three
+              separate entries. This requires either text similarity logic
+              (expensive) or a manual "group" affordance. Defer until there are
+              enough real entries to know whether grouping is needed.
+      ──────────────────────────────────────────────────────────────────────── -->
+      <div class="ph-card" style="margin-top:1.5rem;">
+        <div class="ph-title">Prompt Improvement Log</div>
+        <div class="ph-divider"></div>
+        <div class="ph-body">
+          <p>Captures steering context from OCR re-runs — cases where the built-in prompt misread the DM's notation.</p>
+          <p>Entries are written here by the Delta Review publish cycle after the DM clicks "Log as prompt improvement" during Session Intake.</p>
+        </div>
+        <div class="ph-note">
+          Review workflow is not yet designed.<br>
+          See the comment block in the page source for the five open design questions.
+        </div>
+        <button class="btn-scan" disabled title="Review prompt suggestions — not yet implemented">Review Prompt Suggestions</button>
+      </div>
     </div>
   </div>
 
