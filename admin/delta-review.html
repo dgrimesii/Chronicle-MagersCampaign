@@ -95,6 +95,12 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .pill-mod{background:rgba(212,175,55,0.12);color:var(--amber-dim);border:1px solid rgba(212,175,55,0.3);}
 .pill-ct{background:rgba(42,107,107,0.12);color:var(--teal);border:1px solid rgba(42,107,107,0.3);}
 .pill-unc{background:rgba(139,58,30,0.1);color:var(--rust);border:1px solid rgba(139,58,30,0.25);}
+/* pill-raw: uninterpreted OCR text from intake hand-off (issue #30) */
+.pill-raw{background:rgba(160,140,200,0.15);color:#c090ff;border:1px solid rgba(160,140,200,0.3);}
+/* intake-banner: shown when delta-review loaded data from intake sessionStorage (issue #30) */
+.intake-banner{background:rgba(212,175,55,0.1);border-bottom:1px solid var(--border-strong);
+  color:var(--amber);font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.08em;
+  padding:0.6rem 1.5rem;text-align:center;}
 .pill-round{background:rgba(163,45,45,0.08);color:#ff6060;border:1px solid rgba(163,45,45,0.25);}
 .pill-cascade{background:rgba(74,59,140,0.1);color:var(--purple);border:1px solid rgba(74,59,140,0.25);}
 .delta-array-tag{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted-light);background:var(--parchment-mid);border:1px solid var(--border);padding:2px 8px;border-radius:2px;}
@@ -169,13 +175,18 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .btn{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;padding:7px 16px;border-radius:3px;cursor:pointer;transition:all 0.15s;border:1px solid transparent;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
 .btn-approve{background:var(--teal);color:white;border-color:var(--teal);}
 .btn-approve:hover{background:#205555;}
-.btn-reject{border-color:var(--border-strong);color:var(--muted);background:none;}
-.btn-reject:hover{background:var(--parchment-dark);}
+/* Reject uses the same rust palette as Flag/uncertain so it reads as a "danger" action,
+   not a disabled element. Previously used color:var(--muted) which looked identical to
+   a disabled button — fixed in issue #31. */
+.btn-reject{border-color:rgba(139,58,30,0.4);color:var(--rust);background:rgba(139,58,30,0.06);}
+.btn-reject:hover{background:rgba(139,58,30,0.12);}
 .btn-uncertain{border-color:rgba(139,58,30,0.3);color:var(--rust);background:rgba(139,58,30,0.05);}
 .btn-uncertain:hover{background:rgba(139,58,30,0.1);}
 .status-chip{font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.1em;padding:4px 10px;border-radius:2px;text-transform:uppercase;}
 .chip-approved{background:rgba(42,107,107,0.1);color:var(--teal);border:1px solid rgba(42,107,107,0.25);}
-.chip-rejected{background:rgba(212,175,55,0.006);color:var(--muted);border:1px solid var(--border-strong);}
+/* Previously near-invisible (rgba alpha 0.006). Now uses rust palette to match
+   the Reject button colour and be readable at a glance — fixed in issue #31. */
+.chip-rejected{background:rgba(139,58,30,0.08);color:var(--rust);border:1px solid rgba(139,58,30,0.3);}
 
 /* ═══════════════════════════════
    RIGHT: AI assistant panel
@@ -283,6 +294,12 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .gap-badge-accepted{background:rgba(42,107,107,0.12);color:var(--teal);border:1px solid rgba(42,107,107,0.28);}
 .gap-badge-deferred{background:rgba(212,175,55,0.1);color:#ffbb33;border:1px solid rgba(212,175,55,0.22);}
 .gap-badge-filled{background:rgba(74,59,140,0.1);color:var(--purple);border:1px solid rgba(74,59,140,0.22);}
+/* Partial fill badge: shown during editing when some rounds are approved but more remain.
+   Uses amber to signal "in progress" — distinct from the teal accepted and purple filled states. */
+.gap-badge-partial{background:rgba(212,175,55,0.1);color:var(--amber);border:1px solid rgba(212,175,55,0.3);}
+/* Partial fill notice: displayed above the edit panel to show which rounds are done vs remaining.
+   Left border matches the amber partial signal — visually connects to the badge. */
+.gap-partial-notice{font-size:0.85rem;color:var(--amber-dim);border-left:2px solid rgba(212,175,55,0.35);padding:0.4rem 0.75rem;margin-bottom:0.6rem;}
 .gap-detail{font-size:0.9rem;color:var(--ink);margin-bottom:0.35rem;line-height:1.5;}
 .gap-detail code{font-family:'JetBrains Mono',monospace;font-size:0.8em;background:var(--parchment-mid);padding:0 4px;border-radius:2px;}
 .gap-ctx{font-size:0.82rem;color:var(--muted);font-style:italic;margin-bottom:0.75rem;}
@@ -358,6 +375,11 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
   </div>
   </div>
 </header>
+
+<!-- Intake hand-off banner — shown when delta-review loaded session data from
+     sessionStorage rather than its hardcoded demo queue (issue #30).
+     Populated and shown by loadIntakeDelta() in the JS below. -->
+<div id="intake-banner" class="intake-banner" style="display:none;"></div>
 
 <div class="shell">
 
@@ -533,7 +555,19 @@ const nick = id => PARTY[id]?.nick || id;
 //   sourceQuote, sourceRef
 //   flags → [{text, roundAffected}]
 // ══════════════════════════════════════════════════════
-let items = [
+// items[] starts empty. It is populated either by loadIntakeDelta() (when the
+// DM arrives from intake.html via the sessionStorage hand-off introduced in
+// issue #30), or by AI cascade results added during a review session.
+// The hardcoded session_006 demo data that used to live here was removed once
+// the intake hand-off was working — it was development scaffolding, not real
+// campaign data, and it caused false integrity gaps on every direct page load.
+let items = [];
+// REMOVED DEMO — items previously contained hardcoded session_006 delta items
+// (rounds 10–14 of Goblin Ambush, cbt_005 metadata, NPC npc_014, quest update).
+// That data caused the integrity pre-flight to fire on every direct navigation
+// (issue #34). If session_006 data needs to be reviewed, run it through intake.html.
+
+const _REMOVED_DEMO = [
 
   // ── Session log ──────────────────────────────────────
   { id:'d_sess', type:'NEW', array:'session_logs', group:'Session', status:'pending', flags:[],
@@ -690,7 +724,7 @@ let items = [
         <div class="field-row changed"><div class="field-label">New log entry</div><div class="field-val">Caravan defended through Rounds 10–14 of goblin ambush on the road west. No civilian casualties noted. Road now clear.</div></div>
       </div>`; }
   },
-];
+]; // end _REMOVED_DEMO — not used; preserved in source for reference only
 
 // ══════════════════════════════════════════════════════
 // STATE
@@ -869,8 +903,9 @@ function renderReview() {
   const item = getItem(selectedId);
   if (!item) return;
 
-  const typeClass = {NEW:'pill-new',MOD:'pill-mod',CT:'pill-ct',UNC:'pill-unc'}[item.type] || 'pill-new';
-  const typeLabel = {NEW:'New entry',MOD:'Modification',CT:'Connective tissue',UNC:'Uncertainty'}[item.type] || item.type;
+  // RAW is the type used for uninterpreted OCR text from the intake hand-off (issue #30)
+  const typeClass = {NEW:'pill-new',MOD:'pill-mod',CT:'pill-ct',UNC:'pill-unc',RAW:'pill-raw'}[item.type] || 'pill-new';
+  const typeLabel = {NEW:'New entry',MOD:'Modification',CT:'Connective tissue',UNC:'Uncertainty',RAW:'Raw OCR'}[item.type] || item.type;
   const roundLabel = item.isRound ? 'pill-round' : null;
 
   const flagsHtml = item.flags?.length ? `
@@ -928,15 +963,34 @@ function renderReview() {
     document.getElementById('next-round').disabled = idx === rounds.length-1;
   }
 
-  // Status buttons
+  // Status buttons — both Approve and Reject show a confirmation state after clicking
+  // so the DM knows the action registered. Previously btnReject was fetched but never
+  // read, leaving the button unchanged after click (issue #31).
   const btnApprove = document.getElementById('btn-approve');
-  const btnReject = document.getElementById('btn-reject');
+  const btnReject  = document.getElementById('btn-reject');
+
   if (item.status === 'approved') {
     btnApprove.textContent = '✓ Approved';
     btnApprove.style.background = '#205555';
   } else {
     btnApprove.textContent = 'Approve ✓';
     btnApprove.style.background = 'var(--teal)';
+  }
+
+  // Mirror the same confirmed/default pattern for Reject.
+  // Confirmed state uses a darker rust fill to show the action landed.
+  // Default state resets to the CSS base values (rgba(139,58,30,...)) so
+  // renderReview() and the CSS stay in sync — changing one requires changing the other.
+  if (item.status === 'rejected') {
+    btnReject.textContent = '✗ Rejected';
+    btnReject.style.background  = 'rgba(139,58,30,0.25)';
+    btnReject.style.borderColor = 'var(--rust)';
+    btnReject.style.color       = 'var(--rust)';
+  } else {
+    btnReject.textContent = 'Reject';
+    btnReject.style.background  = 'rgba(139,58,30,0.06)';
+    btnReject.style.borderColor = 'rgba(139,58,30,0.4)';
+    btnReject.style.color       = 'var(--rust)';
   }
 }
 
@@ -965,11 +1019,13 @@ function setItemStatus(status) {
   renderReview();
   updateProgress();
 
-  // If approving a round, auto-advance to next pending round
-  if (status === 'approved' && item.isRound) {
+  // Auto-advance to the next pending round after a decisive action (approve or reject).
+  // Previously only triggered on approve — reject now advances too so the DM can
+  // move through the queue without manually clicking each item (issue #31).
+  if ((status === 'approved' || status === 'rejected') && item.isRound) {
     const rounds = getRoundsForCombat(item.combatId);
-    const nextPending = rounds.find(r=>r.status==='pending'&&r.id!==selectedId);
-    if (nextPending) setTimeout(()=>selectItem(nextPending.id), 200);
+    const nextPending = rounds.find(r => r.status === 'pending' && r.id !== selectedId);
+    if (nextPending) setTimeout(() => selectItem(nextPending.id), 200);
   }
 }
 
@@ -1347,6 +1403,19 @@ function buildIncomingFromItems() {
 // Non-fatal on error — if the fetch fails, gapResults stays [] and the
 // integrity panel is silently skipped rather than blocking the review.
 async function initIntegrity() {
+  // Guard: skip integrity checks when there are no staged items.
+  // The integrity panel is a pre-publish pre-flight check, not a background
+  // campaign scanner. When items[] is empty there is no active publish cycle,
+  // so surfacing pre-existing campaign gaps would force the DM to Accept/Defer
+  // them with no way to actually fix or commit anything. The panel and the
+  // Publish gate only make sense when there is staged data to act on.
+  // This guard fires AFTER loadIntakeDelta() runs, so items[] is already
+  // populated by intake hand-off when the DM comes from intake.html.
+  // Issue #34.
+  if (items.length === 0 && cascadeItems.length === 0) {
+    gapResults = [];
+    return;
+  }
   try {
     // Route through the Safe Test Mode resolver so test runs target the fixture.
     // Falls back to the hardcoded path when config.js is absent (GitHub Pages).
@@ -1368,6 +1437,24 @@ async function initIntegrity() {
     };
 
     gapResults = ChronicleIntegrity.checks(campaignIntegrityData, buildIncomingFromItems());
+
+    // Filter Type 1 (existing-record) gaps to only combats that have incoming
+    // data in this session. ChronicleIntegrity.checks() Type 1 scans every combat
+    // in the JSON and surfaces any round sequence gap it finds — but a pre-existing
+    // gap in cbt_003 (session_004 data) has nothing to do with a session_006 publish
+    // cycle and should not block it. The DM can only meaningfully act on a gap when
+    // they have notes or intake data for that specific combat in front of them.
+    //
+    // Rule: Type 1 gaps (isNew:false) are kept only when the combat also has incoming
+    // rounds staged in this session (so continuity can be checked in context).
+    // Type 2 and Type 3 gaps (isNew:true) always pass through — they are directly
+    // caused by the staged data and must be resolved before publishing.
+    //
+    // Pre-existing gaps in unrelated combats are tracked in issue #35 and will be
+    // addressed via the deferred_gaps workflow during the session that adds data for
+    // that combat.
+    const incomingCombatIds = new Set(buildIncomingFromItems().map(i => i.combatId));
+    gapResults = gapResults.filter(g => g.isNew || incomingCombatIds.has(g.cbtId));
 
     // Initialise a state record for each gap
     gapResults.forEach(g => {
@@ -1444,11 +1531,18 @@ function renderGapCard(g) {
   const sevClass = g.sev === 'critical' ? 'gap-sev-critical' : 'gap-sev-warning';
   const typeLabel = g.isNew ? 'Incoming gap' : g.group === 'misc' ? 'Count mismatch' : 'Existing gap';
 
+  // Derive which rounds are still missing after any approved proposals.
+  // Recalculated on every render so the edit panel and AI calls always target only
+  // what is genuinely unresolved — not rounds already added to the queue (issue #38).
+  const remainingRounds = g.miss.filter(n => !(st?.approvedRounds || []).includes(n));
+  const partialFill     = (st?.approvedRounds?.length > 0) && remainingRounds.length > 0;
+
   // Status badge shown in the card header when a decision has been made
   let statusBadge = '';
-  if (decision === 'accepted')       statusBadge = '<span class="gap-badge gap-badge-accepted">Accepted</span>';
-  else if (decision === 'deferred')  statusBadge = '<span class="gap-badge gap-badge-deferred">Deferred</span>';
-  else if (decision === 'pending-confirm') statusBadge = '<span class="gap-badge gap-badge-filled">Filled — confirm</span>';
+  if (decision === 'accepted')                   statusBadge = '<span class="gap-badge gap-badge-accepted">Accepted</span>';
+  else if (decision === 'deferred')              statusBadge = '<span class="gap-badge gap-badge-deferred">Deferred</span>';
+  else if (decision === 'pending-confirm')       statusBadge = '<span class="gap-badge gap-badge-filled">Filled — confirm</span>';
+  else if (partialFill && decision === 'editing') statusBadge = '<span class="gap-badge gap-badge-partial">Partial fill</span>';
 
   // Render the appropriate action area based on decision state
   let actionArea = '';
@@ -1461,8 +1555,14 @@ function renderGapCard(g) {
         <button class="btn-gap btn-gap-edit"   onclick="gapEdit('${g.id}')">Edit</button>
       </div>`;
     } else if (decision === 'editing') {
-      // Edit state: fill sub-panel with image / text / reprocess options
-      actionArea = renderGapEditPanel(g, st);
+      // Edit state: if some rounds are already filled, show which are done and which remain
+      // before the fill panel so the DM knows exactly what still needs attention (issue #38).
+      const partialNotice = partialFill
+        ? `<div class="gap-partial-notice">Round${st.approvedRounds.length > 1 ? 's' : ''} ${st.approvedRounds.join(', ')} filled · Round${remainingRounds.length > 1 ? 's' : ''} ${remainingRounds.join(', ')} still missing</div>`
+        : '';
+      // Pass remainingRounds (not g.miss) so the edit panel and AI calls target only
+      // what is unresolved — avoids redundant re-fill requests for covered rounds.
+      actionArea = partialNotice + renderGapEditPanel(g, st, remainingRounds);
     } else if (decision === 'pending-confirm') {
       // All rounds filled via proposals — DM must still explicitly close the gap
       const filledList = st.approvedRounds.join(', ');
@@ -1492,11 +1592,13 @@ function renderGapCard(g) {
   </div>`;
 }
 
-// Render the Edit sub-panel (Fill from image / Fill from text / Reprocess placeholder)
-function renderGapEditPanel(g, st) {
+// Render the Edit sub-panel (Fill from image / Fill from text / Reprocess placeholder).
+// remainingRounds is passed by renderGapCard() — it is g.miss filtered to exclude rounds
+// already approved, so the label and AI calls target only what is genuinely unresolved (issue #38).
+function renderGapEditPanel(g, st, remainingRounds) {
   const hasText = !!document.getElementById(`gap-txt-${g.id}`)?.value?.trim();
   return `<div class="gap-edit-panel">
-    <div class="gap-edit-label">Fill missing rounds (${g.miss.join(', ')}):</div>
+    <div class="gap-edit-label">Fill missing rounds (${remainingRounds.join(', ')}):</div>
     <div class="gap-edit-actions">
       <button class="btn-gap btn-gap-img" onclick="gapFillFromImage('${g.id}')">Fill from image</button>
       <button class="btn-gap btn-gap-txt" onclick="gapFillFromText('${g.id}')">Fill from text</button>
@@ -1685,6 +1787,10 @@ function gapFillFromImage(gapId) {
     if (!file) return;
     input.value = ''; // reset so re-selecting the same file works next time
 
+    // Capture remaining rounds at file-selection time, before the async FileReader,
+    // so the AI call targets only unresolved rounds even if state changes during read (issue #38).
+    const remainingRounds = g.miss.filter(n => !(gapStates[gapId]?.approvedRounds || []).includes(n));
+
     const reader = new FileReader();
     reader.onload = async e => {
       const imageDataUrl = e.target.result;
@@ -1692,7 +1798,7 @@ function gapFillFromImage(gapId) {
       const combatCtx = { id: g.cbtId, name: g.cbtName,
         sessions: cbt?.sessions ?? [], totalRounds: cbt?.totalRounds ?? null };
       try {
-        const proposals = await ChronicleAI.fillRoundsFromImage(imageDataUrl, combatCtx, g.miss);
+        const proposals = await ChronicleAI.fillRoundsFromImage(imageDataUrl, combatCtx, remainingRounds);
         gapStates[gapId].proposals = proposals || [];
         refreshIntegrityIfVisible();
       } catch(err) {
@@ -1716,11 +1822,14 @@ async function gapFillFromText(gapId) {
   const txt = ta?.value?.trim();
   if (!txt) { ta?.focus(); return; }
 
+  // Compute remaining rounds at call time so the AI targets only unresolved rounds,
+  // not rounds already approved and added to the queue (issue #38).
+  const remainingRounds = g.miss.filter(n => !(gapStates[gapId]?.approvedRounds || []).includes(n));
   const cbt = campaignIntegrityData?.combat_encounters?.find(c => c.id === g.cbtId);
   const combatCtx = { id: g.cbtId, name: g.cbtName,
     sessions: cbt?.sessions ?? [], totalRounds: cbt?.totalRounds ?? null };
   try {
-    const proposals = await ChronicleAI.fillRoundsFromText(txt, combatCtx, g.miss);
+    const proposals = await ChronicleAI.fillRoundsFromText(txt, combatCtx, remainingRounds);
     gapStates[gapId].proposals = proposals || [];
     refreshIntegrityIfVisible();
   } catch(err) {
@@ -1744,12 +1853,16 @@ function approveGapProposal(gapId, proposalIdx) {
   }
 
   // Build a first-class delta item that joins the approval queue.
-  // type 'NEW' with array 'combat_encounters' and isRound:true matches the
-  // shape that applyDeltasToCampaign() handles via the ROUND branch.
+  // type must be 'ROUND' so applyDeltasToCampaign() routes it to the ROUND branch,
+  // which inserts the rawData into combat_encounters[n].rounds[]. Using 'NEW' here
+  // (the original value) caused the rawData to be pushed as a root-level combat entry,
+  // silently corrupting combat_encounters[] on publish (issue #39).
+  // source:'integrity' identifies the item origin in the queue and matches the #8 spec.
   // Status starts 'approved' because the DM just explicitly approved the proposal.
   const newItem = {
     id:          `d_fill_${gapId}_r${proposal.n}`,
-    type:        'NEW',
+    type:        'ROUND',
+    source:      'integrity',
     array:       'combat_encounters',
     group:       'Integrity Fills',
     combatId:    g.cbtId,
@@ -1832,8 +1945,135 @@ function integrityQueueChipHTML() {
 }
 
 // ══════════════════════════════════════════════════════
+// INTAKE HAND-OFF (issue #30)
+// ══════════════════════════════════════════════════════
+
+/**
+ * escapeHtmlDR(s) → string
+ *
+ * Why: delta-review.html has no shared escapeHtml helper (unlike intake.html).
+ * Needed to safely render raw OCR text — which may contain <, >, & — inside
+ * the nlRender() HTML strings attached to RAW items. The DR suffix avoids any
+ * future naming collision if a shared helper is added later.
+ */
+function escapeHtmlDR(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * loadIntakeDelta()
+ *
+ * Why: the intake → delta-review hand-off writes a serialised delta envelope
+ * to sessionStorage['chronicle_intake_delta'] before navigating here. This
+ * function reads it, rehydrates the items with nlRender() functions (which
+ * cannot survive JSON serialisation), replaces the hardcoded items[] array,
+ * clears the sessionStorage key (one-time transfer), and shows the intake banner.
+ *
+ * If the key is absent or malformed (e.g. direct navigation, or a JSON.parse
+ * failure), the function returns without touching items[] — the hardcoded
+ * session 006 demo data loads as normal. No regression.
+ *
+ * What breaks if removed: items[] will never be populated from intake output;
+ * the hardcoded demo data will always load regardless of what intake produced.
+ */
+function loadIntakeDelta() {
+  const raw = sessionStorage.getItem('chronicle_intake_delta');
+  if (!raw) return; // direct navigation — fall through to hardcoded items[]
+
+  let envelope;
+  try {
+    envelope = JSON.parse(raw);
+  } catch (e) {
+    // Malformed JSON in sessionStorage — clear it and continue with demo data
+    console.warn('[delta-review] Failed to parse chronicle_intake_delta:', e);
+    sessionStorage.removeItem('chronicle_intake_delta');
+    return;
+  }
+
+  // Clear the key immediately — this is a one-time transfer, not persistent state.
+  // If the DM reloads delta-review, the hardcoded demo data will load rather than
+  // re-applying stale intake data from a previous session.
+  sessionStorage.removeItem('chronicle_intake_delta');
+
+  // Rehydrate each item with a type-appropriate nlRender() function.
+  // nlRender() returns an HTML string; it could not be serialised to JSON
+  // so must be re-attached here based on item.type and item.rawData shape.
+  const rehydrated = (envelope.items || []).map(item => {
+    let render;
+
+    if (item.type === 'RAW') {
+      // RAW items carry confirmed OCR text that has not yet been AI-interpreted.
+      // Display it as a scrollable pre block so the DM can read the raw output.
+      const ocrText   = item.rawData?.ocr_text  || '(empty)';
+      const failed    = item.rawData?.page_failed;
+      const pageTitle = item.title || 'OCR Page';
+      render = () => `
+        <div class="nl-narrative">
+          ${failed ? '<span style="color:var(--rust);font-weight:600;">⚠ This page was typed manually — OCR failed.</span><br><br>' : ''}
+          <strong>${escapeHtmlDR(pageTitle)}</strong> — raw OCR text, pending AI interpretation.
+        </div>
+        <pre style="white-space:pre-wrap;font-family:'JetBrains Mono',monospace;font-size:0.78rem;
+          color:var(--text2);background:var(--parchment-dark);border:1px solid var(--border);
+          border-radius:3px;padding:0.75rem;margin-top:0.75rem;max-height:400px;overflow-y:auto;
+          line-height:1.55;">${escapeHtmlDR(ocrText)}</pre>`;
+
+    } else if (item.rawData?.narrative_text != null) {
+      // Narrative notes item: show the text as a readable prose block
+      const text = item.rawData.narrative_text || '(empty)';
+      render = () => `
+        <div class="nl-narrative">
+          <strong>Narrative Notes</strong> — player/DM notes for this session.
+        </div>
+        <div style="white-space:pre-wrap;font-size:0.95rem;color:var(--text2);
+          margin-top:0.75rem;line-height:1.7;">${escapeHtmlDR(text)}</div>`;
+
+    } else if (item.rawData?.session_id != null) {
+      // Session header stub: show the session ID and date
+      const sid  = item.rawData.session_id || '';
+      const date = item.rawData.date       || '';
+      render = () => `
+        <div class="nl-narrative">
+          Session log stub for <strong>${escapeHtmlDR(sid)}</strong>.
+          Title and summary will be filled in after AI analysis.
+        </div>
+        <div class="field-grid" style="margin-top:0.85rem;">
+          <div class="field-row"><div class="field-label">Session ID</div>
+            <div class="field-val" style="font-family:'JetBrains Mono',monospace;">${escapeHtmlDR(sid)}</div></div>
+          <div class="field-row"><div class="field-label">Date</div>
+            <div class="field-val">${escapeHtmlDR(date)}</div></div>
+          <div class="field-row"><div class="field-label">Title</div>
+            <div class="field-val" style="color:var(--muted);font-style:italic;">Pending analysis</div></div>
+        </div>`;
+
+    } else {
+      // Fallback for any unrecognised item shape
+      render = () => `<div class="nl-narrative">${escapeHtmlDR(item.title || 'Intake item')}</div>`;
+    }
+
+    return Object.assign({}, item, { nlRender: render });
+  });
+
+  // Replace the hardcoded items[] with the intake-derived items.
+  // cascadeItems[] is left untouched — it only accumulates items added by
+  // the AI correction flow, which runs independently of the initial queue.
+  items = rehydrated;
+
+  // Show the intake banner above the shell so the DM knows this is live data,
+  // not the hardcoded session 006 demo.
+  const narrativeSuffix = envelope.hasNarrative ? ' + narrative' : '';
+  const banner = document.getElementById('intake-banner');
+  if (banner) {
+    banner.textContent = `Session data loaded from intake — ${envelope.pageCount} page(s)${narrativeSuffix} · Session: ${envelope.sessionId}`;
+    banner.style.display = 'block';
+  }
+}
+
+// ══════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════
+// loadIntakeDelta() must run before renderQueue() — it may replace items[].
+// If no intake data is present it returns immediately, so order has no cost.
+loadIntakeDelta();
 renderQueue();
 updateProgress();
 // Run integrity checks asynchronously after the queue is visible.

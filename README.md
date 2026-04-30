@@ -69,6 +69,27 @@ Drive proxy is used for:
 - Creating named Drive backups before sessions
 - Listing Drive backups in the Versions page
 
+**Intake → Delta Review hand-off via sessionStorage:**  
+When the DM clicks "Send to Delta Review" in `intake.html`, the page writes a `chronicle_intake_delta` envelope to `sessionStorage` and navigates to `delta-review.html`. Delta Review reads and clears this key on load (`loadIntakeDelta()`), replacing the empty `items[]` queue with the intake-sourced delta items. If no key is present (direct navigation), Delta Review starts with an empty queue as before.
+
+`chronicle_intake_delta` envelope shape:
+```json
+{
+  "source": "intake",
+  "timestamp": "ISO-8601",
+  "sessionId": "session_006",
+  "pageCount": 3,
+  "hasNarrative": true,
+  "items": [
+    { "id": "intake_session", "type": "NEW", "array": "session_logs", "group": "Session", ... },
+    { "id": "intake_page_0", "type": "RAW", "array": "session_logs", "group": "Session", ... },
+    { "id": "intake_narrative", "type": "NEW", "array": "session_logs", "group": "Session", ... }
+  ]
+}
+```
+
+`RAW` items carry confirmed OCR text as `rawData.ocr_text` and are not interpreted as combat round data — `buildIncomingFromItems()` filters these out (requires `combatId && roundNumber != null`), so they produce zero integrity gaps. `nlRender()` on a RAW item displays the raw OCR text in a pre-formatted block for DM review.
+
 `scripts/build.js` still exists in the repository but is dead code. It was written to inject `EMBEDDED_DATA` blocks into `admin/log-viewer.html` and `player/index.html` — a pattern that was replaced in Phase 1 when both files were migrated to runtime fetch. The HTML files no longer contain the `EMBEDDED_DATA` markers the script looks for, so running it produces "SKIP (markers not found)" warnings and modifies nothing.
 
 ---
@@ -239,7 +260,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - Uses `ChronicleAI.call()` with vision to extract handwritten combat notes from uploaded images; images are compressed to ≤1800px before sending to stay within the Anthropic 5MB base64 limit
 - Does not fetch `magers-campaign.json` — operates on uploaded image data only
 - **OCR review correction modes (Step 2):** three paths per page — (a) manual textarea edit, (b) re-run OCR with the same prompt, (c) re-run with steering (DM-typed context prepended to the system prompt). Steering text can be logged as a prompt improvement suggestion via sessionStorage (key `chronicle_prompt_improvement_log`)
-- "Send to Delta Review" button navigates to `delta-review.html`
+- "Send to Delta Review" button writes a `chronicle_intake_delta` envelope to sessionStorage (containing one session stub, one RAW item per confirmed OCR page, and one narrative item if present), then navigates to `delta-review.html`. Delta Review reads and clears this key on load.
 
 ---
 
@@ -262,6 +283,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - Reviews AI-proposed session deltas (new entities, round data, quest updates) before committing them to the campaign JSON
 - Loads `../shared/config.js`, `../shared/chronicle-integrity.js`, and `../shared/chronicle-ai.js`
 - Uses `ChronicleAI.sendCorrectionToAI()` to refine individual delta items via an AI assistant chat panel
+- On load, calls `loadIntakeDelta()` — if a `chronicle_intake_delta` key exists in sessionStorage (written by `intake.html` "Send to Delta Review"), the envelope items replace the default empty queue and a banner identifies the session source. If no key exists, the queue is empty as usual.
 - **Integrity pre-flight panel**: on load, fetches `../data/magers-campaign.json` and runs `ChronicleIntegrity.checks()` against the staged session data. If gaps are found, an integrity panel appears in the center area before the review queue. Each gap presents three options: **Accept** (acknowledged, no record written), **Defer** (flagged for future correction — written to `deferred_gaps[]` in the published JSON), or **Edit** (AI-assisted fill via image or typed description; approved proposals join the approval queue). The Publish button is blocked until every gap has an explicit Accept or Defer decision. The **Reprocess** sub-option under Edit is a disabled placeholder — see code comments for design decisions required before building
 - **Publish** action: fetches current campaign JSON from Drive (not from `/data/`), applies approved deltas, appends any deferred gap records to `deferred_gaps[]`, then writes the result back to Drive via the proxy
 - Approval workflow: each queue item can be Approved, Rejected, or sent for AI correction. Items include session metadata, NPC entries, location entries, combat rounds, and quest updates
@@ -383,6 +405,7 @@ Public API (`window.ChronicleAI`):
 | drive-test campaign-read test obsolete | `admin/drive-test.html` | Tests `?action=read` on the proxy, which the main app no longer calls. |
 | Campaign scanner not yet implemented | `admin/integrity.html` | Run Scan button is disabled. Page is a placeholder shell. See page script comments for planned functionality. |
 | Reprocess sub-option is a placeholder | `admin/delta-review.html` | The Reprocess button under Edit in the integrity panel is disabled. See code comments for design decisions required before building. |
+| cbt_003 Axe Beak & Vespon Ambush rounds 2–3 missing | `data/magers-campaign.json` | `rounds[]` contains [1, 4–11] — rounds 2 and 3 are absent. Surfaced by integrity checker. Check physical session_004 notes; if unrecoverable, formalise via deferred_gaps workflow. Tracked in #35. |
 | cbt_006 Wolf Fight has no rounds | `data/magers-campaign.json` | `rounds: []` — combat detail is pending. |
 | npc_013 has no name | `data/magers-campaign.json` | The Low-Level Wizard: no proper name, no session link. |
 | qst_003 Escort to Lake Town incomplete | `data/magers-campaign.json` | No objectives, no narrative.motivation — currently active. |

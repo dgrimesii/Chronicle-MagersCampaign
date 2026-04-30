@@ -959,6 +959,35 @@
     </div>
   </div>
 
+  <!-- ═══════════════════════════════ STEP 4: SEND ═══════════════════════════════ -->
+  <!-- Shown by sendToAnalysis() in place of the native confirm() dialog.
+       Uses the same .consolidation-section show/hide pattern as Step 3 so the
+       DM sees a styled summary card rather than a browser popup. -->
+  <div class="consolidation-section" id="step4-section">
+
+    <div class="ornament-divider"><span>Ready for Delta Review</span></div>
+
+    <h2 class="ocr-title" style="margin-bottom:0.25rem;">Session Assembled</h2>
+    <p class="page-subtitle">Review the summary below, then proceed when ready.</p>
+
+    <div class="consolidation-card">
+      <div class="consolidation-card-header">
+        <h3>What will be sent</h3>
+      </div>
+      <div id="step4-summary" style="padding:1.5rem 1.75rem;font-size:0.93rem;line-height:1;color:var(--ink);">
+        <!-- populated by sendToAnalysis() -->
+      </div>
+    </div>
+
+    <div class="footer-actions">
+      <div class="footer-left">Delta queue written — proceed to review and publish.</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-secondary" onclick="goBackToConsolidate()">← Back</button>
+        <button class="btn btn-primary" onclick="window.location='delta-review.html'">Proceed to Delta Review →</button>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <script src="../shared/config.js"></script>
@@ -1875,14 +1904,140 @@ function goBackToOCR() {
   setStep(2);
 }
 
+/**
+ * sendToAnalysis() — serialises confirmed OCR output to sessionStorage and shows
+ * the Step 4 summary panel (issue #30). Navigation to delta-review.html happens
+ * when the DM clicks "Proceed to Delta Review →" in that panel.
+ *
+ * Why the confirm() was removed: the native browser confirm() dialog is visually
+ * inconsistent with the rest of the app (browser chrome, no theming). Replacing it
+ * with an in-page Step 4 panel keeps the UX inside the app's own design language.
+ *
+ * What it writes: sessionStorage key 'chronicle_intake_delta' — a JSON envelope
+ * containing a metadata block and an items[] array shaped to the delta-review
+ * item schema. Written here (before the panel) so the data is ready the moment
+ * the DM clicks Proceed. nlRender() functions cannot be serialised; delta-review
+ * rehydrates them from the item type on load.
+ *
+ * What breaks if removed / skipped: delta-review sees no sessionStorage key and
+ * opens with an empty queue.
+ */
 function sendToAnalysis() {
+  const sessionId = document.getElementById('session-id-input')?.value?.trim() || 'session_006';
+  const hasNarrative = !!narrativeText.trim();
+
+  const deltaItems = [];
+
+  // ── Session header stub ──────────────────────────────────────────────────
+  // A NEW session_logs item carrying the session ID and today's date.
+  // title and summary are left empty — the AI analysis step (a future issue)
+  // will fill those in. This stub gives delta-review a queue item to Approve
+  // or annotate before the session log is formally created.
+  deltaItems.push({
+    id:        'intake_session',
+    type:      'NEW',
+    array:     'session_logs',
+    group:     'Session',
+    status:    'pending',
+    flags:     [],
+    title:     `${sessionId} log entry`,
+    sourceRef: 'Intake session — pending AI analysis',
+    rawData:   {
+      session_id: sessionId,
+      title:      '',
+      summary:    '',
+      date:       new Date().toISOString().slice(0, 10),
+    },
+  });
+
+  // ── One RAW item per confirmed OCR page ──────────────────────────────────
+  // type:'RAW' signals that the text is uninterpreted OCR, not a structured
+  // v4 entity. Delta-review renders it as a read-only text block. The AI
+  // interpretation step (future issue) will convert RAW items to proper NEW/MOD
+  // entries before the DM approves them for publish.
+  pageData.forEach((p, i) => {
+    deltaItems.push({
+      id:        `intake_page_${i}`,
+      type:      'RAW',
+      array:     'session_logs',
+      group:     'Session',
+      status:    'pending',
+      flags:     [],
+      title:     `Confirmed OCR — Page ${i + 1}`,
+      sourceRef: `Intake OCR page ${i + 1} of ${pageData.length}`,
+      rawData:   {
+        page_index:  i,
+        ocr_text:    p.ocrText,
+        // Preserve the failed flag so delta-review can highlight pages that
+        // the DM typed manually rather than trusting AI output
+        page_failed: !!p.ocrFailed,
+      },
+    });
+  });
+
+  // ── Narrative notes item (only if narrative was provided) ────────────────
+  if (hasNarrative) {
+    deltaItems.push({
+      id:        'intake_narrative',
+      type:      'NEW',
+      array:     'session_logs',
+      group:     'Session',
+      status:    'pending',
+      flags:     [],
+      title:     'Narrative notes',
+      sourceRef: textFile ? textFile.name : 'Typed narrative',
+      rawData:   { narrative_text: narrativeText },
+    });
+  }
+
+  // ── Write envelope to sessionStorage ────────────────────────────────────
+  // The envelope wraps items[] with metadata so delta-review can show a
+  // meaningful banner without having to inspect the items array itself.
+  // Key must not conflict with 'chronicle_prompt_improvement_log' (issue #29).
+  const envelope = {
+    source:       'intake',
+    timestamp:    new Date().toISOString(),
+    sessionId,
+    pageCount:    pageData.length,
+    hasNarrative,
+    items:        deltaItems,
+  };
+  sessionStorage.setItem('chronicle_intake_delta', JSON.stringify(envelope));
+
+  // ── Show Step 4 summary panel ────────────────────────────────────────────
+  // Replaces the native confirm() dialog. The DM reads the summary and clicks
+  // "Proceed to Delta Review →" to navigate — no browser popup, no setTimeout.
   setStep(4);
-  // Brief confirmation before handing off to Delta Review
-  setTimeout(() => {
-    if (confirm(`Session document assembled:\n• ${pageData.length} page(s) processed\n• Ready for Delta Review\n\nOpen Delta Review now?`)) {
-      window.location = 'delta-review.html'; // was chronicle_delta_review_v2.html — that file never existed
-    }
-  }, 200);
+  document.getElementById('consolidation-section').classList.remove('visible');
+
+  const failedCount = pageData.filter(p => p.ocrFailed).length;
+  const row = (label, val) =>
+    `<div style="display:flex;gap:1rem;padding:0.55rem 0;border-bottom:1px solid var(--border);">
+       <span style="min-width:140px;font-size:0.85rem;color:var(--muted);">${label}</span>
+       <span style="font-size:0.9rem;">${val}</span>
+     </div>`;
+
+  document.getElementById('step4-summary').innerHTML =
+    row('Session', `<span style="font-family:'JetBrains Mono',monospace;">${escapeHtml(sessionId)}</span>`) +
+    row('Pages confirmed', `${pageData.length}${failedCount ? ` <span style="color:var(--rust);font-size:0.82rem;">(${failedCount} manually entered)</span>` : ''}`) +
+    row('Narrative notes', hasNarrative ? 'Yes' : '<span style="color:var(--muted);">None</span>') +
+    row('Items queued', `${deltaItems.length} — session stub, ${pageData.length} OCR page${pageData.length !== 1 ? 's' : ''}${hasNarrative ? ', narrative' : ''}`);
+
+  document.getElementById('step4-section').classList.add('visible');
+}
+
+/*
+ * goBackToConsolidate() — returns from the Step 4 summary panel to Step 3.
+ *
+ * Why: the Step 4 panel has a "← Back" button so the DM can return to the
+ * consolidation view if they want to review the document again before proceeding.
+ * The sessionStorage key written by sendToAnalysis() is left in place — if the
+ * DM sends again it will be overwritten with fresher data.
+ */
+function goBackToConsolidate() {
+  setStep(3);
+  document.getElementById('step4-section').classList.remove('visible');
+  document.getElementById('consolidation-section').classList.add('visible');
 }
 
 function escapeHtml(s) {
