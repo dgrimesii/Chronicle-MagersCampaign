@@ -178,6 +178,55 @@ When a page needs all three shared modules, load them in this order — each dep
 
 ---
 
+## Narrative field rules
+
+Several entity types carry Gemini-generated prose fields alongside their factual data. These fields share a common shape and a strict set of rules.
+
+### Session narrative generation fields
+
+Inside each `session_logs[].narrative` block:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `chronicle_entry` | `string \| null` | Gemini-generated prose narrative for the session |
+| `chronicle_entry_generated_at` | `string \| null` | ISO-8601 timestamp of the last successful generation |
+| `chronicle_entry_model` | `string \| null` | Gemini model ID used for the last generation |
+| `chronicle_entry_version` | `number` | Increments on each regeneration; starts at 0 |
+| `narrative_beats` | `array` | DM-tagged key moments fed to Gemini as generation anchors |
+| `human_guidance` | `string \| null` | Free-text DM steering for Gemini; null if not used |
+| `generation_warnings` | `array` | Warnings from the last Gemini call (hallucination flags, etc.) |
+
+### NPC and Location flavor text fields
+
+Inside each `npc_directory[].narrative` and `locations[].narrative` block:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `flavor_text` | `string \| null` | Gemini-generated flavor text for display |
+| `flavor_text_generated_at` | `string \| null` | ISO-8601 timestamp of the last generation |
+| `flavor_text_model` | `string \| null` | Gemini model ID used |
+| `flavor_text_version` | `number` | Generation counter; starts at 0 |
+| `regeneration_flagged` | `boolean` | DM has flagged this entry for regeneration |
+| `regeneration_flag_reason` | `string \| null` | Why the DM flagged it; null if not flagged |
+
+### Quest progress narrative fields
+
+Inside each `quest_ledger[].mechanics.progress_log[]` entry:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `progress_narrative` | `string \| null` | Gemini-generated prose for this progress entry; null until generated |
+
+### Immutable ground truth rule
+
+Gemini-generated fields are output only — they describe what happened, they do not define it. The canonical facts are always in the factual fields (`fact`, `description`, `key_moments`, etc.). Never treat a generated narrative as authoritative if it conflicts with the factual data.
+
+`chronicle_entry` must never be hand-edited. If the DM wants to steer generation, use `human_guidance` or `narrative_beats`. Treat the generated text as replaceable at any time.
+
+The `geminiApiKey` must never be committed to the repo. It lives in `shared/config.js` under `window.CHRONICLE_CONFIG.geminiApiKey` (gitignored, same file as `anthropicApiKey`).
+
+---
+
 ## Shared AI module rules
 
 `shared/chronicle-ai.js` is loaded by `intake.html`, `delta-review.html`, and `integrity.html` only. If you add AI capability to a new page, load both `config.js` and `chronicle-ai.js` before the page script. The API key is read from `window.CHRONICLE_CONFIG.anthropicApiKey` — never pass it any other way.
@@ -218,6 +267,7 @@ All IDs follow `<type>_<zero-padded-number>`:
 | Lore | `lore_` | `lore_003` |
 | Session | `session_` | `session_006` |
 | Prompt Improvement Log | `pil_` | `pil_001` |
+| Entity Relationship | `rel_` | `rel_001` |
 
 Never reuse a voided or skipped ID. The current gap IDs in the NPC registry (`npc_002`, `npc_005`, `npc_006`) are permanently voided.
 
@@ -247,9 +297,23 @@ Rules:
 - The future campaign scanner (`integrity.html`) will surface `pending` entries as a correction queue.
 - This array is workflow state, not campaign narrative. Do not add game data to it.
 
-### Next available IDs (as of v4.0.0 — sessions 006 and 007 are placeholders)
+### `entity_relationships` — controlled vocabulary
 
-`pc_007`, `npc_015`, `loc_014`, `qst_006`, `item_012`, `cbt_007`, `session_008`, `mon_009`, `lore_004`, `moment_002`, `pil_001`
+The `relationship_type` field on each entry in `entity_relationships[]` must be one of:
+
+| Value | Meaning |
+|---|---|
+| `combat_antagonist` | The target entity was an enemy in a combat the source entity participated in |
+| `allied` | The entities fought on the same side or have a standing alliance |
+| `quest_connection` | The target entity is tied to a quest the source is pursuing |
+| `location_inhabitant` | The target location is where the source entity lives, works, or is based |
+| `social_contact` | The entities know each other; no combat or quest connection |
+| `witnessed` | The source entity witnessed the target event or entity in a significant way |
+| `unknown` | A relationship exists but its nature has not been established |
+
+### Next available IDs (as of v4.1 — sessions 006 and 007 are placeholders)
+
+`pc_007`, `npc_015`, `loc_014`, `qst_006`, `item_012`, `cbt_007`, `session_008`, `mon_009`, `lore_004`, `moment_002`, `pil_001`, `rel_001`
 
 Voided/skipped NPC IDs (never reuse): `npc_002`, `npc_005`, `npc_006`
 

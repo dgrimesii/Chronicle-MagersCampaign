@@ -535,6 +535,15 @@ function normaliseCampaignJson(json) {
                           km => typeof km === 'string' ? km : (km.description ?? '')
                         ),                                           // v4: objects → flatten to strings for renderSessionDetail
         mechanical_notes: s.mechanical_notes || [],
+        // Narrative generation fields — written by Gemini, never hand-edited.
+        // Pass through as-is so future chronicle entry UI can read them directly.
+        chronicle_entry:              s.narrative?.chronicle_entry              ?? null,
+        chronicle_entry_generated_at: s.narrative?.chronicle_entry_generated_at ?? null,
+        chronicle_entry_model:        s.narrative?.chronicle_entry_model        ?? null,
+        chronicle_entry_version:      s.narrative?.chronicle_entry_version      ?? 0,
+        narrative_beats:              s.narrative?.narrative_beats              ?? [],
+        human_guidance:               s.narrative?.human_guidance               ?? null,
+        generation_warnings:          s.narrative?.generation_warnings          ?? [],
       })),
 
       // ── Party ─────────────────────────────────────────────────────────────────
@@ -585,7 +594,8 @@ function normaliseCampaignJson(json) {
         // v4 progress_log: entry text renamed .entry → .fact; viewer accesses p.s and p.e
         progress: (q.mechanics?.progress_log || []).map(p => ({
           s: p.session_id,
-          e: p.fact ?? p.entry ?? '',     // v4: p.fact (was p.entry); fallback keeps older data readable
+          e: p.fact ?? p.entry ?? '',               // v4: p.fact (was p.entry); fallback keeps older data readable
+          progress_narrative: p.progress_narrative ?? null,  // Gemini-generated narrative for this log entry; null until generated
         })),
         origin: q.mechanics?.origin_session ?? null,  // v4: q.mechanics.origin_session (was q.origin_session)
       })),
@@ -653,6 +663,11 @@ function normaliseCampaignJson(json) {
         parent_event_id: m.mechanics?.parent_event_id ?? null,  // v4: m.mechanics.parent_event_id (was m.parent_event_id)
         origin_session:  m.mechanics?.origin_session  ?? null,  // v4: m.mechanics.origin_session  (was m.origin_session)
       })),
+
+      // ── Entity relationships ───────────────────────────────────────────────────
+      // Root-level array introduced in schema v4.1. Starts empty; populated as
+      // the DM adds relationship records via future admin tooling.
+      entity_relationships: json.entity_relationships ?? [],
     };
   }
 

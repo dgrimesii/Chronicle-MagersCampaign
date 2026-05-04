@@ -1406,7 +1406,14 @@
           }
         ],
         "opening_scene": "Age 13. The party at Atticus's Clearing, familiar and easy together. Something moves in the trees.",
-        "closing_scene": "Five-year time skip. The same party, older. The clearing unchanged."
+        "closing_scene": "Five-year time skip. The same party, older. The clearing unchanged.",
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
       },
       "mechanical_notes": [],
       "notes": null
@@ -1465,7 +1472,14 @@
           }
         ],
         "opening_scene": "The party back at the treehouse. Atticus senses something wrong in the woods before anyone else does.",
-        "closing_scene": "The farm burning. The Pylon still standing. Session ends mid-siege."
+        "closing_scene": "The farm burning. The Pylon still standing. Session ends mid-siege.",
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
       },
       "mechanical_notes": [
         {
@@ -1556,7 +1570,14 @@
           }
         ],
         "opening_scene": "Round 14 of the Siege already in progress. The Pylon is cracking.",
-        "closing_scene": "Blair presses a folded map into Goli's hands without a word. The party stands in the wreckage."
+        "closing_scene": "Blair presses a folded map into Goli's hands without a word. The party stands in the wreckage.",
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
       },
       "mechanical_notes": [],
       "notes": null
@@ -1634,7 +1655,14 @@
           }
         ],
         "opening_scene": "Morning after. The party on the road with Carly's wagon, heading north.",
-        "closing_scene": "The caravan forms up on the western road. A new horizon, if an uncertain one."
+        "closing_scene": "The caravan forms up on the western road. A new horizon, if an uncertain one.",
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
       },
       "mechanical_notes": [
         {
@@ -1708,7 +1736,14 @@
           }
         ],
         "opening_scene": "Picking up mid-fight \u2014 cbt_004, Round 3, the Rat Cave.",
-        "closing_scene": "Goblins and an Ogre in the road. Atticus's Ice Knife still smoking. The fight not done."
+        "closing_scene": "Goblins and an Ogre in the road. Atticus's Ice Knife still smoking. The fight not done.",
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
       },
       "mechanical_notes": [],
       "notes": null
@@ -1747,7 +1782,14 @@
         "tone": null,
         "key_moments": [],
         "opening_scene": null,
-        "closing_scene": null
+        "closing_scene": null,
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
       },
       "mechanical_notes": [],
       "notes": "PLACEHOLDER \u2014 full session data to be entered via Chronicle intake. Combat round data, key moments, and full narrative pending. Level-up milestone recorded here to anchor Phase 11 DnDBeyond sync."
@@ -1773,7 +1815,14 @@
         "tone": null,
         "key_moments": [],
         "opening_scene": null,
-        "closing_scene": null
+        "closing_scene": null,
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
       },
       "mechanical_notes": [],
       "notes": "PLACEHOLDER \u2014 detailed notes to follow. Full session data to be entered via Chronicle intake."
@@ -1834,7 +1883,13 @@
         "personality": "Bitter and protective after watching his original party decimated. Guards people he loves by pushing them away. Driven by guilt he would never name.",
         "role_in_story": "Mentor and inciting death. His loss is the emotional anchor of the first arc. His past is the mystery the party is unraveling.",
         "last_words": null,
-        "significance": "The party's origin point. His death in session_003 is the inciting event for qst_001."
+        "significance": "The party's origin point. His death in session_003 is the inciting event for qst_001.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -1866,7 +1921,13 @@
         "description": "Small camp presence at the Quarry. No-nonsense, directed the party to the Rat Cave without ceremony.",
         "personality": null,
         "role_in_story": "Quest facilitator \u2014 provided the lead that opened cbt_004.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -1914,7 +1975,13 @@
         "description": "Cleric survivor of Ched's original party. Practical, measured. Was part of the decision to bring Malachite and Asphodel to Riverbend. Gave the party their first quests without sentiment.",
         "personality": "Skilled potion brewer. Provided facts plainly and without elaboration \u2014 the absence of detail about the past is deliberate.",
         "role_in_story": "First quest giver and keeper of the party's backstory. Knows more about Ched's past than she has shared.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -1950,7 +2017,13 @@
         "description": "Primary contact at Menne's Ranch. Business-minded; values reliability.",
         "personality": null,
         "role_in_story": "Established the potion supply chain and directed the party to the Rat Cave infestation.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -1982,7 +2055,13 @@
         "description": "Caravan owner escorted to Menne's Ranch during the Axe Beak ambush in session_004.",
         "personality": null,
         "role_in_story": "One-session escort subject; no further role recorded.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -2031,7 +2110,13 @@
         "description": "Wizard of Ched's original party. Known only from his spellbook \u2014 copper ink, precise hand.",
         "personality": null,
         "role_in_story": "Presence felt through item_002. His spell selection implies the party faced serious threats before being decimated.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -2076,7 +2161,13 @@
         "description": null,
         "personality": null,
         "role_in_story": "Died alongside Bessel \u2014 likely the same single catastrophic event.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -2112,7 +2203,13 @@
         "description": null,
         "personality": null,
         "role_in_story": "Named by Blair as someone who knows about Ched's past. Marked on Ched's Map. Not yet met.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -2144,7 +2241,13 @@
         "description": null,
         "personality": null,
         "role_in_story": "Listed on Ched's Map as a connection for jobs in Green Harbor. Not yet met.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -2172,7 +2275,13 @@
         "description": "Traveling with the stone traders.",
         "personality": null,
         "role_in_story": "Unknown. Possibly significant given proximity to Pylon country.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": "No proper name recorded as of session_005."
     },
@@ -2220,7 +2329,13 @@
         "description": "Bald male Monk. One of three survivors of Ched's original party. Returned to Riverbend with Ched and Blair after the decimation. Chose to stay and became a mentor figure in the community \u2014 specifically took on Asphodel (pc_004) as a student.",
         "personality": null,
         "role_in_story": "Mentor to Asphodel. A living witness to whatever destroyed the original party \u2014 has not been approached yet.",
-        "last_words": null
+        "last_words": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": "Has not appeared on-screen as of session_005 despite being in Riverbend since session_001. An unexploited lead."
     }
@@ -2970,7 +3085,13 @@
           "quietly watchful"
         ],
         "significance": "Hometown of the entire party and the anchor of their shared identity. Halfling-founded culture of hospitality made it the right place for Ched to bring two Aasimar children \u2014 Malachite and Asphodel \u2014 knowing they would be accepted without question. Ched, Blair, and Rufus all live here. Goli's family inn (Warmfire Inn) is a social anchor for the community.",
-        "founding": "Founded by Halflings within the past few generations. Built on principles of hospitality and openness \u2014 the town's identity is defined by who chose to settle here, not by any original or ancestral claim. Deliberately diverse. The road position between Belfar and Green Harbor ensured steady traffic and cultural mixing from the start."
+        "founding": "Founded by Halflings within the past few generations. Built on principles of hospitality and openness \u2014 the town's identity is defined by who chose to settle here, not by any original or ancestral claim. Deliberately diverse. The road position between Belfar and Green Harbor ensured steady traffic and cultural mixing from the start.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3004,7 +3125,13 @@
           "machinery noise",
           "transient workers"
         ],
-        "significance": "Staging point for the Rat Cave quest. Krustie Gnome directed the party here. Site of cbt_005 (Goblin Ambush) on the road approaching."
+        "significance": "Staging point for the Rat Cave quest. Krustie Gnome directed the party here. Site of cbt_005 (Goblin Ambush) on the road approaching.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3040,7 +3167,13 @@
           "silence after the battle",
           "black goo"
         ],
-        "significance": "Site of Ched's death and the first major Pylon encounter. The campaign's emotional ground zero."
+        "significance": "Site of Ched's death and the first major Pylon encounter. The campaign's emotional ground zero.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3075,7 +3208,13 @@
           "commerce",
           "rural prosperity"
         ],
-        "significance": "Helen's base of operations. The party established the potion supply chain here and received directions to the Quarry ROUS problem."
+        "significance": "Helen's base of operations. The party established the potion supply chain here and received directions to the Quarry ROUS problem.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3108,7 +3247,13 @@
           "darkness",
           "skittering sounds"
         ],
-        "significance": "Site of cbt_004 \u2014 the ROUS infestation the party was hired to clear. The 'Goonies slide' entry became a memorable session moment."
+        "significance": "Site of cbt_004 \u2014 the ROUS infestation the party was hired to clear. The 'Goonies slide' entry became a memorable session moment.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3131,7 +3276,13 @@
       "narrative": {
         "description": "City to the northeast. First major destination on Ched's Map.",
         "atmosphere": [],
-        "significance": "Primary destination for Pylon research and the Ched investigation. Darnell (npc_011) is here. The party has not arrived yet."
+        "significance": "Primary destination for Pylon research and the Ched investigation. Darnell (npc_011) is here. The party has not arrived yet.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3167,7 +3318,13 @@
           "familiar paths",
           "faint sulfur from cbt_001"
         ],
-        "significance": "Site of cbt_001 (Vespon Queen) and cbt_006 (Wolf Fight), both near Atticus's Clearing. Contains loc_008 as a sub-location. Atticus's nature connection to this area is an established campaign mechanic."
+        "significance": "Site of cbt_001 (Vespon Queen) and cbt_006 (Wolf Fight), both near Atticus's Clearing. Contains loc_008 as a sub-location. Atticus's nature connection to this area is an established campaign mechanic.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3198,7 +3355,13 @@
           "childhood familiar",
           "disrupted by the swarm"
         ],
-        "significance": "The found-family origin point referenced in moment_003. Where the party's shared history is literally rooted. Atticus's deep connection to this part of the woods means he senses threats in the surrounding area \u2014 both cbt_001 (Vespon Queen) and cbt_006 (Wolf Fight) originated nearby, with Atticus aware of the danger before the party encountered it."
+        "significance": "The found-family origin point referenced in moment_003. Where the party's shared history is literally rooted. Atticus's deep connection to this part of the woods means he senses threats in the surrounding area \u2014 both cbt_001 (Vespon Queen) and cbt_006 (Wolf Fight) originated nearby, with Atticus aware of the danger before the party encountered it.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3219,7 +3382,13 @@
       "narrative": {
         "description": null,
         "atmosphere": [],
-        "significance": "Marked on Ched's Map beside the name 'Fish'. No other context recorded."
+        "significance": "Marked on Ched's Map beside the name 'Fish'. No other context recorded.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3240,7 +3409,13 @@
       "narrative": {
         "description": null,
         "atmosphere": [],
-        "significance": "Marked with '?' on Ched's Map. Location and significance unknown."
+        "significance": "Marked with '?' on Ched's Map. Location and significance unknown.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3263,7 +3438,13 @@
       "narrative": {
         "description": "Approximately 2 days west of The Quarry. Current temporary destination.",
         "atmosphere": [],
-        "significance": "The party's immediate destination as of session_005. Escort contract for the stone traders ends here."
+        "significance": "The party's immediate destination as of session_005. Escort contract for the stone traders ends here.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3286,7 +3467,13 @@
       "narrative": {
         "description": "Major port city to the south.",
         "atmosphere": [],
-        "significance": "Kiki (npc_012) is based here. Marked on Ched's Map. Not yet visited."
+        "significance": "Kiki (npc_012) is based here. Marked on Ched's Map. Not yet visited.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     },
@@ -3307,7 +3494,13 @@
       "narrative": {
         "description": null,
         "atmosphere": [],
-        "significance": "Marked with 'X' on Ched's Map. Location and significance unknown."
+        "significance": "Marked with 'X' on Ched's Map. Location and significance unknown.",
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
       },
       "notes": null
     }
@@ -3338,12 +3531,14 @@
           {
             "session_id": "session_003",
             "type": "inciting_event",
-            "fact": "Ched Warmfire killed by Pylon spawns during the Siege of Bagyers Farm."
+            "fact": "Ched Warmfire killed by Pylon spawns during the Siege of Bagyers Farm.",
+            "progress_narrative": null
           },
           {
             "session_id": "session_003",
             "type": "lead_acquired",
-            "fact": "Blair suggested finding Darnell in Belfar. Darnell is marked on Ched's Map."
+            "fact": "Blair suggested finding Darnell in Belfar. Darnell is marked on Ched's Map.",
+            "progress_narrative": null
           }
         ]
       },
@@ -3384,12 +3579,14 @@
           {
             "session_id": "session_001",
             "type": "inciting_event",
-            "fact": "First Pylon structure witnessed by the group near Riverbend."
+            "fact": "First Pylon structure witnessed by the group near Riverbend.",
+            "progress_narrative": null
           },
           {
             "session_id": "session_003",
             "type": "objective_completed",
-            "fact": "Bagyers Farm Pylon neutralized via Ashton's Eldritch Blast. Pylon phenomenon remains active elsewhere."
+            "fact": "Bagyers Farm Pylon neutralized via Ashton's Eldritch Blast. Pylon phenomenon remains active elsewhere.",
+            "progress_narrative": null
           }
         ]
       },
@@ -3433,27 +3630,32 @@
           {
             "session_id": "session_005",
             "type": "inciting_event",
-            "fact": "Accepted 6 GP/person contract to escort stone-trading caravan to Lake Town."
+            "fact": "Accepted 6 GP/person contract to escort stone-trading caravan to Lake Town.",
+            "progress_narrative": null
           },
           {
             "session_id": "session_005",
             "type": "setback",
-            "fact": "Ambushed by goblins and an Ogre mid-route. Combat paused at end of session_005."
+            "fact": "Ambushed by goblins and an Ogre mid-route. Combat paused at end of session_005.",
+            "progress_narrative": null
           },
           {
             "session_id": "session_006",
             "type": "setback",
-            "fact": "Two Larkspur dragons appeared during the goblin ambush. The escorted group was killed in the fighting."
+            "fact": "Two Larkspur dragons appeared during the goblin ambush. The escorted group was killed in the fighting.",
+            "progress_narrative": null
           },
           {
             "session_id": "session_006",
             "type": "objective_completed",
-            "fact": "Party delivered the stone cargo and the bodies of the escorted group to Lake Town. Contract fulfilled despite the loss of the clients."
+            "fact": "Party delivered the stone cargo and the bodies of the escorted group to Lake Town. Contract fulfilled despite the loss of the clients.",
+            "progress_narrative": null
           },
           {
             "session_id": "session_006",
             "type": "reward_received",
-            "fact": "Lake Town paid the 36 GP contract. Town mourned the dead but was grateful to have them returned."
+            "fact": "Lake Town paid the 36 GP contract. Town mourned the dead but was grateful to have them returned.",
+            "progress_narrative": null
           }
         ]
       },
@@ -3498,7 +3700,8 @@
           {
             "session_id": "session_004",
             "type": "objective_completed",
-            "fact": "Escorted Carly (npc_008) to Menne's Ranch and established trade agreement with Helen (npc_007)."
+            "fact": "Escorted Carly (npc_008) to Menne's Ranch and established trade agreement with Helen (npc_007).",
+            "progress_narrative": null
           }
         ]
       },
@@ -3540,17 +3743,20 @@
           {
             "session_id": "session_004",
             "type": "lead_acquired",
-            "fact": "Received directions from Krustie (npc_003). Discovered the Rat Cave via water slide entry."
+            "fact": "Received directions from Krustie (npc_003). Discovered the Rat Cave via water slide entry.",
+            "progress_narrative": null
           },
           {
             "session_id": "session_005",
             "type": "objective_completed",
-            "fact": "Cleared the ROUS nest across cbt_004. Provided tails to Krustie Gnome as proof."
+            "fact": "Cleared the ROUS nest across cbt_004. Provided tails to Krustie Gnome as proof.",
+            "progress_narrative": null
           },
           {
             "session_id": "session_005",
             "type": "reward_received",
-            "fact": "Unrefined emerald (item_010, ~100 GP) received from Krustie Gnome (npc_003) at The Quarry."
+            "fact": "Unrefined emerald (item_010, ~100 GP) received from Krustie Gnome (npc_003) at The Quarry.",
+            "progress_narrative": null
           }
         ]
       },
@@ -10239,13 +10445,14 @@
     }
   ],
   "prompt_improvement_log": [],
+  "entity_relationships": [],
   "meta": {
     "campaign_name": "Magers Campaign",
     "system": "D&D 5e / 5.5e (2024) \u2014 WotC backwards compatibility rules",
     "setting": "Magers Homebrew",
     "dm": "John Magers",
     "started_date": "2026-02-10",
-    "last_updated": "2026-04-10",
+    "last_updated": "2026-05-04",
     "session_count": 5,
     "active": true,
     "notes": null,

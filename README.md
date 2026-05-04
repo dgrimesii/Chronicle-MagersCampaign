@@ -139,6 +139,7 @@ v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. 
 | `combat_encounters` | Combats; outcome/location/sessions in `mechanics`, setup/finale/aftermath in `narrative`; slots have nested `action` object; enemy turns use `enemy_turns[]` |
 | `deferred_gaps` | Workflow state array written by delta-review when the DM defers an integrity gap. Each entry: `{ id, combat_id, combat_name, session_id, missing_rounds[], gap_type, deferred_at, status }`. Not campaign narrative — persists alongside the JSON so the future campaign scanner can surface pending entries as a correction queue. |
 | `prompt_improvement_log` | Workflow state array written by delta-review publish when the DM logged steering context during an OCR re-run in Session Intake. Each entry: `{ id, session_id, page_index, steering_text, failure_summary, corrected, logged_at, status }`. IDs use `pil_NNN` prefix. `status` starts as `'pending_review'`. Not campaign narrative — captures OCR prompt failure cases for future prompt improvement review (placeholder UI in `integrity.html`). |
+| `entity_relationships` | Root-level array for explicit relationship records between any two entities (PCs, NPCs, locations, quests, etc.). Each entry: `{ id, source_id, target_id, relationship_type, session_id, notes }`. Starts empty; populated by future admin tooling. `relationship_type` uses a controlled vocabulary: `combat_antagonist`, `allied`, `quest_connection`, `location_inhabitant`, `social_contact`, `witnessed`, `unknown`. IDs use `rel_NNN` prefix. |
 
 ### Field name mappings (v4 JSON → normalised viewer shape)
 
@@ -151,6 +152,13 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `session_logs[].narrative.summary` | `sessions[].summary` | was root-level in v3 |
 | `session_logs[].narrative.tone` | `sessions[].narrative_vibe` | was root-level in v3 |
 | `session_logs[].narrative.key_moments[].description` | `sessions[].key_moments[]` (string) | v4 moments are objects; normaliser flattens to string array |
+| `session_logs[].narrative.chronicle_entry` | `sessions[].chronicle_entry` | Gemini-generated prose entry; null until generated |
+| `session_logs[].narrative.chronicle_entry_generated_at` | `sessions[].chronicle_entry_generated_at` | ISO-8601 timestamp of last generation; null until generated |
+| `session_logs[].narrative.chronicle_entry_model` | `sessions[].chronicle_entry_model` | Model ID used for last generation; null until generated |
+| `session_logs[].narrative.chronicle_entry_version` | `sessions[].chronicle_entry_version` | Generation counter; increments on each regeneration |
+| `session_logs[].narrative.narrative_beats` | `sessions[].narrative_beats` | DM-tagged key beats fed to Gemini as generation anchors |
+| `session_logs[].narrative.human_guidance` | `sessions[].human_guidance` | Free-text DM steering notes for Gemini; null if not set |
+| `session_logs[].narrative.generation_warnings` | `sessions[].generation_warnings` | Warnings from last Gemini call (hallucination flags, etc.) |
 | `party[].mechanics.class` | `party[].cls` | was `p.class` in v3 |
 | `party[].mechanics.level` | `party[].level` | was `p.current_level` in v3 |
 | `party[].campaign_notes` | `party[].notes` | was `p.notes` in v3 |
@@ -163,6 +171,7 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `quest_ledger[].mechanics.objectives[].description` | `quests[].objectives[].desc` | was `o.desc` in v3 |
 | `quest_ledger[].mechanics.objectives[].is_completed` | `quests[].objectives[].done` | was `o.done` in v3 |
 | `quest_ledger[].mechanics.progress_log[].fact` | `quests[].progress[].e` | was `.entry` in v3 |
+| `quest_ledger[].mechanics.progress_log[].progress_narrative` | `quests[].progress[].progress_narrative` | Gemini-generated narrative for this progress entry; null until generated |
 | `quest_ledger[].mechanics.origin_session` | `quests[].origin` | was root-level in v3 |
 | `inventory_and_loot[].mechanics.item_type` | `items[].type` | was root-level `type` in v3 |
 | `inventory_and_loot[].mechanics.current_holder` | `items[].holder` | was `current_holder_id` in v3 |
@@ -186,6 +195,13 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `character_moments[].narrative.description` | `moments[].description` | was root-level in v3 |
 | `character_moments[].mechanics.parent_event_id` | `moments[].parent_event_id` | was root-level in v3 |
 | `character_moments[].mechanics.origin_session` | `moments[].origin_session` | was root-level in v3 |
+| `npc_directory[].narrative.flavor_text` | `npcs[].narrative.flavor_text` | Gemini-generated flavor text; null until generated. Accessed via `...n` spread on the NPC object |
+| `npc_directory[].narrative.flavor_text_version` | `npcs[].narrative.flavor_text_version` | Generation counter |
+| `npc_directory[].narrative.regeneration_flagged` | `npcs[].narrative.regeneration_flagged` | Boolean — DM has flagged this entry for regeneration |
+| `locations[].narrative.flavor_text` | `locations[].narrative.flavor_text` | Gemini-generated flavor text; null until generated. Accessed via `...l` spread on the location object |
+| `locations[].narrative.flavor_text_version` | `locations[].narrative.flavor_text_version` | Generation counter |
+| `locations[].narrative.regeneration_flagged` | `locations[].narrative.regeneration_flagged` | Boolean — DM has flagged this entry for regeneration |
+| `entity_relationships` | `entity_relationships` | Pass-through; empty array until populated |
 
 ### Combat viewer format (compact slots)
 
