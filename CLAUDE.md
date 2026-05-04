@@ -165,16 +165,19 @@ async function loadCampaignData() {
 
 ## Shared module load order
 
-When a page needs all three shared modules, load them in this order — each depends on the previous:
+When a page needs all four shared modules, load them in this order — each depends on the previous:
 
 ```html
 <script src="../shared/config.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
+<script src="../shared/chronicle-narrative.js"></script>
 <!-- page script here -->
 ```
 
-`chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` when a page only needs gap detection and no AI calls.
+`chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
+
+`chronicle-narrative.js` exports `window.ChronicleNarrative`. It is completely independent of `chronicle-ai.js` — the two modules never import each other. Load `chronicle-narrative.js` only on pages that use Gemini narrative generation.
 
 ---
 

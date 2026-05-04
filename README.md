@@ -26,9 +26,10 @@ Chronicle-MagersCampaign/
 │   ├── versions.html           # Version manager / Drive backup ledger
 │   └── drive-test.html         # Drive proxy diagnostics (write path only) — no nav bar
 ├── shared/
-│   ├── config.js               # GITIGNORED — Drive proxy URL, campaign file ID, Anthropic API key
+│   ├── config.js               # GITIGNORED — Drive proxy URL, campaign file ID, Anthropic and Gemini API keys
 │   ├── chronicle-ai.js         # Shared Anthropic API module — exports window.ChronicleAI
-│   └── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
+│   ├── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
+│   └── chronicle-narrative.js  # Shared Gemini narrative module — exports window.ChronicleNarrative
 ├── data/
 │   └── magers-campaign.json    # Campaign data — single source of truth, schema version 4.0.0
 ├── scripts/
