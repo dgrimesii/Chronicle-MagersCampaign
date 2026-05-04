@@ -352,6 +352,33 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 /* Pending-confirm state: all rounds filled but DM hasn't explicitly closed the gap yet */
 .gap-filled-notice{background:rgba(42,107,107,0.06);border:1px solid rgba(42,107,107,0.2);
   border-radius:3px;padding:0.5rem 0.85rem;font-size:0.85rem;color:var(--teal);margin-bottom:0.5rem;}
+
+/* ── Correction state styles (issue #36) ──────────────────────────────────────
+   Applied when the DM clicks "Apply these changes" in the AI corrections panel.
+   All use Arcane Night palette variables so they stay consistent with the theme. */
+
+/* "Edited" pill shown in the delta-banner when item.corrected is true */
+.pill-corrected{background:rgba(74,158,122,0.15);color:var(--teal);border:1px solid rgba(74,158,122,0.3);}
+
+/* Container for the corrections-applied block on the review card */
+.corrections-applied{background:rgba(42,107,107,0.05);border:1px solid rgba(42,107,107,0.18);
+  border-radius:3px;padding:0.75rem 0.85rem;margin-bottom:0.85rem;}
+/* Section header — "✎ Corrections applied" */
+.corrections-label{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;
+  color:var(--teal);text-transform:uppercase;margin-bottom:0.5rem;}
+/* One row per applied diff — field key, old value, arrow, new value */
+.correction-row{display:flex;align-items:baseline;gap:0.5rem;font-size:0.87rem;margin:0.3rem 0;flex-wrap:wrap;}
+/* The human-readable field label from diff.k (e.g. "Mal (slot 5) · action") */
+.correction-key{font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:var(--muted);min-width:120px;}
+/* Previous value — struck through in rust to signal "was wrong" */
+.correction-old{color:var(--rust);text-decoration:line-through;opacity:0.8;}
+/* → separator between old and new values */
+.correction-arrow{color:var(--muted);}
+/* Replacement value — teal to signal "now correct" */
+.correction-new{color:var(--teal);}
+
+/* ✎ mark shown on corrected items in the queue sidebar */
+.queue-edited-mark{color:var(--teal);font-size:0.78rem;margin-left:4px;}
 </style>
 </head>
 <body>
@@ -852,7 +879,7 @@ function queueItemHTML(item, isRound=false) {
     <div class="qi-status ${dotClass}"></div>
     <div class="qi-body">
       <div class="qi-type">${typeLabel} · ${item.array}</div>
-      <div class="qi-title">${item.title}</div>
+      <div class="qi-title">${item.title}${item.corrected ? `<span class="queue-edited-mark" title="Corrections applied">✎</span>` : ''}</div>
     </div>
     ${flagged ? `<span class="qi-flag">[?]</span>` : ''}
   </div>`;
@@ -917,10 +944,43 @@ function renderReview() {
   const rawJson = JSON.stringify(item.rawData, null, 2)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+  // Build the corrections-applied block for corrected items.
+  // Shown below the nl-card when item.corrected is true — lists each diff with
+  // old value struck-through and new value in teal. escapeHtmlDR guards against
+  // XSS in field values returned by the AI.
+  const correctionsHtml = item.corrected && item.appliedCorrections?.length ? `
+    <div class="corrections-applied">
+      <div class="corrections-label">✎ Corrections applied</div>
+      ${item.appliedCorrections.map(d => `
+        <div class="correction-row">
+          <span class="correction-key">${escapeHtmlDR(d.k)}</span>
+          ${d.old != null
+            ? `<span class="correction-old">${escapeHtmlDR(String(d.old))}</span>
+               <span class="correction-arrow">→</span>`
+            : `<span class="correction-arrow">+</span>`}
+          <span class="correction-new">${escapeHtmlDR(String(d.new))}</span>
+        </div>`).join('')}
+    </div>` : '';
+
+  // Build "Show original JSON" toggle — only present when _originalRawData was
+  // snapshotted by applyDiff(). Lets the DM compare what the AI proposed vs what
+  // was actually in rawData before any corrections were applied.
+  const origJson = item._originalRawData
+    ? JSON.stringify(item._originalRawData, null, 2)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    : null;
+  const origToggleHtml = origJson ? `
+    <button class="raw-toggle" onclick="toggleRaw('orig_${item.id}')">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="3" y1="4" x2="7" y2="4" stroke="currentColor" stroke-width="1"/><line x1="3" y1="6" x2="6" y2="6" stroke="currentColor" stroke-width="1"/></svg>
+      Show original JSON
+    </button>
+    <div class="raw-block" id="orig_${item.id}">${origJson}</div>` : '';
+
   document.getElementById('review-scroll').innerHTML = `
     <div class="delta-banner">
       <span class="delta-type-pill ${roundLabel||typeClass}">${item.isRound ? `Round ${item.roundNumber}` : typeLabel}</span>
       ${item.isCascade ? `<span class="delta-type-pill pill-cascade">Cascade</span>` : ''}
+      ${item.corrected ? `<span class="delta-type-pill pill-corrected">Edited</span>` : ''}
       <span class="delta-array-tag">${item.array}</span>
       ${item.flags?.length ? `<span class="delta-flag">[?] ${item.flags.length} flag${item.flags.length>1?'s':''}</span>` : ''}
       <span style="margin-left:auto;font-size:0.82rem;color:var(--muted);font-style:italic;">${item.sourceRef||''}</span>
@@ -930,6 +990,8 @@ function renderReview() {
       <div class="nl-card-title">${item.title}</div>
       ${item.nlRender()}
     </div>
+
+    ${correctionsHtml}
 
     ${flagsHtml}
 
@@ -945,6 +1007,8 @@ function renderReview() {
       Show proposed JSON
     </button>
     <div class="raw-block" id="raw_${item.id}">${rawJson}</div>
+
+    ${origToggleHtml}
   `;
 
   // Toolbar
@@ -1183,19 +1247,58 @@ function _buildCascadeItem(casc, correctionText) {
 
 
 function applyDiff(msgId) {
-  // In production: apply diffs to item.rawData and re-render
+  // Applies a set of AI-proposed diffs to the queue item currently selected.
+  // Why: the old stub never persisted diffs — it just hid the UI and re-rendered
+  // unchanged rawData, so the card looked identical after "Apply".
+  // What would break if removed: correction state (appliedCorrections, corrected,
+  // _originalRawData) would never be set, and the card would show no evidence of edits.
   const item = getItem(selectedId);
   if (!item) return;
-  // Remove uncertainty flags related to this correction
-  item.flags = item.flags?.filter(f=>false) || []; // clear for demo
 
-  // Find and update the message
   const thread = correctionThread[selectedId] || [];
-  const msg = thread.find(m=>m.id===msgId);
-  if (msg) {
-    msg.diffs = null;
-    msg.content += ' <span style="color:var(--teal);font-size:0.82rem;">✓ Applied</span>';
+  const msg = thread.find(m => m.id === msgId);
+  // Guard: nothing to apply if the message has no diffs (already applied/discarded)
+  if (!msg?.diffs?.length) return;
+
+  // Snapshot rawData before the first correction so the DM can always see the
+  // pre-correction state via "Show original JSON". Set once — never overwritten
+  // on subsequent corrections, preserving the true original.
+  if (!item._originalRawData) {
+    item._originalRawData = JSON.parse(JSON.stringify(item.rawData || {}));
   }
+
+  // For RAW OCR items: mutate rawData.ocr_text directly so nlRender() shows
+  // the corrected text in the pre block. Safe to mutate here because:
+  //   1. _originalRawData was just snapshotted above (original is preserved)
+  //   2. RAW items have only one field (ocr_text) — no nested v4 paths to break
+  //   3. appliedCorrections (accumulated below) records the before/after for display
+  // String.replace replaces the first occurrence of d.old — correct for phrase-level
+  // diffs. Whole-text replacement is avoided because the AI is instructed to diff
+  // only the changed portion (issue #53).
+  if (item.type === 'RAW') {
+    msg.diffs.forEach(d => {
+      if (d.k === 'ocr_text' && d.old != null && typeof item.rawData?.ocr_text === 'string') {
+        item.rawData.ocr_text = item.rawData.ocr_text.replace(d.old, d.new);
+      }
+    });
+  }
+
+  // Accumulate each diff into appliedCorrections — these drive the before/after
+  // display on the review card. Array grows across multiple correction rounds
+  // rather than being replaced, so all edits remain visible at once.
+  if (!item.appliedCorrections) item.appliedCorrections = [];
+  msg.diffs.forEach(d => item.appliedCorrections.push({ ...d }));
+  item.corrected = true;
+
+  // Clear only uncertainty flags whose .text matches a corrected field key.
+  // The old stub cleared ALL flags indiscriminately — this version only removes
+  // flags for fields that were actually corrected, leaving unrelated flags intact.
+  const diffKeys = new Set(msg.diffs.map(d => d.k));
+  item.flags = (item.flags || []).filter(f => !diffKeys.has(f.text));
+
+  // Hide the diff UI and mark the message as applied in the correction thread
+  msg.diffs = null;
+  msg.content += ' <span style="color:var(--teal);font-size:0.82rem;">✓ Applied</span>';
 
   renderAssistant();
   renderReview();

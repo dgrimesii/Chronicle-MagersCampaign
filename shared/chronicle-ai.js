@@ -401,7 +401,14 @@ Respond ONLY with valid JSON:
   "globalScope": ["item title 1", "item title 2"]
 }
 
-Omit diffs, cascades, or globalScope if not applicable. Never omit content.`;
+Omit diffs, cascades, or globalScope if not applicable. Never omit content.
+
+For items of type RAW (uninterpreted OCR text), the rawData contains only one
+field: "ocr_text". These items are confirmed OCR output that the DM is now
+correcting. You MUST return a diff for any correction to OCR text — do not
+treat it as "not applicable". Use k:"ocr_text", old: the exact phrase as it
+currently appears in the ocr_text value, new: the corrected phrase. Diff only
+the changed portion — never return the entire text block as old/new.`;
 
   /**
    * sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems, onResult, onError, onLoading })
