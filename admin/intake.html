@@ -1301,43 +1301,65 @@ Output exactly this format. If a value is unclear, write [?] after it. Session: 
  * Returns the complete system prompt string ready for ChronicleAI.call().
  */
 function buildRelationshipPrompt(allOCRText, sessionId) {
-  // Controlled vocabulary from the entity_relationships[] schema (issue #41).
-  // Only these values are valid for relationship_type — the AI is instructed
-  // to use "unknown" rather than invent a new type.
+  // Controlled vocabulary for relationship_type — from issue #41 schema.
   const vocab = [
-    'combat_antagonist  — entity was an enemy in a combat',
-    'allied             — entities fought on the same side or have a standing alliance',
-    'quest_connection   — entity is tied to a quest the source is pursuing',
+    'combat_antagonist   — entity was an enemy in a combat',
+    'allied              — fought on the same side or have a standing alliance',
+    'quest_connection    — entity is tied to a quest the source is pursuing',
     'location_inhabitant — entity lives, works, or is based at a location',
-    'social_contact     — entities know each other; no combat or quest connection',
-    'witnessed          — source entity witnessed the target event or entity',
-    'unknown            — a relationship exists but its nature is not established',
+    'social_contact      — entities know each other; no combat or quest connection',
+    'witnessed           — source entity witnessed the target event or entity',
+    'unknown             — relationship exists but nature is not established',
   ].join('\n');
 
-  return `You are a D&D session log analyst. Your task is to identify entity relationships from combat notes for ${sessionId}.
+  return `You are a D&D session log analyst. Identify entity relationships from combat notes for ${sessionId} using the two-tier model below.
 
-Party roster — use these EXACT IDs for PCs:
+Party roster — use EXACT IDs for PCs:
 ${ChronicleAI.PARTY_ROSTER}
 
-Relationship types — use ONLY one of these values for relationship_type:
+"party" is a RESERVED from_id meaning the full active party together (NOT individual PCs).
+
+Relationship types — use ONLY these values for relationship_type:
 ${vocab}
 
-From the session notes below, identify every meaningful relationship that can be confidently inferred:
-- PC ↔ NPC (e.g. a PC fought an NPC → combat_antagonist)
-- PC ↔ location (e.g. a PC operates within a named location → location_inhabitant or witnessed)
-- NPC ↔ NPC (e.g. two NPCs acted together → allied)
+━━━ TIER 1 — COMBAT PARTICIPATION ━━━
+Produce EXACTLY ONE entry per combat found in the notes.
+  from_id:           "party"
+  from_type:         "party"
+  to_id:             <NPC group slug, e.g. "npc_goblin_warband">
+  to_type:           "npc"
+  relationship_type: "combat_antagonist"
+  significance:      "participation"
+  ground_truth_notes: one sentence — combat name + session ID only
 
-Rules:
-- from_id / to_id: use the exact pc_NNN ID for PCs (from the roster above).
-  For NPCs use a slug like "npc_goblin_warband". For locations use "loc_name".
-  The DM will assign real IDs during delta-review — slugs are placeholders only.
-- from_type / to_type: "pc", "npc", or "location"
-- ground_truth_notes: one sentence citing the evidence from the notes
+━━━ TIER 2 — SIGNIFICANT EVENTS ━━━
+Individual entity-pair entries. Use significance: "significant_event".
+Only include an entry if the event meets ONE OR MORE of these criteria:
+  ✓ A PC dies (three failed death saves, or instant death)
+  ✓ A specific NPC kills a PC — the NPC is the subject
+  ✓ A PC is revived from death by any means
+  ✓ An item changes hands (stolen, gifted, destroyed, discovered)
+  ✓ An NPC changes allegiance (ally→enemy, surrender, hostage freed)
+  ✓ An NPC is individually distinguished from their group by a specific named action
+  ✓ A PC performs an action with consequences beyond this combat
+  ✓ A moment explicitly marked as important in the notes
 
-Output ONLY valid JSON in this exact shape — no markdown, no explanation:
+DO NOT produce a Tier 2 entry for:
+  ✗ A PC going to 0HP and recovering in the same combat
+  ✗ Failed death saves that do not result in death
+  ✗ Standard attack, damage, or spell use
+  ✗ General combat participation (already Tier 1)
+  ✗ Round-by-round mechanical detail
+
+━━━ ID RULES ━━━
+PCs:       exact pc_NNN from roster above
+NPCs:      slug like "npc_goblin_warband" (DM assigns real ID in review)
+Locations: slug like "loc_crossroads"
+
+ground_truth_notes: ONE SENTENCE MAXIMUM — cite the event, not mechanics.
+
+Output ONLY valid JSON — no markdown, no explanation:
 {"relationships_created":[]}
-
-If no relationships can be confidently inferred, output {"relationships_created":[]}.
 
 SESSION NOTES:
 ${allOCRText}`;
@@ -2146,7 +2168,7 @@ async function sendToAnalysis() {
       group:     'Relationships',
       status:    'pending',
       flags:     [],
-      title:     `${rel.from_id} → ${rel.to_id} (${rel.relationship_type})`,
+      title:     `${rel.from_id} → ${rel.to_id} (${rel.relationship_type}) [${rel.significance || 'participation'}]`,
       sourceRef: 'Relationship detected by intake AI',
       rawData:   {
         from_id:             rel.from_id             || '',
@@ -2154,6 +2176,9 @@ async function sendToAnalysis() {
         to_id:               rel.to_id               || '',
         to_type:             rel.to_type             || 'unknown',
         relationship_type:   rel.relationship_type   || 'unknown',
+        // significance distinguishes Tier 1 (participation) from Tier 2 (significant_event).
+        // applyDeltasToCampaign() uses this to decide dedup vs. always-append behaviour.
+        significance:        rel.significance        || 'participation',
         ground_truth_notes:  rel.ground_truth_notes  || '',
         // established_session is set here so applyDeltasToCampaign() doesn't
         // need to read it from the envelope separately — all data travels in rawData

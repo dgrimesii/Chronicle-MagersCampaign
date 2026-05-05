@@ -1549,54 +1549,73 @@ function applyDeltasToCampaign(campaign, approved) {
       }
 
     } else if (delta.type === 'RELATIONSHIP') {
-      // Write approved relationship to entity_relationships[] (issue #43).
+      // Write approved relationship to entity_relationships[] (issue #43, reworked).
       //
-      // Match rule: a relationship is considered "existing" when from_id AND to_id
-      // both match — directionality matters (A→B is not the same as B→A).
+      // Two-tier dedup model based on rawData.significance:
       //
-      // Existing entry: only volatile fields are patched; all other fields and the
-      // narrative.ground_truth_notes are left as-is to preserve prior DM curation.
-      // regeneration_flagged is set to signal that edge_prose may be stale after
-      // the new session changed or reinforced the relationship.
+      // Tier 2 "significant_event" — ALWAYS append a new entry.
+      //   Each significant event (PC death, NPC kills PC, item changes hands, etc.)
+      //   is a distinct story beat even when from_id+to_id already exists. No dedup.
       //
-      // New entry: rel_NNN ID is assigned based on current array length, matching
-      // the same sequential-ID pattern used for pil_NNN entries above.
+      // Tier 1 "participation" — update existing, never duplicate.
+      //   A party → NPC combat edge is a standing relationship updated each session.
+      //   Match on from_id + to_id + significance='participation' to avoid confusing
+      //   a participation edge with a significant_event edge between the same pair.
+      //
+      // Both tiers use the same rel_NNN ID format; next ID is array.length + 1.
       if (!Array.isArray(out.entity_relationships)) out.entity_relationships = [];
-      const rd      = delta.rawData || {};
-      const existIdx = out.entity_relationships.findIndex(
-        r => r.from_id === rd.from_id && r.to_id === rd.to_id
-      );
+      const rd  = delta.rawData || {};
+      const sig = rd.significance || 'participation';
 
-      if (existIdx > -1) {
-        // Update existing relationship — touch only the fields that reflect
-        // the new session's evidence; preserve established_session and prior prose
-        out.entity_relationships[existIdx].last_updated_session = rd.established_session || '';
-        if (out.entity_relationships[existIdx].narrative) {
-          out.entity_relationships[existIdx].narrative.regeneration_flagged = true;
-        }
-      } else {
-        // New relationship — assign the next rel_NNN ID.
-        // Left-padded to 3 digits to match the schema convention in CLAUDE.md.
-        const nextIdx = out.entity_relationships.length + 1;
-        const relId   = 'rel_' + String(nextIdx).padStart(3, '0');
-        out.entity_relationships.push({
-          id:                   relId,
-          from_id:              rd.from_id            || '',
-          from_type:            rd.from_type          || 'unknown',
-          to_id:                rd.to_id              || '',
-          to_type:              rd.to_type            || 'unknown',
-          relationship_type:    rd.relationship_type  || 'unknown',
+      // Helper to build a complete entity_relationships[] entry from rawData.
+      // Extracted to avoid duplicating the shape between the two branches below.
+      function buildRelEntry(id, significance) {
+        return {
+          id,
+          from_id:              rd.from_id             || '',
+          from_type:            rd.from_type           || 'unknown',
+          to_id:                rd.to_id               || '',
+          to_type:              rd.to_type             || 'unknown',
+          relationship_type:    rd.relationship_type   || 'unknown',
+          significance,
           established_session:  rd.established_session || '',
           last_updated_session: rd.established_session || '',
           status:               'active',
           narrative: {
-            ground_truth_notes:  rd.ground_truth_notes || '',
-            edge_prose:          null,
-            // Not flagged for regeneration on first write — there's nothing
-            // stale yet. Will be set true on subsequent session updates above.
+            ground_truth_notes:   rd.ground_truth_notes || '',
+            edge_prose:           null,
             regeneration_flagged: false,
           },
-        });
+        };
+      }
+
+      if (sig === 'significant_event') {
+        // Tier 2: always a new entry — no dedup check.
+        const nextIdx = out.entity_relationships.length + 1;
+        out.entity_relationships.push(
+          buildRelEntry('rel_' + String(nextIdx).padStart(3, '0'), 'significant_event')
+        );
+
+      } else {
+        // Tier 1 participation: find existing by from_id + to_id + significance.
+        // Matching on significance prevents a participation edge from accidentally
+        // updating a significant_event edge between the same entity pair.
+        const existIdx = out.entity_relationships.findIndex(
+          r => r.from_id === rd.from_id && r.to_id === rd.to_id && r.significance === 'participation'
+        );
+        if (existIdx > -1) {
+          // Update volatile fields only — preserve established_session and prior prose
+          out.entity_relationships[existIdx].last_updated_session = rd.established_session || '';
+          if (out.entity_relationships[existIdx].narrative) {
+            out.entity_relationships[existIdx].narrative.regeneration_flagged = true;
+          }
+        } else {
+          // No prior participation edge for this pair — append
+          const nextIdx = out.entity_relationships.length + 1;
+          out.entity_relationships.push(
+            buildRelEntry('rel_' + String(nextIdx).padStart(3, '0'), 'participation')
+          );
+        }
       }
     }
   }
@@ -2332,14 +2351,23 @@ function loadIntakeDelta() {
         </div>`;
 
     } else if (item.type === 'RELATIONSHIP') {
-      // Relationship item detected by intake AI (issue #43).
-      // NPC/location IDs are slugs (e.g. "npc_goblin_warband") — the DM must
-      // verify them against the entity list before approving. The DM tip below
-      // makes this explicit so it's never missed during review.
+      // Relationship item detected by intake AI (issue #43, two-tier model).
+      // significance = 'participation' → Tier 1 party-level combat edge (one per combat)
+      // significance = 'significant_event' → Tier 2 individual story-weighted edge
+      // NPC/location IDs are placeholders — verify before approving.
       const fromId  = item.rawData?.from_id            || '?';
       const toId    = item.rawData?.to_id              || '?';
       const relType = item.rawData?.relationship_type  || 'unknown';
+      const sig     = item.rawData?.significance       || 'participation';
       const notes   = item.rawData?.ground_truth_notes || '';
+      // Tier 2 gets a distinct amber badge so the DM immediately sees story-weighted edges
+      const sigBadge = sig === 'significant_event'
+        ? `<span style="padding:0.15rem 0.5rem;border-radius:3px;
+            background:rgba(212,175,55,0.15);color:var(--amber);font-size:0.75rem;
+            margin-left:0.4rem;">Tier 2 — significant event</span>`
+        : `<span style="padding:0.15rem 0.5rem;border-radius:3px;
+            background:rgba(111,66,193,0.12);color:#b09ef5;font-size:0.75rem;
+            margin-left:0.4rem;">Tier 1 — participation</span>`;
       render = () => `
         <div class="nl-narrative">
           <strong>Relationship:</strong>
@@ -2350,6 +2378,7 @@ function loadIntakeDelta() {
             background:rgba(111,66,193,0.15);color:#b09ef5;font-size:0.8rem;">
             ${escapeHtmlDR(relType)}
           </span>
+          ${sigBadge}
         </div>
         ${notes ? `<div style="font-size:0.88rem;color:var(--text2);margin-top:0.6rem;
           font-style:italic;line-height:1.6;">${escapeHtmlDR(notes)}</div>` : ''}
