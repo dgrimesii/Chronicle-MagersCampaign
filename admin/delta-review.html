@@ -1415,6 +1415,57 @@ function applyDeltasToCampaign(campaign, approved) {
         }
         out.combat_encounters[cbtIdx].rounds = rounds;
       }
+
+    } else if (delta.type === 'RELATIONSHIP') {
+      // Write approved relationship to entity_relationships[] (issue #43).
+      //
+      // Match rule: a relationship is considered "existing" when from_id AND to_id
+      // both match — directionality matters (A→B is not the same as B→A).
+      //
+      // Existing entry: only volatile fields are patched; all other fields and the
+      // narrative.ground_truth_notes are left as-is to preserve prior DM curation.
+      // regeneration_flagged is set to signal that edge_prose may be stale after
+      // the new session changed or reinforced the relationship.
+      //
+      // New entry: rel_NNN ID is assigned based on current array length, matching
+      // the same sequential-ID pattern used for pil_NNN entries above.
+      if (!Array.isArray(out.entity_relationships)) out.entity_relationships = [];
+      const rd      = delta.rawData || {};
+      const existIdx = out.entity_relationships.findIndex(
+        r => r.from_id === rd.from_id && r.to_id === rd.to_id
+      );
+
+      if (existIdx > -1) {
+        // Update existing relationship — touch only the fields that reflect
+        // the new session's evidence; preserve established_session and prior prose
+        out.entity_relationships[existIdx].last_updated_session = rd.established_session || '';
+        if (out.entity_relationships[existIdx].narrative) {
+          out.entity_relationships[existIdx].narrative.regeneration_flagged = true;
+        }
+      } else {
+        // New relationship — assign the next rel_NNN ID.
+        // Left-padded to 3 digits to match the schema convention in CLAUDE.md.
+        const nextIdx = out.entity_relationships.length + 1;
+        const relId   = 'rel_' + String(nextIdx).padStart(3, '0');
+        out.entity_relationships.push({
+          id:                   relId,
+          from_id:              rd.from_id            || '',
+          from_type:            rd.from_type          || 'unknown',
+          to_id:                rd.to_id              || '',
+          to_type:              rd.to_type            || 'unknown',
+          relationship_type:    rd.relationship_type  || 'unknown',
+          established_session:  rd.established_session || '',
+          last_updated_session: rd.established_session || '',
+          status:               'active',
+          narrative: {
+            ground_truth_notes:  rd.ground_truth_notes || '',
+            edge_prose:          null,
+            // Not flagged for regeneration on first write — there's nothing
+            // stale yet. Will be set true on subsequent session updates above.
+            regeneration_flagged: false,
+          },
+        });
+      }
     }
   }
 
@@ -2146,6 +2197,32 @@ function loadIntakeDelta() {
             <div class="field-val">${escapeHtmlDR(date)}</div></div>
           <div class="field-row"><div class="field-label">Title</div>
             <div class="field-val" style="color:var(--muted);font-style:italic;">Pending analysis</div></div>
+        </div>`;
+
+    } else if (item.type === 'RELATIONSHIP') {
+      // Relationship item detected by intake AI (issue #43).
+      // NPC/location IDs are slugs (e.g. "npc_goblin_warband") — the DM must
+      // verify them against the entity list before approving. The DM tip below
+      // makes this explicit so it's never missed during review.
+      const fromId  = item.rawData?.from_id            || '?';
+      const toId    = item.rawData?.to_id              || '?';
+      const relType = item.rawData?.relationship_type  || 'unknown';
+      const notes   = item.rawData?.ground_truth_notes || '';
+      render = () => `
+        <div class="nl-narrative">
+          <strong>Relationship:</strong>
+          <span style="font-family:'JetBrains Mono',monospace;">${escapeHtmlDR(fromId)}</span>
+          →
+          <span style="font-family:'JetBrains Mono',monospace;">${escapeHtmlDR(toId)}</span>
+          <span style="margin-left:0.5rem;padding:0.15rem 0.5rem;border-radius:3px;
+            background:rgba(111,66,193,0.15);color:#b09ef5;font-size:0.8rem;">
+            ${escapeHtmlDR(relType)}
+          </span>
+        </div>
+        ${notes ? `<div style="font-size:0.88rem;color:var(--text2);margin-top:0.6rem;
+          font-style:italic;line-height:1.6;">${escapeHtmlDR(notes)}</div>` : ''}
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
+          NPC/location IDs may be placeholders — verify against the campaign entity list before approving.
         </div>`;
 
     } else {

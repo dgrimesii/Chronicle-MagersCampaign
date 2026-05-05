@@ -983,7 +983,7 @@
       <div class="footer-left">Delta queue written — proceed to review and publish.</div>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-secondary" onclick="goBackToConsolidate()">← Back</button>
-        <button class="btn btn-primary" onclick="window.location='delta-review.html'">Proceed to Delta Review →</button>
+        <button class="btn btn-primary" id="proceed-btn" onclick="window.location='delta-review.html'">Proceed to Delta Review →</button>
       </div>
     </div>
   </div>
@@ -1284,6 +1284,111 @@ Output exactly this format. If a value is unclear, write [?] after it. Session: 
   const steering = (steeringText || '').trim();
   // Prepend steering text so model sees DM's context before the format rules.
   return steering ? `${steering}\n\n${base}` : base;
+}
+
+/**
+ * buildRelationshipPrompt(allOCRText, sessionId) → string
+ *
+ * Why it exists: relationship detection is a separate AI pass that runs after
+ * OCR is confirmed. It sends all combined OCR text to Sonnet and asks it to
+ * identify entity relationships evidenced by the session notes. Keeping the
+ * prompt in its own function (mirroring buildOCRSystemPrompt) makes the call
+ * site readable and testable without touching the OCR prompt logic.
+ *
+ * allOCRText — all confirmed OCR pages concatenated with page dividers.
+ * sessionId  — current session ID, embedded in the prompt for context.
+ *
+ * Returns the complete system prompt string ready for ChronicleAI.call().
+ */
+function buildRelationshipPrompt(allOCRText, sessionId) {
+  // Controlled vocabulary from the entity_relationships[] schema (issue #41).
+  // Only these values are valid for relationship_type — the AI is instructed
+  // to use "unknown" rather than invent a new type.
+  const vocab = [
+    'combat_antagonist  — entity was an enemy in a combat',
+    'allied             — entities fought on the same side or have a standing alliance',
+    'quest_connection   — entity is tied to a quest the source is pursuing',
+    'location_inhabitant — entity lives, works, or is based at a location',
+    'social_contact     — entities know each other; no combat or quest connection',
+    'witnessed          — source entity witnessed the target event or entity',
+    'unknown            — a relationship exists but its nature is not established',
+  ].join('\n');
+
+  return `You are a D&D session log analyst. Your task is to identify entity relationships from combat notes for ${sessionId}.
+
+Party roster — use these EXACT IDs for PCs:
+${ChronicleAI.PARTY_ROSTER}
+
+Relationship types — use ONLY one of these values for relationship_type:
+${vocab}
+
+From the session notes below, identify every meaningful relationship that can be confidently inferred:
+- PC ↔ NPC (e.g. a PC fought an NPC → combat_antagonist)
+- PC ↔ location (e.g. a PC operates within a named location → location_inhabitant or witnessed)
+- NPC ↔ NPC (e.g. two NPCs acted together → allied)
+
+Rules:
+- from_id / to_id: use the exact pc_NNN ID for PCs (from the roster above).
+  For NPCs use a slug like "npc_goblin_warband". For locations use "loc_name".
+  The DM will assign real IDs during delta-review — slugs are placeholders only.
+- from_type / to_type: "pc", "npc", or "location"
+- ground_truth_notes: one sentence citing the evidence from the notes
+
+Output ONLY valid JSON in this exact shape — no markdown, no explanation:
+{"relationships_created":[]}
+
+If no relationships can be confidently inferred, output {"relationships_created":[]}.
+
+SESSION NOTES:
+${allOCRText}`;
+}
+
+/**
+ * detectRelationships(allOCRText, sessionId) → Promise<Array>
+ *
+ * Why it exists: wraps ChronicleAI.call() (callback-based) in a Promise so
+ * sendToAnalysis() can await it cleanly. This is a best-effort enhancement —
+ * it always resolves (never rejects), returning [] on any failure so that
+ * a missing API key, network error, or unparseable response can never block
+ * the DM from proceeding to delta-review.
+ *
+ * What breaks if removed: relationships_created[] in the envelope will always
+ * be empty and entity_relationships[] in the campaign JSON will never be
+ * populated by the intake workflow (manual JSON edits remain possible).
+ */
+function detectRelationships(allOCRText, sessionId) {
+  return new Promise(function(resolve) {
+    ChronicleAI.call({
+      system: buildRelationshipPrompt(allOCRText, sessionId),
+      messages: [{
+        role:    'user',
+        content: 'Identify all entity relationships from these session notes. Output only the JSON object.',
+      }],
+      onLoading: function() {},
+      onResult: function(text) {
+        try {
+          // Strip markdown fences in case the model wrapped the JSON despite
+          // instructions — defensive parse so the DM isn't blocked by a stray ```.
+          const clean = text
+            .replace(/^```(?:json)?\s*/m, '')
+            .replace(/\s*```$/m,          '')
+            .trim();
+          const parsed = JSON.parse(clean);
+          // Guard: if the response is not the expected shape, return empty array
+          // rather than passing garbage objects to the review queue.
+          resolve(Array.isArray(parsed.relationships_created) ? parsed.relationships_created : []);
+        } catch (_) {
+          // JSON parse failed — empty array is safer than surfacing bad data.
+          resolve([]);
+        }
+      },
+      onError: function() {
+        // No API key, network failure, or API error — resolve empty so the
+        // sendToAnalysis flow completes without error.
+        resolve([]);
+      },
+    });
+  });
 }
 
 function simulateOCR(idx) {
@@ -1909,21 +2014,22 @@ function goBackToOCR() {
  * the Step 4 summary panel (issue #30). Navigation to delta-review.html happens
  * when the DM clicks "Proceed to Delta Review →" in that panel.
  *
- * Why the confirm() was removed: the native browser confirm() dialog is visually
- * inconsistent with the rest of the app (browser chrome, no theming). Replacing it
- * with an in-page Step 4 panel keeps the UX inside the app's own design language.
+ * Async since issue #43: after building the base delta items, a second AI pass
+ * (detectRelationships) scans all OCR text for entity relationships. The Proceed
+ * button is disabled while this runs and re-enabled once the envelope is written.
+ * If relationship detection fails or returns nothing the envelope is still written —
+ * the feature is additive and must never block the DM from proceeding.
  *
  * What it writes: sessionStorage key 'chronicle_intake_delta' — a JSON envelope
  * containing a metadata block and an items[] array shaped to the delta-review
- * item schema. Written here (before the panel) so the data is ready the moment
- * the DM clicks Proceed. nlRender() functions cannot be serialised; delta-review
- * rehydrates them from the item type on load.
+ * item schema. Written after the relationship AI pass completes. nlRender()
+ * functions cannot be serialised; delta-review rehydrates them from item.type.
  *
  * What breaks if removed / skipped: delta-review sees no sessionStorage key and
  * opens with an empty queue.
  */
-function sendToAnalysis() {
-  const sessionId = document.getElementById('session-id-input')?.value?.trim() || 'session_006';
+async function sendToAnalysis() {
+  const sessionId    = document.getElementById('session-id-input')?.value?.trim() || 'session_006';
   const hasNarrative = !!narrativeText.trim();
 
   const deltaItems = [];
@@ -1990,25 +2096,17 @@ function sendToAnalysis() {
     });
   }
 
-  // ── Write envelope to sessionStorage ────────────────────────────────────
-  // The envelope wraps items[] with metadata so delta-review can show a
-  // meaningful banner without having to inspect the items array itself.
-  // Key must not conflict with 'chronicle_prompt_improvement_log' (issue #29).
-  const envelope = {
-    source:       'intake',
-    timestamp:    new Date().toISOString(),
-    sessionId,
-    pageCount:    pageData.length,
-    hasNarrative,
-    items:        deltaItems,
-  };
-  sessionStorage.setItem('chronicle_intake_delta', JSON.stringify(envelope));
-
-  // ── Show Step 4 summary panel ────────────────────────────────────────────
-  // Replaces the native confirm() dialog. The DM reads the summary and clicks
-  // "Proceed to Delta Review →" to navigate — no browser popup, no setTimeout.
+  // ── Transition to step 4 immediately with loading state ──────────────────
+  // Show the panel before the async AI call so the DM sees instant feedback.
+  // The Proceed button stays disabled until the envelope is written below.
   setStep(4);
   document.getElementById('consolidation-section').classList.remove('visible');
+
+  const proceedBtn = document.getElementById('proceed-btn');
+  if (proceedBtn) {
+    proceedBtn.disabled    = true;
+    proceedBtn.textContent = 'Detecting relationships…';
+  }
 
   const failedCount = pageData.filter(p => p.ocrFailed).length;
   const row = (label, val) =>
@@ -2018,12 +2116,84 @@ function sendToAnalysis() {
      </div>`;
 
   document.getElementById('step4-summary').innerHTML =
-    row('Session', `<span style="font-family:'JetBrains Mono',monospace;">${escapeHtml(sessionId)}</span>`) +
+    row('Session',      `<span style="font-family:'JetBrains Mono',monospace;">${escapeHtml(sessionId)}</span>`) +
     row('Pages confirmed', `${pageData.length}${failedCount ? ` <span style="color:var(--rust);font-size:0.82rem;">(${failedCount} manually entered)</span>` : ''}`) +
-    row('Narrative notes', hasNarrative ? 'Yes' : '<span style="color:var(--muted);">None</span>') +
-    row('Items queued', `${deltaItems.length} — session stub, ${pageData.length} OCR page${pageData.length !== 1 ? 's' : ''}${hasNarrative ? ', narrative' : ''}`);
+    row('Narrative notes',  hasNarrative ? 'Yes' : '<span style="color:var(--muted);">None</span>') +
+    row('Relationships',    '<span style="color:var(--muted);font-style:italic;">Detecting…</span>');
 
   document.getElementById('step4-section').classList.add('visible');
+
+  // ── Run relationship detection AI pass (issue #43) ───────────────────────
+  // Combine all confirmed OCR pages into one block and ask Sonnet to identify
+  // entity relationships. detectRelationships() always resolves (never rejects)
+  // so no try/catch is needed — a failed call returns [].
+  const allOCRText = pageData
+    .map((p, i) => `--- Page ${i + 1} ---\n${p.ocrText || '(empty)'}`)
+    .join('\n\n');
+
+  const relArray = await detectRelationships(allOCRText, sessionId);
+
+  // ── Add one RELATIONSHIP item per detected relationship ──────────────────
+  // Each item appears as a reviewable queue entry in delta-review.
+  // NPC/location IDs are placeholders (slug form) — the DM must verify them
+  // against the entity list before approving. The applyDeltasToCampaign()
+  // RELATIONSHIP handler writes approved entries to entity_relationships[].
+  relArray.forEach(function(rel, i) {
+    deltaItems.push({
+      id:        `intake_rel_${i}`,
+      type:      'RELATIONSHIP',
+      array:     'entity_relationships',
+      group:     'Relationships',
+      status:    'pending',
+      flags:     [],
+      title:     `${rel.from_id} → ${rel.to_id} (${rel.relationship_type})`,
+      sourceRef: 'Relationship detected by intake AI',
+      rawData:   {
+        from_id:             rel.from_id             || '',
+        from_type:           rel.from_type           || 'unknown',
+        to_id:               rel.to_id               || '',
+        to_type:             rel.to_type             || 'unknown',
+        relationship_type:   rel.relationship_type   || 'unknown',
+        ground_truth_notes:  rel.ground_truth_notes  || '',
+        // established_session is set here so applyDeltasToCampaign() doesn't
+        // need to read it from the envelope separately — all data travels in rawData
+        established_session: sessionId,
+      },
+    });
+  });
+
+  // ── Write envelope to sessionStorage ────────────────────────────────────
+  // The envelope wraps items[] with metadata so delta-review can show a
+  // meaningful banner without having to inspect the items array itself.
+  // Key must not conflict with 'chronicle_prompt_improvement_log' (issue #29).
+  // relationships_created[] mirrors the RELATIONSHIP items at root level so
+  // applyDeltasToCampaign() can access the raw array without filtering items[].
+  const envelope = {
+    source:                'intake',
+    timestamp:             new Date().toISOString(),
+    sessionId,
+    pageCount:             pageData.length,
+    hasNarrative,
+    relationships_created: relArray,
+    items:                 deltaItems,
+  };
+  sessionStorage.setItem('chronicle_intake_delta', JSON.stringify(envelope));
+
+  // ── Update summary and re-enable Proceed ────────────────────────────────
+  const relCount = relArray.length;
+  document.getElementById('step4-summary').innerHTML =
+    row('Session',      `<span style="font-family:'JetBrains Mono',monospace;">${escapeHtml(sessionId)}</span>`) +
+    row('Pages confirmed', `${pageData.length}${failedCount ? ` <span style="color:var(--rust);font-size:0.82rem;">(${failedCount} manually entered)</span>` : ''}`) +
+    row('Narrative notes', hasNarrative ? 'Yes' : '<span style="color:var(--muted);">None</span>') +
+    row('Relationships detected', relCount > 0
+      ? `${relCount} — verify NPC/location IDs in Delta Review before publishing`
+      : '<span style="color:var(--muted);">None detected</span>') +
+    row('Items queued', `${deltaItems.length} — session stub, ${pageData.length} OCR page${pageData.length !== 1 ? 's' : ''}${hasNarrative ? ', narrative' : ''}${relCount > 0 ? `, ${relCount} relationship${relCount !== 1 ? 's' : ''}` : ''}`);
+
+  if (proceedBtn) {
+    proceedBtn.disabled    = false;
+    proceedBtn.textContent = 'Proceed to Delta Review →';
+  }
 }
 
 /*
