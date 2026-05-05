@@ -1335,9 +1335,10 @@ Produce EXACTLY ONE entry per combat found in the notes.
 ━━━ TIER 2 — SIGNIFICANT EVENTS ━━━
 Individual entity-pair entries. Use significance: "significant_event".
 Only include an entry if the event meets ONE OR MORE of these criteria:
-  ✓ A PC dies (three failed death saves, or instant death)
-  ✓ A specific NPC kills a PC — the NPC is the subject
-  ✓ A PC is revived from death by any means
+  ✓ A PC DIES — this means THREE failed death saves OR instant death from massive damage.
+    "Dying" and "death" in D&D are specific outcomes, not the same as going to 0HP.
+  ✓ A specific NPC kills a PC (three failed saves / instant death) — the NPC is the subject
+  ✓ A PC is revived from actual death (revivify, resurrection — not just healed after going down)
   ✓ An item changes hands (stolen, gifted, destroyed, discovered)
   ✓ An NPC changes allegiance (ally→enemy, surrender, hostage freed)
   ✓ An NPC is individually distinguished from their group by a specific named action
@@ -1345,8 +1346,13 @@ Only include an entry if the event meets ONE OR MORE of these criteria:
   ✓ A moment explicitly marked as important in the notes
 
 DO NOT produce a Tier 2 entry for:
-  ✗ A PC going to 0HP and recovering in the same combat
-  ✗ Failed death saves that do not result in death
+  ✗ A PC going to 0HP — this is NORMAL combat and NOT death.
+    Phrases like "knocked unconscious", "knocked out", "goes down", "was downed",
+    "dropped to 0HP", "at 0 hit points", "falls unconscious" all mean 0HP, NOT death.
+    Unless the notes then say the PC FAILED THREE DEATH SAVES or was INSTANTLY KILLED,
+    going to 0HP is routine and must NOT produce a Tier 2 entry.
+  ✗ Failed death saves that do not result in death (one or two failed saves = still alive)
+  ✗ Being stabilised or healed after going to 0HP — the PC survived; no Tier 2 entry
   ✗ Standard attack, damage, or spell use
   ✗ General combat participation (already Tier 1)
   ✗ Round-by-round mechanical detail
