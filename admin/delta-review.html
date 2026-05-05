@@ -471,6 +471,23 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
       <button class="btn-send" id="send-btn" onclick="sendCorrection()">Send correction</button>
     </div>
   </div>
+  <!-- Post-publish narrative prompt (issue #44) — hidden until afterPublishSuccess() reveals it.
+       Sits above the publish bar so it draws the eye without covering the stats or button. -->
+  <div id="narrative-prompt" style="display:none;border-top:1px solid var(--border-strong);
+    background:rgba(111,66,193,0.08);padding:0.65rem 1.25rem;
+    display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <div style="font-size:0.88rem;color:var(--ink);line-height:1.45;">
+      <span style="color:#b09ef5;margin-right:0.4rem;">✨</span>
+      <strong>Ground truth published.</strong>
+      <span style="color:var(--text2);margin-left:0.4rem;">Generate a Chronicle entry for this session?</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button class="btn btn-primary" style="font-size:0.82rem;padding:0.3rem 0.85rem;"
+        onclick="triggerNarrativeGeneration()">Generate now</button>
+      <button class="btn btn-secondary" style="font-size:0.82rem;padding:0.3rem 0.85rem;"
+        onclick="dismissNarrativePrompt()">Not now</button>
+    </div>
+  </div>
   <!-- Publish bar at very bottom -->
   <div class="publish-bar">
     <div class="publish-stats">
@@ -478,6 +495,8 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
       <div class="pub-stat"><div class="pub-dot" style="background:var(--amber)"></div><span id="pub-pending">0 pending</span></div>
       <div class="pub-stat"><div class="pub-dot" style="background:var(--rust)"></div><span id="pub-flagged">0 flagged</span></div>
     </div>
+    <!-- publish-status: target for setPublishStatus() — was missing from HTML, causing silent no-ops -->
+    <span id="publish-status" style="font-size:0.78rem;color:var(--muted);flex:1;text-align:center;"></span>
     <button class="btn-publish" id="publish-btn" onclick="publish()" disabled>Publish approved →</button>
   </div>
 </div>
@@ -489,6 +508,9 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 <script src="../shared/config.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
+<!-- chronicle-narrative.js loaded here for detectCascadeCandidates (issue #44).
+     Per CLAUDE.md load order: config → integrity → ai → narrative → page script. -->
+<script src="../shared/chronicle-narrative.js"></script>
 <script>
 // ── Drive integration ─────────────────────────────────────────────────────────
 // All requests use GET to avoid CORS preflight. Write data is JSON-encoded
@@ -1339,6 +1361,11 @@ async function publish() {
   const orig = btn ? btn.textContent : '';
   if (btn) { btn.textContent = 'Publishing…'; btn.disabled = true; }
 
+  // Derive session ID for the backup label and post-publish narrative trigger (issue #44).
+  // Reads from the session stub item rawData — may be 'unknown_session' if no intake stub exists.
+  const sessionId = items.find(i => i.array === 'session_logs')?.rawData?.session_id
+    || 'unknown_session';
+
   try {
     // Step 1 — pre-publish backup
     setPublishStatus('Creating backup…', 'loading');
@@ -1364,6 +1391,10 @@ async function publish() {
     renderQueue();
     updateProgress();
 
+    // Step 6 — post-publish narrative trigger (issue #44).
+    // Only runs on success — if any step above threw, we are in catch() and this is skipped.
+    afterPublishSuccess(updated, sessionId);
+
   } catch(e) {
     setPublishStatus(`Publish failed: ${e.message}`, 'error');
   } finally {
@@ -1375,7 +1406,108 @@ function setPublishStatus(msg, state) {
   const el = document.getElementById('publish-status');
   if (!el) return;
   el.textContent = msg;
-  el.style.color = state === 'ok' ? 'var(--green)' : state === 'error' ? 'var(--red)' : 'var(--amber)';
+  el.style.color = state === 'ok' ? 'var(--teal)' : state === 'error' ? 'var(--rust)' : 'var(--amber)';
+}
+
+/**
+ * afterPublishSuccess(updated, publishedSessionId)
+ *
+ * Why it exists: decouples the post-publish narrative hook from the publish()
+ * function body so that publish() stays focused on Drive I/O and error handling.
+ * Only called from the publish() success path — never from catch() — so the
+ * narrative prompt is guaranteed to appear only after a clean write to Drive.
+ *
+ * What it does:
+ *   1. Runs detectCascadeCandidates() to find entities needing narrative generation
+ *   2. Reads any narrative_beats from chronicle_intake_delta (may be empty if DM
+ *      navigated directly to delta-review rather than arriving from intake)
+ *   3. Writes chronicle_post_publish_target to sessionStorage for narrative.html
+ *   4. Shows the Generate now / Not now prompt
+ *
+ * What breaks if removed: the post-publish narrative prompt never appears;
+ * chronicle_post_publish_target is never written; narrative.html has no target
+ * to read when it opens.
+ */
+function afterPublishSuccess(updated, publishedSessionId) {
+  // Build a session object that detectCascadeCandidates() can work with.
+  // The raw JSON stores the session ID as session_id; detectCascadeCandidates
+  // expects session.id — so we alias it here. The rest of the fields (mechanics,
+  // npcs_met, etc.) come from the updated JSON if the session was published with
+  // full data; if it's a minimal intake stub they will be absent, which is fine —
+  // detectCascadeCandidates uses optional chaining and returns [] for missing arrays.
+  const sessionRaw = (updated.session_logs || []).find(s => s.session_id === publishedSessionId);
+  const session    = sessionRaw
+    ? Object.assign({}, sessionRaw, { id: publishedSessionId })
+    : { id: publishedSessionId };
+
+  // detectCascadeCandidates finds NPCs/locations without flavor_text and
+  // relationships without edge_prose established in this session.
+  // Optional chain guards against chronicle-narrative.js being absent (e.g. if
+  // config.js fails to load — this should not happen in normal use).
+  const cascade = window.ChronicleNarrative?.detectCascadeCandidates(session, updated)
+    ?? { npcs: [], locations: [], relationships: [] };
+
+  // KNOWN LIMITATION (GitHub Pages version, issue #44):
+  // narrative_beats are in-memory only and only present in sessionStorage if the DM
+  // arrived here from intake.html in the same browser tab. If the DM navigated
+  // directly to delta-review, chronicle_intake_delta will be absent and narrativeBeats
+  // will be []. Full persistence of narrative_beats is deferred to Phase 5 (web server).
+  // Note: chronicle_intake_delta was already cleared by loadIntakeDelta() on page load
+  // (one-time transfer), so this will typically return {} — the beats are captured
+  // as a best-effort only when the full intake→delta-review flow happens in one tab session.
+  const intakeDelta    = JSON.parse(sessionStorage.getItem('chronicle_intake_delta') || '{}');
+  const narrativeBeats = intakeDelta.narrativeBeats || [];
+
+  // Write the post-publish target so narrative.html knows which session to generate for
+  // and which entities are candidates for cascade generation.
+  // VOLATILE: cleared on "Not now" (dismissNarrativePrompt) or when narrative.html reads it.
+  sessionStorage.setItem('chronicle_post_publish_target', JSON.stringify({
+    sessionId:         publishedSessionId,
+    cascadeCandidates: cascade,
+    narrativeBeats,
+  }));
+
+  showNarrativePrompt();
+}
+
+/**
+ * showNarrativePrompt()
+ *
+ * Why it exists: separated from afterPublishSuccess() so the prompt element can be
+ * shown/hidden independently without re-running cascade detection or re-writing
+ * sessionStorage. Uses flex display to match the bar layout defined in the HTML.
+ */
+function showNarrativePrompt() {
+  const el = document.getElementById('narrative-prompt');
+  if (el) el.style.display = 'flex';
+}
+
+/**
+ * dismissNarrativePrompt()
+ *
+ * Why it exists: "Not now" path — clears the sessionStorage target so a future
+ * page load doesn't accidentally pick up a stale target from a previous session.
+ * The DM can always reach narrative generation later via the standalone narrative
+ * page once it exists (Phase 2 of the narrative epic).
+ */
+function dismissNarrativePrompt() {
+  const el = document.getElementById('narrative-prompt');
+  if (el) el.style.display = 'none';
+  // Clear the target — if the DM wants narrative later they open narrative.html
+  // directly; that page will offer a session-picker rather than reading this key.
+  sessionStorage.removeItem('chronicle_post_publish_target');
+}
+
+/**
+ * triggerNarrativeGeneration()
+ *
+ * Why it exists: "Generate now" path — navigates to narrative.html which reads
+ * chronicle_post_publish_target from sessionStorage to pre-populate the session
+ * and cascade candidate list. narrative.html is created in a future issue; this
+ * navigation target is wired up now so the handoff works end-to-end when it lands.
+ */
+function triggerNarrativeGeneration() {
+  window.location = 'narrative.html';
 }
 
 // Apply the approved review-queue deltas to a campaign JSON object.
