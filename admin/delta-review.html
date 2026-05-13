@@ -1953,30 +1953,63 @@ function buildAIContextString() {
 }
 
 /**
+ * _escapeRegex(str)
+ * Escapes special regex characters so a literal string can be used in new RegExp().
+ * Why: fact keys may contain characters like '.' or '(' that have regex meaning.
+ */
+function _escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * _applySubstitutionToObj(obj, key, resolvedName, fieldPath, diffs)
+ *
+ * Recursively walks a rawData object and replaces whole-word occurrences of
+ * `key` with `resolvedName` in every string field. Records each replacement
+ * as a diff entry. Returns the modified object (or value).
+ *
+ * Why: actor names in round items live inside nested arrays (initiative_slots[].actor_id),
+ * not at the top level. A field-specific approach (rawData.name, rawData.ocr_text) misses
+ * these nested paths entirely. Recursive traversal finds the substitution wherever it lives.
+ * What breaks if removed: propagation silently finds no matches on structured round items
+ * and never applies corrections to them.
+ */
+function _applySubstitutionToObj(obj, re, key, resolvedName, fieldPath, diffs) {
+  if (typeof obj === 'string') {
+    if (re.test(obj)) {
+      const corrected = obj.replace(new RegExp(re.source, re.flags), resolvedName);
+      diffs.push({ k: fieldPath, old: key, new: corrected });
+      return corrected;
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item, i) =>
+      _applySubstitutionToObj(item, re, key, resolvedName, fieldPath ? `${fieldPath}[${i}]` : `[${i}]`, diffs)
+    );
+  }
+  if (obj && typeof obj === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = _applySubstitutionToObj(v, re, key, resolvedName, fieldPath ? `${fieldPath}.${k}` : k, diffs);
+    }
+    return out;
+  }
+  return obj;
+}
+
+/**
  * extractAndRegisterFacts(item, diffs)
  *
- * Reads a set of applied diffs and registers any name-change corrections as
+ * Reads a set of applied diffs and registers short-phrase corrections as
  * confirmed facts in window.sessionGroundTruth. Returns the array of newly
  * registered keys so the caller can pass them to propagateGroundTruth().
  *
- * Why: name corrections are the primary signal that the DM has resolved an alias
- * or abbreviation to a known entity. Two diff keys establish cross-card facts:
- *
- *   d.k === 'name'     — structured entity items (NPC, location, quest, etc.)
- *                        d.old is the wrong name; d.new is the correct name.
- *                        Entity type is derived from item.array.
- *
- *   d.k === 'ocr_text' — RAW OCR items (most round/slot queue items).
- *                        The AI is instructed to diff only the changed portion,
- *                        so d.old is the specific phrase to replace (e.g. "Gold")
- *                        and d.new is the correction (e.g. "Goldie"). When d.old
- *                        is a short single-token string it is treated as a name
- *                        alias. Type is stored as 'ocr' so propagation routes it
- *                        to ocr_text searches rather than rawData.name searches.
- *
- * Other diff keys (description, notes, id) correct content, not identity, and
- * are not registered as ground truth.
- *
+ * Why: any diff where d.old is a short phrase (≤ 40 chars, no newlines) is
+ * treated as a potential name alias regardless of the diff key. Actor names appear
+ * in initiative_slots, entity names in 'name' fields, OCR aliases in 'ocr_text' —
+ * all three need the same propagation. Field key signals content vs. identity only
+ * for the content-only exclusion list below.
  * What breaks if removed: no facts are ever registered; the registry stays empty
  * and the session ground truth system is silently non-functional.
  *
@@ -1986,37 +2019,30 @@ function extractAndRegisterFacts(item, diffs) {
   const newKeys = [];
   if (!Array.isArray(diffs)) return newKeys;
 
+  // Prose fields whose values describe events rather than identify entities.
+  // A diff on these (e.g. {k:'description', old:'fallen', new:'dead'}) should
+  // never propagate as a name alias even when the value is short.
+  const CONTENT_FIELDS = new Set([
+    'description', 'notes', 'summary', 'motivation', 'aftermath',
+    'setup', 'finale', 'background', 'content', 'entry',
+  ]);
+
   diffs.forEach(d => {
     if (typeof d.old !== 'string' || !d.old.trim()) return;
     if (typeof d.new !== 'string' || !d.new.trim()) return;
+    if (CONTENT_FIELDS.has(d.k)) return;
+    // Only short single-line phrases qualify as name aliases.
+    if (d.old.length > 40 || d.old.includes('\n')) return;
 
-    if (d.k === 'name') {
-      // Structured entity correction — entity type known from item.array.
-      window.sessionGroundTruth[d.old] = {
-        type:         arrayToEntityType(item.array),
-        resolvedId:   item.rawData?.id ?? null,
-        resolvedName: d.new,
-        assertedAt:   item.id,
-      };
-      newKeys.push(d.old);
-
-    } else if (d.k === 'ocr_text') {
-      // OCR text correction — the AI diffs only the changed phrase, so d.old is
-      // the specific alias/abbreviation (e.g. "Gold") and d.new is the resolved
-      // name (e.g. "Goldie"). Only register when d.old is a short phrase (≤ 40
-      // chars, no newlines) — full-paragraph replacements are content edits,
-      // not name resolutions, and should not propagate as ground truth.
-      const isShortPhrase = d.old.length <= 40 && !d.old.includes('\n');
-      if (!isShortPhrase) return;
-      window.sessionGroundTruth[d.old] = {
-        type:         'ocr',        // signals propagation to search ocr_text, not rawData.name
-        resolvedId:   null,         // RAW items have no stable entity ID
-        resolvedName: d.new,
-        assertedAt:   item.id,
-      };
-      newKeys.push(d.old);
-    }
-    // All other diff keys (description, notes, id, etc.) are content edits — skip.
+    window.sessionGroundTruth[d.old] = {
+      // For 'name' diffs the entity type is known; for all others store 'text'
+      // so propagation searches all string fields rather than only rawData.name.
+      type:         d.k === 'name' ? arrayToEntityType(item.array) : 'text',
+      resolvedId:   d.k === 'name' ? (item.rawData?.id ?? null) : null,
+      resolvedName: d.new,
+      assertedAt:   item.id,
+    };
+    newKeys.push(d.old);
   });
 
   return newKeys;
@@ -2026,19 +2052,17 @@ function extractAndRegisterFacts(item, diffs) {
  * propagateGroundTruth(newKeys, sourceItemId)
  *
  * Scans every queue item (excluding the source item that just registered the facts)
- * and applies each newly confirmed fact where a matching entity name is found.
+ * and applies each newly confirmed fact where a matching token is found anywhere in
+ * the item's rawData.
  *
- * Two propagation routes depending on the fact's type:
+ * Matching strategy:
+ *   Confident: the key appears as a whole word anywhere in rawData (recursive scan).
+ *              The substitution is applied to every matching string field.
+ *   Uncertain: the key appears only as a substring (not a whole word) anywhere in rawData.
+ *              A flag is added prompting the DM to confirm before applying.
  *
- *   type !== 'ocr'  (structured entity facts from name diffs)
- *     Confident: rawData.name is exact case-insensitive match AND entity types match
- *     Uncertain: rawData.name contains the key as a substring, OR types differ
- *
- *   type === 'ocr'  (text substitution facts from ocr_text diffs)
- *     Confident: rawData.ocr_text contains the key as a whole-word match
- *     Uncertain: rawData.ocr_text contains the key only as a substring (not whole word)
- *     The substitution is applied with String.replace (first occurrence) to mirror
- *     how applyDiff() handles RAW item corrections.
+ * Why recursive scan: actor names live inside nested arrays (initiative_slots[].actor_id)
+ * and a field-specific check (rawData.name, rawData.ocr_text) never reaches them.
  *
  * After scanning: renderQueue() updates the queue indicators on all impacted items.
  * renderReview() is only called when the currently active card was impacted — this
@@ -2058,70 +2082,44 @@ function propagateGroundTruth(newKeys, sourceItemId) {
     const fact = window.sessionGroundTruth[key];
     if (!fact) return;
 
+    // Build the whole-word regex once per key and reuse across all target items.
+    // Lookbehind/lookahead prevent "Gold" from matching inside "Goldsmith".
+    const escapedKey   = _escapeRegex(key);
+    const wholeWordRe  = new RegExp('(?<![\\w])' + escapedKey + '(?![\\w])', 'ig');
+    const substringRe  = new RegExp(escapedKey, 'i');
+
     allItems.forEach(target => {
       // Never re-process the item that just asserted the fact — it's already corrected.
       if (target.id === sourceItemId) return;
+      if (!target.rawData) return;
 
-      if (fact.type === 'ocr') {
-        // ── OCR text substitution route ──────────────────────────────────────
-        // The key is a short phrase (e.g. "Gold") that should be replaced with
-        // the resolved name (e.g. "Goldie") wherever it appears in ocr_text.
-        // Only RAW items carry ocr_text — skip items without it.
-        if (typeof target.rawData?.ocr_text !== 'string') return;
+      // Serialise rawData to check presence before doing the recursive walk.
+      // This is faster than walking the object when most items don't match at all.
+      const serialised = JSON.stringify(target.rawData);
+      const hasWholeWord = wholeWordRe.test(serialised);
+      // Reset lastIndex after the stateful 'g' flag test above.
+      wholeWordRe.lastIndex = 0;
+      const hasSubstring = !hasWholeWord && substringRe.test(serialised);
 
-        const ocr = target.rawData.ocr_text;
-        // Whole-word match: key surrounded by word boundaries or punctuation.
-        // This prevents "Gold" from matching inside "Goldsmith" etc.
-        const wholeWordRe = new RegExp('(?<![\\w])' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w])', 'i');
-        const hasWholeWord = wholeWordRe.test(ocr);
-        // Substring match without whole-word boundary (uncertain).
-        const hasSubstring = !hasWholeWord && ocr.toLowerCase().includes(key.toLowerCase());
-
-        if (hasWholeWord) {
-          // Confident — replace the first occurrence in ocr_text.
+      if (hasWholeWord) {
+        // Confident — walk rawData recursively and apply the substitution in-place.
+        const diffs = [];
+        target.rawData = _applySubstitutionToObj(
+          target.rawData, wholeWordRe, key, fact.resolvedName, '', diffs
+        );
+        if (diffs.length) {
           if (!target.appliedCorrections) target.appliedCorrections = [];
-          target.appliedCorrections.push({ k: 'ocr_text', old: key, new: fact.resolvedName });
-          target.rawData.ocr_text = ocr.replace(wholeWordRe, fact.resolvedName);
+          diffs.forEach(d => target.appliedCorrections.push(d));
           target.corrected = true;
           impactedIds.add(target.id);
-        } else if (hasSubstring) {
-          // Uncertain — flag for DM confirmation rather than auto-apply.
-          if (!target.flags) target.flags = [];
-          const flagText = `Possible match: "${key}" → ${fact.resolvedName} — confirm?`;
-          if (!target.flags.some(f => f.text === flagText)) {
-            target.flags.push({ text: flagText });
-            impactedIds.add(target.id);
-          }
         }
-
-      } else {
-        // ── Structured entity name route ──────────────────────────────────────
-        // The key is a wrong entity name; match against rawData.name on items of
-        // the same entity type.
-        if (typeof target.rawData?.name !== 'string') return;
-
-        const targetName  = target.rawData.name;
-        const keyLower    = key.toLowerCase();
-        const nameLower   = targetName.toLowerCase();
-        const typeMatch   = arrayToEntityType(target.array) === fact.type;
-        const exactMatch  = nameLower === keyLower;
-        const partialMatch = !exactMatch && nameLower.includes(keyLower);
-
-        if (exactMatch && typeMatch) {
-          // Confident match — apply the correction automatically.
-          if (!target.appliedCorrections) target.appliedCorrections = [];
-          target.appliedCorrections.push({ k: 'name', old: key, new: fact.resolvedName });
-          target.rawData.name = fact.resolvedName;
-          target.corrected = true;
+      } else if (hasSubstring) {
+        // Uncertain — flag rather than auto-apply.
+        if (!target.flags) target.flags = [];
+        const flagText = `Possible match: "${key}" → ${fact.resolvedName} — confirm?`;
+        if (!target.flags.some(f => f.text === flagText)) {
+          target.flags.push({ text: flagText });
           impactedIds.add(target.id);
-        } else if (partialMatch || (exactMatch && !typeMatch)) {
-          // Uncertain match — flag rather than auto-apply.
-          if (!target.flags) target.flags = [];
-          const flagText = `Possible match: "${key}" = ${fact.resolvedName} (${fact.type}) — confirm?`;
-          if (!target.flags.some(f => f.text === flagText)) {
-            target.flags.push({ text: flagText });
-            impactedIds.add(target.id);
-          }
         }
       }
     });
