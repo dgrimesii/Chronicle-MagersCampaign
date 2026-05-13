@@ -629,6 +629,14 @@ function normaliseCampaignJson(json) {
       // Root-level array introduced in schema v4.1. Starts empty; populated as
       // the DM adds relationship records via future admin tooling.
       entity_relationships: json.entity_relationships ?? [],
+
+      // ── Factions ──────────────────────────────────────────────────────────────
+      // Root-level array introduced in schema v4.1. Represents organized groups
+      // with campaign significance (named leadership, ongoing role, deep lore).
+      // Distinct from npc_directory[] (named individuals). Starts empty; populated
+      // via the log editor or future admin tooling. fac_NNN IDs are valid
+      // source/target values in entity_relationships[].
+      factions: json.factions ?? [],
     };
   }
 

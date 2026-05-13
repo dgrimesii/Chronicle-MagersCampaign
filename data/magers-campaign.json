@@ -1,5 +1,5 @@
 {
-  "_schema_version": "4.0.0",
+  "_schema_version": "4.1.0",
   "_schema_type": "campaign_log_specification",
   "_chronicle_format": true,
   "_about": {
@@ -10446,13 +10446,14 @@
   ],
   "prompt_improvement_log": [],
   "entity_relationships": [],
+  "factions": [],
   "meta": {
     "campaign_name": "Magers Campaign",
     "system": "D&D 5e / 5.5e (2024) \u2014 WotC backwards compatibility rules",
     "setting": "Magers Homebrew",
     "dm": "John Magers",
     "started_date": "2026-02-10",
-    "last_updated": "2026-05-04",
+    "last_updated": "2026-05-13",
     "session_count": 5,
     "active": true,
     "notes": null,

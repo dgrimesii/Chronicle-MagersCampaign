@@ -1,5 +1,5 @@
 {
-  "_schema_version": "4.0.0",
+  "_schema_version": "4.1.0",
   "meta": {
     "campaign_name": "Test Campaign",
     "system": "D&D 5e",
@@ -201,5 +201,6 @@
   "bestiary": [],
   "world_lore": [],
   "character_moments": [],
-  "deferred_gaps": []
+  "deferred_gaps": [],
+  "factions": []
 }

@@ -73,12 +73,14 @@ console.log('\nTest C-1 — fixture has all required top-level sections');
   });
 }
 
-// ── Test C-2 — Schema version is exactly 4.0.0 ───────────────────────────────
-// The intake pipeline expects v4 schema. Older versions have different nesting
-// (flat vs mechanics/narrative). A mismatch would silently read wrong paths.
-console.log('\nTest C-2 — schema version is 4.0.0');
+// ── Test C-2 — Schema version is a v4 release ────────────────────────────────
+// The intake pipeline expects v4 schema (mechanics/narrative two-layer pattern).
+// The minor version advances as new arrays are added (e.g. factions[] in 4.1.0).
+// We check the major version only — a hard pin to an exact minor would fail on
+// every schema extension, which defeats the purpose of the test.
+console.log('\nTest C-2 — schema version is v4.x');
 {
-  assert('_schema_version is "4.0.0"', fixture._schema_version === '4.0.0');
+  assert('_schema_version starts with "4."', fixture._schema_version?.startsWith('4.'));
 }
 
 // ── Test C-3 — All entity IDs follow the <type>_<number> format ──────────────

@@ -271,6 +271,7 @@ All IDs follow `<type>_<zero-padded-number>`:
 | Session | `session_` | `session_006` |
 | Prompt Improvement Log | `pil_` | `pil_001` |
 | Entity Relationship | `rel_` | `rel_001` |
+| Faction | `fac_` | `fac_001` |
 
 Never reuse a voided or skipped ID. The current gap IDs in the NPC registry (`npc_002`, `npc_005`, `npc_006`) are permanently voided.
 
@@ -316,7 +317,7 @@ The `relationship_type` field on each entry in `entity_relationships[]` must be 
 
 ### Next available IDs (as of v4.1 — sessions 006 and 007 are placeholders)
 
-`pc_007`, `npc_015`, `loc_014`, `qst_006`, `item_012`, `cbt_007`, `session_008`, `mon_009`, `lore_004`, `moment_002`, `pil_001`, `rel_001`
+`pc_007`, `npc_015`, `loc_014`, `qst_006`, `item_012`, `cbt_007`, `session_008`, `mon_009`, `lore_004`, `moment_002`, `pil_001`, `rel_001`, `fac_001`
 
 Voided/skipped NPC IDs (never reuse): `npc_002`, `npc_005`, `npc_006`
 

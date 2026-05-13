@@ -141,6 +141,7 @@ v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. 
 | `deferred_gaps` | Workflow state array written by delta-review when the DM defers an integrity gap. Each entry: `{ id, combat_id, combat_name, session_id, missing_rounds[], gap_type, deferred_at, status }`. Not campaign narrative — persists alongside the JSON so the future campaign scanner can surface pending entries as a correction queue. |
 | `prompt_improvement_log` | Workflow state array written by delta-review publish when the DM logged steering context during an OCR re-run in Session Intake. Each entry: `{ id, session_id, page_index, steering_text, failure_summary, corrected, logged_at, status }`. IDs use `pil_NNN` prefix. `status` starts as `'pending_review'`. Not campaign narrative — captures OCR prompt failure cases for future prompt improvement review (placeholder UI in `integrity.html`). |
 | `entity_relationships` | Root-level array for explicit relationship records between any two entities (PCs, NPCs, locations, quests, etc.). Each entry: `{ id, source_id, target_id, relationship_type, session_id, notes }`. Starts empty; populated by future admin tooling. `relationship_type` uses a controlled vocabulary: `combat_antagonist`, `allied`, `quest_connection`, `location_inhabitant`, `social_contact`, `witnessed`, `unknown`. IDs use `rel_NNN` prefix. |
+| `factions` | Root-level array for organized groups with campaign significance (named leadership, ongoing role, deep lore potential). Distinct from `npc_directory[]` (named individuals). Each entry: `{ id, name, mechanics: { status, alignment, home_location, known_members[], origin_session }, narrative: { description, motivation, flavor_text, flavor_text_version, regeneration_flagged } }`. Starts empty. IDs use `fac_NNN` prefix. `fac_NNN` IDs are valid `source_id`/`target_id` values in `entity_relationships[]`. Introduced in schema v4.1. |
 
 ### Field name mappings (v4 JSON → normalised viewer shape)
 
@@ -203,6 +204,7 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `locations[].narrative.flavor_text_version` | `locations[].narrative.flavor_text_version` | Generation counter |
 | `locations[].narrative.regeneration_flagged` | `locations[].narrative.regeneration_flagged` | Boolean — DM has flagged this entry for regeneration |
 | `entity_relationships` | `entity_relationships` | Pass-through; empty array until populated |
+| `factions` | `factions` | Pass-through; empty array until populated. Each faction carries `mechanics` (status, alignment, home_location, known_members[], origin_session) and `narrative` (description, motivation, flavor_text, flavor_text_version, regeneration_flagged). IDs use `fac_NNN` prefix. Introduced in schema v4.1. |
 
 ### Combat viewer format (compact slots)
 
@@ -226,8 +228,9 @@ rounds[n].enemy[{ desc, impact? }]
 | Bestiary | mon_001–mon_008 | — |
 | Lore | lore_001–lore_002 | — |
 | Sessions | session_001–session_005 | — |
+| Factions | (none yet) | — |
 
-Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session_006`, `mon_009`, `lore_003`
+Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session_006`, `mon_009`, `lore_003`, `fac_001`
 
 ---
 
