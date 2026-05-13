@@ -38,7 +38,10 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .session-badge{background:var(--ink);color:var(--parchment);padding:3px 10px;border-radius:2px;font-size:0.6rem;}
 
 /* ── Three-pane shell ── */
-.shell{display:grid;grid-template-columns:240px 1fr 320px;flex:1;overflow:hidden;min-height:0;}
+/* Shell default: queue 240px | center flexible | AI panel 380px.
+   JS may widen or narrow the AI panel via initAssistantResize() — it always
+   rewrites the full three-column string so the grid never receives a partial value. */
+.shell{display:grid;grid-template-columns:240px 1fr 380px;flex:1;overflow:hidden;min-height:0;}
 
 /* ═══════════════════════════════
    LEFT: Queue panel
@@ -191,7 +194,18 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 /* ═══════════════════════════════
    RIGHT: AI assistant panel
 ═══════════════════════════════ */
-.assistant-panel{border-left:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--card-bg);overflow:hidden;}
+.assistant-panel{border-left:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--card-bg);overflow:hidden;position:relative;}
+
+/* Drag handle — sits on the left edge of the AI panel. The DM drags it left/right
+   to resize the panel. Width is intentionally wider than it looks (6px) so it's
+   easy to grab. Cursor changes to col-resize on hover to signal draggability. */
+.assistant-resize-handle{position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:10;background:transparent;transition:background 0.15s;}
+.assistant-resize-handle:hover,.assistant-resize-handle.dragging{background:var(--amber);opacity:0.35;}
+
+/* Dismiss button — only shown at narrow viewports (< 900px) where the panel
+   overlays the center card. Hidden at normal widths via the media query below. */
+.assistant-dismiss{display:none;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:2px 4px;line-height:1;margin-left:4px;}
+.assistant-dismiss:hover{color:var(--ink);}
 .assistant-header{padding:0.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .assistant-title{font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.1em;font-weight:600;}
 .assistant-mode-chips{display:flex;gap:4px;margin-left:auto;}
@@ -241,7 +255,10 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .scope-label{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;}
 .scope-btn{font-family:'Cinzel',serif;font-size:0.56rem;letter-spacing:0.08em;padding:3px 8px;border-radius:2px;border:1px solid var(--border-strong);background:none;cursor:pointer;color:var(--muted);transition:all 0.12s;}
 .scope-btn.active{background:var(--ink);color:var(--parchment);border-color:var(--ink);}
-.correction-textarea{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.95rem;resize:none;min-height:68px;outline:none;background:var(--parchment);color:var(--ink);transition:border-color 0.15s;line-height:1.55;}
+/* min-height raised to 80px per issue #61 — single-line input was too cramped
+   for multi-sentence corrections. Auto-grow JS caps expansion at 200px with
+   overflow-y:auto beyond that so long notes remain accessible via scroll. */
+.correction-textarea{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:3px;font-family:'Crimson Pro',serif;font-size:0.95rem;resize:none;min-height:80px;max-height:200px;overflow-y:auto;outline:none;background:var(--parchment);color:var(--ink);transition:border-color 0.15s;line-height:1.55;}
 .correction-textarea:focus{border-color:var(--amber);background:var(--card-bg);}
 .correction-send-row{display:flex;justify-content:space-between;align-items:center;}
 .correction-hint{font-size:0.78rem;color:var(--muted-light);font-style:italic;}
@@ -379,6 +396,31 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 
 /* ✎ mark shown on corrected items in the queue sidebar */
 .queue-edited-mark{color:var(--teal);font-size:0.78rem;margin-left:4px;}
+
+/* ── Narrow viewport: AI panel becomes a slide-in overlay ───────────────────
+   Below 900px the three-column grid is too cramped. The AI panel is hidden
+   off-screen (translateX(100%)) and slides in when the .open class is added.
+   The center card fills the full width. The dismiss button (hidden at normal
+   widths) becomes visible so the DM can close the overlay. */
+@media (max-width: 899px) {
+  .shell { grid-template-columns: 240px 1fr; }
+  .assistant-panel {
+    position: fixed;
+    right: 0;
+    top: 64px; /* below the header */
+    bottom: 0;
+    width: 380px;
+    max-width: 100vw;
+    z-index: 50;
+    border-left: 2px solid var(--border-strong);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+    /* Drag handle is not useful in overlay mode — the panel has a fixed position */
+  }
+  .assistant-panel.open { transform: translateX(0); }
+  .assistant-resize-handle { display: none; }
+  .assistant-dismiss { display: inline-flex; align-items: center; }
+}
 </style>
 </head>
 <body>
@@ -445,13 +487,19 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 </div>
 
 <!-- ═══════════ RIGHT ASSISTANT ═══════════ -->
-<div class="assistant-panel">
+<div class="assistant-panel" id="assistant-panel">
+  <!-- Drag handle: the DM grabs this to resize the panel. JS in initAssistantResize()
+       wires the mousedown event. Hidden in overlay mode (narrow viewports). -->
+  <div class="assistant-resize-handle" id="assistant-resize-handle"></div>
   <div class="assistant-header">
     <div class="assistant-title">AI Corrections</div>
     <div class="assistant-mode-chips">
       <button class="mode-chip active" id="chip-item" onclick="setScope('item',this)">This item</button>
       <button class="mode-chip" id="chip-global" onclick="setScope('global',this)">All items</button>
     </div>
+    <!-- Dismiss button: only visible at narrow viewports (< 900px) via media query.
+         Closes the overlay so the DM can return to the full-width center card. -->
+    <button class="assistant-dismiss" id="assistant-dismiss" onclick="closeAssistantPanel()" title="Close panel">✕</button>
   </div>
   <div class="assistant-scroll" id="assistant-scroll">
     <div class="assistant-empty" id="assistant-empty">
@@ -2502,6 +2550,119 @@ function loadIntakeDelta() {
 }
 
 // ══════════════════════════════════════════════════════
+// AI PANEL RESIZE
+// ══════════════════════════════════════════════════════
+
+/**
+ * initAssistantResize()
+ *
+ * Wires the left-edge drag handle on the AI corrections panel so the DM can
+ * resize it by dragging. The chosen width is persisted to sessionStorage so it
+ * survives page navigation within the same session but resets on next open.
+ *
+ * Why sessionStorage (not localStorage): panel width is a session preference,
+ * not a permanent setting. sessionStorage is already used by this page for
+ * intake hand-off; it is cleared automatically when the tab closes.
+ *
+ * The grid column string is always written in full (e.g. "240px 1fr 420px") so
+ * the grid never receives a partial or malformed value.
+ */
+function initAssistantResize() {
+  const STORAGE_KEY = 'chronicle_ai_panel_width';
+  const MIN_WIDTH   = 280;
+  const MAX_WIDTH   = 600;
+  const DEFAULT_WIDTH = 380;
+
+  const shell  = document.querySelector('.shell');
+  const handle = document.getElementById('assistant-resize-handle');
+  if (!shell || !handle) return;
+
+  // Helper: apply a panel width to the shell grid and persist it.
+  // Always writes the full three-column string to avoid partial values.
+  function applyWidth(px) {
+    const clamped = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, px));
+    shell.style.gridTemplateColumns = '240px 1fr ' + clamped + 'px';
+    return clamped;
+  }
+
+  // Restore saved width from sessionStorage on load.
+  // Falls back to DEFAULT_WIDTH when no saved value exists.
+  const saved = parseInt(sessionStorage.getItem(STORAGE_KEY), 10);
+  applyWidth(saved || DEFAULT_WIDTH);
+
+  // Drag resize: track startX and the panel's width at drag start so we can
+  // compute the delta. The panel is on the right, so dragging left increases width.
+  let dragging = false;
+  let startX   = 0;
+  let startWidth = 0;
+
+  handle.addEventListener('mousedown', e => {
+    dragging   = true;
+    startX     = e.clientX;
+    // Read the current third column from the computed style so we start from
+    // whatever width was in effect (saved or default), not the CSS-sheet value.
+    const cols = shell.style.gridTemplateColumns || window.getComputedStyle(shell).gridTemplateColumns;
+    startWidth = parseInt(cols.split(' ')[2], 10) || DEFAULT_WIDTH;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none'; // prevent text selection during drag
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    // Panel is on the right — moving the handle left (lower clientX) increases width.
+    const newWidth = applyWidth(startWidth - (e.clientX - startX));
+    sessionStorage.setItem(STORAGE_KEY, newWidth);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+}
+
+/**
+ * closeAssistantPanel()
+ *
+ * Removes the .open class from the AI panel, sliding it off-screen in overlay
+ * mode (< 900px viewports). No-op at normal widths where the panel is always
+ * visible in the grid — removing .open from a non-overlay panel has no effect.
+ */
+function closeAssistantPanel() {
+  const panel = document.getElementById('assistant-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+// ══════════════════════════════════════════════════════
+// TEXTAREA AUTO-GROW
+// ══════════════════════════════════════════════════════
+
+/**
+ * initTextareaAutoGrow()
+ *
+ * Makes the correction textarea expand as the DM types, up to a 200px ceiling.
+ * Beyond 200px the textarea scrolls internally so long notes remain accessible.
+ *
+ * Why set height='auto' before reading scrollHeight: browsers report the
+ * scrollHeight of the current content, but only if the element is not already
+ * constrained by an explicit height. Resetting to 'auto' each time ensures the
+ * measurement reflects the true content height rather than the previous height.
+ */
+function initTextareaAutoGrow() {
+  const ta = document.getElementById('correction-input');
+  if (!ta) return;
+
+  ta.addEventListener('input', () => {
+    ta.style.height = 'auto'; // release constraint so scrollHeight is accurate
+    ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+  });
+}
+
+// ══════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════
 // loadIntakeDelta() must run before renderQueue() — it may replace items[].
@@ -2514,6 +2675,9 @@ updateProgress();
 // and updateProgress() re-gates the Publish button. If the fetch fails,
 // initIntegrity() logs a warning and the review proceeds without integrity checking.
 initIntegrity();
+// Wire panel resize (drag handle + sessionStorage restore) and textarea auto-grow.
+initAssistantResize();
+initTextareaAutoGrow();
 </script>
 </body>
 </html>
