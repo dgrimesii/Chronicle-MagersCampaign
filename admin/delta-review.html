@@ -1379,7 +1379,12 @@ function applyDiff(msgId) {
   // applies confident matches automatically (uncertain matches are flagged).
   // sourceItemId (item.id) is excluded from propagation — it's already corrected above.
   const _newFactKeys = extractAndRegisterFacts(item, msg.diffs);
+  // Temporary debug log — remove after issue #57 propagation is confirmed working.
+  console.log('[#57 debug] diffs:', JSON.stringify(msg.diffs));
+  console.log('[#57 debug] registered keys:', _newFactKeys);
+  console.log('[#57 debug] sessionGroundTruth:', JSON.stringify(window.sessionGroundTruth));
   if (_newFactKeys.length) propagateGroundTruth(_newFactKeys, item.id);
+  console.log('[#57 debug] after propagation — impacted items:', [...items,...cascadeItems].filter(i=>i.corrected&&i.id!==item.id).map(i=>i.id));
 
   // Clear only uncertainty flags whose .text matches a corrected field key.
   // The old stub cleared ALL flags indiscriminately — this version only removes
