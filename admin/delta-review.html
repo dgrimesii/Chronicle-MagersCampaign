@@ -1367,6 +1367,43 @@ async function publish() {
     || 'unknown_session';
 
   try {
+    // safeTestMode: bypass Drive entirely.
+    // Browsers cannot write to the local filesystem, so we:
+    //   1. Read from the local fixture (getCampaignPath) instead of Drive
+    //   2. Apply deltas as normal
+    //   3. Trigger a file download of the result so you can replace the fixture manually
+    // No backup is created — there is no Drive target to back up to.
+    if (window.CHRONICLE_CONFIG.safeTestMode) {
+      setPublishStatus('Safe test mode — reading local fixture…', 'loading');
+      const res = await fetch(window.CHRONICLE_CONFIG.getCampaignPath());
+      if (!res.ok) throw new Error('Could not read local fixture: HTTP ' + res.status);
+      const campaign = await res.json();
+
+      setPublishStatus('Applying deltas…', 'loading');
+      const updated = applyDeltasToCampaign(campaign, approved);
+
+      // Trigger a download of the merged JSON so it can be saved back to the fixture manually.
+      // Live Server has no write endpoint — this is the closest equivalent to a local write.
+      const blob = new Blob([JSON.stringify(updated, null, 2)], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'test-campaign.json';
+      a.click();
+      URL.revokeObjectURL(url);
+
+      const n = approved.length;
+      setPublishStatus(`✓ [TEST MODE] ${n} delta${n!==1?'s':''} applied — download started. Replace tests/fixtures/test-campaign.json with the downloaded file.`, 'ok');
+      approved.forEach(i => { i.status = 'published'; });
+      renderQueue();
+      updateProgress();
+
+      // Post-publish narrative trigger still fires in test mode — it only reads
+      // the updated JSON and writes to sessionStorage, so no Drive access needed.
+      afterPublishSuccess(updated, sessionId);
+      return;
+    }
+
     // Step 1 — pre-publish backup
     setPublishStatus('Creating backup…', 'loading');
     const sessionLabel = items.find(i=>i.array==='session_logs')?.id || 'pre-publish';
