@@ -1969,43 +1969,50 @@ function _escapeRegex(str) {
 /**
  * _extractMinimalSubstitution(oldStr, newStr)
  *
- * Finds the minimal changed token between two strings by stripping their longest
- * common prefix and suffix. Returns { old, new } of just the changed portion.
+ * Finds the single word that changed between two strings using a word-set diff.
+ * Returns { old, new } of just the changed word pair.
  *
- * Why: the AI returns diffs at the phrase level ("Gold — True Strike..." →
- * "Goldie — True Strike...") rather than the token level. Registering the whole
- * phrase as a fact key would never match anything in other items. Extracting just
- * the changed word ("Gold" → "Goldie") gives a key that propagates correctly.
+ * Why character-level prefix/suffix fails here: "Gold" and "Goldie" share the
+ * prefix "Gold", so character-level extraction sees old="" and new="ie" — which
+ * is technically correct but useless as a propagation key. Word-level diffing
+ * instead asks: "which word appears in old but not new?" Answer: "Gold".
  *
- * Example:
- *   old = "Gold — True Strike, crit [9]"
- *   new = "Goldie — True Strike, crit [9]"
- *   → { old: "Gold", new: "Goldie" }
+ * Algorithm:
+ *   1. Extract all \w+ tokens from each string (case-insensitive comparison)
+ *   2. Find tokens only in old (removed) and only in new (added)
+ *   3. If exactly one removed and one added: that's the substitution
+ *   4. Otherwise return empty (ambiguous — don't register)
  *
- * Returns { old: '', new: '' } when the strings are identical or the extraction
- * produces an empty result — callers should skip registration in that case.
+ * Examples:
+ *   "Slot 6: Gold —" → "Slot 6: Goldie —"  →  { old:"Gold",  new:"Goldie" }
+ *   "Gold crits with True Strike" → "Goldie crits with True Strike"
+ *                                              →  { old:"Gold",  new:"Goldie" }
+ *   "Bel" → "Belfar"  (direct short diff — handled by isMinimal fast path)
+ *
+ * Returns { old:'', new:'' } when no clean single-word substitution is found.
  */
 function _extractMinimalSubstitution(oldStr, newStr) {
-  // Walk forward to find where the strings diverge
-  let prefixLen = 0;
-  const minLen = Math.min(oldStr.length, newStr.length);
-  while (prefixLen < minLen && oldStr[prefixLen] === newStr[prefixLen]) prefixLen++;
+  // Extract word tokens — letters, digits, apostrophes, hyphens within words
+  const tokenize = s => (s.match(/[\w'-]+/g) || []);
+  const oldTokens = tokenize(oldStr);
+  const newTokens = tokenize(newStr);
 
-  // Walk backward from the end to find the common suffix
-  let oldEnd = oldStr.length;
-  let newEnd = newStr.length;
-  while (oldEnd > prefixLen && newEnd > prefixLen &&
-         oldStr[oldEnd - 1] === newStr[newEnd - 1]) {
-    oldEnd--;
-    newEnd--;
+  // Build case-insensitive lookup sets for each side
+  const oldLower = new Set(oldTokens.map(w => w.toLowerCase()));
+  const newLower = new Set(newTokens.map(w => w.toLowerCase()));
+
+  // Words present in old but absent from new (the "removed" word)
+  const removed = oldTokens.filter(w => !newLower.has(w.toLowerCase()));
+  // Words present in new but absent from old (the "added" word)
+  const added   = newTokens.filter(w => !oldLower.has(w.toLowerCase()));
+
+  // Only register when exactly one word was swapped — multiple changes are
+  // ambiguous and could cause incorrect propagation across unrelated items.
+  if (removed.length === 1 && added.length === 1) {
+    return { old: removed[0], new: added[0] };
   }
 
-  // Trim surrounding whitespace/punctuation from the extracted token so we get
-  // a clean word ("Gold" not " Gold") that will match reliably in propagation.
-  const oldToken = oldStr.slice(prefixLen, oldEnd).trim();
-  const newToken = newStr.slice(prefixLen, newEnd).trim();
-
-  return { old: oldToken, new: newToken };
+  return { old: '', new: '' };
 }
 
 /**
