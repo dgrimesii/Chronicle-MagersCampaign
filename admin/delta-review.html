@@ -1967,6 +1967,48 @@ function _escapeRegex(str) {
 }
 
 /**
+ * _extractMinimalSubstitution(oldStr, newStr)
+ *
+ * Finds the minimal changed token between two strings by stripping their longest
+ * common prefix and suffix. Returns { old, new } of just the changed portion.
+ *
+ * Why: the AI returns diffs at the phrase level ("Gold — True Strike..." →
+ * "Goldie — True Strike...") rather than the token level. Registering the whole
+ * phrase as a fact key would never match anything in other items. Extracting just
+ * the changed word ("Gold" → "Goldie") gives a key that propagates correctly.
+ *
+ * Example:
+ *   old = "Gold — True Strike, crit [9]"
+ *   new = "Goldie — True Strike, crit [9]"
+ *   → { old: "Gold", new: "Goldie" }
+ *
+ * Returns { old: '', new: '' } when the strings are identical or the extraction
+ * produces an empty result — callers should skip registration in that case.
+ */
+function _extractMinimalSubstitution(oldStr, newStr) {
+  // Walk forward to find where the strings diverge
+  let prefixLen = 0;
+  const minLen = Math.min(oldStr.length, newStr.length);
+  while (prefixLen < minLen && oldStr[prefixLen] === newStr[prefixLen]) prefixLen++;
+
+  // Walk backward from the end to find the common suffix
+  let oldEnd = oldStr.length;
+  let newEnd = newStr.length;
+  while (oldEnd > prefixLen && newEnd > prefixLen &&
+         oldStr[oldEnd - 1] === newStr[newEnd - 1]) {
+    oldEnd--;
+    newEnd--;
+  }
+
+  // Trim surrounding whitespace/punctuation from the extracted token so we get
+  // a clean word ("Gold" not " Gold") that will match reliably in propagation.
+  const oldToken = oldStr.slice(prefixLen, oldEnd).trim();
+  const newToken = newStr.slice(prefixLen, newEnd).trim();
+
+  return { old: oldToken, new: newToken };
+}
+
+/**
  * _applySubstitutionToObj(obj, key, resolvedName, fieldPath, diffs)
  *
  * Recursively walks a rawData object and replaces whole-word occurrences of
@@ -1981,7 +2023,12 @@ function _escapeRegex(str) {
  */
 function _applySubstitutionToObj(obj, re, key, resolvedName, fieldPath, diffs) {
   if (typeof obj === 'string') {
+    // Reset lastIndex before each test — the 'g' flag makes the regex stateful,
+    // so without this reset a match in a previous field would advance lastIndex
+    // past the start of the next field's string, causing missed matches.
+    re.lastIndex = 0;
     if (re.test(obj)) {
+      re.lastIndex = 0;
       const corrected = obj.replace(new RegExp(re.source, re.flags), resolvedName);
       diffs.push({ k: fieldPath, old: key, new: corrected });
       return corrected;
@@ -2036,18 +2083,39 @@ function extractAndRegisterFacts(item, diffs) {
     if (typeof d.old !== 'string' || !d.old.trim()) return;
     if (typeof d.new !== 'string' || !d.new.trim()) return;
     if (CONTENT_FIELDS.has(d.k)) return;
-    // Only short single-line phrases qualify as name aliases.
-    if (d.old.length > 40 || d.old.includes('\n')) return;
+    if (d.old.includes('\n') && d.new.includes('\n')) return; // multi-line block swap — not a name alias
 
-    window.sessionGroundTruth[d.old] = {
+    // Extract the minimal changed token from the diff. The AI returns diffs at
+    // phrase level ("Gold — True Strike..." → "Goldie — True Strike..."), but we
+    // need just the changed word ("Gold" → "Goldie") as the registry key so it
+    // propagates reliably across all items. When d.old is already a short token
+    // (no spaces, ≤ 20 chars) use it directly; otherwise strip the common prefix
+    // and suffix to isolate the changed portion.
+    let factKey, factValue;
+    const isMinimal = d.old.length <= 20 && !d.old.includes(' ');
+    if (isMinimal) {
+      factKey   = d.old;
+      factValue = d.new;
+    } else {
+      const sub = _extractMinimalSubstitution(d.old, d.new);
+      // Skip if extraction produced nothing (strings identical, or only
+      // whitespace/punctuation changed — not a name substitution).
+      if (!sub.old || !sub.new || sub.old === sub.new) return;
+      // Skip if the extracted token is itself long — it's a phrase edit, not a name.
+      if (sub.old.length > 40 || sub.old.includes(' ')) return;
+      factKey   = sub.old;
+      factValue = sub.new;
+    }
+
+    window.sessionGroundTruth[factKey] = {
       // For 'name' diffs the entity type is known; for all others store 'text'
       // so propagation searches all string fields rather than only rawData.name.
       type:         d.k === 'name' ? arrayToEntityType(item.array) : 'text',
       resolvedId:   d.k === 'name' ? (item.rawData?.id ?? null) : null,
-      resolvedName: d.new,
+      resolvedName: factValue,
       assertedAt:   item.id,
     };
-    newKeys.push(d.old);
+    newKeys.push(factKey);
   });
 
   return newKeys;
