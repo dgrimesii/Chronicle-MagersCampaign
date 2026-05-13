@@ -122,15 +122,36 @@ const ChronicleAI = (() => {
 
   // ─────────────────────────────────────────────────────────
   // JSON extraction helper
-  // Strips ```json fences, parses, returns object or throws
+  // Extracts and parses a JSON object from the AI response.
+  //
+  // Why three strategies exist: the AI is instructed to respond with JSON only,
+  // but sometimes includes reasoning text before the code block (especially on
+  // complex corrections). A single fence-strip fails in that case because the
+  // leading text makes JSON.parse throw. We try progressively looser extraction
+  // so the Apply button still appears even when the AI is verbose.
   // ─────────────────────────────────────────────────────────
   function parseJSON(raw) {
-    const clean = raw
-      .replace(/^```json\s*/m, '')
-      .replace(/^```\s*/m, '')
-      .replace(/```\s*$/m, '')
-      .trim();
-    return JSON.parse(clean);
+    // Strategy 1: extract the content between ```json ... ``` fences anywhere in
+    // the response. [\s\S]*? matches newlines too; non-greedy stops at first ```.
+    // This handles the common case of preamble reasoning text before the fence.
+    const fenceMatch = raw.match(/```json\s*([\s\S]*?)```/);
+    if (fenceMatch) return JSON.parse(fenceMatch[1].trim());
+
+    // Strategy 2: no language tag — bare ``` fences — only attempt if the
+    // captured content looks like a JSON object (starts with '{').
+    const plainFence = raw.match(/```\s*([\s\S]*?)```/);
+    if (plainFence && plainFence[1].trim().startsWith('{')) {
+      return JSON.parse(plainFence[1].trim());
+    }
+
+    // Strategy 3: no fences at all — find the first '{' and parse from there.
+    // Handles responses where the AI omitted the code block entirely.
+    const objStart = raw.indexOf('{');
+    if (objStart !== -1) return JSON.parse(raw.slice(objStart));
+
+    // Final fallback: trim and parse. Will throw if none of the above worked,
+    // and the caller's catch block will wrap it as a plain content response.
+    return JSON.parse(raw.trim());
   }
 
   // ─────────────────────────────────────────────────────────
@@ -393,7 +414,7 @@ You help the DM correct errors in session intake deltas. When given a correction
 3. If the correction could apply to multiple pending items, include a "globalScope" array of affected item titles
 4. Always explain your reasoning in plain language in "content"
 
-Respond ONLY with valid JSON:
+Respond ONLY with valid JSON. Do not include any reasoning, explanation, or text outside the JSON object — put your explanation inside the "content" field.
 {
   "content": "plain language explanation of what you changed and why",
   "diffs": [{"k": "field · subfield", "old": "previous value", "new": "corrected value"}],
@@ -401,7 +422,7 @@ Respond ONLY with valid JSON:
   "globalScope": ["item title 1", "item title 2"]
 }
 
-Omit diffs, cascades, or globalScope if not applicable. Never omit content.
+Omit diffs, cascades, or globalScope if not applicable. Never omit content. Never write text before or after the JSON block.
 
 For items of type RAW (uninterpreted OCR text), the rawData contains only one
 field: "ocr_text". These items are confirmed OCR output that the DM is now

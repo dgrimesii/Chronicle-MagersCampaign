@@ -242,11 +242,17 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 /* Modified data preview */
 .diff-preview{margin:0.6rem 0;}
 .diff-preview-title{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+/* diff-lines-scroll: caps the scrollable diff content so the Apply/Discard buttons
+   remain visible even when a diff contains multi-line OCR text blocks. Without this,
+   a diff whose old/new values span many lines pushes the apply bar below the panel edge. */
+.diff-lines-scroll{max-height:220px;overflow-y:auto;margin-bottom:0.4rem;}
 .diff-line{display:flex;align-items:baseline;gap:8px;font-size:0.88rem;padding:3px 0;border-bottom:1px solid var(--border);}
 .diff-line:last-child{border-bottom:none;}
-.diff-key{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted);min-width:90px;}
-.diff-old{color:var(--muted);text-decoration:line-through;font-size:0.85rem;}
-.diff-new{color:var(--teal);font-weight:500;}
+.diff-key{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted);min-width:90px;flex-shrink:0;}
+/* pre-wrap so \n in multi-line OCR diff values renders as visible line breaks.
+   Without this, newlines collapse to spaces and produce one long unreadable line. */
+.diff-old{color:var(--muted);text-decoration:line-through;font-size:0.85rem;white-space:pre-wrap;word-break:break-word;}
+.diff-new{color:var(--teal);font-weight:500;white-space:pre-wrap;word-break:break-word;}
 .diff-apply-bar{display:flex;gap:6px;margin-top:0.6rem;}
 
 /* Correction input */
@@ -1219,7 +1225,9 @@ function renderAssistant() {
     if (msg.diffs?.length) {
       extra += `<div class="diff-preview">
         <div class="diff-preview-title">Proposed changes</div>
-        ${msg.diffs.map(d=>`<div class="diff-line"><span class="diff-key">${d.k}</span>${d.old?`<span class="diff-old">${d.old}</span><span style="color:var(--muted);margin:0 4px;">→</span>`:'<span style="color:var(--muted);margin-right:4px;">+</span>'}<span class="diff-new">${d.new}</span></div>`).join('')}
+        <div class="diff-lines-scroll">
+        ${msg.diffs.map(d=>`<div class="diff-line"><span class="diff-key">${escapeHtmlDR(d.k)}</span>${d.old!=null?`<span class="diff-old">${escapeHtmlDR(String(d.old))}</span><span style="color:var(--muted);margin:0 4px;">→</span>`:'<span style="color:var(--muted);margin-right:4px;">+</span>'}<span class="diff-new">${escapeHtmlDR(String(d.new))}</span></div>`).join('')}
+        </div>
         <div class="diff-apply-bar">
           <button class="btn btn-approve" style="font-size:0.62rem;padding:4px 12px;" onclick="applyDiff('${msg.id}')">Apply these changes ✓</button>
           <button class="btn btn-reject" style="font-size:0.62rem;padding:4px 12px;" onclick="rejectDiff('${msg.id}')">Discard</button>
@@ -1292,9 +1300,11 @@ function sendCorrection() {
     itemContext,
     scope: correctionScope,
     pendingItems: allPending,
-    // Inject the campaign roster so the AI treats existing entities as ground truth.
-    // Falls back to '' when initIntegrity() was skipped (items[] was empty on load).
-    campaignRoster: window.campaignRoster ?? '',
+    // Inject the campaign roster AND any DM-confirmed session facts so the AI
+    // treats both as hard constraints. buildAIContextString() concatenates the
+    // static roster with the session ground truth block (issue #57).
+    // Falls back to roster-only (or '') when no facts have been registered yet.
+    campaignRoster: buildAIContextString(),
     onLoading: () => {},
     onResult:  response => handleResponse(response),
     onError:   ()       => handleResponse(ChronicleAI.demoCorrectionResponse(text, itemContext)),
@@ -1362,6 +1372,14 @@ function applyDiff(msgId) {
   if (!item.appliedCorrections) item.appliedCorrections = [];
   msg.diffs.forEach(d => item.appliedCorrections.push({ ...d }));
   item.corrected = true;
+
+  // Register ground truth facts and propagate to other queue items (issue #57).
+  // Must happen BEFORE msg.diffs is nulled — extractAndRegisterFacts reads the
+  // live diffs array. propagateGroundTruth then scans all other queue items and
+  // applies confident matches automatically (uncertain matches are flagged).
+  // sourceItemId (item.id) is excluded from propagation — it's already corrected above.
+  const _newFactKeys = extractAndRegisterFacts(item, msg.diffs);
+  if (_newFactKeys.length) propagateGroundTruth(_newFactKeys, item.id);
 
   // Clear only uncertainty flags whose .text matches a corrected field key.
   // The old stub cleared ALL flags indiscriminately — this version only removes
@@ -1788,6 +1806,14 @@ let showingIntegrityPanel = false; // true when the center shows the integrity v
 // (e.g. when items[] is empty and the early-return fires before buildCampaignRoster runs).
 window.campaignRoster = '';
 
+// Session-scoped ground truth registry (issue #57).
+// Stores DM-confirmed entity resolutions for the duration of the review session.
+// Shape: { [aliasKey]: { type, resolvedId, resolvedName, assertedAt } }
+// e.g. { "Bel": { type:"location", resolvedId:"loc_005", resolvedName:"Belfar", assertedAt:"d_001" } }
+// Initialised to {} — facts are added by extractAndRegisterFacts() when the DM applies corrections.
+// Read by buildAIContextString() to inject hard constraints into every subsequent AI call.
+window.sessionGroundTruth = {};
+
 /**
  * buildCampaignRoster(json)
  *
@@ -1826,6 +1852,227 @@ function buildCampaignRoster(json) {
   ];
 
   return lines.join('\n');
+}
+
+// ══════════════════════════════════════════════════════
+// SESSION GROUND TRUTH — registry, injection, propagation (issue #57)
+//
+// WHY THIS EXISTS
+// ---------------
+// The AI correction assistant resets context with every new queue item. A fact
+// the DM confirms on card 3 ("Bel = Belfar loc_005") is invisible when working
+// on card 7, and applied corrections never propagate to other cards that reference
+// the same entity. This section adds a page-scoped registry of DM-confirmed facts
+// that is injected into every AI call and propagated across the queue automatically.
+//
+// DATA FLOW
+// ---------
+// 1. applyDiff() calls extractAndRegisterFacts() before nulling msg.diffs.
+// 2. extractAndRegisterFacts() writes name-change facts to window.sessionGroundTruth.
+// 3. applyDiff() then calls propagateGroundTruth() with the newly registered keys.
+// 4. propagateGroundTruth() auto-applies confident matches and flags uncertain ones.
+// 5. sendCorrection() calls buildAIContextString() which appends the facts block
+//    to the campaign roster — the AI receives both as hard constraints.
+// ══════════════════════════════════════════════════════
+
+/**
+ * arrayToEntityType(array)
+ *
+ * Maps a queue item's array field to a plain entity type string.
+ * Why: the registry stores type as a short string ('location', 'npc', etc.) for
+ * AI injection and propagation matching. item.array uses the JSON array key which
+ * is not the same as the type label the AI or DM would recognise.
+ * What breaks if removed: extractAndRegisterFacts and propagateGroundTruth would
+ * have no common type vocabulary for matching source facts to target items.
+ */
+function arrayToEntityType(array) {
+  const map = {
+    locations:          'location',
+    npc_directory:      'npc',
+    quest_ledger:       'quest',
+    inventory_and_loot: 'item',
+    combat_encounters:  'combat',
+    session_logs:       'session',
+    bestiary:           'monster',
+    factions:           'faction',
+    cohorts:            'cohort',
+  };
+  return map[array] || 'unknown';
+}
+
+/**
+ * buildSessionFactsBlock()
+ *
+ * Serialises window.sessionGroundTruth into an AI prompt block listing all
+ * DM-confirmed facts as hard constraints. Returns '' when the registry is empty
+ * so that AI calls before any fact is registered are not affected.
+ *
+ * Why: the AI needs these constraints in every call — without injection it forgets
+ * facts established on previous cards. The block is appended after the campaign
+ * roster so the AI sees: static ground truth → session-specific hard constraints.
+ * What breaks if removed: the AI correction system loses cross-card context,
+ * regressing to the stateless behaviour this issue was filed to fix.
+ */
+function buildSessionFactsBlock() {
+  const keys = Object.keys(window.sessionGroundTruth);
+  // Early return keeps the AI call clean when no facts have been established yet.
+  if (keys.length === 0) return '';
+
+  const lines = [
+    'CONFIRMED SESSION FACTS (DM-asserted ground truth — treat as hard constraints):',
+  ];
+  keys.forEach(key => {
+    const f = window.sessionGroundTruth[key];
+    // Format: "Bel" = existing location Belfar (loc_005)
+    const idPart = f.resolvedId ? ` (${f.resolvedId})` : '';
+    lines.push(`"${key}" = existing ${f.type} ${f.resolvedName}${idPart}`);
+  });
+  lines.push('The AI must not contradict these facts in any response for the remainder of the session.');
+
+  return lines.join('\n');
+}
+
+/**
+ * buildAIContextString()
+ *
+ * Combines the static campaign roster with the session facts block for injection
+ * into sendCorrectionToAI(). Replaces the bare `window.campaignRoster ?? ''` at
+ * the call site so the AI always receives both layers of ground truth in one string.
+ *
+ * Why: chronicle-ai.js accepts a single campaignRoster string — rather than adding
+ * a second parameter and changing the module, we build the combined string here and
+ * pass it as the existing parameter. chronicle-ai.js stays unaware of the registry.
+ * What breaks if removed: session facts stop reaching the AI, reverting to issue #57 state.
+ */
+function buildAIContextString() {
+  const roster = window.campaignRoster ?? '';
+  const facts  = buildSessionFactsBlock();
+  // Only join with separator when both parts are non-empty; avoids leading newlines
+  // before any facts are registered or when initIntegrity() was skipped.
+  return (roster && facts) ? roster + '\n\n' + facts : roster || facts;
+}
+
+/**
+ * extractAndRegisterFacts(item, diffs)
+ *
+ * Reads a set of applied diffs and registers any name-change corrections as
+ * confirmed facts in window.sessionGroundTruth. Returns the array of newly
+ * registered keys so the caller can pass them to propagateGroundTruth().
+ *
+ * Why: name corrections are the primary signal that the DM has resolved an alias
+ * or abbreviation to a known entity. d.k === 'name' is the only diff key that
+ * carries a resolvable entity identity — other field corrections (description,
+ * notes, etc.) do not establish cross-card facts.
+ * What breaks if removed: no facts are ever registered; the registry stays empty
+ * and the session ground truth system is silently non-functional.
+ *
+ * Called from applyDiff() BEFORE msg.diffs is nulled — must read msg.diffs live.
+ */
+function extractAndRegisterFacts(item, diffs) {
+  const newKeys = [];
+  if (!Array.isArray(diffs)) return newKeys;
+
+  diffs.forEach(d => {
+    // Only name corrections are registered as ground truth — these are the cases
+    // where the DM is asserting "this alias resolves to this known entity".
+    // Other diffs (description, notes, id) correct content, not identity.
+    if (d.k !== 'name') return;
+    if (typeof d.old !== 'string' || !d.old.trim()) return;
+    if (typeof d.new !== 'string' || !d.new.trim()) return;
+
+    window.sessionGroundTruth[d.old] = {
+      type:         arrayToEntityType(item.array),
+      resolvedId:   item.rawData?.id ?? null,
+      resolvedName: d.new,
+      assertedAt:   item.id,   // which queue item the DM confirmed this on
+    };
+    newKeys.push(d.old);
+  });
+
+  return newKeys;
+}
+
+/**
+ * propagateGroundTruth(newKeys, sourceItemId)
+ *
+ * Scans every queue item (excluding the source item that just registered the facts)
+ * and applies each newly confirmed fact where a matching entity name is found.
+ *
+ * Confident match (auto-applied):
+ *   rawData.name is an exact case-insensitive match to the fact key AND
+ *   the item's entity type matches the fact's type.
+ *   → Pushed directly to item.appliedCorrections[]; item.corrected set true.
+ *
+ * Uncertain match (flagged for DM confirmation):
+ *   rawData.name contains the fact key as a substring, OR the types differ.
+ *   → A flag is added to item.flags[] prompting the DM to confirm or dismiss.
+ *
+ * After scanning: renderQueue() updates the queue indicators on all impacted items.
+ * renderReview() is only called when the currently active card was impacted — this
+ * prevents the center panel from resetting while the DM is working on a different card.
+ *
+ * Why: without propagation, corrections are siloed to the card where they were entered.
+ * What breaks if removed: impacted cards accumulate stale names until the DM manually
+ * corrects each one — the whole point of the registry is cross-card propagation.
+ */
+function propagateGroundTruth(newKeys, sourceItemId) {
+  if (!newKeys.length) return;
+
+  const allItems = [...items, ...cascadeItems];
+  const impactedIds = new Set();
+
+  newKeys.forEach(key => {
+    const fact = window.sessionGroundTruth[key];
+    if (!fact) return;
+
+    allItems.forEach(target => {
+      // Never re-process the item that just asserted the fact — it's already corrected.
+      if (target.id === sourceItemId) return;
+      // Round items have no name field — skip silently rather than crashing.
+      if (typeof target.rawData?.name !== 'string') return;
+
+      const targetName = target.rawData.name;
+      const keyLower   = key.toLowerCase();
+      const nameLower  = targetName.toLowerCase();
+      const typeMatch  = arrayToEntityType(target.array) === fact.type;
+      const exactMatch = nameLower === keyLower;
+      const partialMatch = !exactMatch && nameLower.includes(keyLower);
+
+      if (exactMatch && typeMatch) {
+        // Confident match — apply the correction automatically.
+        // Same diff shape as AI-applied corrections so the Corrections Applied
+        // section renders identically whether the source was AI or propagation.
+        if (!target.appliedCorrections) target.appliedCorrections = [];
+        target.appliedCorrections.push({ k: 'name', old: key, new: fact.resolvedName });
+        // Also update rawData.name so the queue title and nlRender() reflect
+        // the corrected name without the DM having to manually re-correct.
+        target.rawData.name = fact.resolvedName;
+        target.corrected = true;
+        impactedIds.add(target.id);
+      } else if (partialMatch || (exactMatch && !typeMatch)) {
+        // Uncertain match — flag rather than auto-apply.
+        // The DM may dismiss the flag if the match is coincidental.
+        if (!target.flags) target.flags = [];
+        const flagText = `Possible match: "${key}" = ${fact.resolvedName} (${fact.type}) — confirm?`;
+        // Guard against duplicate flags from multiple propagation calls.
+        if (!target.flags.some(f => f.text === flagText)) {
+          target.flags.push({ text: flagText });
+          impactedIds.add(target.id);
+        }
+      }
+    });
+  });
+
+  if (!impactedIds.size) return;
+
+  // Update queue indicators for all impacted items in one pass.
+  renderQueue();
+
+  // Only re-render the center panel if the currently active card was impacted.
+  // Rendering any other card's content would replace the DM's active view — unsafe.
+  if (selectedId && impactedIds.has(selectedId)) {
+    renderReview();
+  }
 }
 
 // Build the INCOMING array that ChronicleIntegrity.checks() expects from the
