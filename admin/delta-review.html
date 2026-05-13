@@ -1960,9 +1960,23 @@ function buildAIContextString() {
  * registered keys so the caller can pass them to propagateGroundTruth().
  *
  * Why: name corrections are the primary signal that the DM has resolved an alias
- * or abbreviation to a known entity. d.k === 'name' is the only diff key that
- * carries a resolvable entity identity — other field corrections (description,
- * notes, etc.) do not establish cross-card facts.
+ * or abbreviation to a known entity. Two diff keys establish cross-card facts:
+ *
+ *   d.k === 'name'     — structured entity items (NPC, location, quest, etc.)
+ *                        d.old is the wrong name; d.new is the correct name.
+ *                        Entity type is derived from item.array.
+ *
+ *   d.k === 'ocr_text' — RAW OCR items (most round/slot queue items).
+ *                        The AI is instructed to diff only the changed portion,
+ *                        so d.old is the specific phrase to replace (e.g. "Gold")
+ *                        and d.new is the correction (e.g. "Goldie"). When d.old
+ *                        is a short single-token string it is treated as a name
+ *                        alias. Type is stored as 'ocr' so propagation routes it
+ *                        to ocr_text searches rather than rawData.name searches.
+ *
+ * Other diff keys (description, notes, id) correct content, not identity, and
+ * are not registered as ground truth.
+ *
  * What breaks if removed: no facts are ever registered; the registry stays empty
  * and the session ground truth system is silently non-functional.
  *
@@ -1973,20 +1987,36 @@ function extractAndRegisterFacts(item, diffs) {
   if (!Array.isArray(diffs)) return newKeys;
 
   diffs.forEach(d => {
-    // Only name corrections are registered as ground truth — these are the cases
-    // where the DM is asserting "this alias resolves to this known entity".
-    // Other diffs (description, notes, id) correct content, not identity.
-    if (d.k !== 'name') return;
     if (typeof d.old !== 'string' || !d.old.trim()) return;
     if (typeof d.new !== 'string' || !d.new.trim()) return;
 
-    window.sessionGroundTruth[d.old] = {
-      type:         arrayToEntityType(item.array),
-      resolvedId:   item.rawData?.id ?? null,
-      resolvedName: d.new,
-      assertedAt:   item.id,   // which queue item the DM confirmed this on
-    };
-    newKeys.push(d.old);
+    if (d.k === 'name') {
+      // Structured entity correction — entity type known from item.array.
+      window.sessionGroundTruth[d.old] = {
+        type:         arrayToEntityType(item.array),
+        resolvedId:   item.rawData?.id ?? null,
+        resolvedName: d.new,
+        assertedAt:   item.id,
+      };
+      newKeys.push(d.old);
+
+    } else if (d.k === 'ocr_text') {
+      // OCR text correction — the AI diffs only the changed phrase, so d.old is
+      // the specific alias/abbreviation (e.g. "Gold") and d.new is the resolved
+      // name (e.g. "Goldie"). Only register when d.old is a short phrase (≤ 40
+      // chars, no newlines) — full-paragraph replacements are content edits,
+      // not name resolutions, and should not propagate as ground truth.
+      const isShortPhrase = d.old.length <= 40 && !d.old.includes('\n');
+      if (!isShortPhrase) return;
+      window.sessionGroundTruth[d.old] = {
+        type:         'ocr',        // signals propagation to search ocr_text, not rawData.name
+        resolvedId:   null,         // RAW items have no stable entity ID
+        resolvedName: d.new,
+        assertedAt:   item.id,
+      };
+      newKeys.push(d.old);
+    }
+    // All other diff keys (description, notes, id, etc.) are content edits — skip.
   });
 
   return newKeys;
@@ -1998,14 +2028,17 @@ function extractAndRegisterFacts(item, diffs) {
  * Scans every queue item (excluding the source item that just registered the facts)
  * and applies each newly confirmed fact where a matching entity name is found.
  *
- * Confident match (auto-applied):
- *   rawData.name is an exact case-insensitive match to the fact key AND
- *   the item's entity type matches the fact's type.
- *   → Pushed directly to item.appliedCorrections[]; item.corrected set true.
+ * Two propagation routes depending on the fact's type:
  *
- * Uncertain match (flagged for DM confirmation):
- *   rawData.name contains the fact key as a substring, OR the types differ.
- *   → A flag is added to item.flags[] prompting the DM to confirm or dismiss.
+ *   type !== 'ocr'  (structured entity facts from name diffs)
+ *     Confident: rawData.name is exact case-insensitive match AND entity types match
+ *     Uncertain: rawData.name contains the key as a substring, OR types differ
+ *
+ *   type === 'ocr'  (text substitution facts from ocr_text diffs)
+ *     Confident: rawData.ocr_text contains the key as a whole-word match
+ *     Uncertain: rawData.ocr_text contains the key only as a substring (not whole word)
+ *     The substitution is applied with String.replace (first occurrence) to mirror
+ *     how applyDiff() handles RAW item corrections.
  *
  * After scanning: renderQueue() updates the queue indicators on all impacted items.
  * renderReview() is only called when the currently active card was impacted — this
@@ -2028,36 +2061,67 @@ function propagateGroundTruth(newKeys, sourceItemId) {
     allItems.forEach(target => {
       // Never re-process the item that just asserted the fact — it's already corrected.
       if (target.id === sourceItemId) return;
-      // Round items have no name field — skip silently rather than crashing.
-      if (typeof target.rawData?.name !== 'string') return;
 
-      const targetName = target.rawData.name;
-      const keyLower   = key.toLowerCase();
-      const nameLower  = targetName.toLowerCase();
-      const typeMatch  = arrayToEntityType(target.array) === fact.type;
-      const exactMatch = nameLower === keyLower;
-      const partialMatch = !exactMatch && nameLower.includes(keyLower);
+      if (fact.type === 'ocr') {
+        // ── OCR text substitution route ──────────────────────────────────────
+        // The key is a short phrase (e.g. "Gold") that should be replaced with
+        // the resolved name (e.g. "Goldie") wherever it appears in ocr_text.
+        // Only RAW items carry ocr_text — skip items without it.
+        if (typeof target.rawData?.ocr_text !== 'string') return;
 
-      if (exactMatch && typeMatch) {
-        // Confident match — apply the correction automatically.
-        // Same diff shape as AI-applied corrections so the Corrections Applied
-        // section renders identically whether the source was AI or propagation.
-        if (!target.appliedCorrections) target.appliedCorrections = [];
-        target.appliedCorrections.push({ k: 'name', old: key, new: fact.resolvedName });
-        // Also update rawData.name so the queue title and nlRender() reflect
-        // the corrected name without the DM having to manually re-correct.
-        target.rawData.name = fact.resolvedName;
-        target.corrected = true;
-        impactedIds.add(target.id);
-      } else if (partialMatch || (exactMatch && !typeMatch)) {
-        // Uncertain match — flag rather than auto-apply.
-        // The DM may dismiss the flag if the match is coincidental.
-        if (!target.flags) target.flags = [];
-        const flagText = `Possible match: "${key}" = ${fact.resolvedName} (${fact.type}) — confirm?`;
-        // Guard against duplicate flags from multiple propagation calls.
-        if (!target.flags.some(f => f.text === flagText)) {
-          target.flags.push({ text: flagText });
+        const ocr = target.rawData.ocr_text;
+        // Whole-word match: key surrounded by word boundaries or punctuation.
+        // This prevents "Gold" from matching inside "Goldsmith" etc.
+        const wholeWordRe = new RegExp('(?<![\\w])' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w])', 'i');
+        const hasWholeWord = wholeWordRe.test(ocr);
+        // Substring match without whole-word boundary (uncertain).
+        const hasSubstring = !hasWholeWord && ocr.toLowerCase().includes(key.toLowerCase());
+
+        if (hasWholeWord) {
+          // Confident — replace the first occurrence in ocr_text.
+          if (!target.appliedCorrections) target.appliedCorrections = [];
+          target.appliedCorrections.push({ k: 'ocr_text', old: key, new: fact.resolvedName });
+          target.rawData.ocr_text = ocr.replace(wholeWordRe, fact.resolvedName);
+          target.corrected = true;
           impactedIds.add(target.id);
+        } else if (hasSubstring) {
+          // Uncertain — flag for DM confirmation rather than auto-apply.
+          if (!target.flags) target.flags = [];
+          const flagText = `Possible match: "${key}" → ${fact.resolvedName} — confirm?`;
+          if (!target.flags.some(f => f.text === flagText)) {
+            target.flags.push({ text: flagText });
+            impactedIds.add(target.id);
+          }
+        }
+
+      } else {
+        // ── Structured entity name route ──────────────────────────────────────
+        // The key is a wrong entity name; match against rawData.name on items of
+        // the same entity type.
+        if (typeof target.rawData?.name !== 'string') return;
+
+        const targetName  = target.rawData.name;
+        const keyLower    = key.toLowerCase();
+        const nameLower   = targetName.toLowerCase();
+        const typeMatch   = arrayToEntityType(target.array) === fact.type;
+        const exactMatch  = nameLower === keyLower;
+        const partialMatch = !exactMatch && nameLower.includes(keyLower);
+
+        if (exactMatch && typeMatch) {
+          // Confident match — apply the correction automatically.
+          if (!target.appliedCorrections) target.appliedCorrections = [];
+          target.appliedCorrections.push({ k: 'name', old: key, new: fact.resolvedName });
+          target.rawData.name = fact.resolvedName;
+          target.corrected = true;
+          impactedIds.add(target.id);
+        } else if (partialMatch || (exactMatch && !typeMatch)) {
+          // Uncertain match — flag rather than auto-apply.
+          if (!target.flags) target.flags = [];
+          const flagText = `Possible match: "${key}" = ${fact.resolvedName} (${fact.type}) — confirm?`;
+          if (!target.flags.some(f => f.text === flagText)) {
+            target.flags.push({ text: flagText });
+            impactedIds.add(target.id);
+          }
         }
       }
     });
