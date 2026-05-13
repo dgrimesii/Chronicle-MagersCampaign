@@ -896,7 +896,9 @@ function renderRoundNL(r) {
 // QUEUE RENDERING
 // ══════════════════════════════════════════════════════
 function renderQueue() {
-  const all = [...items,...cascadeItems];
+  // Filter out items absorbed by a redirect merge (issue #58) — they are hidden
+  // from the sidebar but kept in the array so applyDiff() can still resolve them.
+  const all = [...items,...cascadeItems].filter(i => i.status !== 'merged');
   const scroll = document.getElementById('queue-scroll');
 
   // Group by group label
@@ -1372,6 +1374,13 @@ function applyDiff(msgId) {
   if (!item.appliedCorrections) item.appliedCorrections = [];
   msg.diffs.forEach(d => item.appliedCorrections.push({ ...d }));
   item.corrected = true;
+
+  // Redirect detection must run before fact extraction (issue #58). If this diff
+  // set an `id` field to an existing entity ID on a NEW item, the item's type and
+  // title are updated to MOD and any duplicate queue entry is merged. The
+  // sessionGroundTruth entry for this entity also gets its resolvedId stamped here
+  // so that subsequent extractAndRegisterFacts picks up the correct resolvedId.
+  _detectAndApplyRedirect(item, msg.diffs);
 
   // Register ground truth facts and propagate to other queue items (issue #57).
   // Must happen BEFORE msg.diffs is nulled — extractAndRegisterFacts reads the
@@ -2209,6 +2218,137 @@ function propagateGroundTruth(newKeys, sourceItemId) {
   // Rendering any other card's content would replace the DM's active view — unsafe.
   if (selectedId && impactedIds.has(selectedId)) {
     renderReview();
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// QUEUE REDIRECT — new→existing entity redirect (issue #58)
+//
+// WHY THIS EXISTS
+// ---------------
+// When the DM corrects a NEW queue item to an existing entity ("Bel = Belfar loc_005"),
+// the AI returns a diff that sets the `id` field to an existing entity ID. Without this
+// section, the sidebar would continue to show "New Location: Bel" even after the
+// correction, and if Belfar already had its own queue entry a duplicate would appear.
+//
+// DATA FLOW
+// ---------
+// 1. applyDiff() calls _detectAndApplyRedirect() immediately after writing diffs to rawData.
+// 2. If a NEW item received an `id` diff matching the entity ID pattern, it is a redirect.
+// 3. _detectAndApplyRedirect() updates the item's type to MOD, rewrites its title, and
+//    stamps the resolvedId on any existing sessionGroundTruth entry for this entity.
+// 4. _mergeOrReplaceQueueItem() deduplicates: if another queue entry already references
+//    the same entity ID, the redirected item's corrections are merged into it and the
+//    redirected item is marked status:'merged' so renderQueue() hides it.
+// ══════════════════════════════════════════════════════
+
+/**
+ * _detectAndApplyRedirect(item, appliedDiffs)
+ *
+ * Checks whether a just-applied set of diffs constitutes a new→existing redirect.
+ * A redirect is confirmed when a NEW item receives a diff that sets `k === 'id'`
+ * to a value matching the entity ID pattern (e.g. `loc_005`, `npc_014`).
+ *
+ * Why only NEW items: MOD and round items already reference existing entities by
+ * definition — setting their ID field is a legitimate edit, not a redirect.
+ *
+ * Why id-pattern matching: the AI is instructed to include an explicit id diff
+ * when the DM resolves a new entity to an existing one. The pattern
+ * /^[a-z]+_\d{3,}$/ matches all Chronicle ID formats and nothing else.
+ *
+ * Side effects when redirect is detected:
+ *   - item.type set to 'MOD'
+ *   - item.title updated to 'Update: <name> (<id>)'
+ *   - sessionGroundTruth entry for this entity name stamped with resolvedId
+ *   - _mergeOrReplaceQueueItem() called to handle dedup
+ */
+function _detectAndApplyRedirect(item, appliedDiffs) {
+  // Only NEW items can be redirected to existing entities.
+  if (item.type !== 'NEW') return;
+
+  // Find the first diff that sets an entity ID field to a valid Chronicle ID.
+  // The AI is instructed to include this diff when resolving new→existing.
+  const idDiff = appliedDiffs.find(
+    d => d.k === 'id' && d.new && /^[a-z]+_\d{3,}$/.test(String(d.new))
+  );
+  if (!idDiff) return;
+
+  const existingId   = String(idDiff.new);
+  const existingName = item.rawData?.name || existingId;
+
+  // Promote the item from NEW to MOD and update its sidebar title to reflect
+  // the existing entity it now represents. The old title (e.g. "New Location: Bel")
+  // is replaced so the DM sees "Update: Belfar (loc_005)" in the sidebar.
+  item.type  = 'MOD';
+  item.title = `Update: ${existingName} (${existingId})`;
+
+  // Stamp the resolvedId on any existing sessionGroundTruth entry for this entity.
+  // extractAndRegisterFacts (called after this function) may have already written
+  // an entry with resolvedId:null — update it now that we have the confirmed ID.
+  // If no entry exists yet, create one so subsequent AI calls have the full fact.
+  const gtKey = Object.keys(window.sessionGroundTruth).find(
+    k => window.sessionGroundTruth[k].resolvedName === existingName
+      || k.toLowerCase() === (item.rawData?.name || '').toLowerCase()
+  );
+  if (gtKey) {
+    window.sessionGroundTruth[gtKey].resolvedId = existingId;
+  } else {
+    // No prior entry — write one now so all future AI calls know this entity is resolved.
+    window.sessionGroundTruth[existingName] = {
+      type:         arrayToEntityType(item.array),
+      resolvedId:   existingId,
+      resolvedName: existingName,
+      assertedAt:   item.id,
+    };
+  }
+
+  // Deduplicate: if an existing queue item already references the same entity ID,
+  // merge this item's corrections into it and hide this item from the sidebar.
+  _mergeOrReplaceQueueItem(item, existingId);
+}
+
+/**
+ * _mergeOrReplaceQueueItem(redirectedItem, existingId)
+ *
+ * Looks for another queue item (items[] or cascadeItems[]) whose rawData.id
+ * matches existingId. Two outcomes:
+ *
+ * - Duplicate found: transfer all of redirectedItem.appliedCorrections into the
+ *   found item's appliedCorrections array, then mark redirectedItem.status = 'merged'
+ *   so renderQueue() hides it. The found item becomes the single sidebar entry.
+ *
+ * - No duplicate: redirectedItem IS the sole entry for this entity — no merge needed.
+ *   The item keeps its updated type/title and stays visible in the sidebar.
+ *
+ * Why 'merged' instead of splice: removing from items[]/cascadeItems[] would break
+ * selectedId references and invalidate correctionThread keys. 'merged' is a soft
+ * hide — the item data stays accessible via getItem() if needed.
+ */
+function _mergeOrReplaceQueueItem(redirectedItem, existingId) {
+  const allItems = [...items, ...cascadeItems];
+  const duplicate = allItems.find(
+    i => i.id !== redirectedItem.id && i.rawData?.id === existingId
+  );
+
+  if (!duplicate) {
+    // No existing queue entry for this entity — redirectedItem is the only one.
+    // Nothing to merge; it stays visible with its updated type and title.
+    return;
+  }
+
+  // Transfer any corrections already applied to the redirected item into the
+  // surviving duplicate entry. This preserves the correction history in one place.
+  if (redirectedItem.appliedCorrections?.length) {
+    if (!duplicate.appliedCorrections) duplicate.appliedCorrections = [];
+    redirectedItem.appliedCorrections.forEach(c => duplicate.appliedCorrections.push({ ...c }));
+    duplicate.corrected = true;
+  }
+
+  // Soft-hide the redirected item: renderQueue() filters status:'merged'.
+  // If this item was the active selection, move focus to the surviving duplicate.
+  redirectedItem.status = 'merged';
+  if (selectedId === redirectedItem.id) {
+    selectedId = duplicate.id;
   }
 }
 
