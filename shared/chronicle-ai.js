@@ -411,20 +411,33 @@ currently appears in the ocr_text value, new: the corrected phrase. Diff only
 the changed portion — never return the entire text block as old/new.`;
 
   /**
-   * sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems, onResult, onError, onLoading })
+   * sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems, campaignRoster, onResult, onError, onLoading })
    *
    * correctionText  — what the DM typed
    * itemContext     — object describing the current delta item { title, type, array, rawData }
    * scope           — 'item' | 'global'
    * pendingItems    — array of { title } for global scope scan
+   * campaignRoster  — optional string built by buildCampaignRoster() in delta-review.html.
+   *                   When provided it is prepended to CORRECTION_SYSTEM so the AI treats
+   *                   all existing entities as known facts and avoids proposing duplicates.
+   *                   When absent (empty string or undefined) the base system prompt is used
+   *                   unchanged — this keeps the function safe to call without roster context.
    * onResult(response) — called with parsed correction response object
    * onError / onLoading as usual
    */
-  async function sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems = [], onResult, onError, onLoading }) {
+  async function sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems = [], campaignRoster = '', onResult, onError, onLoading }) {
     const contextStr = JSON.stringify(itemContext?.rawData || {}, null, 2).slice(0, 800);
     const scopeNote  = scope === 'global'
       ? `\nThis correction may apply broadly. Pending items: ${pendingItems.map(i => i.title).join('; ')}`
       : '';
+
+    // Prepend the campaign roster to the base system prompt when available.
+    // The roster gives the AI ground-truth entity lists so it matches existing
+    // entries rather than proposing new ones that already exist in the campaign.
+    // An empty roster string leaves the base prompt unchanged.
+    const system = campaignRoster
+      ? campaignRoster + '\n\n' + CORRECTION_SYSTEM
+      : CORRECTION_SYSTEM;
 
     const messages = [{
       role: 'user',
@@ -436,7 +449,7 @@ ${contextStr}${scopeNote}`,
     }];
 
     await call({
-      system: CORRECTION_SYSTEM,
+      system,
       messages,
       onLoading,
       onResult: raw => {

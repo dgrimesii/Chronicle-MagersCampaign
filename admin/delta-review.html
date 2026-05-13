@@ -1244,6 +1244,9 @@ function sendCorrection() {
     itemContext,
     scope: correctionScope,
     pendingItems: allPending,
+    // Inject the campaign roster so the AI treats existing entities as ground truth.
+    // Falls back to '' when initIntegrity() was skipped (items[] was empty on load).
+    campaignRoster: window.campaignRoster ?? '',
     onLoading: () => {},
     onResult:  response => handleResponse(response),
     onError:   ()       => handleResponse(ChronicleAI.demoCorrectionResponse(text, itemContext)),
@@ -1732,6 +1735,51 @@ let deferredGaps     = [];        // deferred gap records — appended to publis
 let deferredGapCount = 0;         // counter for gap_NNN ID assignment
 let showingIntegrityPanel = false; // true when the center shows the integrity view
 
+// Campaign roster string injected into every sendCorrectionToAI() system prompt.
+// Initialised to '' so the call site is safe even when initIntegrity() is skipped
+// (e.g. when items[] is empty and the early-return fires before buildCampaignRoster runs).
+window.campaignRoster = '';
+
+/**
+ * buildCampaignRoster(json)
+ *
+ * Builds a compact roster string from the raw campaign JSON for injection into
+ * the AI correction system prompt. Listing all existing entities as ground truth
+ * prevents the AI from proposing new entities that already exist in the campaign.
+ *
+ * Called once after initIntegrity() successfully fetches magers-campaign.json.
+ * The result is stored on window.campaignRoster and passed to every
+ * sendCorrectionToAI() call. An empty section (e.g. factions: []) emits "(none)"
+ * rather than a blank line, keeping the prompt readable for the AI.
+ *
+ * Handles missing/empty factions[] and cohorts[] gracefully — both arrays were
+ * introduced in schema v4.1 and may be absent in older campaign snapshots.
+ */
+function buildCampaignRoster(json) {
+  // Helper: format an array of entities as "id name, id name, ..." or "(none)"
+  function fmt(arr, nameFn) {
+    if (!arr || arr.length === 0) return '(none)';
+    return arr.map(nameFn).join(', ');
+  }
+
+  const lines = [
+    'CAMPAIGN ROSTER (ground truth — do not create duplicates):',
+    'LOCATIONS: ' + fmt(json.locations,          l => l.id + ' ' + l.name),
+    'NPCS: '      + fmt(json.npc_directory,       n => n.id + ' ' + n.name),
+    'PARTY: '     + fmt(json.party,               p => p.id + ' ' + p.name),
+    'QUESTS: '    + fmt(json.quest_ledger,        q => q.id + ' ' + q.name),
+    // factions[] and cohorts[] introduced in v4.1 — guard with || [] for older snapshots
+    'FACTIONS: '  + fmt(json.factions  || [],     f => f.id + ' ' + f.name),
+    'COHORTS: '   + fmt(json.cohorts   || [],     c => c.id + ' ' + c.name),
+    'BESTIARY: '  + fmt(json.bestiary,            m => m.id + ' ' + m.name),
+    'RULES FRAMEWORK: D&D 5.5e. All characters, actions, and mechanics operate within this framework.',
+    'When interpreting notes, always match against this roster before proposing new entities.',
+    'Use "unknown" only when no roster match can be reasonably inferred.',
+  ];
+
+  return lines.join('\n');
+}
+
 // Build the INCOMING array that ChronicleIntegrity.checks() expects from the
 // existing items[] and cascadeItems[]. Round items carry combatId + roundNumber.
 // Non-round items (session logs, NPCs, quests) are ignored by checks().
@@ -1807,6 +1855,13 @@ async function initIntegrity() {
       // Auto-show integrity panel in center — DM sees gaps before any queue item
       showIntegrityPanel();
     }
+
+    // Build the campaign roster from the same JSON fetch so it is ready for
+    // every sendCorrectionToAI() call without a second network request.
+    // This is the only place window.campaignRoster is set — if the fetch fails
+    // the catch block below leaves it as '' (initialised at declaration above).
+    window.campaignRoster = buildCampaignRoster(json);
+
   } catch(e) {
     // Log but do not block — the review queue works independently of integrity
     console.warn('[delta-review] integrity fetch failed (non-fatal):', e.message);
