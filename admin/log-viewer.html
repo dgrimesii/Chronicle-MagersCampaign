@@ -676,6 +676,17 @@ function normaliseCampaignJson(json) {
       // via the log editor or future admin tooling. fac_NNN IDs are valid
       // source/target values in entity_relationships[].
       factions: json.factions ?? [],
+
+      // ── Cohorts ───────────────────────────────────────────────────────────────
+      // Root-level array introduced in schema v4.1. Represents anonymous recurring
+      // groups scoped to a bounded story period (e.g. "lake_town_region_goblinoids").
+      // Distinct from factions[] (no campaign-level permanence) and npc_directory[]
+      // (no individual identity). Admin-only: NOT passed through in player/index.html
+      // so cohorts are invisible to the player view. coh_NNN IDs are valid
+      // source/target values in entity_relationships[]. A cohort with status
+      // "promoted" has been elevated to a faction — the record is retained for
+      // historical reference, and promoted_to links to the resulting fac_NNN.
+      cohorts: json.cohorts ?? [],
     };
   }
 

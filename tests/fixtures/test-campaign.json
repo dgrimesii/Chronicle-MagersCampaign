@@ -202,5 +202,6 @@
   "world_lore": [],
   "character_moments": [],
   "deferred_gaps": [],
-  "factions": []
+  "factions": [],
+  "cohorts": []
 }
