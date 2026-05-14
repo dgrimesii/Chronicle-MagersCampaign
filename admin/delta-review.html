@@ -899,11 +899,41 @@ function renderQueue() {
   // Filter out items absorbed by a redirect merge (issue #58) — they are hidden
   // from the sidebar but kept in the array so applyDiff() can still resolve them.
   const all = [...items,...cascadeItems].filter(i => i.status !== 'merged');
+
+  // Safety-net dedup pass (issue #59): collapse any items sharing the same
+  // rawData.name + rawData.type key. This catches stacked duplicates that
+  // pre-exist in the array (e.g. from stale session state loaded before the
+  // append guard was in place). Items without both fields (rounds, session logs,
+  // combat headers) have no key and always pass through untouched.
+  // The items[]/cascadeItems[] arrays are NOT mutated here — this is display-only.
+  // Corrections from collapsed duplicates are merged into the surviving entry so
+  // no DM-applied edits are lost.
+  const _seenNameType = new Map();
+  const deduped = [];
+  all.forEach(item => {
+    const key = item.rawData?.name && item.rawData?.type
+      ? `${item.rawData.name}::${item.rawData.type}`
+      : null;
+    if (key && _seenNameType.has(key)) {
+      // Merge any corrections from the duplicate into the surviving entry.
+      const first = _seenNameType.get(key);
+      if (item.appliedCorrections?.length) {
+        if (!first.appliedCorrections) first.appliedCorrections = [];
+        item.appliedCorrections.forEach(c => first.appliedCorrections.push({ ...c }));
+        first.corrected = true;
+      }
+      // Duplicate is dropped from the render list but not from the source array.
+    } else {
+      if (key) _seenNameType.set(key, item);
+      deduped.push(item);
+    }
+  });
+
   const scroll = document.getElementById('queue-scroll');
 
   // Group by group label
   const groups = {};
-  all.forEach(item => {
+  deduped.forEach(item => {
     const g = item.group || 'Other';
     if (!groups[g]) groups[g] = [];
     groups[g].push(item);
@@ -1289,7 +1319,26 @@ function sendCorrection() {
     if (response.cascades?.length) {
       response.cascades.forEach(casc => {
         const newItem = _buildCascadeItem(casc, text);
-        if (newItem) { newItem.isCascade=true; newItem.group='Other'; cascadeItems.push(newItem); }
+        if (!newItem) return;
+        newItem.isCascade = true;
+        newItem.group     = 'Other';
+
+        // Dedup guard (issue #59): if a cascade item for the same name+type already
+        // exists in cascadeItems[], update it in place rather than appending.
+        // This prevents the sidebar from growing a new row on every correction retry
+        // when the AI repeatedly identifies the same entity as a cascade.
+        // Only rawData.description and sourceQuote are refreshed — id, status, and
+        // appliedCorrections on the existing item are preserved so no edits are lost.
+        const existing = cascadeItems.find(
+          i => i.rawData?.name === newItem.rawData.name
+            && i.rawData?.type === newItem.rawData.type
+        );
+        if (existing) {
+          existing.rawData.description = newItem.rawData.description;
+          existing.sourceQuote         = newItem.sourceQuote;
+        } else {
+          cascadeItems.push(newItem);
+        }
       });
     }
     renderAssistant();
