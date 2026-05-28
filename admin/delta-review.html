@@ -72,6 +72,9 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .qi-status.uncertain{background:var(--rust-light);}
 .qi-status.recheck{background:var(--amber-light);border:1.5px solid var(--amber);}
 .qi-status.cascade-new{background:var(--purple);animation:pulse-purple 1.5s infinite;}
+/* interpreted = RAW page consumed by Interpret step — same visual as approved (teal dot)
+   but slightly dimmed to distinguish it from DM-approved items */
+.qi-status.interpreted{background:var(--teal);opacity:0.5;}
 @keyframes pulse-purple{0%,100%{opacity:1;}50%{opacity:0.4;}}
 .qi-body{flex:1;min-width:0;}
 .qi-type{font-family:'Cinzel',serif;font-size:0.56rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted-light);margin-bottom:1px;}
@@ -485,6 +488,13 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
       <button class="round-nav-btn" id="next-round" onclick="navigateRound(1)">Next round →</button>
     </div>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;" id="action-buttons">
+      <!-- Warning shown when a RAW item is approved (issue #70).
+           RAW items are not written to the campaign on publish — this notice ensures
+           the DM knows the approval is reference-only until they use Interpret. -->
+      <span id="raw-item-notice" style="display:none;font-size:0.78rem;color:var(--amber-dim);
+        font-style:italic;max-width:280px;line-height:1.3;">
+        Reference only — OCR text is not published. Use Interpret to generate ROUND entries.
+      </span>
       <button class="btn btn-reject" id="btn-reject" onclick="setItemStatus('rejected')">Reject</button>
       <button class="btn btn-uncertain" id="btn-flag" onclick="setItemStatus('uncertain')">Flag [?]</button>
       <button class="btn btn-approve" id="btn-approve" onclick="setItemStatus('approved')">Approve ✓</button>
@@ -855,25 +865,74 @@ function getItem(id) { return [...items,...cascadeItems].find(i=>i.id===id); }
 // ══════════════════════════════════════════════════════
 function resultChip(res, uncertain) {
   if (uncertain) return `<span class="slot-result-chip res-unc">[?]</span>`;
-  const map = {hit:'res-hit',miss:'res-miss',crit:'res-crit',death:'res-death',save:'res-save',neutral:'res-neutral','enemy-save':'res-save'};
-  const label = {hit:'hit',miss:'miss',crit:'crit',death:'death sv',save:'save',neutral:'—','enemy-save':'save'};
+  // Map result values to CSS class and display label.
+  // Extended in issue #75 to cover save_fail / save_success / crit_miss / mixed.
+  // Unknown values fall back to res-neutral and display the raw value string —
+  // keeps future vocabulary additions visible rather than silently blank.
+  const map = {
+    hit:'res-hit', miss:'res-miss', crit:'res-crit', death:'res-death',
+    save:'res-save', neutral:'res-neutral', 'enemy-save':'res-save',
+    save_fail:'res-miss', save_success:'res-save', crit_miss:'res-miss', mixed:'res-neutral',
+  };
+  const label = {
+    hit:'hit', miss:'miss', crit:'crit', death:'death sv',
+    save:'save', neutral:'—', 'enemy-save':'save',
+    save_fail:'save ✗', save_success:'save ✓', crit_miss:'✕ 1', mixed:'mixed',
+  };
   const cls = map[res] || 'res-neutral';
-  const txt = label[res] || res || '';
+  const txt = label[res] ?? res ?? '';
   return txt ? `<span class="slot-result-chip ${cls}">${txt}</span>` : '';
 }
 
 function renderRoundNL(r) {
+  // action_type badge shown for non-standard action economy entries (issue #75).
+  // Main actions get no badge — only bonus actions and reactions are labelled,
+  // since those are the non-default and need to stand out.
+  function actionTypeBadge(actionType) {
+    if (!actionType || actionType === 'action') return '';
+    const cfg = {
+      bonus_action: { label: 'BA',   color: 'var(--teal)'  },
+      reaction:     { label: 'R',    color: 'var(--amber)' },
+      free_action:  { label: 'free', color: 'var(--muted)' },
+    };
+    const c = cfg[actionType];
+    if (!c) return '';
+    return `<span style="font-size:0.68rem;font-weight:700;color:${c.color};
+      border:1px solid ${c.color};border-radius:2px;padding:0 4px;margin-right:5px;
+      opacity:0.85;letter-spacing:0.04em;">${c.label}</span>`;
+  }
+
+  // target_effects chips shown after the result chip (issue #75).
+  // Red for lethal effects, amber for combat conditions.
+  function targetEffectChips(effects) {
+    if (!Array.isArray(effects) || !effects.length) return '';
+    const lethal = new Set(['killed', 'downed', 'unconscious']);
+    return effects.map(e => {
+      const color = lethal.has(e) ? 'var(--rust,#b34040)' : 'var(--amber-dim,#b8962e)';
+      return `<span style="font-size:0.68rem;font-weight:600;color:${color};
+        border:1px solid ${color};border-radius:2px;padding:0 4px;margin-left:4px;
+        opacity:0.9;">${e}</span>`;
+    }).join('');
+  }
+
   const slotRows = r.slots.map((s,i) => {
     const isUncertain = !!s.uncertain;
+    // val_type suffix shown only when present — avoids cluttering existing data
+    // that pre-dates the issue #75 schema addition.
+    const valTypeLabel = s.val_type === 'healing' ? ' heal'
+                       : s.val_type === 'temp_hp'  ? ' tmp'
+                       : '';  // "damage" gets no suffix — it is the default
+    // target shown as "→ name" after the action name when recorded.
+    const targetStr = s.target ? ` → ${s.target}` : '';
     return `<div class="slot-line${i%2===0?' odd':''}${isUncertain?' uncertain-slot':''}">
       <div class="slot-num">${s.s}</div>
-      <div class="slot-actor">${nick(s.a)}</div>
+      <div class="slot-actor">${actionTypeBadge(s.action_type)}${nick(s.a)}</div>
       <div class="slot-action">
-        ${isUncertain ? `<span class="uncertain" title="${s.flagText||''}">${s.act}</span>` : s.act}
-        ${s.val ? `<strong style="color:var(--amber-dim);margin-left:6px;">${s.val}</strong>` : ''}
+        ${isUncertain ? `<span class="uncertain" title="${s.flagText||''}">${s.act}</span>` : s.act}${targetStr}
+        ${s.val != null ? `<strong style="color:var(--amber-dim);margin-left:6px;">${s.val}${valTypeLabel}</strong>` : ''}
         ${s.notes ? `<span class="note">${s.notes}</span>` : ''}
       </div>
-      ${resultChip(s.res, isUncertain)}
+      ${resultChip(s.res, isUncertain)}${targetEffectChips(s.target_effects)}
     </div>`;
   }).join('');
   const enemyRows = r.enemy.map(e => `
@@ -1164,6 +1223,17 @@ function renderReview() {
     btnReject.style.borderColor = 'rgba(139,58,30,0.4)';
     btnReject.style.color       = 'var(--rust)';
   }
+
+  // Show the reference-only warning in the toolbar when a RAW item is approved.
+  // RAW items produce no change to the campaign JSON on publish (issue #70).
+  // The notice only appears after the DM clicks Approve so it does not distract
+  // before they have taken any action.
+  const rawNotice = document.getElementById('raw-item-notice');
+  if (rawNotice) {
+    rawNotice.style.display = (item.type === 'RAW' && item.status === 'approved')
+      ? 'inline'
+      : 'none';
+  }
 }
 
 function toggleRaw(id) {
@@ -1186,6 +1256,24 @@ function navigateRound(dir) {
 function setItemStatus(status) {
   const item = getItem(selectedId);
   if (!item) return;
+
+  // Session stub validation — block approval when title is still empty.
+  // The stub (array 'session_logs', has session_id, no narrative_text) arrives
+  // from intake with title:''. Approving it blank writes an untitled session to
+  // the campaign JSON, breaking the Campaign Log view and narrative generation.
+  // Only fires on the transition TO 'approved' (item.status !== 'approved') so
+  // clicking the button again to un-approve is never blocked.
+  if (status === 'approved'
+      && item.status !== 'approved'
+      && item.array === 'session_logs'
+      && item.rawData?.session_id != null
+      && item.rawData?.narrative_text == null
+      && !item.rawData?.title?.trim()) {
+    item._titleEmpty = true;
+    renderReview(); // re-render shows the warning block inside nlRender()
+    return;         // leave status unchanged — do not approve
+  }
+
   item.status = item.status === status ? 'pending' : status;
   renderQueue();
   renderReview();
@@ -1198,6 +1286,31 @@ function setItemStatus(status) {
     const rounds = getRoundsForCombat(item.combatId);
     const nextPending = rounds.find(r => r.status === 'pending' && r.id !== selectedId);
     if (nextPending) setTimeout(() => selectItem(nextPending.id), 200);
+  }
+}
+
+// updateSessionStubField(itemId, field, value)
+//
+// What: writes a DM-typed value back to the session stub item's rawData
+//   as the DM edits the title or summary input on the review card.
+// Why: the stub arrives from intake with title/summary empty because the
+//   AI-fill step that was supposed to populate them was never built.
+//   Without this function the inputs have nowhere to write; rawData stays
+//   empty and an empty title gets committed to the campaign JSON on publish.
+// What breaks if removed: the title/summary inputs become display-only;
+//   the approval guard in setItemStatus() would always block because
+//   rawData.title never updates as the DM types.
+function updateSessionStubField(itemId, field, value) {
+  const item = getItem(itemId);
+  if (!item) return;
+  item.rawData[field] = value;
+
+  // Once the DM has typed a non-empty title, clear the validation warning
+  // without re-rendering the entire card — this keeps focus on the input.
+  if (field === 'title' && item._titleEmpty && value.trim()) {
+    item._titleEmpty = false;
+    const warn = document.getElementById('stub-title-warning-' + itemId);
+    if (warn) warn.style.display = 'none';
   }
 }
 
@@ -1365,9 +1478,29 @@ function sendCorrection() {
 // Build a minimal cascade queue item from an AI-returned entityHint
 function _buildCascadeItem(casc, correctionText) {
   const hint = casc.entityHint || {};
-  const typeMap = {location:'locations',npc:'npc_directory',item:'inventory_and_loot',quest:'quest_ledger'};
+  // typeMap routes AI-returned entity types to the correct campaign array.
+  // 'monster' must map to 'bestiary' — without this entry a monster type falls
+  // through to the || 'locations' default, corrupting the locations array (issue #67).
+  // The CORRECTION_SYSTEM prompt instructs the AI to use 'monster' for any D&D
+  // creature (dragons, beasts, undead, etc.) so the AI and this map stay in sync.
+  const typeMap = {
+    location: 'locations',
+    npc:      'npc_directory',
+    item:     'inventory_and_loot',
+    quest:    'quest_ledger',
+    monster:  'bestiary',
+  };
+  // Guard: reject any type the AI invented that isn't in the controlled vocabulary.
+  // The old '|| locations' fallback silently routed garbage types (e.g. 'session_note',
+  // 'correction') into locations[], corrupting campaign data (issue #68).
+  // Returning null here is safe — the caller already does 'if (!newItem) return'.
+  const array = typeMap[hint.type];
+  if (!array) {
+    console.warn('[Chronicle] _buildCascadeItem: unknown entity type, skipping:', hint.type, casc);
+    return null;
+  }
   return {
-    id: 'd_cascade_'+Date.now(), type:'NEW', array:typeMap[hint.type]||'locations',
+    id: 'd_cascade_'+Date.now(), type:'NEW', array,
     group:'Other', status:'pending', flags:[], isCascade:true,
     title:`New ${hint.type||'entry'} — ${hint.name||'unnamed'}`,
     sourceQuote:`Correction note: "${correctionText}"`,
@@ -1375,6 +1508,444 @@ function _buildCascadeItem(casc, correctionText) {
     rawData:{ name:hint.name, type:hint.type, description:casc.desc },
     nlRender(){ return `<div class="nl-narrative">A new <strong>${hint.type||'entry'}</strong> was identified: <strong>${hint.name||'unnamed'}</strong>.<br><br>${casc.desc||''}</div>`; },
   };
+}
+
+// ══════════════════════════════════════════════════════
+// INTERPRET — OCR page → ROUND delta items (issue #70)
+//
+// WHY THIS EXISTS
+// ---------------
+// RAW items from Session Intake carry confirmed OCR text but applyDeltasToCampaign()
+// has no RAW handler, so approving them on publish writes nothing to the campaign JSON.
+// The Interpret step sends the OCR text to the AI, receives structured round proposals,
+// and converts each proposal into a ROUND-type delta item that the DM can approve and
+// publish normally. The source RAW item is marked 'interpreted' so it no longer blocks
+// publish as a pending item.
+//
+// DATA FLOW
+// ---------
+// 1. showInterpretForm(itemId)  — renders a combat-selector form inside the RAW card.
+//    Reads combat names from campaignIntegrityData (loaded by initIntegrity on page load).
+// 2. interpretRawItem(itemId)   — called when the DM clicks "Run Interpret".
+//    Calls ChronicleAI.fillRoundsFromText() with the OCR text + selected combat.
+//    Converts each returned proposal to a ROUND delta item (same shape as approveGapProposal).
+//    Pushes to cascadeItems[], marks the RAW item 'interpreted', re-renders queue.
+// ══════════════════════════════════════════════════════
+
+/**
+ * showInterpretForm(itemId)
+ *
+ * Populates the #interpret-panel-{itemId} div (rendered inside the RAW card) with
+ * a combat-selector form. The DM picks which combat this OCR page belongs to (or
+ * declares a new one), then clicks "Run Interpret" to trigger the AI call.
+ *
+ * Why campaignIntegrityData: it is the campaign JSON already loaded by initIntegrity()
+ * at page load. Using it avoids a second fetch and keeps the combat list consistent
+ * with what the integrity checker sees.
+ *
+ * Why allow empty combats: even if no combats exist yet in the campaign, the DM
+ * can still declare a new combat via the '-- New combat --' sentinel option.
+ *
+ * What breaks if removed: the Interpret button has no target to render its form into.
+ */
+function showInterpretForm(itemId) {
+  const panel = document.getElementById('interpret-panel-' + itemId);
+  if (!panel) return;
+
+  // Guard: integrity data may not be loaded yet if the fetch is still in flight.
+  // Tell the DM rather than silently failing.
+  if (!campaignIntegrityData) {
+    panel.innerHTML = `<span style="color:var(--rust);font-size:0.85rem;">
+      Campaign data not yet loaded — wait a moment for the integrity check to complete,
+      then click Interpret again.</span>`;
+    return;
+  }
+
+  const combats = campaignIntegrityData.combat_encounters || [];
+
+  // '-- New combat --' is always the first option (value __new__) so the DM can
+  // record an encounter that does not yet exist in the campaign JSON. Existing
+  // combats follow in campaign order.
+  const existingOptions = combats.map(c =>
+    `<option value="${escapeHtmlDR(c.id)}">${escapeHtmlDR(c.name || c.id)} (${escapeHtmlDR(c.id)})</option>`
+  ).join('');
+
+  panel.innerHTML = `
+    <div style="background:var(--parchment-dark);border:1px solid var(--border);
+      border-radius:3px;padding:0.75rem;">
+      <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
+        color:var(--muted);text-transform:uppercase;margin-bottom:0.5rem;">
+        Which combat does this OCR page record?
+      </div>
+      <select id="interpret-combat-${itemId}"
+        onchange="toggleNewCombatFields('${itemId}')"
+        style="width:100%;padding:5px 8px;
+        background:var(--parchment);border:1px solid var(--border-strong);border-radius:3px;
+        color:var(--ink);font-size:0.88rem;margin-bottom:0.5rem;">
+        <option value="__new__">— New combat —</option>
+        ${existingOptions}
+      </select>
+      <div id="new-combat-fields-${itemId}" style="display:none;margin-bottom:0.5rem;">
+        <input id="new-combat-name-${itemId}" type="text"
+          placeholder="Combat name (e.g. Goblin Ambush at the Mill)"
+          style="width:100%;padding:5px 8px;background:var(--parchment);
+          border:1px solid var(--border-strong);border-radius:3px;
+          color:var(--ink);font-size:0.88rem;margin-bottom:4px;box-sizing:border-box;" />
+        <div style="font-size:0.75rem;color:var(--muted);">
+          Auto-assigned ID: <span id="new-combat-id-${itemId}"
+            style="font-family:monospace;color:var(--amber);"></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-approve" style="font-size:0.72rem;padding:5px 14px;"
+          onclick="interpretRawItem('${itemId}')">
+          Run Interpret
+        </button>
+        <span id="interpret-status-${itemId}" style="font-size:0.82rem;color:var(--muted);
+          font-style:italic;"></span>
+      </div>
+    </div>`;
+
+  // If there are no existing combats the only valid choice is a new one — show the
+  // name/ID fields immediately rather than waiting for an onchange that won't fire.
+  if (!combats.length) toggleNewCombatFields(itemId);
+}
+
+/**
+ * toggleNewCombatFields(itemId)
+ *
+ * Shows or hides the new-combat name input and auto-assigned ID span based on
+ * whether '-- New combat --' is selected in the Interpret form. Also computes
+ * the next available cbt_NNN when the fields are shown.
+ *
+ * Why compute ID here (not on form render): the ID must account for NEW combat
+ * cascade items queued by earlier Interpret calls this session — items that exist
+ * in cascadeItems[] but are not yet in campaignIntegrityData (which only reflects
+ * the campaign JSON as loaded at page open). Re-computing on each toggle ensures
+ * a second Interpret call gets cbt_008 rather than colliding on cbt_007.
+ *
+ * What breaks if removed: selecting '-- New combat --' shows no name input and
+ * interpretRawItem() cannot read the name or ID, blocking the AI call.
+ */
+function toggleNewCombatFields(itemId) {
+  const select = document.getElementById('interpret-combat-' + itemId);
+  const fields = document.getElementById('new-combat-fields-' + itemId);
+  const idSpan = document.getElementById('new-combat-id-' + itemId);
+  if (!select || !fields || !idSpan) return;
+
+  const isNew = select.value === '__new__';
+  fields.style.display = isNew ? 'block' : 'none';
+  if (!isNew) return;
+
+  // Compute next available ID from campaign JSON + in-flight NEW combat cascade items.
+  // Including cascadeItems[] prevents collision when Interpret is called twice in one
+  // session before publishing — the second call sees the first item's claimed ID.
+  const inFlight = cascadeItems
+    .filter(i => i.type === 'NEW' && i.array === 'combat_encounters')
+    .map(i => i.rawData?.id).filter(Boolean);
+
+  const allIds = [
+    ...(campaignIntegrityData?.combat_encounters || []).map(c => c.id),
+    ...inFlight,
+  ];
+  const maxNum = allIds.reduce((m, id) => {
+    const n = parseInt((id || '').split('_').pop(), 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  idSpan.textContent = 'cbt_' + String(maxNum + 1).padStart(3, '0');
+}
+
+/**
+ * interpretRawItem(itemId)
+ *
+ * Sends the RAW item's OCR text to the AI and converts the returned round proposals
+ * into ROUND-type delta items in cascadeItems[].
+ *
+ * Why fillRoundsFromText: it accepts a free-text description and returns structured
+ * round proposals. The OCR text is already in a round-per-round format, so this
+ * function is the right tool — it does not require pre-known round numbers.
+ *
+ * Why roundRange [1..30]: fillRoundsFromText filters its results to the supplied
+ * roundNumbers allow-list. Passing a broad range lets the AI return whatever rounds
+ * it finds in the text without the caller knowing them in advance. Sessions rarely
+ * exceed 20 rounds; 30 is a safe ceiling.
+ *
+ * Why queue a NEW combat item before ROUND items when __new__ is selected:
+ * applyDeltasToCampaign() processes the approved array in order. The ROUND branch
+ * looks up the combat by ID — if the combat does not exist yet, the round is
+ * silently skipped. Creating the combat entry first guarantees the lookup succeeds.
+ *
+ * What breaks if removed: clicking "Run Interpret" has no handler.
+ */
+function interpretRawItem(itemId) {
+  const item = getItem(itemId);
+  if (!item || item.type !== 'RAW') return;
+
+  const combatSelect = document.getElementById('interpret-combat-' + itemId);
+  const statusEl     = document.getElementById('interpret-status-' + itemId);
+  if (!combatSelect || !statusEl) return;
+
+  // Branch on whether the DM selected an existing combat or declared a new one.
+  // __new__ is the sentinel value set by the '-- New combat --' option (issue #73).
+  const isNewCombat = combatSelect.value === '__new__';
+  let combatId, combatName;
+
+  if (isNewCombat) {
+    // Read the DM-typed name and the auto-assigned ID shown by toggleNewCombatFields().
+    const nameInput = document.getElementById('new-combat-name-' + itemId);
+    const idSpan    = document.getElementById('new-combat-id-'   + itemId);
+    combatName = (nameInput?.value || '').trim();
+    if (!combatName) {
+      statusEl.textContent = 'Enter a combat name before running.';
+      return;
+    }
+    combatId = idSpan?.textContent?.trim() || '';
+    if (!combatId) {
+      statusEl.textContent = 'Could not compute next combat ID — reload the page and try again.';
+      return;
+    }
+  } else {
+    combatId = combatSelect.value;
+    if (!combatId) { statusEl.textContent = 'Select a combat first.'; return; }
+    const combat = (campaignIntegrityData?.combat_encounters || []).find(c => c.id === combatId);
+    combatName = combat?.name || combatId;
+  }
+
+  // Derive the session ID from the session stub in the queue.
+  // Falls back to 'unknown' if no stub is present (e.g. direct navigation to delta-review).
+  const sessionId = [...items, ...cascadeItems]
+    .find(i => i.array === 'session_logs' && i.rawData?.session_id)
+    ?.rawData?.session_id || 'unknown';
+
+  const ocrText = item.rawData?.ocr_text || '';
+  if (!ocrText.trim()) {
+    statusEl.textContent = 'No OCR text to interpret.';
+    return;
+  }
+
+  // Broad round range — the AI will return only rounds it finds in the text.
+  // 30 covers every realistic session length.
+  const roundRange = Array.from({ length: 30 }, (_, i) => i + 1);
+
+  // Disable the Run button and show thinking indicator while the AI call is in flight.
+  statusEl.innerHTML = ChronicleAI.THINKING_HTML;
+  const runBtn = combatSelect.closest('div').querySelector('.btn-approve');
+  if (runBtn) runBtn.disabled = true;
+
+  ChronicleAI.fillRoundsFromText({
+    text:         ocrText,
+    combatName,
+    combatId,
+    sessionId,
+    roundNumbers: roundRange,
+    onLoading:    () => {},
+
+    // onEntities: fires when the AI identifies new entity names in enemy_actions
+    // that don't appear to be in the campaign yet (ROUND_SYSTEM_STRICT rule 11).
+    // We filter against the loaded campaign roster before queuing to avoid proposing
+    // things that are already tracked in bestiary[] or npc_directory[].
+    onEntities: (entities) => {
+      // Build lowercase name sets for dedup checks against the existing campaign.
+      // The bestiary stores one entry per creature TYPE (e.g. one "goblin" entry,
+      // not one per individual). The AI returns every type it encounters; we skip
+      // types that already have a bestiary or NPC directory entry.
+      const knownMonsters = new Set(
+        (campaignIntegrityData?.bestiary || []).map(m => (m.name || '').toLowerCase())
+      );
+      const knownNPCs = new Set(
+        (campaignIntegrityData?.npc_directory || []).map(n => (n.name || '').toLowerCase())
+      );
+
+      entities.forEach(entity => {
+        const nameLower = (entity.name || '').toLowerCase();
+        if (!nameLower) return;
+
+        // Normalise entity type. The schema says "monster|npc" but the AI sometimes
+        // returns D&D creature subtypes (e.g. "dragon", "beast", "undead") for creature
+        // entries. Anything that isn't exactly "npc" is treated as a monster/bestiary
+        // entry — the bestiary stores all creature types regardless of D&D category.
+        const normType = (entity.type || '').toLowerCase() === 'npc' ? 'npc' : 'monster';
+
+        // Skip if the entity already exists in the campaign under its normalised type.
+        if (normType === 'monster' && knownMonsters.has(nameLower)) return;
+        if (normType === 'npc'     && knownNPCs.has(nameLower))     return;
+
+        // Map normalised type to the campaign array and a minimal rawData stub.
+        // arrayPrefixMap in applyDeltasToCampaign will auto-assign the ID on publish.
+        let array, rawData;
+        if (normType === 'monster') {
+          array   = 'bestiary';
+          rawData = {
+            name:      entity.name,
+            mechanics: { reliability: 'unverified', appearances: [sessionId] },
+            narrative: { description: entity.desc || null },
+          };
+        } else {
+          // normType === 'npc'
+          array   = 'npc_directory';
+          rawData = {
+            name:      entity.name,
+            mechanics: { disposition: 'unknown' },
+            narrative: { description: entity.desc || null },
+          };
+        }
+
+        // Stable cascade ID: item + entity name, so re-running interpret doesn't duplicate.
+        const cascadeId = `d_entity_${itemId}_${nameLower.replace(/\W+/g, '_')}`;
+        if (cascadeItems.some(i => i.id === cascadeId) || items.some(i => i.id === cascadeId)) return;
+
+        cascadeItems.push({
+          id:          cascadeId,
+          type:        'NEW',
+          array,
+          group:       'Other',
+          status:      'pending',
+          flags:       [],
+          isCascade:   true,
+          title:       `New ${entity.type} — ${entity.name}`,
+          sourceRef:   `Interpret — ${item.title || 'OCR page'}`,
+          sourceQuote: entity.desc || 'Detected in enemy turns during OCR interpret.',
+          rawData,
+          nlRender() {
+            return `<div style="color:var(--ink);font-size:0.85rem;line-height:1.5;">
+              <strong>${escapeHtmlDR(this.rawData.name)}</strong>
+              <span style="color:var(--muted);margin-left:6px;">(${escapeHtmlDR(this.array)})</span><br>
+              <span style="color:var(--muted);font-size:0.78rem;">${escapeHtmlDR(this.sourceQuote)}</span>
+            </div>`;
+          },
+        });
+      });
+
+      renderQueue();
+    },
+
+    onResult: (proposals) => {
+      if (runBtn) runBtn.disabled = false;
+
+      if (!proposals.length) {
+        statusEl.textContent = 'No rounds found. Check the OCR text — it may need correction first.';
+        return;
+      }
+
+      // If the DM declared a new combat, queue a NEW combat cascade item BEFORE the
+      // ROUND items. applyDeltasToCampaign() processes approved items in array order —
+      // the ROUND branch finds the combat by ID, so it must already exist when rounds
+      // are inserted. Pushing the combat item first guarantees this ordering.
+      //
+      // The combat stub leaves narrative fields null. Issue #74 will add AI generation
+      // of the combat name and narrative (setup/finale/aftermath) from session content.
+      if (isNewCombat) {
+        const combatCascadeId = `d_newcbt_${itemId}`;
+        const alreadyQueued   = cascadeItems.some(i => i.id === combatCascadeId)
+                             || items.some(i => i.id === combatCascadeId);
+        if (!alreadyQueued) {
+          const newCombatSessionId = sessionId; // capture for closure use in nlRender
+          cascadeItems.push({
+            id:         combatCascadeId,
+            type:       'NEW',
+            array:      'combat_encounters',
+            group:      'Other',
+            status:     'pending',
+            flags:      [],
+            isCascade:  true,
+            title:      `New Combat — ${combatName}`,
+            sourceRef:  `Interpret — ${item.title || 'OCR page'}`,
+            sourceQuote:`Declared as new combat during OCR interpret. Narrative fields (setup/finale/aftermath) will be generated by issue #74.`,
+            rawData: {
+              id:       combatId,
+              name:     combatName,
+              mechanics: {
+                outcome:             null,
+                location:            null,
+                sessions:            [newCombatSessionId],
+                total_rounds_logged: 0,
+              },
+              narrative: {
+                setup:     null,   // issue #74 will generate from session content
+                finale:    null,
+                aftermath: null,
+              },
+              rounds: [],
+            },
+            nlRender() {
+              // Simple display card for the new combat stub — no round data to render.
+              return `<div style="color:var(--ink);font-size:0.85rem;line-height:1.5;">
+                <strong>${escapeHtmlDR(this.rawData.name)}</strong>
+                <span style="color:var(--muted);margin-left:6px;">(${escapeHtmlDR(this.rawData.id)})</span><br>
+                <span style="color:var(--muted);font-size:0.78rem;">
+                  New combat entry — narrative fields will be generated by issue #74.
+                </span>
+              </div>`;
+            },
+          });
+        }
+      }
+
+      // Convert each proposal to a ROUND delta item using the same shape as
+      // approveGapProposal() so applyDeltasToCampaign() routes them to the ROUND branch.
+      // source:'interpret' identifies the origin in the queue so the DM can distinguish
+      // these from integrity-gap fills (source:'integrity') and intake rounds.
+      let added = 0;
+      proposals.forEach(function(proposal) {
+        const newItem = {
+          id:          `d_interp_${itemId}_r${proposal.n}`,
+          type:        'ROUND',
+          source:      'interpret',
+          array:       'combat_encounters',
+          group:       `Combat: ${combatId}`,
+          combatId,
+          combatName,
+          roundNumber: proposal.n,
+          status:      'pending',
+          flags:       [],
+          isRound:     true,
+          title:       `Round ${proposal.n} (OCR interpret)`,
+          sourceRef:   `Interpret — ${item.title || 'OCR page'}`,
+          sourceQuote: proposal.summary || '',
+          // rawData written to the campaign JSON on publish.
+          // slots and enemy_turns use the flat proposal shape — identical to what
+          // approveGapProposal() writes, so the normaliser handles it correctly.
+          rawData: {
+            n:           proposal.n,
+            session_id:  sessionId,
+            slots:       proposal.slots  || [],
+            enemy_turns: proposal.enemy  || [],
+          },
+          // roundData is the display shape for renderRoundNL() — not written to JSON.
+          roundData: {
+            n:      proposal.n,
+            sid:    sessionId,
+            slots:  proposal.slots || [],
+            enemy:  proposal.enemy || [],
+          },
+          nlRender() { return renderRoundNL(this.roundData); },
+        };
+
+        // Dedup guard: don't push if this round was already generated by a previous
+        // Interpret run on the same page (e.g. DM clicked Run Interpret twice).
+        const alreadyQueued = cascadeItems.some(i => i.id === newItem.id)
+                           || items.some(i => i.id === newItem.id);
+        if (!alreadyQueued) {
+          cascadeItems.push(newItem);
+          added++;
+        }
+      });
+
+      // Mark the source RAW item as interpreted — it no longer blocks publish as pending.
+      // The item stays visible in the queue so the DM can refer back to the OCR text.
+      item.status = 'interpreted';
+
+      statusEl.textContent = `Done — ${added} round${added !== 1 ? 's' : ''} added to queue.`;
+      renderQueue();
+      updateProgress();
+      renderReview();
+    },
+
+    onError: (err) => {
+      if (runBtn) runBtn.disabled = false;
+      statusEl.textContent = 'AI error: ' + (err?.message || String(err));
+    },
+  });
 }
 
 // ── AI corrections handled by ChronicleAI module (chronicle-ai.js) ──
@@ -1413,6 +1984,61 @@ function applyDiff(msgId) {
     msg.diffs.forEach(d => {
       if (d.k === 'ocr_text' && d.old != null && typeof item.rawData?.ocr_text === 'string') {
         item.rawData.ocr_text = item.rawData.ocr_text.replace(d.old, d.new);
+      }
+    });
+  }
+
+  // ROUND item — bracket-path writes for nested slot/enemy data.
+  // RAW items are handled above via String.replace on ocr_text; ROUND items need
+  // array-index writes because their data lives inside slots[] and enemy_turns[].
+  // Pattern: "arrayName[index].fieldName", e.g. "slots[2].action"
+  //
+  // Two objects must be patched on every ROUND correction (issue #72 actual root cause):
+  //   rawData  — written to the campaign JSON on publish; uses full field names
+  //              (action, result, value) as produced by the AI correction system.
+  //   roundData — read by renderRoundNL() for display; uses abbreviated field names
+  //              (act, res, val). Without patching roundData the card re-renders
+  //              from stale values and the DM sees no visual confirmation.
+  // SLOT_FIELD_MAP translates the full names from the AI diff into the abbreviated
+  // names renderRoundNL() expects. enemy_turns → enemy and .description → .desc
+  // is handled separately because the array name also changes.
+  if (item.type === 'ROUND') {
+    const SLOT_FIELD_MAP = { action: 'act', result: 'res', value: 'val', notes: 'notes' };
+
+    msg.diffs.forEach(d => {
+      // Match "arrayName[index].fieldName" — the only nesting level ROUND rawData uses.
+      // Deeper paths (e.g. slots[0].action.sub) have no match in the round schema and
+      // are silently skipped rather than throwing, keeping applyDiff() non-fatal.
+      const bracketMatch = d.k.match(/^(\w+)\[(\d+)\]\.(\w+)$/);
+      if (!bracketMatch) return;
+      const [, arrName, idxStr, field] = bracketMatch;
+      const idx = parseInt(idxStr, 10);
+
+      // Patch rawData — persisted to campaign JSON on publish.
+      if (item.rawData) {
+        const arr = item.rawData[arrName];
+        if (Array.isArray(arr) && arr[idx] != null) {
+          arr[idx][field] = d.new;
+        }
+      }
+
+      // Patch roundData — drives the live card display via renderRoundNL().
+      // Must be kept in sync with rawData or the card shows stale pre-correction values.
+      if (item.roundData) {
+        if (arrName === 'slots') {
+          // slots[N].action → roundData.slots[N].act  (and result→res, value→val)
+          const rdField = SLOT_FIELD_MAP[field] || field;
+          const rdArr = item.roundData.slots;
+          if (Array.isArray(rdArr) && rdArr[idx] != null) {
+            rdArr[idx][rdField] = d.new;
+          }
+        } else if (arrName === 'enemy_turns' && field === 'description') {
+          // enemy_turns[N].description → roundData.enemy[N].desc (array name also changes)
+          const rdArr = item.roundData.enemy;
+          if (Array.isArray(rdArr) && rdArr[idx] != null) {
+            rdArr[idx].desc = d.new;
+          }
+        }
       }
     });
   }
@@ -1674,6 +2300,20 @@ function triggerNarrativeGeneration() {
   window.location = 'narrative.html';
 }
 
+// arrayPrefixMap: maps campaign array names to their ID prefix string.
+// Used by the NEW branch below to auto-assign IDs to entities that arrive without one
+// (e.g. cascade items from the AI correction assistant, which have no access to the
+// campaign JSON at build time). Arrays not listed here — entity_relationships,
+// deferred_gaps, combat_encounters — manage their own IDs in separate branches.
+const arrayPrefixMap = {
+  npc_directory:      'npc',
+  locations:          'loc',
+  inventory_and_loot: 'item',
+  quest_ledger:       'qst',
+  bestiary:           'mon',
+  session_logs:       'session',
+};
+
 // Apply the approved review-queue deltas to a campaign JSON object.
 // Returns a new object — does not mutate the input.
 function applyDeltasToCampaign(campaign, approved) {
@@ -1684,8 +2324,23 @@ function applyDeltasToCampaign(campaign, approved) {
     if (!arr || !out[arr]) continue;
 
     if (delta.type === 'NEW') {
-      // Append new entity (avoid duplicates by id)
-      const id = delta.rawData?.id;
+      // Append new entity (avoid duplicates by id).
+      // If rawData has no id (e.g. cascade items built without campaign JSON access),
+      // derive the next available id from the highest existing numeric suffix in the array.
+      // Using max+1 rather than length+1 avoids collisions when IDs have been voided or
+      // skipped (e.g. npc_directory has 10 entries but the highest id is npc_013).
+      let id = delta.rawData?.id;
+      if (!id && delta.rawData) {
+        const prefix = arrayPrefixMap[arr];
+        if (prefix) {
+          const maxNum = out[arr].reduce((m, e) => {
+            const n = parseInt((e.id || '').split('_').pop(), 10);
+            return isNaN(n) ? m : Math.max(m, n);
+          }, 0);
+          delta.rawData.id = prefix + '_' + String(maxNum + 1).padStart(3, '0');
+          id = delta.rawData.id;
+        }
+      }
       if (id && out[arr].some(e => e.id === id)) continue;
       if (delta.rawData) out[arr].push(delta.rawData);
 
@@ -3022,10 +3677,29 @@ function loadIntakeDelta() {
     if (item.type === 'RAW') {
       // RAW items carry confirmed OCR text that has not yet been AI-interpreted.
       // Display it as a scrollable pre block so the DM can read the raw output.
-      const ocrText   = item.rawData?.ocr_text  || '(empty)';
-      const failed    = item.rawData?.page_failed;
-      const pageTitle = item.title || 'OCR Page';
-      render = () => `
+      // Issue #70: RAW items are never written to the campaign JSON on publish —
+      // there is no RAW handler in applyDeltasToCampaign(). The Interpret button
+      // below sends the OCR text to the AI and converts it to ROUND delta items
+      // that can be reviewed and approved normally.
+      //
+      // Regular function, not arrow — applyDiff() mutates rawData.ocr_text in-place
+      // when the DM applies an AI correction to the OCR text. An arrow function would
+      // capture ocrText as a closed-over local at loadIntakeDelta() time; subsequent
+      // renderReview() calls would re-render the stale original text. `this` is the
+      // item object because renderReview() calls item.nlRender() as a method (issue #72).
+      render = function() {
+        const ocrText   = this.rawData?.ocr_text   || '(empty)';
+        const failed    = this.rawData?.page_failed;
+        const pageTitle = this.title || 'OCR Page';
+        const itemId    = this.id;
+        return `
+        <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);
+          border-radius:3px;padding:0.6rem 0.85rem;margin-bottom:0.75rem;font-size:0.88rem;
+          color:var(--amber-dim);line-height:1.5;">
+          <strong>⚠ OCR pages are not written to the campaign on publish.</strong><br>
+          Approve this item only as a reference record, or use <strong>Interpret →</strong>
+          below to convert it to ROUND entries that can be approved and published normally.
+        </div>
         <div class="nl-narrative">
           ${failed ? '<span style="color:var(--rust);font-weight:600;">⚠ This page was typed manually — OCR failed.</span><br><br>' : ''}
           <strong>${escapeHtmlDR(pageTitle)}</strong> — raw OCR text, pending AI interpretation.
@@ -3033,7 +3707,15 @@ function loadIntakeDelta() {
         <pre style="white-space:pre-wrap;font-family:'JetBrains Mono',monospace;font-size:0.78rem;
           color:var(--text2);background:var(--parchment-dark);border:1px solid var(--border);
           border-radius:3px;padding:0.75rem;margin-top:0.75rem;max-height:400px;overflow-y:auto;
-          line-height:1.55;">${escapeHtmlDR(ocrText)}</pre>`;
+          line-height:1.55;">${escapeHtmlDR(ocrText)}</pre>
+        <div style="margin-top:0.85rem;">
+          <button class="btn" style="font-size:0.75rem;border-color:var(--teal);color:var(--teal);
+            background:rgba(30,120,120,0.06);" onclick="showInterpretForm('${itemId}')">
+            Interpret → Convert to ROUND entries
+          </button>
+          <div id="interpret-panel-${itemId}" style="margin-top:0.6rem;"></div>
+        </div>`;
+      };
 
     } else if (item.rawData?.narrative_text != null) {
       // Narrative notes item: show the text as a readable prose block
@@ -3046,22 +3728,67 @@ function loadIntakeDelta() {
           margin-top:0.75rem;line-height:1.7;">${escapeHtmlDR(text)}</div>`;
 
     } else if (item.rawData?.session_id != null) {
-      // Session header stub: show the session ID and date
-      const sid  = item.rawData.session_id || '';
-      const date = item.rawData.date       || '';
-      render = () => `
-        <div class="nl-narrative">
-          Session log stub for <strong>${escapeHtmlDR(sid)}</strong>.
-          Title and summary will be filled in after AI analysis.
-        </div>
-        <div class="field-grid" style="margin-top:0.85rem;">
-          <div class="field-row"><div class="field-label">Session ID</div>
-            <div class="field-val" style="font-family:'JetBrains Mono',monospace;">${escapeHtmlDR(sid)}</div></div>
-          <div class="field-row"><div class="field-label">Date</div>
-            <div class="field-val">${escapeHtmlDR(date)}</div></div>
-          <div class="field-row"><div class="field-label">Title</div>
-            <div class="field-val" style="color:var(--muted);font-style:italic;">Pending analysis</div></div>
-        </div>`;
+      // Session header stub: render editable title/summary inputs so the DM
+      // can fill them in before approving. Static "Pending analysis" text gave
+      // no affordance to edit, and approving the stub empty wrote blank fields
+      // to the campaign JSON (issue #64).
+      //
+      // Regular function, not arrow, so `this` resolves to the item at call time.
+      // An arrow function would capture rawData values as closed-over locals at
+      // loadIntakeDelta() time — edits made by updateSessionStubField() would
+      // never be reflected in subsequent renders. `this` is the item object
+      // because renderReview() calls item.nlRender() as a method.
+      render = function() {
+        const sid     = this.rawData.session_id || '';
+        // session_date is the schema field name — rawData.date is always undefined.
+        // The original render used rawData.date, so the date field always showed blank.
+        // issue #64 fix.
+        const date    = this.rawData.session_date || '';
+        const title   = this.rawData.title   || '';
+        const summary = this.rawData.summary || '';
+        const itemId  = this.id;
+        // _titleEmpty is set by setItemStatus() when Approve is clicked with an empty
+        // title. renderReview() re-calls nlRender() after setting the flag, so the
+        // warning appears on the same render pass that blocked the approval.
+        // Cleared by updateSessionStubField() once the DM types a non-empty title.
+        const showWarn = !!this._titleEmpty;
+        return `
+          <div class="nl-narrative">
+            Session log stub for <strong>${escapeHtmlDR(sid)}</strong>.
+            Fill in the title below before approving — it will be saved to the campaign JSON.
+          </div>
+          ${showWarn ? `
+          <div id="stub-title-warning-${escapeHtmlDR(itemId)}"
+            style="background:rgba(139,58,30,0.08);border:1px solid rgba(139,58,30,0.3);
+              border-radius:3px;padding:0.5rem 0.85rem;margin:0.5rem 0 0.85rem;
+              font-size:0.88rem;color:var(--rust);">
+            ⚠ Session title is required before approving.
+          </div>` : `
+          <div id="stub-title-warning-${escapeHtmlDR(itemId)}" style="display:none;"></div>`}
+          <div class="field-grid" style="margin-top:0.85rem;">
+            <div class="field-row"><div class="field-label">Session ID</div>
+              <div class="field-val" style="font-family:'JetBrains Mono',monospace;">${escapeHtmlDR(sid)}</div></div>
+            <div class="field-row"><div class="field-label">Date</div>
+              <div class="field-val">${escapeHtmlDR(date)}</div></div>
+            <div class="field-row"><div class="field-label">Title</div>
+              <div class="field-val">
+                <input type="text" value="${escapeHtmlDR(title)}"
+                  placeholder="Session title (required)"
+                  style="width:100%;background:var(--parchment-dark);border:1px solid var(--border);
+                    border-radius:3px;padding:0.35rem 0.6rem;color:var(--ink);font-size:0.93rem;
+                    font-family:inherit;"
+                  oninput="updateSessionStubField('${escapeHtmlDR(itemId)}', 'title', this.value)">
+              </div></div>
+            <div class="field-row" style="align-items:flex-start;"><div class="field-label">Summary</div>
+              <div class="field-val">
+                <textarea placeholder="Brief session summary (optional)"
+                  style="width:100%;background:var(--parchment-dark);border:1px solid var(--border);
+                    border-radius:3px;padding:0.35rem 0.6rem;color:var(--ink);font-size:0.93rem;
+                    font-family:inherit;resize:vertical;min-height:4rem;"
+                  oninput="updateSessionStubField('${escapeHtmlDR(itemId)}', 'summary', this.value)">${escapeHtmlDR(summary)}</textarea>
+              </div></div>
+          </div>`;
+      };
 
     } else if (item.type === 'RELATIONSHIP') {
       // Relationship item detected by intake AI (issue #43, two-tier model).

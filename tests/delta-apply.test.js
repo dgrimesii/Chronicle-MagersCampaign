@@ -63,6 +63,17 @@ const fixture     = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 // implementation are browser-only. This extract omits them — the tests only
 // exercise the NEW / MOD / ROUND routing branches.
 
+// arrayPrefixMap: kept in sync with the copy in delta-review.html.
+// Maps campaign array names to their ID prefix for auto-assignment of missing IDs.
+const arrayPrefixMap = {
+  npc_directory:      'npc',
+  locations:          'loc',
+  inventory_and_loot: 'item',
+  quest_ledger:       'qst',
+  bestiary:           'mon',
+  session_logs:       'session',
+};
+
 function applyDeltasToCampaign(campaign, approved) {
   const out = JSON.parse(JSON.stringify(campaign)); // deep clone — does not mutate input
 
@@ -71,8 +82,20 @@ function applyDeltasToCampaign(campaign, approved) {
     if (!arr || !out[arr]) continue;
 
     if (delta.type === 'NEW') {
-      // Append new entity (avoid duplicates by id)
-      const id = delta.rawData?.id;
+      // Append new entity (avoid duplicates by id).
+      // Auto-assign id if missing (cascade items arrive without one).
+      let id = delta.rawData?.id;
+      if (!id && delta.rawData) {
+        const prefix = arrayPrefixMap[arr];
+        if (prefix) {
+          const maxNum = out[arr].reduce((m, e) => {
+            const n = parseInt((e.id || '').split('_').pop(), 10);
+            return isNaN(n) ? m : Math.max(m, n);
+          }, 0);
+          delta.rawData.id = prefix + '_' + String(maxNum + 1).padStart(3, '0');
+          id = delta.rawData.id;
+        }
+      }
       if (id && out[arr].some(e => e.id === id)) continue;
       if (delta.rawData) out[arr].push(delta.rawData);
 
@@ -326,6 +349,135 @@ console.log('\nTest F-8 — remainingRounds returns g.miss when gapState is unde
   const remaining = computeRemainingRounds(g, st);
 
   assert('remainingRounds equals g.miss when st is undefined', remaining.length === 3);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Group F-9 — RAW delta item is silently skipped (regression guard, issue #70)
+// ═══════════════════════════════════════════════════════════════════════════
+// Before issue #70: approving a RAW OCR page item and publishing produced no
+// change in the campaign JSON — applyDeltasToCampaign() has no RAW handler.
+// This test locks in that behaviour so no future change accidentally causes
+// RAW items to write garbage into an array.
+
+console.log('\nTest F-9 — RAW delta item is silently skipped — nothing written to campaign');
+{
+  // Build a RAW delta item shaped exactly like the ones intake.html produces.
+  // array is 'session_logs' because that is what sendToAnalysis() sets on these items.
+  const rawDelta = {
+    type:    'RAW',
+    array:   'session_logs',
+    status:  'approved',
+    rawData: {
+      page_index: 0,
+      ocr_text:   'ROUND 1 [session: session_001]\nSlot 1: Gold — Firebolt, hit, 8\n',
+      page_failed: false,
+    },
+  };
+
+  const before = JSON.stringify(fixture);
+  const result = applyDeltasToCampaign(fixture, [rawDelta]);
+  const after  = JSON.stringify(result);
+
+  assert(
+    'session_logs length unchanged — RAW item not appended as a new session entry',
+    result.session_logs.length === fixture.session_logs.length
+  );
+  assert(
+    'campaign JSON identical to input — RAW item produces no mutations',
+    before === after
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Group F-10 — NEW delta with no id gets auto-assigned id (issue #66)
+// ═══════════════════════════════════════════════════════════════════════════
+// Before issue #66: cascade items arrived with no id in rawData. The duplicate
+// guard in applyDeltasToCampaign() was a no-op on undefined, so the entity was
+// pushed as-is — no id, schema violation, unreachable by any id-based lookup.
+// After fix: the NEW branch derives the next id from max(existing numeric suffixes)+1,
+// which is collision-safe even when ids have been voided or skipped.
+
+console.log('\nTest F-10 — NEW delta with no id gets auto-assigned collision-safe id');
+{
+  // F-10a: cascade NPC with no id — fixture has npc_001, npc_002, npc_003.
+  // max numeric suffix = 3, so auto-assigned id should be npc_004.
+  const cascadeNpc = {
+    type:    'NEW',
+    array:   'npc_directory',
+    status:  'approved',
+    rawData: { name: 'Barnes', type: 'npc', description: 'Mayor of Lake Town.' },
+    // no id field — simulates a _buildCascadeItem() output
+  };
+
+  const result10a = applyDeltasToCampaign(fixture, [cascadeNpc]);
+  const added10a  = result10a.npc_directory.find(n => n.name === 'Barnes');
+
+  assert(
+    'F-10a: cascade NPC is added to npc_directory',
+    result10a.npc_directory.length === fixture.npc_directory.length + 1
+  );
+  assert(
+    'F-10a: auto-assigned id is npc_004 (max 003 + 1)',
+    added10a?.id === 'npc_004'
+  );
+
+  // F-10b: gap-safety check — campaign with npc_001 and npc_003 (npc_002 voided/skipped).
+  // length+1 would give 3 (collision with npc_003). max+1 should give npc_004.
+  const campaignWithGap = JSON.parse(JSON.stringify(fixture));
+  campaignWithGap.npc_directory = [
+    { id: 'npc_001', name: 'Alpha' },
+    { id: 'npc_003', name: 'Gamma' }, // npc_002 voided — gap in sequence
+  ];
+
+  const cascadeGap = {
+    type:    'NEW',
+    array:   'npc_directory',
+    status:  'approved',
+    rawData: { name: 'Delta', type: 'npc', description: 'New NPC.' },
+  };
+
+  const result10b = applyDeltasToCampaign(campaignWithGap, [cascadeGap]);
+  const added10b  = result10b.npc_directory.find(n => n.name === 'Delta');
+
+  assert(
+    'F-10b: gap-safe — auto-assigned id is npc_004, not npc_003 (length+1 collision)',
+    added10b?.id === 'npc_004'
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Group F-11 — NEW delta with unrecognised array is silently skipped (issue #68)
+// ═══════════════════════════════════════════════════════════════════════════
+// _buildCascadeItem() now returns null for unknown types (instead of routing
+// them to 'locations' via the old || fallback). If a garbage item somehow slipped
+// through into the approved list, applyDeltasToCampaign() provides a second
+// safety layer: the '!out[arr]' guard skips any delta whose array key doesn't
+// exist in the campaign object — so session_note, correction, etc. cannot land
+// anywhere in the JSON.
+
+console.log('\nTest F-11 — NEW delta with unrecognised array is silently skipped');
+{
+  // Simulate what the old fallback would produce if it were still active:
+  // a NEW item routed to a made-up array name like 'session_note'.
+  const garbageDelta = {
+    type:    'NEW',
+    array:   'session_note',   // not a key in any campaign JSON — old fallback target
+    status:  'approved',
+    rawData: { name: 'Session 006 — Lance absent', type: 'session_note', description: 'Malachite piloted by David.' },
+  };
+
+  const before = JSON.stringify(fixture);
+  const result = applyDeltasToCampaign(fixture, [garbageDelta]);
+  const after  = JSON.stringify(result);
+
+  assert(
+    'locations[] unchanged — garbage item not appended',
+    result.locations.length === fixture.locations.length
+  );
+  assert(
+    'campaign JSON identical to input — unknown array produces no mutation',
+    before === after
+  );
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

@@ -30,7 +30,9 @@ const ChronicleAI = (() => {
   // Fix #23: was 'claude-sonnet-4-20250514' (pre-release/beta snapshot ID that
   // the production API rejects with HTTP 400). Use the canonical production alias.
   const MODEL    = 'claude-sonnet-4-6';
-  const MAX_TOKENS = 1200;
+  // 4096 tokens: complex corrections with 15+ diffs across multiple rounds can
+  // exceed 2500. 4096 is the safe upper bound for single-response JSON payloads.
+  const MAX_TOKENS = 4096;
 
   // ─────────────────────────────────────────────────────────
   // Party roster — shared context injected into every prompt
@@ -124,30 +126,100 @@ const ChronicleAI = (() => {
   // JSON extraction helper
   // Extracts and parses a JSON object from the AI response.
   //
-  // Why three strategies exist: the AI is instructed to respond with JSON only,
-  // but sometimes includes reasoning text before the code block (especially on
-  // complex corrections). A single fence-strip fails in that case because the
-  // leading text makes JSON.parse throw. We try progressively looser extraction
-  // so the Apply button still appears even when the AI is verbose.
+  // Why multiple strategies exist: the AI is instructed to respond with JSON
+  // only, but sometimes includes reasoning text before/after the code block, or
+  // (on complex corrections with many diffs) runs out of tokens and truncates
+  // the response before the JSON is properly closed.
+  //
+  // Strategy order: 1=fenced JSON, 2=bare fences, 3=balanced-brace walker,
+  // 4=partial recovery (extract whatever diffs survived truncation).
+  // Each strategy falls through to the next on parse failure.
   // ─────────────────────────────────────────────────────────
   function parseJSON(raw) {
     // Strategy 1: extract the content between ```json ... ``` fences anywhere in
     // the response. [\s\S]*? matches newlines too; non-greedy stops at first ```.
-    // This handles the common case of preamble reasoning text before the fence.
+    // Wrapped in try/catch so a truncated response inside the fence falls through
+    // to Strategy 4 rather than surfacing a parse error.
     const fenceMatch = raw.match(/```json\s*([\s\S]*?)```/);
-    if (fenceMatch) return JSON.parse(fenceMatch[1].trim());
+    if (fenceMatch) {
+      try { return JSON.parse(fenceMatch[1].trim()); } catch(e) { /* fall through */ }
+    }
 
     // Strategy 2: no language tag — bare ``` fences — only attempt if the
     // captured content looks like a JSON object (starts with '{').
     const plainFence = raw.match(/```\s*([\s\S]*?)```/);
     if (plainFence && plainFence[1].trim().startsWith('{')) {
-      return JSON.parse(plainFence[1].trim());
+      try { return JSON.parse(plainFence[1].trim()); } catch(e) { /* fall through */ }
     }
 
-    // Strategy 3: no fences at all — find the first '{' and parse from there.
-    // Handles responses where the AI omitted the code block entirely.
+    // Strategy 3: no fences at all — find the first '{' and walk forward to the
+    // matching '}' using a brace counter. This handles responses where the AI
+    // omits code fences AND appends trailing explanation text after the JSON
+    // object, which would cause JSON.parse(raw.slice(objStart)) to throw.
     const objStart = raw.indexOf('{');
-    if (objStart !== -1) return JSON.parse(raw.slice(objStart));
+    if (objStart !== -1) {
+      let depth = 0, inStr = false, escape = false, end = -1;
+      for (let i = objStart; i < raw.length; i++) {
+        const ch = raw[i];
+        if (escape)          { escape = false; continue; }
+        if (ch === '\\' && inStr) { escape = true; continue; }
+        if (ch === '"')      { inStr = !inStr; continue; }
+        if (inStr)           continue;
+        if (ch === '{')      depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
+      }
+      if (end !== -1) {
+        try { return JSON.parse(raw.slice(objStart, end + 1)); } catch(e) { /* fall through */ }
+      }
+    }
+
+    // Strategy 4: partial recovery for truncated responses.
+    // When the AI hits the token limit mid-response the JSON is never closed, so
+    // all three strategies above fail. Rather than returning diffs:[] (which
+    // hides the Apply button entirely), we walk the diffs array and extract every
+    // complete diff object that was emitted before the cutoff.
+    // The DM sees a "(response truncated)" warning alongside any recoverable diffs.
+    const diffsStart = raw.indexOf('"diffs"');
+    if (diffsStart !== -1) {
+      const arrOpen = raw.indexOf('[', diffsStart);
+      if (arrOpen !== -1) {
+        const recovered = [];
+        let pos = arrOpen + 1;
+        while (pos < raw.length) {
+          // Skip whitespace and commas between objects
+          while (pos < raw.length && /[\s,]/.test(raw[pos])) pos++;
+          if (raw[pos] !== '{') break; // Hit ']' end or truncation
+          // Walk to find the end of this complete diff object
+          let d = 0, inS = false, esc = false, objEnd = -1;
+          for (let i = pos; i < raw.length; i++) {
+            const c = raw[i];
+            if (esc)               { esc = false; continue; }
+            if (c === '\\' && inS) { esc = true;  continue; }
+            if (c === '"')         { inS = !inS;   continue; }
+            if (inS)               continue;
+            if (c === '{')         d++;
+            else if (c === '}')    { d--; if (d === 0) { objEnd = i; break; } }
+          }
+          if (objEnd === -1) break; // Truncated mid-object — stop here
+          try { recovered.push(JSON.parse(raw.slice(pos, objEnd + 1))); }
+          catch(e) { break; }
+          pos = objEnd + 1;
+        }
+        if (recovered.length > 0) {
+          // Extract the content field if it was emitted before truncation
+          const contentMatch = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+          const contentText  = contentMatch
+            ? contentMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+            : '';
+          return {
+            content:     contentText + '\n\n⚠ Response was truncated — showing ' + recovered.length + ' recoverable diff(s).',
+            diffs:       recovered,
+            cascades:    [],
+            globalScope: [],
+          };
+        }
+      }
+    }
 
     // Final fallback: trim and parse. Will throw if none of the above worked,
     // and the caller's catch block will wrap it as a plain content response.
@@ -255,13 +327,73 @@ RULES — these are absolute, not guidelines:
    Only include enemy_actions entries for enemies explicitly described by the user.
    Do not add enemy actions that seem likely or consistent with the combat context.
 
-5. SLOT ORDER IS FIXED.
-   Slots are numbered exactly as the user provided them. Do not reorder.
+5. ONE ENTRY PER OUTCOME.
+   A D&D turn may include a main action, a bonus action, and a reaction. Produce a
+   separate initiative_grid entry for each. Bonus actions and reactions share the same
+   slot number and actor_id as the main action — they are distinguished by action_type.
+   If a character has no bonus action or reaction recorded, do not add entries for them.
+
+   MULTIPLE ATTACK ROLLS: If an action involves more than one attack roll (Extra Attack,
+   Flurry of Blows, Multiattack, "2 attacks", etc.), produce ONE entry per roll. Each
+   entry shares the same slot, actor_id, action name, and action_type. Each gets its own
+   result, value, target, and target_effects for that specific roll.
+   NEVER collapse multiple attack rolls into a single entry with res:"mixed" — always split.
+
+   MULTI-TARGET ABILITIES: If a single action affects more than one target (Acid Splash,
+   Fireball, Burning Hands, Shatter, any AoE or save-or-X spell), produce ONE entry per
+   target. Each entry shares the same slot, actor_id, action name, action_type, and value
+   (the single damage roll applies to all targets). Each entry gets its own target name
+   and result (that specific target's saving throw outcome — "fail" if they failed, "save"
+   if they succeeded). NEVER set target to null and collapse all outcomes into one entry
+   when specific targets are described — always split one entry per target.
 
 6. ONE JSON OBJECT ONLY.
    Output a single JSON object. No explanation, no preamble, no markdown fences.
    If you cannot parse a slot from the user's text, include it with
-   action: "unclear", result: "unclear", value: null, notes: null.`;
+   action: "unclear", result: "unclear", value: null, action_type: "action".
+
+7. ACTION TYPE.
+   Every initiative_grid entry must have action_type. Use exactly one of:
+     "action"       — the character's main action
+     "bonus_action" — a bonus action taken in the same turn
+     "reaction"     — a reaction (opportunity attack, shield, etc.)
+     "free_action"  — a free action (drop item, speak, etc.)
+
+8. TARGET.
+   Set target to the descriptive name of what was targeted: "goblin", "dragon", "self",
+   "goblin leader". Use null ONLY when no target is described at all. Never use a PC/NPC
+   id — use the natural name as written in the log.
+   For multi-target abilities: produce one entry per target per rule 5 — do NOT set
+   target to null and merge all outcomes into one entry.
+
+9. TARGET EFFECTS.
+   Set target_effects to an array of outcomes that happened to the target as a direct
+   result of this action. Use only values from this list:
+     "killed", "downed", "unconscious", "stunned", "restrained", "prone",
+     "frightened", "blinded", "concentration_broken", "escaped"
+   Use an empty array [] when none apply. Never infer — only populate from explicit text.
+
+10. VALUE TYPE.
+    Set val_type to classify what the val number represents:
+      "damage"  — hit points lost by target
+      "healing" — hit points restored
+      "temp_hp" — temporary hit points granted
+    Use null when val is null or the type is unclear.
+
+11. NEW ENTITIES.
+    Before the rounds array, include a "new_entities" array listing every distinct enemy
+    creature type or NPC that appears in enemy_actions. Include ALL types — generic
+    creatures (goblin, wolf, orc) as well as named ones (Larkspur Dragon, Captain Vorrath).
+    The campaign bestiary has one entry per creature type, not one per individual; a fight
+    against "goblins" adds one "goblin" entry to the bestiary, not one per goblin killed.
+    For each entry:
+      "name" — the creature type name as written (e.g. "goblin", "Larkspur Dragon")
+      "type" — "monster" for any creature (dragons, beasts, undead, constructs,
+                humanoid enemies, goblins, wolves, etc.), "npc" for named persons
+                with agency (merchants, villains, quest-givers)
+      "desc" — one sentence describing the entity from the text context
+    Do NOT list individual instances ("Goblin #1", "Goblin #2") — only the type once.
+    The caller deduplicates against the existing bestiary; always include the full list.`;
 
   /**
    * fillRoundsFromImage({ images, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading })
@@ -302,7 +434,10 @@ RULES — these are absolute, not guidelines:
    * Sends a plain-language description to the API and converts it to round proposals.
    * onResult receives an array of normalised proposal objects.
    */
-  async function fillRoundsFromText({ text, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading }) {
+  async function fillRoundsFromText({ text, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading, onEntities }) {
+    // onEntities(entities) — optional callback receiving [{name, type, desc}] for any
+    // new entity the AI flags in enemy_actions (rule 11 of ROUND_SYSTEM_STRICT).
+    // Callers can use this to queue cascade items without a second AI call.
     const rosterLines = [
       'slot 1: Zragar/Goldie (pc_001)',
       'slot 2: Malachite/Mal (pc_002)',
@@ -312,24 +447,59 @@ RULES — these are absolute, not guidelines:
       'slot 6: Atticus/Att (pc_006)',
     ].join('\n');
 
-    const schemaExample = '{"rounds":[{\n' +
+    // Schema shown to the AI. Uses full field names (action/result/value) because
+    // that is what the AI naturally produces — _normaliseRoundProposals maps them
+    // to the abbreviated internal names (act/res/val) used by renderRoundNL.
+    //
+    // new_entities is placed FIRST in the schema so the AI emits it before the
+    // potentially-large rounds array. If the response is truncated (token limit),
+    // the entity list survives because it was generated early. Placing it last
+    // caused it to be cut off when processing two or more rounds of OCR text.
+    //
+    // Five example entries in initiative_grid teach the multi-entry patterns:
+    //   1+2. Two attack rolls from one actor (slot 1, both action_type:"action") —
+    //        prevents collapsing Extra Attack / Flurry of Blows into res:"mixed".
+    //   3.   A bonus action on the same slot (slot 1, action_type:"bonus_action").
+    //   4+5. AoE spell hitting two targets (slot 2, both action_type:"action") —
+    //        One damage roll (value:4) shared by both entries. Each target gets its own
+    //        result (their individual saving throw) and target name. This models Acid
+    //        Splash, Fireball, etc. — one roll, per-target saves, each target an entry.
+    const schemaExample = '{\n' +
+      '"new_entities": [\n' +
+      '  { "name": "<creature type or NPC name>", "type": "monster|npc", "desc": "<one sentence from text>" }\n' +
+      '],\n' +
+      '"rounds":[{\n' +
       '  "round_number": <number>,\n' +
       '  "session_id": "<string>",\n' +
       '  "initiative_grid": [\n' +
       '    {\n' +
-      '      "slot": <number>,\n' +
-      '      "actor_id": "<pc_id>",\n' +
-      '      "action": "<exact action name from description>",\n' +
-      '      "result": "hit|miss|crit|unclear",\n' +
-      '      "value": <number or null>,\n' +
-      '      "notes": "<string or null>"\n' +
+      '      "slot": 1, "actor_id": "pc_001", "action_type": "action",\n' +
+      '      "action": "attack", "result": "hit", "value": 7, "val_type": "damage",\n' +
+      '      "target": "goblin", "target_effects": ["killed"], "notes": null\n' +
+      '    },\n' +
+      '    {\n' +
+      '      "slot": 1, "actor_id": "pc_001", "action_type": "action",\n' +
+      '      "action": "attack", "result": "miss", "value": null, "val_type": null,\n' +
+      '      "target": "goblin", "target_effects": [], "notes": null\n' +
+      '    },\n' +
+      '    {\n' +
+      '      "slot": 1, "actor_id": "pc_001", "action_type": "bonus_action",\n' +
+      '      "action": "<bonus action name>", "result": "hit", "value": null, "val_type": null,\n' +
+      '      "target": null, "target_effects": [], "notes": null\n' +
+      '    },\n' +
+      '    {\n' +
+      '      "slot": 2, "actor_id": "pc_002", "action_type": "action",\n' +
+      '      "action": "Acid Splash", "result": "fail", "value": 4, "val_type": "damage",\n' +
+      '      "target": "goblin", "target_effects": [], "notes": null\n' +
+      '    },\n' +
+      '    {\n' +
+      '      "slot": 2, "actor_id": "pc_002", "action_type": "action",\n' +
+      '      "action": "Acid Splash", "result": "save", "value": 4, "val_type": "damage",\n' +
+      '      "target": "goblin", "target_effects": [], "notes": null\n' +
       '    }\n' +
       '  ],\n' +
       '  "enemy_actions": [\n' +
-      '    {\n' +
-      '      "description": "<string>",\n' +
-      '      "impact": "<string or null>"\n' +
-      '    }\n' +
+      '    { "description": "<string>", "impact": "<string or null>" }\n' +
       '  ]\n' +
       '}]}';
 
@@ -364,6 +534,11 @@ RULES — these are absolute, not guidelines:
         try {
           const parsed = parseJSON(raw);
           onResult(_normaliseRoundProposals(parsed.rounds || [], roundNumbers, sessionId, 'text'));
+          // Fire onEntities with any new entity flags the AI included (rule 11).
+          // Callers that don't pass onEntities simply ignore this field.
+          if (onEntities && Array.isArray(parsed.new_entities) && parsed.new_entities.length) {
+            onEntities(parsed.new_entities);
+          }
         } catch (e) {
           onError(e);
         }
@@ -382,12 +557,23 @@ RULES — these are absolute, not guidelines:
         source,
         status:  'pending',
         slots:   (r.initiative_grid || []).map(s => ({
-          s:     s.slot,
-          a:     s.actor_id,
-          act:   s.action,
-          res:   s.result || 'neutral',
-          val:   s.value  || null,
-          notes: s.notes  || null,
+          s:              s.slot,
+          a:              s.actor_id,
+          // act/res/val are the abbreviated names renderRoundNL and applyDiff SLOT_FIELD_MAP use.
+          // The AI produces full names (action/result/value); we translate here so the rest
+          // of the codebase only deals with one shape.
+          act:            s.action,
+          res:            s.result   || 'neutral',
+          val:            s.value    || null,
+          notes:          s.notes    || null,
+          // New fields (issue #75) — passed through verbatim, no abbreviation.
+          // action_type classifies action economy (action/bonus_action/reaction/free_action).
+          // target is a descriptive name string; target_effects is a controlled-vocab array.
+          // val_type distinguishes damage from healing when val is non-null.
+          action_type:    s.action_type    || null,
+          target:         s.target         || null,
+          target_effects: Array.isArray(s.target_effects) ? s.target_effects : [],
+          val_type:       s.val_type       || null,
         })),
         enemy: (r.enemy_actions || []).map(e => ({
           desc:   e.description,
@@ -418,18 +604,64 @@ Respond ONLY with valid JSON. Do not include any reasoning, explanation, or text
 {
   "content": "plain language explanation of what you changed and why",
   "diffs": [{"k": "field · subfield", "old": "previous value", "new": "corrected value"}],
-  "cascades": [{"type": "NEW location|npc|item|etc", "desc": "description of new item to queue", "entityHint": {"name":"...","type":"..."}}],
+  "cascades": [{"type": "NEW location|npc|item|quest|monster", "desc": "description of new item to queue", "entityHint": {"name":"...","type":"..."}}],
   "globalScope": ["item title 1", "item title 2"]
 }
 
 Omit diffs, cascades, or globalScope if not applicable. Never omit content. Never write text before or after the JSON block.
+
+Entity type rules for cascades:
+- Use type "monster" for any D&D creature: dragons, drakes, beasts, undead, constructs, humanoid enemies (goblins, ogres, etc.), and any entity that would appear in a monster manual. These go to the bestiary array.
+- Use type "npc" only for named persons with agency: merchants, guards, quest-givers, allies, villains who speak and make decisions, and similar characters.
+- Never use type "npc" for a creature that would appear in a monster manual entry. A dragon is always type "monster", not type "npc".
+- The entityHint.type field must be exactly one of: location, npc, monster, item, quest. Never invent a type not in this list. If the correction implies something that does not fit any of these types, omit the cascade entirely rather than inventing a new type name.
 
 For items of type RAW (uninterpreted OCR text), the rawData contains only one
 field: "ocr_text". These items are confirmed OCR output that the DM is now
 correcting. You MUST return a diff for any correction to OCR text — do not
 treat it as "not applicable". Use k:"ocr_text", old: the exact phrase as it
 currently appears in the ocr_text value, new: the corrected phrase. Diff only
-the changed portion — never return the entire text block as old/new.`;
+the changed portion — never return the entire text block as old/new.
+
+For items of type ROUND (combat round data), the rawData contains:
+  "slots": array of initiative slot objects. Multiple entries may share the same slot
+    number and actor_id in two cases:
+      (a) Different action types: one for the main action, one for a bonus action, one for a reaction.
+      (b) Multiple attack rolls within one action (Extra Attack, Flurry of Blows, Multiattack,
+          "2 attacks", etc.): one entry PER ROLL, all sharing the same slot, actor_id, action name,
+          and action_type. Each roll has its own result, value, target, and target_effects.
+          NEVER correct multiple attacks into a single entry with result:"mixed" — always split.
+    Each slot entry has these fields:
+      "action"       — what the actor did (exact name, string)
+      "result"       — one of: hit / miss / crit / save_fail / save_success / mixed /
+                       success / neutral / unclear / crit_miss
+      "value"        — damage or healing number, or null
+      "val_type"     — "damage" | "healing" | "temp_hp" | null
+      "action_type"  — "action" | "bonus_action" | "reaction" | "free_action"
+      "target"       — descriptive target name string, or null
+      "target_effects" — array of condition strings, or empty array []. Allowed values:
+                         "killed" / "downed" / "unconscious" / "stunned" / "restrained" /
+                         "prone" / "frightened" / "blinded" / "concentration_broken" / "escaped"
+      "notes"        — extra context or null
+  "enemy_turns": array of enemy action objects, each with:
+    "description" — what the enemy did (string)
+
+Use bracket-path notation to target individual slot or enemy fields in diffs.
+Slot indices are 0-based and count across ALL slot entries including bonus actions and reactions:
+  k:"slots[2].action"             → corrects slot index 2's action text
+  k:"slots[2].result"             → corrects slot index 2's result
+  k:"slots[2].value"              → corrects slot index 2's damage value
+  k:"slots[2].val_type"           → corrects slot index 2's value type
+  k:"slots[2].action_type"        → corrects slot index 2's action category
+  k:"slots[2].target"             → corrects slot index 2's target name
+  k:"slots[2].target_effects"     → replaces the entire target_effects array; "new" must be
+                                     the full replacement array, e.g. ["killed"] or []
+  k:"slots[0].notes"              → corrects slot 0's notes
+  k:"enemy_turns[0].description"  → corrects the first enemy action text
+
+Always quote the current value in "old" so the DM can see the before/after.
+For target_effects, "old" should be the current array and "new" the replacement array.
+Never produce a cascade for a ROUND correction — round data is self-contained.`;
 
   /**
    * sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems, campaignRoster, onResult, onError, onLoading })
@@ -447,7 +679,11 @@ the changed portion — never return the entire text block as old/new.`;
    * onError / onLoading as usual
    */
   async function sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems = [], campaignRoster = '', onResult, onError, onLoading }) {
-    const contextStr = JSON.stringify(itemContext?.rawData || {}, null, 2).slice(0, 800);
+    // 6000-char limit — raised from 800 (issue #76 followup).
+    // RAW OCR items can contain multiple rounds totalling 2000+ chars; at 800 the AI
+    // never saw Round 5 data and could not generate diffs for it. 6000 covers any
+    // realistic single-page OCR payload without exceeding the prompt context window.
+    const contextStr = JSON.stringify(itemContext?.rawData || {}, null, 2).slice(0, 6000);
     const scopeNote  = scope === 'global'
       ? `\nThis correction may apply broadly. Pending items: ${pendingItems.map(i => i.title).join('; ')}`
       : '';

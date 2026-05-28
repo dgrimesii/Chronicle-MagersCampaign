@@ -2080,7 +2080,19 @@ async function sendToAnalysis() {
       session_id: sessionId,
       title:      '',
       summary:    '',
-      date:       new Date().toISOString().slice(0, 10),
+      // session_date is the schema field name — not 'date'. Using 'date' produces
+      // an unrecognised field that nothing reads, leaving the session with no date.
+      session_date: new Date().toISOString().slice(0, 10),
+      // narrative.key_moments is the v4 schema path read by both normalisers
+      // (s.narrative?.key_moments ?? []) and by chronicle-narrative.js.
+      // An absent narrative object means key_moments is unreachable even with
+      // optional chaining — the field resolves to undefined, not [].
+      // Seeding an empty array here ensures the published session entry has
+      // the correct structure from the moment it is created, before any
+      // narrative generation has run.
+      narrative: {
+        key_moments: [],
+      },
     },
   });
 
