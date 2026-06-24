@@ -324,12 +324,19 @@ The AI sidebar is the right tool for structural reordering, but it must be fixed
 | Error Class | Upstream Fix | Impact |
 |---|---|---|
 | Proper nouns (PC names, NPC names, location names) | Inject campaign roster + NPC/location names into OCR prompt | **High** — most common FM2 error class |
-| PC racial/class features and ability names | Inject targeted SRD excerpt for each PC's race and class into OCR and interpretation prompts | **High** — "healing hands" is a known Aasimar feature; context injection would have caught the "stealing hands" misread before it reached review |
+| PC racial/class features and ability names | Inject targeted SRD excerpt for each PC's race and class into OCR and interpretation prompts as a positive validation aid — terms found in the SRD are treated as confirmed; terms not found are treated as possibly valid (non-SRD source) and passed through, not rejected | **High** — "healing hands" is a known Aasimar feature; context injection would have caught the "stealing hands" misread before it reached review |
 | Abbreviations | Connect `glossary.html` data to `buildOCRSystemPrompt()` | Medium — data exists but is not exported |
 | Structural ordering (initiative, actor assignment) | Cannot be reduced upstream; cramped handwriting is the root cause. Must be fixed at review via improved AI sidebar schema knowledge (#69) | High risk, requires sidebar fix |
 | Numbers (damage, rounds) | Flag implausible values during interpretation (>100 damage, negative, non-numeric) | Low-medium — handwriting quality is root cause |
 
 **On SRD context injection:** A full SRD is too large to inject. The targeted approach is a per-PC feature list — for the Magers Campaign party, this means injecting the Aasimar feature list (Healing Hands, Radiant Soul, Necrotic Shroud, etc.), the Paladin spell list, the Ranger spell list, etc. This is a small, manageable payload that directly addresses the ability-name misread category. Each PC's relevant SRD section can be stored as a static string in `chronicle-ai.js` alongside `PARTY_ROSTER` and injected into both the OCR prompt and the interpretation prompt.
+
+**Critical constraint on SRD use — accurate but incomplete:** The SRD is an open-license subset of D&D rules, not the complete game. Players regularly use abilities, spells, feats, and class features from official expansion books (Xanathar's Guide, Tasha's Cauldron, etc.) that are not published under the SRD open license. The AI must treat SRD content as a positive signal only:
+
+- **Term found in SRD:** strong evidence the reading is correct — use it to confirm
+- **Term not found in SRD:** weak signal only — the term may be from a non-SRD source; do not flag it as incorrect, do not substitute an SRD equivalent, pass it through and let the DM confirm
+
+The AI's instruction should be explicit: *"The following known terms appear on this character's sheet. If you read something that closely resembles one of these terms, prefer the known term. If you read something not on this list, that is not an error — it may be from a source not covered here."* This framing makes SRD a disambiguation hint, not a closed vocabulary.
 
 ---
 
@@ -363,7 +370,7 @@ The AI sidebar is the right tool for structural reordering, but it must be fixed
 
 ### [2] OCR + Context Injection
 - **What the user does:** Clicks "Begin Processing" and waits.
-- **What the system does:** Fetches `magers-campaign.json` at intake load (currently not done). For each image: compresses, then calls vision API with a system prompt containing (a) `PARTY_ROSTER`, (b) known NPC/location/monster names from campaign JSON, (c) glossary abbreviations, (d) a targeted SRD excerpt — per-PC racial features and class ability lists stored as a static payload in `chronicle-ai.js` alongside `PARTY_ROSTER`. Example: knowing the Aasimar PC has "Healing Hands" (not "Stealing Hands") is a known feature the AI should expect to see in handwriting. SRD injection is not the full rulebook — it is a curated list of abilities and terms that are likely to appear in this party's session notes.
+- **What the system does:** Fetches `magers-campaign.json` at intake load (currently not done). For each image: compresses, then calls vision API with a system prompt containing (a) `PARTY_ROSTER`, (b) known NPC/location/monster names from campaign JSON, (c) glossary abbreviations, (d) a targeted SRD excerpt — per-PC racial features and class ability lists stored as a static payload in `chronicle-ai.js` alongside `PARTY_ROSTER`. Example: knowing the Aasimar PC has "Healing Hands" (not "Stealing Hands") is a known feature the AI should expect to see in handwriting. SRD injection is not the full rulebook — it is a curated list of abilities and terms likely to appear in this party's session notes. The AI treats this list as a positive disambiguation aid: terms on the list are preferred when handwriting is ambiguous; terms not on the list are passed through without penalty, as they may come from non-SRD sources (expansion books, etc.).
 - **How confident misreadings are caught:** Campaign context + SRD terms dramatically reduces FM2 for proper nouns and ability names. Structural ordering errors (who did what in which round) cannot be reduced at this stage — cramped handwriting is the root cause and must be handled at step 5.
 - **Guardrails:** Compression, per-page progress, processing banner (existing)
 - **Recovery:** Per-page re-run at step 3
@@ -416,6 +423,8 @@ The first kind is a lexical error: the AI reads "healing hands" as "stealing han
 The second kind is a structural error: the AI assigns the wrong action to the wrong player across multiple rounds because the initiative order was unclear from cramped notes. For this, inline editing is not enough — you can't fix a wrong table structure by clicking on one cell. This still requires the AI sidebar, but the sidebar currently cannot produce valid slot-level restructuring diffs (#69). That bug must be fixed, and the sidebar must be given the full current slot structure as context so it knows what it is being asked to rearrange.
 
 **Preventing errors upstream matters as much as fixing them downstream.** The OCR AI currently reads your handwriting without knowing which ability names exist in the game or on your characters' sheets. "Healing Hands" is a real Aasimar racial feature — if the AI knew that, it would be far less likely to misread it as "Stealing Hands". The proposed fix is to inject a curated list of each PC's racial features and class abilities into the OCR prompt (stored in `chronicle-ai.js` alongside the party roster). This is a small addition that directly addresses the ability-name misread category.
+
+One important rule governs how this list is used: it is accurate but incomplete. The SRD does not cover every official D&D book. A player may use a spell or feature from an expansion that isn't on the list — that is not an error. The AI uses the list to confirm things it recognises, not to reject things it doesn't.
 
 **The second biggest problem was that OCR didn't know your campaign.** The AI was reading your handwriting without knowing which names to expect — it had to guess "Zragar" from your handwriting alone. In the new pipeline, the OCR step is told every character name, NPC name, location name, and monster name. It will still sometimes misread, but far less often on proper nouns — and those are the most important corrections to get right.
 
