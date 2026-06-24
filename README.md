@@ -31,9 +31,11 @@ Chronicle-MagersCampaign/
 │   ├── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
 │   └── chronicle-narrative.js  # Shared Gemini narrative module — exports window.ChronicleNarrative
 ├── data/
-│   └── magers-campaign.json    # Campaign data — single source of truth, schema version 4.0.0
+│   ├── magers-campaign.json    # Campaign data — single source of truth, schema version 4.0.0
+│   └── pc-abilities.json       # Per-PC ability/spell/action lists harvested from D&D Beyond; used by intake.html OCR prompt enrichment (issue #80). Regenerate with: node scripts/harvest-characters.js
 ├── scripts/
-│   └── build.js                # STALE — injected EMBEDDED_DATA into HTML files; markers removed in Phase 1, script is now dead code
+│   ├── build.js                # STALE — injected EMBEDDED_DATA into HTML files; markers removed in Phase 1, script is now dead code
+│   └── harvest-characters.js  # Fetches all 6 PC character sheets from D&D Beyond, extracts key ability/spell names, writes data/pc-abilities.json. Run manually after sessions where characters level up.
 ├── notes/
 │   └── phase1-claude-code-prompt.md  # Historical prompt used to migrate data reads from Drive to repo fetch
 ├── docs/

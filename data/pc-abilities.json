@@ -1,0 +1,273 @@
+{
+  "generated_at": "2026-06-24T16:56:29.293Z",
+  "source": "D&D Beyond character service v5",
+  "characters": [
+    {
+      "nickname": "Ashton",
+      "full_name": "Ashton, Scion of Hadar",
+      "race": "Tiefling",
+      "classes": [
+        {
+          "name": "Warlock",
+          "level": 4,
+          "subclass": "Great Old One Patron"
+        }
+      ],
+      "feats": [
+        "Lucky",
+        "Tough"
+      ],
+      "actions": [
+        "Magical Cunning",
+        "Awakened Mind",
+        "Initiate a Circle Spell",
+        "Circle Spell: Augment",
+        "Circle Spell: Distribute",
+        "Circle Spell: Expand",
+        "Circle Spell: Prolong",
+        "Circle Spell: Safeguard",
+        "Circle Spell: Supplant",
+        "Pact of the Blade: Conjure",
+        "Pact of the Blade: Bond",
+        "Luck Points"
+      ],
+      "spells": [
+        "Arms of Hadar",
+        "Chill Touch",
+        "Detect Thoughts",
+        "Dissonant Whispers",
+        "Eldritch Blast",
+        "False Life",
+        "Mage Hand",
+        "Phantasmal Force",
+        "Tasha's Hideous Laughter",
+        "Thaumaturgy",
+        "Umbral Tendril",
+        "Witch Bolt"
+      ]
+    },
+    {
+      "nickname": "Asphodel",
+      "full_name": "Asphodel",
+      "race": "Aasimar",
+      "classes": [
+        {
+          "name": "Monk",
+          "level": 4,
+          "subclass": "Warrior of Shadow"
+        }
+      ],
+      "feats": [
+        "Magic Initiate (Wizard)",
+        "Dark Bargain"
+      ],
+      "actions": [
+        "Unarmed Strike",
+        "Focus Points",
+        "Flurry of Blows",
+        "Patient Defense",
+        "Step of the Wind",
+        "Uncanny Metabolism",
+        "Deflect Attack",
+        "Deflect Attack: Redirect Attack",
+        "Slow Fall",
+        "Healing Hands",
+        "Celestial Revelation"
+      ],
+      "spells": [
+        "Chill Touch",
+        "Darkness",
+        "Light",
+        "Minor Illusion",
+        "Spellfire Flare",
+        "Toll the Dead"
+      ]
+    },
+    {
+      "nickname": "Atticus",
+      "full_name": "Atticus",
+      "race": "Human",
+      "classes": [
+        {
+          "name": "Druid",
+          "level": 4,
+          "subclass": "Circle of the Stars"
+        }
+      ],
+      "feats": [
+        "Inspiring Leader",
+        "Magic Initiate (Druid)",
+        "Magic Initiate (Wizard)",
+        "Dark Bargain"
+      ],
+      "actions": [
+        "Leave Druidic Message",
+        "Wild Shape",
+        "Star Map: Ceremony",
+        "Assume Starry Form",
+        "Initiate a Circle Spell",
+        "Circle Spell: Augment",
+        "Circle Spell: Distribute",
+        "Circle Spell: Expand",
+        "Circle Spell: Prolong",
+        "Circle Spell: Safeguard",
+        "Circle Spell: Supplant",
+        "Bolstering Performance"
+      ],
+      "spells": [
+        "Acid Splash",
+        "Barkskin",
+        "Find Familiar",
+        "Goodberry",
+        "Guidance",
+        "Guiding Bolt",
+        "Healing Spirit",
+        "Healing Word",
+        "Ice Knife",
+        "Lesser Restoration",
+        "Light",
+        "Mold Earth",
+        "Moonbeam",
+        "Shield",
+        "Shillelagh",
+        "Spare the Dying",
+        "Speak with Animals",
+        "Starry Wisp",
+        "Thorn Whip",
+        "Wither and Bloom"
+      ]
+    },
+    {
+      "nickname": "Goli",
+      "full_name": "Derwin \"Goli\" Warmfire",
+      "race": "Halfling",
+      "classes": [
+        {
+          "name": "Rogue",
+          "level": 4,
+          "subclass": "Arcane Trickster"
+        }
+      ],
+      "feats": [
+        "Alert",
+        "Dual Wielder",
+        "Weapon Mastery",
+        "Dark Bargain"
+      ],
+      "actions": [
+        "Sneak Attack",
+        "Cunning Action",
+        "Steady Aim",
+        "Initiate a Circle Spell",
+        "Circle Spell: Augment",
+        "Circle Spell: Distribute",
+        "Circle Spell: Expand",
+        "Circle Spell: Prolong",
+        "Circle Spell: Safeguard",
+        "Circle Spell: Supplant",
+        "Enhanced Dual Wielding",
+        "Vex (Shortsword)",
+        "Nick (Dagger)"
+      ],
+      "spells": [
+        "Absorb Elements",
+        "Blade Ward",
+        "Feather Fall",
+        "Mage Hand"
+      ]
+    },
+    {
+      "nickname": "Malachite",
+      "full_name": "Malachite",
+      "race": "Aasimar",
+      "classes": [
+        {
+          "name": "Barbarian",
+          "level": 4,
+          "subclass": "Path of the World Tree"
+        }
+      ],
+      "feats": [
+        "Strike of the Giants (Fire Strike)",
+        "Weapon Mastery",
+        "4: Weapon Mastery",
+        "Polearm Master",
+        "Dark Bargain"
+      ],
+      "actions": [
+        "Rage (Enter)",
+        "Healing Hands",
+        "Celestial Revelation",
+        "Strike of the Giants: Fire Strike",
+        "Pole Strike",
+        "Reactive Strike",
+        "Sap (Longsword)",
+        "Topple (Trident)",
+        "Cleave (Halberd)"
+      ],
+      "spells": [
+        "Light"
+      ]
+    },
+    {
+      "nickname": "Goldie",
+      "full_name": "Zragar \"Goldie\" Aurtesh",
+      "race": "Dragonborn",
+      "classes": [
+        {
+          "name": "Wizard",
+          "level": 4,
+          "subclass": "Bladesinger"
+        }
+      ],
+      "feats": [
+        "Magic Initiate (Wizard)",
+        "War Caster",
+        "Dark Bargain",
+        "Circle Magic (Intelligence)"
+      ],
+      "actions": [
+        "Arcane Recovery",
+        "Bladesong (Invoke)",
+        "Initiate a Circle Spell",
+        "Circle Spell: Augment",
+        "Circle Spell: Distribute",
+        "Circle Spell: Expand",
+        "Circle Spell: Prolong",
+        "Circle Spell: Safeguard",
+        "Circle Spell: Supplant",
+        "Breath Weapon (Fire)",
+        "Reactive Spell"
+      ],
+      "spells": [
+        "Absorb Elements",
+        "Comprehend Languages",
+        "Concussive Burst",
+        "Detect Magic",
+        "Find Familiar",
+        "Fire Bolt",
+        "Fog Cloud",
+        "Hold Person",
+        "Identify",
+        "Knock",
+        "Mage Armor",
+        "Mage Hand",
+        "Magic Missile",
+        "Mirror Image",
+        "Misty Step",
+        "Mold Earth",
+        "Ray of Frost",
+        "Scorching Ray",
+        "Shield",
+        "Shocking Grasp",
+        "Silvery Barbs",
+        "Sleep",
+        "Spider Climb",
+        "True Strike",
+        "Vortex Warp",
+        "Web",
+        "Witch Bolt"
+      ]
+    }
+  ]
+}
