@@ -128,13 +128,8 @@
   }
 
   /* ── Upload zones ── */
-  .upload-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.25rem;
-    margin-bottom: 2rem;
-  }
-
+  /* Single zone spans full width — no grid needed since issue #81 merged the
+     two-column combat/narrative split into one unified Session Pages zone. */
   .upload-zone {
     border: 1.5px dashed var(--border-strong);
     border-radius: 4px;
@@ -187,8 +182,8 @@
     border-radius: 2px;
     text-transform: uppercase;
   }
-  .tag-images { background: rgba(42,107,107,0.1); color: var(--teal); border: 1px solid rgba(42,107,107,0.25); }
-  .tag-text { background: rgba(212,175,55,0.1); color: var(--amber-dim); border: 1px solid rgba(212,175,55,0.25); }
+  /* .tag-images and .tag-text removed — issue #81 merged upload zones into one;
+     no per-type colour coding needed when all files share a single zone. */
 
   /* ── File list ── */
   .file-list {
@@ -749,7 +744,7 @@
 
   /* ── Responsive ── */
   @media (max-width: 640px) {
-    .upload-grid { grid-template-columns: 1fr; }
+    /* .upload-grid rule removed — single Session Pages zone is already full-width */
     .ocr-panel { grid-template-columns: 1fr; }
   }
 </style>
@@ -800,51 +795,35 @@
     <h1 class="page-title">New Session Upload</h1>
     <p class="page-subtitle">Gather the scrolls before the ink fades from memory.</p>
 
-    <div class="upload-grid">
-
-      <!-- Combat image uploads -->
-      <div>
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
-          <span class="upload-type-tag tag-images">Combat Log — Images</span>
-          <span style="font-size:0.82rem; color:var(--muted); font-style:italic;" id="img-count-label">0 pages</span>
-        </div>
-        <div class="upload-zone" id="img-drop-zone">
-          <input type="file" id="img-input" multiple accept="image/*" onchange="handleImageFiles(this.files)">
-          <svg class="upload-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="4" y="8" width="32" height="24" rx="3" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="13" cy="17" r="3" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M4 26l8-7 6 5 5-4 13 9" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-          </svg>
-          <div class="upload-label">Drop image pages here</div>
-          <div class="upload-hint">PNG, JPG, WEBP accepted<br>Multiple files — one per page</div>
-        </div>
-        <div class="file-list" id="img-file-list"></div>
+    <!-- Single Session Pages upload zone — issue #81 merged the old two-column
+         Combat Log / Narrative Notes grid into one zone. Files are routed by
+         MIME type in handleSessionFiles(): images go to handleImageFiles(),
+         text files go to handleTextFile(). State variables are unchanged. -->
+    <div style="margin-bottom:2rem;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
+        <span class="upload-type-tag">Session Pages</span>
+        <span style="font-size:0.82rem; color:var(--muted); font-style:italic;" id="img-count-label">0 pages</span>
       </div>
-
-      <!-- Narrative text upload -->
-      <div>
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
-          <span class="upload-type-tag tag-text">Narrative Notes — Text</span>
-          <span style="font-size:0.82rem; color:var(--muted); font-style:italic;" id="txt-count-label">0 files</span>
-        </div>
-        <div class="upload-zone" id="txt-drop-zone">
-          <input type="file" id="txt-input" accept=".txt,.md" onchange="handleTextFile(this.files[0])">
-          <svg class="upload-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="8" y="4" width="24" height="32" rx="3" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="13" y1="13" x2="27" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="13" y1="19" x2="27" y2="19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="13" y1="25" x2="22" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          <div class="upload-label">Drop narrative notes here</div>
-          <div class="upload-hint">TXT or Markdown<br>One file, complete session notes</div>
-        </div>
-        <div class="file-list" id="txt-file-list"></div>
-        <div id="narrative-preview-container" style="margin-top:1rem;display:none;">
-          <div style="font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;color:var(--muted);margin-bottom:6px;">Preview</div>
-          <div class="narrative-display" id="narrative-preview"></div>
-        </div>
+      <div class="upload-zone" id="session-drop-zone">
+        <!-- Single input accepts both image and text formats; handleSessionFiles()
+             routes each file to the correct handler by MIME type. -->
+        <input type="file" id="session-input" multiple accept="image/*,.txt,.md" onchange="handleSessionFiles(this.files)">
+        <svg class="upload-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="8" width="32" height="24" rx="3" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="13" cy="17" r="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M4 26l8-7 6 5 5-4 13 9" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        <div class="upload-label">Drop session pages here</div>
+        <div class="upload-hint">Images and/or text files — PNG, JPG, WEBP, TXT, MD<br>Multiple image files accepted — one per page</div>
       </div>
-
+      <!-- Image file list rendered by renderImageList() -->
+      <div class="file-list" id="img-file-list"></div>
+      <!-- Text file row rendered by handleTextFile() -->
+      <div class="file-list" id="txt-file-list"></div>
+      <div id="narrative-preview-container" style="margin-top:1rem;display:none;">
+        <div style="font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;color:var(--muted);margin-bottom:6px;">Preview</div>
+        <div class="narrative-display" id="narrative-preview"></div>
+      </div>
     </div>
 
     <div class="notice" id="order-notice" style="display:none;">
@@ -862,7 +841,7 @@
   <!-- ═══════════════════════════════ STEP 2: OCR REVIEW ═══════════════════════════════ -->
   <div class="ocr-section" id="ocr-section">
 
-    <div class="ornament-divider"><span>OCR Review — Handwritten Combat Log</span></div>
+    <div class="ornament-divider"><span>OCR Review — Session Pages</span></div>
 
     <div class="ocr-header">
       <h2 class="ocr-title">Correct the Transcription</h2>
@@ -1124,6 +1103,29 @@ function setStep(n) {
 }
 
 // ══════════════════════════════════════════════════════
+// Unified session file router (issue #81)
+// ══════════════════════════════════════════════════════
+
+/**
+ * handleSessionFiles(files) — routes files from the unified Session Pages zone
+ * to the correct handler based on MIME type.
+ *
+ * Why it exists: issue #81 merged the separate Combat Log (image) and Narrative
+ * Notes (text) upload zones into one. The DM can now drop mixed content in a
+ * single gesture. This router keeps handleImageFiles() and handleTextFile()
+ * unchanged — they continue to own their respective state and rendering logic.
+ *
+ * If multiple text files are dropped, only the first is accepted — matching
+ * the pre-existing single-text-file constraint.
+ */
+function handleSessionFiles(files) {
+  const images = Array.from(files).filter(f => f.type.startsWith('image/'));
+  const texts  = Array.from(files).filter(f => !f.type.startsWith('image/'));
+  if (images.length) handleImageFiles(images);
+  if (texts.length)  handleTextFile(texts[0]);
+}
+
+// ══════════════════════════════════════════════════════
 // Image upload
 // ══════════════════════════════════════════════════════
 function handleImageFiles(files) {
@@ -1190,8 +1192,8 @@ function handleTextFile(file) {
     const container = document.getElementById('narrative-preview-container');
     preview.textContent = narrativeText.slice(0, 1200) + (narrativeText.length > 1200 ? '\n\n[...preview truncated...]' : '');
     container.style.display = 'block';
-    const label = document.getElementById('txt-count-label');
-    label.textContent = '1 file';
+    // txt-count-label removed — issue #81 merged zones; file presence is shown
+    // by the file row in #txt-file-list, no separate count label needed.
     const list = document.getElementById('txt-file-list');
     list.innerHTML = `
       <div class="file-item">
@@ -1207,7 +1209,7 @@ function handleTextFile(file) {
 function removeText() {
   textFile = null; narrativeText = '';
   document.getElementById('txt-file-list').innerHTML = '';
-  document.getElementById('txt-count-label').textContent = '0 files';
+  // txt-count-label removed — issue #81; file list clearing is sufficient feedback.
   document.getElementById('narrative-preview-container').style.display = 'none';
   checkReadyToRun();
 }
@@ -1215,16 +1217,18 @@ function removeText() {
 // ══════════════════════════════════════════════════════
 // Drag & drop
 // ══════════════════════════════════════════════════════
-['img-drop-zone','txt-drop-zone'].forEach(id => {
-  const el = document.getElementById(id);
+// Single listener on the unified zone — routes dropped files by type via
+// handleSessionFiles(). Replaces the old two-zone loop (issue #81).
+(function() {
+  const el = document.getElementById('session-drop-zone');
   el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
   el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
   el.addEventListener('drop', e => {
-    e.preventDefault(); el.classList.remove('drag-over');
-    if (id === 'img-drop-zone') handleImageFiles(e.dataTransfer.files);
-    else handleTextFile(e.dataTransfer.files[0]);
+    e.preventDefault();
+    el.classList.remove('drag-over');
+    handleSessionFiles(e.dataTransfer.files);
   });
-});
+}());
 
 // ══════════════════════════════════════════════════════
 // Enable run button
@@ -2174,18 +2178,19 @@ function buildSessionDoc() {
 
   let html = '';
 
-  // Combat pages
+  // Session pages (OCR output) — labelled neutrally since pages may contain
+  // combat, narrative, or mixed content (issue #81 removed the combat-only assumption).
   pageData.forEach((p, i) => {
-    html += `<div class="doc-section-head">Combat Log — Page ${i+1}</div>`;
+    html += `<div class="doc-section-head">Session Page ${i+1}</div>`;
     html += `<div style="white-space:pre-wrap;margin-bottom:0.5rem;">${escapeHtml(p.ocrText)}</div>`;
   });
 
-  // Narrative
-  html += `<div class="doc-section-head">Narrative Notes — ${textFile ? textFile.name : 'Player Notes'}</div>`;
+  // Text notes — shown when a .txt/.md file was uploaded alongside images.
+  html += `<div class="doc-section-head">Text Notes — ${textFile ? textFile.name : 'Text Notes'}</div>`;
   html += `<div style="white-space:pre-wrap;">${escapeHtml(narrativeText)}</div>`;
 
   view.innerHTML = html;
-  stats.textContent = `${pageData.length} combat page${pageData.length !== 1 ? 's' : ''} + narrative`;
+  stats.textContent = `${pageData.length} session page${pageData.length !== 1 ? 's' : ''} + text notes`;
 }
 
 function goBackToOCR() {

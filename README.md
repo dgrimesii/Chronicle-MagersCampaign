@@ -280,7 +280,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/intake.html`
 - **Audience:** DM only
-- Three-step wizard: (1) upload session photos, (2) review OCR output page-by-page, (3) consolidate into session document
+- Three-step wizard: (1) upload session pages via single "Session Pages" zone (images and/or text files, mixed drops supported), (2) review OCR output page-by-page, (3) consolidate into session document
 - Loads `../shared/config.js` and `../shared/chronicle-ai.js`
 - Uses `ChronicleAI.call()` with vision to extract handwritten combat notes from uploaded images; images are compressed to ≤1800px before sending to stay within the Anthropic 5MB base64 limit
 - Fetches `../data/magers-campaign.json` once at page load via `loadCampaignContext()` to extract NPC, location, monster, and combat name lists for OCR prompt enrichment. If the fetch fails, `campaignEntities` stays null and OCR continues with the base prompt only (graceful degradation)
