@@ -303,17 +303,33 @@ OCR error (step 2) → not caught at review (step 3) → propagated to interpret
 **What happens when a correction prompt is misunderstood:**
 The AI returns a diff with the wrong field key. DM clicks Discard. Retypes more specific correction. AI may now get the key right but quote the wrong old value. Discard, retry. Each retry is 5-15 seconds of API latency. After 3 failures, no remaining options.
 
-**What inline correction would look like:**
-`renderRoundNL()` currently displays a table of slots (actor, action, result, value, notes). Each cell becomes a `contenteditable` span or click-to-edit input. DM clicks "Firebolt" → input appears → types "Fire Bolt" → Enter → `rawData.slots[2].action` updated directly. No AI call. No latency. No misunderstanding. The AI sidebar remains for complex corrections (e.g., entity matching) but is no longer the primary path.
+**Two distinct correction types — only one is solved by inline editing:**
+
+Real-world testing revealed that corrections fall into two categories that require fundamentally different solutions:
+
+**Type 1 — Lexical errors** (wrong word, misread ability name, garbled proper noun): These are fixable by inline edit. Example: "stealing hands" misread from "healing hands" on a page where the Aasimar's cramped handwriting caused a character substitution. The DM clicks the wrong word, types the correct one, presses Enter. No AI call needed. This is where inline editing has genuine value.
+
+**Type 2 — Structural errors** (wrong initiative order, wrong player-action associations, combat rounds misassigned to the wrong actor across multiple slots): These are **not** fixable by inline editing. When handwritten notes are cramped and the AI cannot determine which action belongs to which player in which round, the result is not a single wrong word — it is a wrong structure across multiple slots simultaneously. Correcting this requires reordering rows, reassigning actor IDs, and splitting or merging slots. In testing, this class of error required significant AI correction prompting and still frequently failed to resolve cleanly due to #69 (the AI's inability to produce valid slot-level diffs).
+
+**Inline editing is a necessary improvement, not a complete solution.** It removes friction for Type 1 (lexical) errors. It does nothing for Type 2 (structural) errors, which are the harder and more consequential failure pattern. The AI correction sidebar must remain — and must be significantly improved — specifically for structural reordering. The fix for the sidebar is not to demote it, but to give it schema knowledge: the AI needs to understand the ROUND slot structure well enough to produce valid reordering diffs (#69).
+
+**What inline correction would look like (for Type 1 errors):**
+`renderRoundNL()` currently displays a table of slots (actor, action, result, value, notes). Each cell becomes a `contenteditable` span or click-to-edit input. DM clicks "stealing hands" → input appears → types "healing hands" → Enter → `rawData.slots[2].action` updated directly. No AI call. No latency.
+
+**What structural correction still requires (for Type 2 errors):**
+The AI sidebar is the right tool for structural reordering, but it must be fixed to understand the ROUND slot schema (#69). The prompt sent to `sendCorrectionToAI()` should include the full current slot structure serialized as JSON, and the AI's response spec should explicitly support slot reordering and actor reassignment as diff operations — not just field-value replacements.
 
 **Classes of errors reducible upstream:**
 
 | Error Class | Upstream Fix | Impact |
 |---|---|---|
-| Proper nouns (PC names, NPC names, location names) | Inject campaign roster + NPC/location list into OCR prompt | **High** — most common FM2 error class |
+| Proper nouns (PC names, NPC names, location names) | Inject campaign roster + NPC/location names into OCR prompt | **High** — most common FM2 error class |
+| PC racial/class features and ability names | Inject targeted SRD excerpt for each PC's race and class into OCR and interpretation prompts | **High** — "healing hands" is a known Aasimar feature; context injection would have caught the "stealing hands" misread before it reached review |
 | Abbreviations | Connect `glossary.html` data to `buildOCRSystemPrompt()` | Medium — data exists but is not exported |
+| Structural ordering (initiative, actor assignment) | Cannot be reduced upstream; cramped handwriting is the root cause. Must be fixed at review via improved AI sidebar schema knowledge (#69) | High risk, requires sidebar fix |
 | Numbers (damage, rounds) | Flag implausible values during interpretation (>100 damage, negative, non-numeric) | Low-medium — handwriting quality is root cause |
-| Spell/ability names | Inject known PC ability list into OCR prompt | Medium |
+
+**On SRD context injection:** A full SRD is too large to inject. The targeted approach is a per-PC feature list — for the Magers Campaign party, this means injecting the Aasimar feature list (Healing Hands, Radiant Soul, Necrotic Shroud, etc.), the Paladin spell list, the Ranger spell list, etc. This is a small, manageable payload that directly addresses the ability-name misread category. Each PC's relevant SRD section can be stored as a static string in `chronicle-ai.js` alongside `PARTY_ROSTER` and injected into both the OCR prompt and the interpretation prompt.
 
 ---
 
@@ -347,11 +363,11 @@ The AI returns a diff with the wrong field key. DM clicks Discard. Retypes more 
 
 ### [2] OCR + Context Injection
 - **What the user does:** Clicks "Begin Processing" and waits.
-- **What the system does:** Fetches `magers-campaign.json` at intake load (currently not done). For each image: compresses, then calls vision API with a system prompt containing (a) `PARTY_ROSTER`, (b) known NPC/location/monster names from campaign JSON, (c) glossary abbreviations. Proper noun injection is the single highest-impact change — the AI reads handwriting knowing which names to expect.
-- **How confident misreadings are caught:** Campaign context dramatically reduces FM2 for proper nouns. Remaining FM2 errors surface at step 3.
+- **What the system does:** Fetches `magers-campaign.json` at intake load (currently not done). For each image: compresses, then calls vision API with a system prompt containing (a) `PARTY_ROSTER`, (b) known NPC/location/monster names from campaign JSON, (c) glossary abbreviations, (d) a targeted SRD excerpt — per-PC racial features and class ability lists stored as a static payload in `chronicle-ai.js` alongside `PARTY_ROSTER`. Example: knowing the Aasimar PC has "Healing Hands" (not "Stealing Hands") is a known feature the AI should expect to see in handwriting. SRD injection is not the full rulebook — it is a curated list of abilities and terms that are likely to appear in this party's session notes.
+- **How confident misreadings are caught:** Campaign context + SRD terms dramatically reduces FM2 for proper nouns and ability names. Structural ordering errors (who did what in which round) cannot be reduced at this stage — cramped handwriting is the root cause and must be handled at step 5.
 - **Guardrails:** Compression, per-page progress, processing banner (existing)
 - **Recovery:** Per-page re-run at step 3
-- **Removed:** Nothing; added campaign roster injection into `buildOCRSystemPrompt()`
+- **Removed:** Nothing; added campaign roster + SRD feature injection into `buildOCRSystemPrompt()`
 
 ### [3] Page Review
 - **What the user does:** Reviews each page's OCR output in a textarea, edits errors directly, confirms.
@@ -370,12 +386,12 @@ The AI returns a diff with the wrong field key. DM clicks Discard. Retypes more 
 - **Removed/merged:** Consolidation (old step 4), relationship detection (old step 5), sessionStorage hand-off (old step 6), queue load (old step 7), integrity pre-flight (old step 8), and manual RAW interpretation (old step 9). Six steps collapsed into one automated step with one DM click.
 
 ### [5] Structured Review
-- **What the user does:** Reviews each item; clicks on any value to edit it directly; approves when correct.
-- **What the system does:** Renders ROUND items as an inline-editable table. Each cell (actor, action, result, value, notes, target, target_effects) is click-to-edit — clicking converts it to an input; Enter commits directly to `rawData`. No AI call. Entity cards (NPC, monster, location) similarly inline-editable. Session stub has editable title/summary. AI correction sidebar remains as an optional power tool for complex multi-field corrections (e.g., entity matching), but is no longer the primary correction mechanism.
-- **How confident misreadings are caught:** Structured table format makes wrong values easy to spot — each round is a row, each field a column. Physical notes on hand for reference. Inline edit means any error is fixed with one click-and-type.
-- **Guardrails:** Ground truth propagation (#57). Redirect detection (#58). Integrity checks against campaign data. AI sidebar available for complex corrections.
-- **Recovery:** Each edit is a direct value replacement — no AI mediation to go wrong. Previous value can be stored per-edit for undo. AI sidebar corrections can be discarded (existing).
-- **Removed:** AI-mediated correction as the *primary* correction path. Sidebar becomes secondary/optional.
+- **What the user does:** Reviews each item; fixes lexical errors by clicking on the wrong value and typing the correct one; uses the AI sidebar for structural errors (wrong initiative order, misassigned actions); approves when correct.
+- **What the system does:** Renders ROUND items as an inline-editable table. Each cell (actor, action, result, value, notes, target, target_effects) is click-to-edit — clicking converts it to an input; Enter commits directly to `rawData`. No AI call for cell-level edits. The AI correction sidebar handles structural corrections (slot reordering, actor reassignment across multiple rounds) — but must be fixed (#69) to send the full current slot structure as JSON and accept slot-level reordering as a valid diff operation. Entity cards (NPC, monster, location) similarly inline-editable. Session stub has editable title/summary.
+- **How confident misreadings are caught:** Two-tier correction model. Lexical errors (wrong word, wrong ability name) caught by scanning the table and fixed via inline edit — fast, no AI, no latency. Structural errors (wrong actor in wrong slot, wrong round ordering) caught by comparing the table row-by-row against physical notes and fixed via the AI sidebar with full slot-structure context provided. The DM has physical originals on hand; screen real estate is for the interpreted data, not source images.
+- **Guardrails:** Ground truth propagation (#57). Redirect detection (#58). Integrity checks against campaign data.
+- **Recovery:** Inline edits: direct value replacement, previous value can be stored for undo. AI sidebar corrections: can be discarded and retried (existing). The sidebar's reliability for structural corrections depends on fixing #69.
+- **Removed:** AI-mediated correction as the mechanism for *lexical* errors. Inline edit handles those. The AI sidebar remains the mechanism for structural errors and is elevated, not demoted — but must be given schema knowledge to do its job.
 
 ### [6] Publish
 - **What the user does:** Clicks Publish; reviews the pre-publish confirmation panel (#37); clicks Confirm.
@@ -393,7 +409,13 @@ The current pipeline has 12 steps. The proposed pipeline has 6. Here is what cha
 
 **The biggest problem was not the number of steps — it was that every correction required asking the AI to fix itself.** When the AI misread your handwriting (which happens on every session), you had to describe the error in words, send it to the AI, hope the AI understood, review its proposed fix, and apply it. If the AI misunderstood your correction, you tried again. This loop was the primary reason no intake run has ever completed successfully.
 
-**The fix: let you edit the data directly.** When you see "Firebolt" and it should be "Fire Bolt", you click on it, type "Fire Bolt", and press Enter. Done. No AI call, no waiting, no chance of misunderstanding. The AI sidebar still exists for complex corrections (like "this monster is actually the same as mon_003"), but simple typo-level fixes are direct edits.
+**There are two kinds of errors, and they need two different fixes.**
+
+The first kind is a lexical error: the AI reads "healing hands" as "stealing hands" because two letters looked similar in cramped handwriting. For this, the fix is to let you edit the data directly — click on the wrong word, type the right one, press Enter. No AI call, no round-trips, no chance of misunderstanding.
+
+The second kind is a structural error: the AI assigns the wrong action to the wrong player across multiple rounds because the initiative order was unclear from cramped notes. For this, inline editing is not enough — you can't fix a wrong table structure by clicking on one cell. This still requires the AI sidebar, but the sidebar currently cannot produce valid slot-level restructuring diffs (#69). That bug must be fixed, and the sidebar must be given the full current slot structure as context so it knows what it is being asked to rearrange.
+
+**Preventing errors upstream matters as much as fixing them downstream.** The OCR AI currently reads your handwriting without knowing which ability names exist in the game or on your characters' sheets. "Healing Hands" is a real Aasimar racial feature — if the AI knew that, it would be far less likely to misread it as "Stealing Hands". The proposed fix is to inject a curated list of each PC's racial features and class abilities into the OCR prompt (stored in `chronicle-ai.js` alongside the party roster). This is a small addition that directly addresses the ability-name misread category.
 
 **The second biggest problem was that OCR didn't know your campaign.** The AI was reading your handwriting without knowing which names to expect — it had to guess "Zragar" from your handwriting alone. In the new pipeline, the OCR step is told every character name, NPC name, location name, and monster name. It will still sometimes misread, but far less often on proper nouns — and those are the most important corrections to get right.
 
@@ -408,7 +430,7 @@ The current pipeline has 12 steps. The proposed pipeline has 6. Here is what cha
 | Issue | How addressed |
 |---|---|
 | #70 RAW items never written to JSON | Eliminated — auto-interpret converts all OCR text to structured items |
-| #69 ROUND corrections create cascades | Mitigated — inline edit bypasses AI correction for field-level fixes |
+| #69 ROUND corrections create cascades | Partially mitigated — inline edit bypasses AI for lexical fixes; structural reordering still requires AI sidebar and depends on fixing #69 |
 | #71 Drag to reorder not implemented | Included in step 1 |
 | #37 No pre-publish confirmation | Included in step 6 |
 | #64 / #74 Session title/summary empty | Handled automatically in auto-interpret |
