@@ -2154,6 +2154,13 @@ async function publish() {
       // Post-publish narrative trigger still fires in test mode — it only reads
       // the updated JSON and writes to sessionStorage, so no Drive access needed.
       afterPublishSuccess(updated, sessionId);
+
+      // Clear intake sessionStorage now that publish succeeded (issue #83).
+      // Placed after afterPublishSuccess so that function can still read narrative
+      // beats from the envelope. Both keys removed together — the loaded flag must
+      // be cleared so the next intake run is not mistakenly detected as a restoration.
+      sessionStorage.removeItem('chronicle_intake_delta');
+      sessionStorage.removeItem('chronicle_intake_delta_loaded');
       return;
     }
 
@@ -2184,6 +2191,13 @@ async function publish() {
     // Step 6 — post-publish narrative trigger (issue #44).
     // Only runs on success — if any step above threw, we are in catch() and this is skipped.
     afterPublishSuccess(updated, sessionId);
+
+    // Step 7 — clear intake sessionStorage now that publish succeeded (issue #83).
+    // Placed after afterPublishSuccess so that function can still read narrative
+    // beats from the envelope. Both keys removed together — the loaded flag must
+    // be cleared so the next intake run is not mistakenly detected as a restoration.
+    sessionStorage.removeItem('chronicle_intake_delta');
+    sessionStorage.removeItem('chronicle_intake_delta_loaded');
 
   } catch(e) {
     setPublishStatus(`Publish failed: ${e.message}`, 'error');
@@ -2242,9 +2256,10 @@ function afterPublishSuccess(updated, publishedSessionId) {
   // arrived here from intake.html in the same browser tab. If the DM navigated
   // directly to delta-review, chronicle_intake_delta will be absent and narrativeBeats
   // will be []. Full persistence of narrative_beats is deferred to Phase 5 (web server).
-  // Note: chronicle_intake_delta was already cleared by loadIntakeDelta() on page load
-  // (one-time transfer), so this will typically return {} — the beats are captured
-  // as a best-effort only when the full intake→delta-review flow happens in one tab session.
+  // Note: chronicle_intake_delta is still present at this point (issue #83 — key
+  // persists until publish succeeds). The removeItem calls in publish() run AFTER
+  // this function returns, so the full envelope is reliably available here and
+  // narrativeBeats will be populated whenever the DM arrived from intake.
   const intakeDelta    = JSON.parse(sessionStorage.getItem('chronicle_intake_delta') || '{}');
   const narrativeBeats = intakeDelta.narrativeBeats || [];
 
@@ -3639,8 +3654,17 @@ function escapeHtmlDR(s) {
  * Why: the intake → delta-review hand-off writes a serialised delta envelope
  * to sessionStorage['chronicle_intake_delta'] before navigating here. This
  * function reads it, rehydrates the items with nlRender() functions (which
- * cannot survive JSON serialisation), replaces the hardcoded items[] array,
- * clears the sessionStorage key (one-time transfer), and shows the intake banner.
+ * cannot survive JSON serialisation), and replaces the hardcoded items[] array.
+ *
+ * Persistence model (issue #83): the key is NOT cleared here. It persists in
+ * sessionStorage until publish() removes it after a successful Drive write.
+ * This means the DM can navigate away from delta-review and return without
+ * losing the queue — the items are rehydrated from the same envelope on reload.
+ *
+ * Restoration detection: a companion flag 'chronicle_intake_delta_loaded' is
+ * written to sessionStorage after the first successful parse. On subsequent page
+ * loads within the same tab session, the flag being 'true' + key existing signals
+ * a restoration scenario, which shows a different (auto-dismissing) banner.
  *
  * If the key is absent or malformed (e.g. direct navigation, or a JSON.parse
  * failure), the function returns without touching items[] — the hardcoded
@@ -3660,13 +3684,19 @@ function loadIntakeDelta() {
     // Malformed JSON in sessionStorage — clear it and continue with demo data
     console.warn('[delta-review] Failed to parse chronicle_intake_delta:', e);
     sessionStorage.removeItem('chronicle_intake_delta');
+    sessionStorage.removeItem('chronicle_intake_delta_loaded');
     return;
   }
 
-  // Clear the key immediately — this is a one-time transfer, not persistent state.
-  // If the DM reloads delta-review, the hardcoded demo data will load rather than
-  // re-applying stale intake data from a previous session.
-  sessionStorage.removeItem('chronicle_intake_delta');
+  // Do NOT clear chronicle_intake_delta here (issue #83). The key persists
+  // until publish() removes it after a successful Drive write, so the DM can
+  // navigate away and return without losing the queue.
+
+  // Detect whether this is a return visit (DM navigated away and came back).
+  // The loaded flag survives navigation within the same tab session — if it is
+  // already 'true', this is a restoration load, not the first arrival from intake.
+  const isRestoration = sessionStorage.getItem('chronicle_intake_delta_loaded') === 'true';
+  sessionStorage.setItem('chronicle_intake_delta_loaded', 'true');
 
   // Rehydrate each item with a type-appropriate nlRender() function.
   // nlRender() returns an HTML string; it could not be serialised to JSON
@@ -3839,13 +3869,25 @@ function loadIntakeDelta() {
   // the AI correction flow, which runs independently of the initial queue.
   items = rehydrated;
 
-  // Show the intake banner above the shell so the DM knows this is live data,
-  // not the hardcoded session 006 demo.
-  const narrativeSuffix = envelope.hasNarrative ? ' + narrative' : '';
+  // Show the appropriate intake banner above the shell.
   const banner = document.getElementById('intake-banner');
   if (banner) {
-    banner.textContent = `Session data loaded from intake — ${envelope.pageCount} page(s)${narrativeSuffix} · Session: ${envelope.sessionId}`;
-    banner.style.display = 'block';
+    if (isRestoration) {
+      // DM navigated away and returned — show a brief confirmation that the
+      // queue survived, then auto-dismiss so it doesn't persist indefinitely.
+      // rehydrated.length is the item count actually loaded from the envelope.
+      const n = rehydrated.length;
+      banner.textContent = `Queue restored from previous session — ${n} item${n !== 1 ? 's' : ''} loaded`;
+      banner.style.display = 'block';
+      // Auto-dismiss after 5 seconds; the queue itself is already visible.
+      setTimeout(() => { banner.style.display = 'none'; }, 5000);
+    } else {
+      // First arrival from intake — show persistent banner so the DM knows
+      // this is live data from the current session, not the hardcoded demo.
+      const narrativeSuffix = envelope.hasNarrative ? ' + narrative' : '';
+      banner.textContent = `Session data loaded from intake — ${envelope.pageCount} page(s)${narrativeSuffix} · Session: ${envelope.sessionId}`;
+      banner.style.display = 'block';
+    }
   }
 }
 
