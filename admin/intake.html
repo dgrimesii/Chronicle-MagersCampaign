@@ -842,7 +842,8 @@
       </button>
       <button class="btn btn-primary" id="run-ocr-btn" disabled onclick="startOCR()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h7M2 10h5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
-        Run OCR Analysis
+        <!-- Label span updated by checkReadyToRun() to reflect unprocessed page count -->
+        <span id="run-ocr-label">Run OCR Analysis</span>
       </button>
     </div>
   </div>
@@ -858,6 +859,9 @@
         <div class="status-dot" id="ocr-status-dot"></div>
         <span id="ocr-status-text">Processing page 1...</span>
       </div>
+      <!-- Back to Upload — issue #82. Preserves imageFiles[], pageData[], and all
+           OCR text already generated. Only new (unprocessed) pages run on re-start. -->
+      <button class="btn" onclick="backToUpload()" style="font-size:0.8rem;">← Back to Upload</button>
     </div>
 
     <div class="notice">
@@ -1272,16 +1276,37 @@ function removeText() {
 // Enable run button
 // ══════════════════════════════════════════════════════
 function checkReadyToRun() {
-  const ocrBtn  = document.getElementById('run-ocr-btn');
-  const textBtn = document.getElementById('proceed-text-btn');
+  const ocrBtn   = document.getElementById('run-ocr-btn');
+  const ocrLabel = document.getElementById('run-ocr-label');
+  const textBtn  = document.getElementById('proceed-text-btn');
 
-  // OCR requires at least one image — text files are passed through as-is
-  // and are not processed by the OCR pipeline (fix #19).
-  ocrBtn.disabled = !(imageFiles.length > 0);
+  // Count pages that still need OCR — pages with ocrText already populated
+  // (or previously failed) are skipped by simulateOCR() (issue #82).
+  // This drives both the enabled state and the button label.
+  const unprocessed = pageData.filter(p => p.ocrText === '' && !p.ocrFailed).length;
 
-  // Text-only path (issue #81): if a text file is loaded but no images,
-  // show "Proceed with Text" and hide it once images are added (OCR path
-  // takes over). Both buttons can't be meaningfully active at the same time.
+  if (imageFiles.length === 0) {
+    // No images uploaded — button disabled, default label.
+    ocrBtn.disabled = true;
+    ocrLabel.textContent = 'Run OCR Analysis';
+  } else if (unprocessed === 0) {
+    // All uploaded images already have OCR text — nothing new to run.
+    // Happens after back-navigation when no new files were added.
+    ocrBtn.disabled = true;
+    ocrLabel.textContent = 'All pages processed';
+  } else if (unprocessed < imageFiles.length) {
+    // Some pages already processed (back-navigation + new file added).
+    // Label tells the DM exactly how many pages will be sent to the API.
+    ocrBtn.disabled = false;
+    ocrLabel.textContent = `Run OCR on ${unprocessed} new page${unprocessed !== 1 ? 's' : ''}`;
+  } else {
+    // First run — all pages unprocessed.
+    ocrBtn.disabled = false;
+    ocrLabel.textContent = 'Run OCR Analysis';
+  }
+
+  // Text-only path (issue #81): show "Proceed with Text" when text is loaded
+  // but no images are present. Hidden once images are added (OCR path takes over).
   const textOnly = textFile && imageFiles.length === 0;
   textBtn.style.display = textOnly ? '' : 'none';
 }
@@ -1319,6 +1344,35 @@ function startOCR() {
   currentPage = 0;
   buildTabs();
   simulateOCR(0);
+}
+
+/**
+ * backToUpload() — returns from the OCR review step (Step 2) to the upload
+ * zone (Step 1) without losing any uploaded files or generated OCR text.
+ *
+ * Why it exists: before issue #82, clicking "Run OCR Analysis" was a one-way
+ * transition. The DM could not return to add a forgotten image page without
+ * reloading the page and re-uploading everything. This function reverses the
+ * transition made by startOCR() — hiding the OCR section and restoring the
+ * upload section — while preserving full state.
+ *
+ * State preserved: imageFiles[], pageData[], ocrText on each page, confirmed
+ * flags, steeringText, and ocrFailed status. Nothing is cleared.
+ *
+ * When the DM re-runs OCR after returning, simulateOCR() skips pages that
+ * already have ocrText or ocrFailed set — only new (unprocessed) pages are sent
+ * to the API. checkReadyToRun() updates the OCR button label to reflect this.
+ */
+function backToUpload() {
+  document.getElementById('ocr-section').classList.remove('visible');
+  // Restore upload section — startOCR() hid it with style.display='none';
+  // resetting to '' lets the element return to its default block display.
+  document.getElementById('upload-section').style.display = '';
+  setStep(1);
+  // Re-render the file list so the DM sees their current uploads on return.
+  renderImageList();
+  // Update button state — label reflects how many pages (if any) still need OCR.
+  checkReadyToRun();
 }
 
 /**
@@ -1649,13 +1703,25 @@ function detectRelationships(allOCRText, sessionId) {
 
 function simulateOCR(idx) {
   if (idx >= pageData.length) { finishOCR(); return; }
+
+  const page = pageData[idx];
+
+  // Skip pages that already have OCR text or previously failed (issue #82).
+  // This allows startOCR() to always begin at index 0 after back-navigation —
+  // pages the DM already reviewed are left untouched, only new pages are sent
+  // to the API. Failed pages have their own per-page re-run button; the global
+  // run button should not retry them automatically.
+  if (page.ocrText !== '' || page.ocrFailed) {
+    simulateOCR(idx + 1);
+    return;
+  }
+
   const dot  = document.getElementById('ocr-status-dot');
   const text = document.getElementById('ocr-status-text');
   dot.classList.remove('done');
   // "Compressing" reflects that Canvas resize happens before the API call (Fix #27)
   text.textContent = `Compressing and processing page ${idx+1} of ${pageData.length}…`;
 
-  const page = pageData[idx];
   // Mark processing so the Re-run button is disabled during the initial OCR pass.
   // All exit paths (onResult, onError, .catch) reset this to false.
   page.processing = true;
