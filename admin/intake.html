@@ -830,7 +830,16 @@
       <strong>Page order matters.</strong> Images will be processed top-to-bottom as listed. Drag rows to reorder if needed after upload.
     </div>
 
-    <div style="display:flex; justify-content:flex-end;">
+    <!-- Upload error — shown by handleSessionFiles() when an unsupported file
+         type is dropped (e.g. Google Doc). Cleared on next successful upload. -->
+    <div id="upload-error" style="display:none; color:var(--rust); font-size:0.82rem; margin-bottom:0.75rem; padding:0.4rem 0.6rem; border:1px solid var(--rust); border-radius:3px; background:rgba(139,0,0,0.08);"></div>
+
+    <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
+      <!-- Shown when a text file is loaded but no images — bypasses OCR entirely
+           since there is nothing to scan. Proceeds directly to Step 3 consolidation. -->
+      <button class="btn" id="proceed-text-btn" style="display:none;" onclick="proceedTextOnly()">
+        Proceed with Text →
+      </button>
       <button class="btn btn-primary" id="run-ocr-btn" disabled onclick="startOCR()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h7M2 10h5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
         Run OCR Analysis
@@ -1119,10 +1128,39 @@ function setStep(n) {
  * the pre-existing single-text-file constraint.
  */
 function handleSessionFiles(files) {
-  const images = Array.from(files).filter(f => f.type.startsWith('image/'));
-  const texts  = Array.from(files).filter(f => !f.type.startsWith('image/'));
+  const errorEl = document.getElementById('upload-error');
+  errorEl.style.display = 'none'; // clear previous error on each new drop
+
+  const images    = [];
+  const texts     = [];
+  const rejected  = [];
+
+  // Route each file by type. Text files are validated by extension — the browser
+  // accept attribute is advisory only and some formats (e.g. .gdoc Google Docs
+  // metadata files) may slip through. Only .txt and .md are supported as text input.
+  const ACCEPTED_TEXT_EXTS = ['txt', 'md', 'markdown'];
+  Array.from(files).forEach(f => {
+    if (f.type.startsWith('image/')) {
+      images.push(f);
+    } else {
+      const ext = f.name.split('.').pop().toLowerCase();
+      if (ACCEPTED_TEXT_EXTS.includes(ext)) {
+        texts.push(f);
+      } else {
+        rejected.push(f.name);
+      }
+    }
+  });
+
+  if (rejected.length) {
+    // Show a clear error so the DM knows why the file was not loaded.
+    // Common case: .gdoc files are Google Docs metadata, not readable text.
+    errorEl.textContent = `Unsupported file type — only images and .txt/.md files are accepted. Skipped: ${rejected.join(', ')}`;
+    errorEl.style.display = 'block';
+  }
+
   if (images.length) handleImageFiles(images);
-  if (texts.length)  handleTextFile(texts[0]);
+  if (texts.length)  handleTextFile(texts[0]); // only one text file supported
 }
 
 // ══════════════════════════════════════════════════════
@@ -1234,12 +1272,41 @@ function removeText() {
 // Enable run button
 // ══════════════════════════════════════════════════════
 function checkReadyToRun() {
-  const btn = document.getElementById('run-ocr-btn');
-  // Fix #19: only images are required to start OCR — the narrative text file
-  // is assembled into the session document in Step 3 (buildSessionDoc) and
-  // is not read during the image OCR pipeline at all. Requiring it here
-  // blocked the workflow when the DM had images but no text file yet.
-  btn.disabled = !(imageFiles.length > 0);
+  const ocrBtn  = document.getElementById('run-ocr-btn');
+  const textBtn = document.getElementById('proceed-text-btn');
+
+  // OCR requires at least one image — text files are passed through as-is
+  // and are not processed by the OCR pipeline (fix #19).
+  ocrBtn.disabled = !(imageFiles.length > 0);
+
+  // Text-only path (issue #81): if a text file is loaded but no images,
+  // show "Proceed with Text" and hide it once images are added (OCR path
+  // takes over). Both buttons can't be meaningfully active at the same time.
+  const textOnly = textFile && imageFiles.length === 0;
+  textBtn.style.display = textOnly ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════
+// Text-only path (issue #81)
+// ══════════════════════════════════════════════════════
+
+/**
+ * proceedTextOnly() — skips the OCR step entirely when no images were uploaded.
+ *
+ * Why it exists: OCR is only meaningful for handwritten image scans. If the DM
+ * uploads a text file without any images (e.g. typed session notes or a markdown
+ * file), there is nothing to scan — going through Step 2 (OCR Review) would be
+ * an empty screen. This function jumps directly from Step 1 to Step 3.
+ *
+ * pageData will be empty (no images), so buildSessionDoc() renders only the
+ * text notes section. sendToAnalysis() handles empty pageData correctly — it
+ * still writes a narrative item to the sessionStorage envelope.
+ */
+function proceedTextOnly() {
+  document.getElementById('upload-section').style.display = 'none';
+  document.getElementById('consolidation-section').classList.add('visible');
+  setStep(3);
+  buildSessionDoc();
 }
 
 // ══════════════════════════════════════════════════════
@@ -2185,12 +2252,17 @@ function buildSessionDoc() {
     html += `<div style="white-space:pre-wrap;margin-bottom:0.5rem;">${escapeHtml(p.ocrText)}</div>`;
   });
 
-  // Text notes — shown when a .txt/.md file was uploaded alongside images.
-  html += `<div class="doc-section-head">Text Notes — ${textFile ? textFile.name : 'Text Notes'}</div>`;
-  html += `<div style="white-space:pre-wrap;">${escapeHtml(narrativeText)}</div>`;
+  // Text notes — only rendered when a text file was actually uploaded.
+  // Previously always rendered; that produced an empty section on image-only runs.
+  if (textFile) {
+    html += `<div class="doc-section-head">Text Notes — ${textFile.name}</div>`;
+    html += `<div style="white-space:pre-wrap;">${escapeHtml(narrativeText)}</div>`;
+  }
 
   view.innerHTML = html;
-  stats.textContent = `${pageData.length} session page${pageData.length !== 1 ? 's' : ''} + text notes`;
+  const pageCount  = pageData.length ? `${pageData.length} session page${pageData.length !== 1 ? 's' : ''}` : '';
+  const notesCount = textFile ? 'text notes' : '';
+  stats.textContent = [pageCount, notesCount].filter(Boolean).join(' + ') || 'No content';
 }
 
 function goBackToOCR() {
