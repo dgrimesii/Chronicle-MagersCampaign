@@ -1005,6 +1005,64 @@ let currentPage = 0;
 //   steeringText, steeringExpanded, showLogSuggestion, lastRunSteered, processing }
 let pageData = [];
 
+// Campaign entity context fetched at page load for OCR prompt enrichment.
+// Shape: { npcs: string[], locations: string[], monsters: string[], combats: string[] }
+// Stays null if the fetch fails — buildOCRSystemPrompt() checks for null before
+// appending the entity block, so OCR still works with the base prompt only.
+let campaignEntities = null;
+
+// ══════════════════════════════════════════════════════
+// Campaign context loader
+// ══════════════════════════════════════════════════════
+
+/**
+ * loadCampaignContext() — fetches magers-campaign.json once at page load
+ * and populates campaignEntities with name lists for OCR prompt enrichment.
+ *
+ * Why it exists: buildOCRSystemPrompt() previously had no knowledge of NPC
+ * names, location names, or monster names. This causes the OCR AI to guess
+ * proper nouns from scratch, which is the primary source of FM2 (confident
+ * misreading) errors identified in docs/intake-pipeline-review.md.
+ *
+ * Fetches from ../data/magers-campaign.json (same-origin, no Drive needed).
+ * On failure: logs a warning and leaves campaignEntities null — OCR degrades
+ * gracefully to the base prompt without the entity block.
+ *
+ * Call once at script init; campaign data does not change during a session.
+ */
+async function loadCampaignContext() {
+  try {
+    const res = await fetch('../data/magers-campaign.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+
+    // Extract name lists from the four entity arrays that appear in handwritten notes.
+    // Optional chaining guards against missing arrays — an absent section produces
+    // an empty list rather than a crash, which is the safe degradation path.
+    campaignEntities = {
+      npcs:      (json.npc_directory     || []).map(e => e.name).filter(Boolean),
+      locations: (json.locations         || []).map(e => e.name).filter(Boolean),
+      monsters:  (json.bestiary          || []).map(e => e.name).filter(Boolean),
+      combats:   (json.combat_encounters || []).map(e => e.name).filter(Boolean),
+    };
+
+    console.log(
+      '[intake] Campaign context loaded —',
+      `${campaignEntities.npcs.length} NPCs,`,
+      `${campaignEntities.locations.length} locations,`,
+      `${campaignEntities.monsters.length} monsters,`,
+      `${campaignEntities.combats.length} combats`
+    );
+  } catch (err) {
+    // Non-fatal: OCR still works — entity names just won't be in the prompt.
+    console.warn('[intake] Could not load campaign context for OCR prompt:', err.message);
+  }
+}
+
+// Start the fetch immediately on script load so it resolves well before the
+// DM reaches the OCR step. No await here — the page init is not blocked.
+loadCampaignContext();
+
 // ══════════════════════════════════════════════════════
 // Step navigation helpers
 // ══════════════════════════════════════════════════════
@@ -1264,13 +1322,21 @@ function compressImageForOCR(file) {
  *   sees the DM's clarification before reading the format instructions.
  *   Example: "On this page AoO = Attack of Opportunity, not a character name."
  *
+ * Also injects campaign entity names from campaignEntities (populated by
+ * loadCampaignContext() at page load) so the AI can prefer known spellings when
+ * handwriting is ambiguous. If campaignEntities is null (fetch failed or not yet
+ * resolved), the entity block is omitted and the prompt works as before.
+ *
  * Returns the complete system prompt string ready for ChronicleAI.call().
  */
 function buildOCRSystemPrompt(steeringText) {
   const sessionHint = document.getElementById('session-id-input')?.value?.trim() || 'session_006';
   const combatHint  = document.getElementById('combat-id-input')?.value?.trim()  || '';
 
-  const base = `You are a D&D 5e session log OCR assistant. Extract handwritten combat notes into structured text.
+  // "5.5e" — this campaign uses the 2024 D&D 5.5e ruleset. The backwards-
+  // compatibility instruction below explains how to handle 5e-origin content.
+  const base = `You are a D&D 5.5e session log OCR assistant. Extract handwritten combat notes into structured text.
+This campaign uses D&D 5.5e rules. Under Wizards of the Coast backwards-compatibility rules, all 5e content remains valid unless it has been explicitly republished in a 5.5e version. This includes spells, feats, class features, and racial abilities from 5e core books and expansion books such as Tasha's Cauldron of Everything, Xanathar's Guide to Everything, and similar. Do not treat 5e-origin ability or spell names as incorrect simply because they do not appear in the 5.5e core rules.
 Party: ${ChronicleAI.PARTY_ROSTER}
 For each round you find, output:
 ROUND <n> [session: <session_id>]
@@ -1281,9 +1347,27 @@ ROUND SUMMARY: <one sentence>
 ---
 Output exactly this format. If a value is unclear, write [?] after it. Session: ${sessionHint}${combatHint ? '. Combat: ' + combatHint : ''}.`;
 
+  // Append campaign entity block when loadCampaignContext() has populated it.
+  // Comma-separated plain strings (not JSON) — the AI needs readable context.
+  // The disambiguation instruction tells the AI that known names are preferred
+  // when handwriting is ambiguous, but absence from the list is not an error —
+  // the DM may reference expansion-book content that is not in magers-campaign.json.
+  let entityBlock = '';
+  if (campaignEntities) {
+    entityBlock = '\n\n' +
+      'Known campaign entities — use these spellings when handwriting is ambiguous:\n' +
+      (campaignEntities.npcs.length      ? `Known NPCs: ${campaignEntities.npcs.join(', ')}\n`           : '') +
+      (campaignEntities.locations.length ? `Known locations: ${campaignEntities.locations.join(', ')}\n` : '') +
+      (campaignEntities.monsters.length  ? `Known monsters: ${campaignEntities.monsters.join(', ')}\n`   : '') +
+      (campaignEntities.combats.length   ? `Known combats: ${campaignEntities.combats.join(', ')}\n`     : '') +
+      'If you read something in handwriting that closely matches one of these known names, prefer the known spelling. ' +
+      'If you read something not on this list, that is not an error — transcribe it as written.';
+  }
+
   const steering = (steeringText || '').trim();
   // Prepend steering text so model sees DM's context before the format rules.
-  return steering ? `${steering}\n\n${base}` : base;
+  // Entity block follows the base prompt — it is reference data, not instructions.
+  return steering ? `${steering}\n\n${base}${entityBlock}` : `${base}${entityBlock}`;
 }
 
 /**

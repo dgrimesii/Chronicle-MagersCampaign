@@ -281,7 +281,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - Three-step wizard: (1) upload session photos, (2) review OCR output page-by-page, (3) consolidate into session document
 - Loads `../shared/config.js` and `../shared/chronicle-ai.js`
 - Uses `ChronicleAI.call()` with vision to extract handwritten combat notes from uploaded images; images are compressed to ≤1800px before sending to stay within the Anthropic 5MB base64 limit
-- Does not fetch `magers-campaign.json` — operates on uploaded image data only
+- Fetches `../data/magers-campaign.json` once at page load via `loadCampaignContext()` to extract NPC, location, monster, and combat name lists for OCR prompt enrichment. If the fetch fails, `campaignEntities` stays null and OCR continues with the base prompt only (graceful degradation)
 - **OCR review correction modes (Step 2):** three paths per page — (a) manual textarea edit, (b) re-run OCR with the same prompt, (c) re-run with steering (DM-typed context prepended to the system prompt). Steering text can be logged as a prompt improvement suggestion via sessionStorage (key `chronicle_prompt_improvement_log`)
 - "Send to Delta Review" button writes a `chronicle_intake_delta` envelope to sessionStorage (containing one session stub, one RAW item per confirmed OCR page, and one narrative item if present), then navigates to `delta-review.html`. Delta Review reads and clears this key on load.
 
