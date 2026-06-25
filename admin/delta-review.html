@@ -145,6 +145,12 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .slot-line.odd{background:rgba(212,175,55,0.04);}
 .slot-line.uncertain-slot{background:rgba(139,58,30,0.04);}
 .slot-line.enemy-line{background:rgba(216,90,48,0.04);border-top:1px solid rgba(216,90,48,0.15);}
+/* Inline round editing (issue #84): editable cell targets, edit-in-progress input,
+   and amber left-border marking that a cell has been manually corrected. */
+.inline-edit-cell{cursor:pointer;border-bottom:1px dashed rgba(212,175,55,0.45);border-radius:1px;}
+.inline-edit-cell:hover{background:rgba(212,175,55,0.09);border-radius:2px;}
+.cell-edited{border-left:2px solid var(--amber);padding-left:2px;}
+.inline-edit-input{background:rgba(15,16,32,0.95);color:var(--ink);border:1px solid var(--amber);border-radius:2px;font:inherit;font-size:inherit;padding:1px 5px;min-width:3em;max-width:260px;}
 .slot-num{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted-light);text-align:center;}
 .slot-actor{font-family:'Cinzel',serif;font-size:0.78rem;font-weight:600;color:var(--ink);}
 .slot-actor.enemy{color:var(--rust);}
@@ -785,7 +791,7 @@ const _REMOVED_DEMO = [
     roundData: r,
     sourceRef: `Handwritten combat log, Rd ${r.n}`,
     rawData: { round_number:r.n, session_id:r.sid, initiative_slots: r.slots.map(s=>({slot:s.s,actor_id:s.a,action:s.act,result:s.res,value:s.val||null,notes:s.notes||null})), enemy_actions:r.enemy },
-    nlRender() { return renderRoundNL(this.roundData); }
+    nlRender() { return renderRoundNL(this.roundData, this.id); }
   })),
 
   // ── Character moment ─────────────────────────────────
@@ -884,7 +890,39 @@ function resultChip(res, uncertain) {
   return txt ? `<span class="slot-result-chip ${cls}">${txt}</span>` : '';
 }
 
-function renderRoundNL(r) {
+// Full field names for rawData.initiative_slots (demo items) — maps the abbreviated
+// roundData field names to the full names used by the initiative_slots array shape.
+// interpret/integrity items use rawData.slots with the SAME abbreviated names as
+// roundData, so no translation is needed for those shapes.
+// Used by commitInlineRoundEdit() to write back to rawData correctly (issue #84).
+const _SLOT_FULL_NAMES = { act:'action', res:'result', val:'value', notes:'notes', action_type:'action_type' };
+
+/**
+ * _actionTypeBadgeForEdit(val)
+ *
+ * Returns badge HTML for a given action_type value for use in the inline-edit
+ * commit handler. Mirrors actionTypeBadge() inside renderRoundNL() but lives at
+ * module scope so commitInlineRoundEdit() can update a span without re-rendering
+ * the full card. When action_type is null or 'action' (the default), returns a
+ * dim dot so the cell still has a click target even with no badge visible.
+ */
+function _actionTypeBadgeForEdit(val) {
+  if (!val || val === 'action') {
+    return '<span style="font-size:0.65rem;color:var(--muted);opacity:0.35;margin-right:3px">·</span>';
+  }
+  const cfg = {
+    bonus_action: { label: 'BA',   color: 'var(--teal)'  },
+    reaction:     { label: 'R',    color: 'var(--amber)' },
+    free_action:  { label: 'free', color: 'var(--muted)' },
+  };
+  const c = cfg[val];
+  if (!c) return '<span style="font-size:0.65rem;color:var(--muted);opacity:0.35;margin-right:3px">·</span>';
+  return `<span style="font-size:0.68rem;font-weight:700;color:${c.color};` +
+    `border:1px solid ${c.color};border-radius:2px;padding:0 4px;margin-right:5px;` +
+    `opacity:0.85;letter-spacing:0.04em;">${c.label}</span>`;
+}
+
+function renderRoundNL(r, itemId) {
   // action_type badge shown for non-standard action economy entries (issue #75).
   // Main actions get no badge — only bonus actions and reactions are labelled,
   // since those are the non-default and need to stand out.
@@ -915,7 +953,26 @@ function renderRoundNL(r) {
     }).join('');
   }
 
-  const slotRows = r.slots.map((s,i) => {
+  // Helper: wrap display HTML in an inline-edit span when itemId is known.
+  // The delegated handler in initInlineRoundEditing() picks up clicks on any
+  // element with dataset.inlineEdit and opens an input or select in-place.
+  // When itemId is undefined (no-id call sites), editing is disabled — returns display as-is.
+  function editSlotSpan(i, rdField, display) {
+    if (!itemId) return display;
+    // rawField is the full name used by rawData.initiative_slots (demo items).
+    // For rawData.slots (interpret/integrity), rdField is already the correct abbreviated name.
+    const rawField = _SLOT_FULL_NAMES[rdField] || rdField;
+    return `<span class="inline-edit-cell" data-inline-edit="slot" data-item-id="${itemId}" ` +
+      `data-slot-idx="${i}" data-rd-field="${rdField}" data-raw-field="${rawField}">${display}</span>`;
+  }
+  function editEnemySpan(ei, rdField, display) {
+    if (!itemId) return display;
+    // Enemy raw field names (desc/impact) are the same in all rawData shapes.
+    return `<span class="inline-edit-cell" data-inline-edit="enemy" data-item-id="${itemId}" ` +
+      `data-enemy-idx="${ei}" data-rd-field="${rdField}" data-raw-field="${rdField}">${display}</span>`;
+  }
+
+  const slotRows = r.slots.map((s, i) => {
     const isUncertain = !!s.uncertain;
     // val_type suffix shown only when present — avoids cluttering existing data
     // that pre-dates the issue #75 schema addition.
@@ -924,24 +981,56 @@ function renderRoundNL(r) {
                        : '';  // "damage" gets no suffix — it is the default
     // target shown as "→ name" after the action name when recorded.
     const targetStr = s.target ? ` → ${s.target}` : '';
+
+    // action_type: show badge for bonus_action/reaction/free_action; dim dot for
+    // action/null so there is always a click target even when no badge renders.
+    const atDisplay = actionTypeBadge(s.action_type)
+      || '<span style="font-size:0.65rem;color:var(--muted);opacity:0.35;margin-right:3px">·</span>';
+    const atCell = editSlotSpan(i, 'action_type', atDisplay);
+
+    // act: always has a value ('unclear' if unknown); wrap in uncertain span when flagged.
+    const actDisplay = isUncertain
+      ? `<span class="uncertain" title="${s.flagText || ''}">${s.act}</span>`
+      : (s.act || '');
+    const actCell = editSlotSpan(i, 'act', actDisplay);
+
+    // val: only create an edit target when a value exists — adding a new value to
+    // a null slot requires an AI correction (MVP scope).
+    const valCell = s.val != null
+      ? editSlotSpan(i, 'val', `<strong style="color:var(--amber-dim);margin-left:6px;">${s.val}${valTypeLabel}</strong>`)
+      : '';
+
+    // notes: same as val — only editable when a note already exists.
+    const notesCell = s.notes
+      ? editSlotSpan(i, 'notes', `<span class="note">${s.notes}</span>`)
+      : '';
+
+    // res: result chip is the 4th grid column; wrap it so the whole chip is clickable.
+    const resCell = editSlotSpan(i, 'res', resultChip(s.res, isUncertain));
+
     return `<div class="slot-line${i%2===0?' odd':''}${isUncertain?' uncertain-slot':''}">
       <div class="slot-num">${s.s}</div>
-      <div class="slot-actor">${actionTypeBadge(s.action_type)}${nick(s.a)}</div>
+      <div class="slot-actor">${atCell}${nick(s.a)}</div>
       <div class="slot-action">
-        ${isUncertain ? `<span class="uncertain" title="${s.flagText||''}">${s.act}</span>` : s.act}${targetStr}
-        ${s.val != null ? `<strong style="color:var(--amber-dim);margin-left:6px;">${s.val}${valTypeLabel}</strong>` : ''}
-        ${s.notes ? `<span class="note">${s.notes}</span>` : ''}
+        ${actCell}${targetStr}
+        ${valCell}
+        ${notesCell}
       </div>
-      ${resultChip(s.res, isUncertain)}${targetEffectChips(s.target_effects)}
+      ${resCell}${targetEffectChips(s.target_effects)}
     </div>`;
   }).join('');
-  const enemyRows = r.enemy.map(e => `
+
+  const enemyRows = r.enemy.map((e, ei) => {
+    const descCell   = editEnemySpan(ei, 'desc',   e.desc);
+    const impactCell = e.impact ? editEnemySpan(ei, 'impact', `<span class="note">${e.impact}</span>`) : '';
+    return `
     <div class="slot-line enemy-line">
       <div class="slot-num">—</div>
       <div class="slot-actor enemy">Enemy</div>
-      <div class="slot-action">${e.desc}${e.impact?`<span class="note">${e.impact}</span>`:''}</div>
+      <div class="slot-action">${descCell}${impactCell}</div>
       <div></div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return `
     <div class="round-header-block">
       <div class="round-number-badge">Round ${r.n}</div>
@@ -949,6 +1038,228 @@ function renderRoundNL(r) {
       <span class="round-combat-chip">Goblin Ambush · cbt_005</span>
     </div>
     <div class="slot-display">${slotRows}${enemyRows}</div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// ROUND INLINE EDITING (issue #84)
+// ══════════════════════════════════════════════════════
+
+/**
+ * initInlineRoundEditing()
+ *
+ * Attaches a single delegated click handler on document that intercepts clicks
+ * on any element carrying dataset.inlineEdit. Opens a text input or select
+ * widget in-place without re-rendering the full card (which would discard any
+ * other open inputs). Called once at page init.
+ *
+ * Why event delegation: renderRoundNL() returns HTML strings, so there are no
+ * DOM references at render time. Delegating to document means the handler works
+ * regardless of when or how many times the card is inserted into the DOM.
+ *
+ * Escape handling: keydown restores the span synchronously BEFORE blur fires —
+ * if we waited for blur to detect cancellation, blur would commit the half-edited
+ * value because the input is still mounted when blur fires.
+ */
+function initInlineRoundEditing() {
+  document.addEventListener('click', function(e) {
+    // Walk up from the click target to find an inline-edit cell.
+    // This handles clicks on child elements inside the span (e.g. the badge <span>).
+    const cell = e.target.closest('[data-inline-edit]');
+    if (!cell) return;
+    // If an input or select is already mounted in this cell, the user clicked
+    // the widget itself — let the widget handle the event normally.
+    if (cell.querySelector('input, select')) return;
+
+    const type    = cell.dataset.inlineEdit;  // 'slot' or 'enemy'
+    const itemId  = cell.dataset.itemId;
+    const rdField = cell.dataset.rdField;
+    const rawField= cell.dataset.rawField;
+    const idx     = parseInt(type === 'slot' ? cell.dataset.slotIdx : cell.dataset.enemyIdx, 10);
+
+    const item = getItem(itemId);
+    if (!item) return;
+
+    // Read the current value from the item's display data.
+    const currentVal = type === 'slot'
+      ? item.roundData.slots[idx]?.[rdField]
+      : item.roundData.enemy[idx]?.[rdField];
+
+    const oldHtml = cell.innerHTML;
+    const oldVal  = currentVal;
+
+    if (rdField === 'res' || rdField === 'action_type') {
+      // ── Select widget for controlled-vocabulary fields ──────────────────────
+      // Use 'change' (not 'blur') to commit — 'blur' fires when the user opens
+      // the option list and would commit before they choose.
+      const RES_OPTIONS = [
+        'hit','miss','crit','save','success','neutral','unclear',
+        'fail','mixed','save_fail','save_success','crit_miss',
+      ];
+      const AT_OPTIONS  = ['', 'action', 'bonus_action', 'reaction', 'free_action'];
+      const options = rdField === 'res' ? RES_OPTIONS : AT_OPTIONS;
+      const matchVal = currentVal == null ? '' : currentVal;
+
+      const sel = document.createElement('select');
+      sel.className = 'inline-edit-input';
+      sel.innerHTML = options.map(v => {
+        const label   = (v === '' ? '— Unknown —' : v);
+        const selected = v === matchVal ? ' selected' : '';
+        return `<option value="${v}"${selected}>${label}</option>`;
+      }).join('');
+
+      cell.innerHTML = '';
+      cell.appendChild(sel);
+      sel.focus();
+
+      sel.addEventListener('change', function() {
+        // Empty string from the '— Unknown —' option → store as null.
+        const newVal = sel.value === '' ? null : sel.value;
+        commitInlineRoundEdit(itemId, type, idx, rdField, rawField, oldVal, newVal, cell);
+      });
+      // Blur without a change event → cancel (restore original HTML).
+      sel.addEventListener('blur', function() {
+        if (cell.querySelector('select')) cell.innerHTML = oldHtml;
+      });
+
+    } else {
+      // ── Text input for free-text fields (act, val, notes, desc, impact) ────
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'inline-edit-input';
+      inp.value = currentVal != null ? String(currentVal) : '';
+      // Size hint: give enough room for the current value plus a few extra characters.
+      inp.style.width = Math.max(80, (inp.value.length + 4) * 8) + 'px';
+
+      let cancelled = false;
+      cell.innerHTML = '';
+      cell.appendChild(inp);
+      inp.focus();
+      inp.select();
+
+      inp.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          inp.blur();  // blur handler commits
+        } else if (ev.key === 'Escape') {
+          // Restore the span HTML synchronously here, BEFORE blur fires.
+          // If we set cancelled=true and waited for blur, the blur handler would
+          // find cell.querySelector('input') still mounted and try to commit.
+          ev.preventDefault();
+          cancelled = true;
+          cell.innerHTML = oldHtml;
+          // No blur call needed — restoring innerHTML removes the input from the DOM.
+        }
+      });
+
+      inp.addEventListener('blur', function() {
+        if (cancelled) return;  // already restored via Escape
+        if (!cell.querySelector('input')) return;  // already committed or cancelled
+        commitInlineRoundEdit(itemId, type, idx, rdField, rawField, oldVal, inp.value, cell);
+      });
+    }
+  });
+}
+
+/**
+ * commitInlineRoundEdit(itemId, type, idx, rdField, rawField, oldVal, newVal, spanEl)
+ *
+ * Writes a manually-edited value back to both roundData (display) and rawData
+ * (published to JSON), updates the span's innerHTML to reflect the new value,
+ * and records the correction in item.appliedCorrections so the publish path
+ * knows this field was human-verified.
+ *
+ * Two rawData shapes exist (issue #84):
+ *   - interpret/integrity items: rawData.slots[] uses abbreviated names (act/res/val)
+ *     and is the SAME array reference as roundData.slots[] — writing to roundData once
+ *     covers both. rawData.enemy_turns[] shares the same reference as roundData.enemy[].
+ *   - demo items: rawData.initiative_slots[] is a separately mapped array using full field
+ *     names (action/result/value — see _SLOT_FULL_NAMES). We write to it separately.
+ *
+ * Ground truth propagation fires ONLY for 'act' and enemy 'desc' edits — these carry
+ * action names that form meaningful aliases. Propagating res/val/notes/action_type would
+ * register incorrect aliases ("hit"→"crit", "7"→"12", etc.).
+ */
+function commitInlineRoundEdit(itemId, type, idx, rdField, rawField, oldVal, newVal, spanEl) {
+  const item = getItem(itemId);
+  if (!item) return;
+
+  // Coerce typed value to the correct JS type before writing.
+  // val is numeric: empty string or null → null; "7" → 7.
+  // All other fields are strings (null allowed for cleared optional fields).
+  let parsed = newVal;
+  if (rdField === 'val') {
+    if (newVal === null || newVal === '' || newVal === undefined) {
+      parsed = null;
+    } else {
+      parsed = Number(newVal);
+      if (isNaN(parsed)) parsed = null;
+    }
+  }
+
+  // ── Write to display data (roundData) ────────────────────────────────────────
+  if (type === 'slot') {
+    if (item.roundData.slots[idx]) item.roundData.slots[idx][rdField] = parsed;
+
+    // ── Write to raw data (rawData) ──────────────────────────────────────────
+    // Demo items: rawData.initiative_slots is a separately mapped array with full names.
+    // Interpret/integrity: rawData.slots IS the same reference as roundData.slots —
+    // the write above already covers rawData. The else branch is a safety net only.
+    if (item.rawData.initiative_slots?.[idx] !== undefined) {
+      item.rawData.initiative_slots[idx][rawField] = parsed;
+    } else if (item.rawData.slots && item.rawData.slots !== item.roundData.slots
+               && item.rawData.slots[idx]) {
+      item.rawData.slots[idx][rdField] = parsed;
+    }
+
+  } else {
+    // Enemy: roundData.enemy and rawData.enemy_turns / rawData.enemy_actions share
+    // the same array reference in all current item shapes, so one write covers both.
+    if (item.roundData.enemy[idx]) item.roundData.enemy[idx][rdField] = parsed;
+    // If a future item shape uses separate enemy arrays, sync them here.
+    if (item.rawData.enemy_turns
+        && item.rawData.enemy_turns !== item.roundData.enemy
+        && item.rawData.enemy_turns[idx]) {
+      item.rawData.enemy_turns[idx][rdField] = parsed;
+    } else if (item.rawData.enemy_actions
+               && item.rawData.enemy_actions !== item.roundData.enemy
+               && item.rawData.enemy_actions[idx]) {
+      item.rawData.enemy_actions[idx][rdField] = parsed;
+    }
+  }
+
+  // ── Update the span's displayed content ──────────────────────────────────────
+  if (rdField === 'res') {
+    // Re-generate the result chip. Manually-edited cells are never uncertain.
+    spanEl.innerHTML = resultChip(parsed, false);
+  } else if (rdField === 'action_type') {
+    // Re-generate the action_type badge or dim placeholder.
+    spanEl.innerHTML = _actionTypeBadgeForEdit(parsed);
+  } else if (rdField === 'val') {
+    // Number: bold amber. Null (cleared): empty string clears the span.
+    spanEl.innerHTML = parsed != null
+      ? `<strong style="color:var(--amber-dim);margin-left:6px;">${parsed}</strong>`
+      : '';
+  } else if (rdField === 'notes' || rdField === 'impact') {
+    spanEl.innerHTML = parsed ? `<span class="note">${parsed}</span>` : '';
+  } else {
+    // act, desc: plain text.
+    spanEl.textContent = parsed || '';
+  }
+  spanEl.classList.add('cell-edited');
+
+  // ── Record the correction ──────────────────────────────────────────────────
+  item.corrected = true;
+  item.appliedCorrections = item.appliedCorrections || [];
+  item.appliedCorrections.push({ k: type + '[' + idx + '].' + rawField, old: oldVal, new: parsed });
+
+  // ── Ground truth propagation ───────────────────────────────────────────────
+  // Only fire for action name and enemy description edits — these produce meaningful
+  // alias registrations (e.g. OCR mis-read "stealing hands" → corrected "Healing Hands").
+  // Numeric (val), result (res), notes, and action_type edits produce no useful aliases.
+  if (rdField === 'act' || rdField === 'desc') {
+    const _newFactKeys = extractAndRegisterFacts(item, [{ k: rdField, old: oldVal, new: parsed }]);
+    if (_newFactKeys.length) propagateGroundTruth(_newFactKeys, item.id);
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1918,7 +2229,7 @@ function interpretRawItem(itemId) {
             slots:  proposal.slots || [],
             enemy:  proposal.enemy || [],
           },
-          nlRender() { return renderRoundNL(this.roundData); },
+          nlRender() { return renderRoundNL(this.roundData, this.id); },
         };
 
         // Dedup guard: don't push if this round was already generated by a previous
@@ -3570,7 +3881,7 @@ function approveGapProposal(gapId, proposalIdx) {
     },
     // roundData shape matches renderRoundNL() expectations
     roundData: { n: proposal.n, sid: g.sessHint || '', slots: proposal.slots || [], enemy: proposal.enemy || [] },
-    nlRender() { return renderRoundNL(this.roundData); },
+    nlRender() { return renderRoundNL(this.roundData, this.id); },
   };
 
   // Guard against double-approval of the same round (e.g. two proposals for same n)
@@ -4020,6 +4331,10 @@ initIntegrity();
 // Wire panel resize (drag handle + sessionStorage restore) and textarea auto-grow.
 initAssistantResize();
 initTextareaAutoGrow();
+// Attach the delegated click handler for ROUND inline editing (issue #84).
+// Must run after the DOM is ready (it is — we're inside a deferred <script>);
+// does not depend on queue data so order within the init block is flexible.
+initInlineRoundEditing();
 </script>
 </body>
 </html>

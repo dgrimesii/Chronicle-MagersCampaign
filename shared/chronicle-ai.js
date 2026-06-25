@@ -353,11 +353,26 @@ RULES — these are absolute, not guidelines:
    action: "unclear", result: "unclear", value: null, action_type: "action".
 
 7. ACTION TYPE.
-   Every initiative_grid entry must have action_type. Use exactly one of:
+   Set action_type to one of these values, or null:
      "action"       — the character's main action
      "bonus_action" — a bonus action taken in the same turn
      "reaction"     — a reaction (opportunity attack, shield, etc.)
      "free_action"  — a free action (drop item, speak, etc.)
+     null           — REQUIRED when you cannot determine which action type was used.
+                      Note-takers are players writing during a live game — notes are brief
+                      and often omit action economy. Do NOT infer from context or ability
+                      knowledge. Only populate action_type when the text makes it explicit.
+
+   REACTION RESET: A reaction resets at the START of a character's own turn (not end of
+   round). A character whose turn falls mid-round may use a reaction before their turn
+   (e.g. Shield against an attack) and again after their turn ends (reaction has reset).
+   Two reaction entries for the same slot in one round is valid — do not deduplicate.
+
+   ACTION ECONOMY SUBSTITUTIONS: Some features change which action slot an ability uses.
+   For example, the Nick weapon mastery property lets an off-hand attack consume the main
+   Attack action instead of a bonus action — record that as action_type:"action". However,
+   the notes will NOT describe this substitution explicitly. If the text is ambiguous,
+   use null rather than guessing which substitution applies.
 
 8. TARGET.
    Set target to the descriptive name of what was targeted: "goblin", "dragon", "self",
