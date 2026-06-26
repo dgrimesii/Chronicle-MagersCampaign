@@ -28,7 +28,9 @@
       "Bash(C:/Program Files/nodejs/node.exe:*)",
       "Bash(node:*)",
       "Bash(cmd:*)",
-      "Bash(/usr/bin/wc -l \"/c/Users/David/MyCodeProjects/Chronicle/Chronicle-MagersCampaign/admin/delta-review.html\")"
+      "Bash(/usr/bin/wc -l \"/c/Users/David/MyCodeProjects/Chronicle/Chronicle-MagersCampaign/admin/delta-review.html\")",
+      "Bash(node.exe:*)",
+      "Bash(gh issue:*)"
     ]
   }
 }
