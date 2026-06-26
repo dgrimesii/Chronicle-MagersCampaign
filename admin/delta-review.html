@@ -1916,18 +1916,39 @@ function renderAssistant() {
       </div>`;
     }
     if (msg.globalScope?.length) {
+      // Unified block — shown when the AI matched across multiple items (scope = "All pending items").
+      // Combines the diff preview and the item checklist into a single Apply/Discard affordance
+      // so the DM does not see two separate "apply" buttons for the same set of diffs (issue #60).
+      // The current item is always the first checklist entry (isSelf: true), pre-checked.
+      const diffsToShow = msg.diffs || msg._globalDiffs || [];
+      const diffLinesHtml = diffsToShow.length
+        ? `<div class="diff-preview-title">Proposed changes</div>
+           <div class="diff-lines-scroll">
+           ${diffsToShow.map(d => {
+             if (d.op === 'reorder') {
+               const slotCount = Array.isArray(d.slots) ? d.slots.length : '?';
+               return `<div class="diff-line"><span class="diff-key">slot order</span><span style="color:var(--muted);margin:0 4px;">↺</span><span class="diff-new">${slotCount} slots reordered</span></div>`;
+             }
+             return `<div class="diff-line"><span class="diff-key">${escapeHtmlDR(d.k)}</span>${d.old!=null?`<span class="diff-old">${escapeHtmlDR(String(d.old))}</span><span style="color:var(--muted);margin:0 4px;">→</span>`:'<span style="color:var(--muted);margin-right:4px;">+</span>'}<span class="diff-new">${escapeHtmlDR(String(d.new))}</span></div>`;
+           }).join('')}
+           </div>`
+        : '';
       extra += `<div class="global-scope">
-        <div class="global-scope-title">Matches found across ${msg.globalScope.length} pending items</div>
+        ${diffLinesHtml}
+        <div class="global-scope-title" style="${diffsToShow.length ? 'margin-top:8px;' : ''}">Apply to:</div>
         ${msg.globalScope.map(m=>`<div class="global-match">
           <div class="global-match-check checked" onclick="toggleGlobalMatch(this)"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.3" stroke-linecap="round"/></svg></div>
-          <span>${m.title}</span>
+          <span>${m.title}${m.isSelf ? ' <span style="color:var(--muted);font-style:italic;font-size:0.8em;">(this item)</span>' : ''}</span>
         </div>`).join('')}
         <div style="margin-top:8px;display:flex;gap:6px;">
-          <button class="btn btn-send" style="font-size:0.62rem;padding:4px 12px;" onclick="applyGlobalCorrection('${msg.id}')">Apply to checked items</button>
+          <button class="btn btn-approve" style="font-size:0.62rem;padding:4px 12px;" onclick="applyGlobalCorrection('${msg.id}')">Apply to checked items</button>
+          <button class="btn btn-reject" style="font-size:0.62rem;padding:4px 12px;" onclick="rejectDiff('${msg.id}')">Discard</button>
         </div>
       </div>`;
-    }
-    if (msg.diffs?.length) {
+    } else if (msg.diffs?.length) {
+      // Solo-item diff block — shown when scope is "This item only".
+      // Separate from the globalScope block above so single-item corrections
+      // keep their simpler Apply ✓ / Discard affordance with no checklist.
       extra += `<div class="diff-preview">
         <div class="diff-preview-title">Proposed changes</div>
         <div class="diff-lines-scroll">
@@ -1995,7 +2016,19 @@ function sendCorrection() {
       content:      response.content || '',
       diffs:        response.diffs?.length        ? response.diffs        : null,
       cascades:     response.cascades?.length     ? response.cascades     : null,
-      globalScope:  response.globalScope?.length  ? response.globalScope.map(t=>({title:t})) : null,
+      // When scope is global, prepend the current item as the first checklist entry
+      // so all items (including the one in focus) are handled from a single unified
+      // Apply block rather than two separate buttons (issue #60).
+      // isSelf flags the active item so applyGlobalCorrection() can run the full
+      // correction path for it (fact extraction, propagation, redirect detection).
+      globalScope:  response.globalScope?.length
+        ? [{ title: item.title, isSelf: true }, ...response.globalScope.map(t => ({ title: t, isSelf: false }))]
+        : null,
+      // Frozen snapshot of the diffs for applyGlobalCorrection() (issue #60).
+      // applyDiff() nulls msg.diffs after the DM applies the active item — storing a
+      // separate copy here means applyGlobalCorrection() can always read the diffs
+      // regardless of which button the DM clicks first.
+      _globalDiffs: response.diffs?.length ? [...response.diffs] : [],
     });
     if (response.cascades?.length) {
       response.cascades.forEach(casc => {
@@ -3100,17 +3133,173 @@ function applyDiff(msgId) {
 }
 
 function rejectDiff(msgId) {
+  // Clears both diffs and globalScope so the unified block disappears (issue #60).
+  // When scope is "All pending items", Discard is shown in the same block as the
+  // checklist — nulling only msg.diffs would leave the orphaned checklist visible.
   const thread = correctionThread[selectedId] || [];
   const msg = thread.find(m=>m.id===msgId);
-  if (msg) { msg.diffs = null; msg.content += ' <span style="color:var(--muted);font-size:0.82rem;">(discarded)</span>'; }
+  if (msg) {
+    msg.diffs = null;
+    msg.globalScope = null; // clear unified checklist if present
+    msg.content += ' <span style="color:var(--muted);font-size:0.82rem;">(discarded)</span>';
+  }
   renderAssistant();
 }
 
 function applyGlobalCorrection(msgId) {
+  // Applies the AI-proposed diffs to every checked item in the globalScope checklist
+  // (issue #60). The checklist includes the active item as the first entry (isSelf: true)
+  // so the DM uses one Apply button for all items rather than two separate ones.
+  //
+  // Uses _globalDiffs (snapshot from handleResponse) rather than msg.diffs because
+  // msg.diffs may have been nulled by a prior applyDiff() call if the DM applied to
+  // the active item separately before this function existed in the codebase.
   const thread = correctionThread[selectedId] || [];
-  const msg = thread.find(m=>m.id===msgId);
-  if (msg) { msg.globalScope = null; msg.content += ` <span style="color:var(--teal);font-size:0.82rem;">✓ Applied to checked items</span>`; }
+  const msg = thread.find(m => m.id === msgId);
+  if (!msg) return;
+
+  // Prefer the frozen snapshot; fall back to live diffs (old thread entries without snapshot).
+  const diffs = msg._globalDiffs?.length ? msg._globalDiffs : (msg.diffs || []);
+
+  // Discover which checkboxes the DM left checked. The globalScope block renders one
+  // .global-match div per entry; .global-match-check toggles the 'checked' class on click.
+  const checkedIndices = [];
+  document.querySelectorAll('.global-scope .global-match').forEach((matchEl, idx) => {
+    const check = matchEl.querySelector('.global-match-check');
+    if (check?.classList.contains('checked') && msg.globalScope?.[idx]) {
+      checkedIndices.push(idx);
+    }
+  });
+
+  let applied = 0;
+  let selfApplied = false; // track if the active card was included in the batch
+
+  if (diffs.length && checkedIndices.length) {
+    // SLOT_FIELD_MAP: abbreviated display names used by roundData / renderRoundNL().
+    // Must stay identical to the map in applyDiff() or ROUND corrections write
+    // different field names to rawData vs roundData for non-active items.
+    const SLOT_FIELD_MAP = { action: 'act', result: 'res', value: 'val', notes: 'notes' };
+    const allQueueItems = [...items, ...cascadeItems];
+
+    checkedIndices.forEach(idx => {
+      const entry = msg.globalScope[idx];
+      const isSelf = entry.isSelf === true;
+
+      // Resolve the target queue item.
+      // Self-entry: use the currently selected item directly.
+      // Other entries: find by title, excluding approved/rejected items.
+      const target = isSelf
+        ? getItem(selectedId)
+        : allQueueItems.find(i => i.title === entry.title && i.status === 'pending' && i.id !== selectedId);
+      if (!target) return;
+
+      // Snapshot rawData before the first correction so "Show original JSON" works
+      // when the DM inspects the item. Set once — never overwritten on retries.
+      if (!target._originalRawData) {
+        target._originalRawData = JSON.parse(JSON.stringify(target.rawData || {}));
+      }
+
+      // Apply diffs to rawData (and roundData for ROUND items).
+      // Mirrors applyDiff() logic per item type — kept in sync so bulk corrections
+      // produce the same data state as item-by-item manual corrections.
+      if (target.type === 'ROUND') {
+        // Reorder op: replaces the entire slots array. Must be checked before the
+        // bracket-path forEach because reorder diffs have no 'k' field.
+        const reorderDiff = diffs.find(d => d.op === 'reorder' && Array.isArray(d.slots));
+        if (reorderDiff) {
+          if (target.rawData) target.rawData.slots = reorderDiff.slots;
+          if (target.roundData) {
+            target.roundData.slots = reorderDiff.slots.map(s => ({
+              s:              s.s              ?? s.slot        ?? null,
+              a:              s.a              ?? s.actor_id    ?? null,
+              act:            s.act            ?? s.action      ?? null,
+              res:            (s.res ?? s.result)               || 'neutral',
+              val:            s.val            ?? s.value       ?? null,
+              notes:          s.notes                           || null,
+              action_type:    s.action_type                     || null,
+              target:         s.target                          || null,
+              target_effects: Array.isArray(s.target_effects) ? s.target_effects : [],
+              val_type:       s.val_type                        || null,
+            }));
+          }
+        }
+
+        // Bracket-path writes for nested slot / enemy_turn fields.
+        // Array bounds are checked before writing — a diff that references slots[5]
+        // on a round with only 3 slots is silently skipped rather than throwing.
+        diffs.forEach(d => {
+          const bracketMatch = d.k?.match(/^(\w+)\[(\d+)\]\.(\w+)$/);
+          if (!bracketMatch) return;
+          const [, arrName, idxStr, field] = bracketMatch;
+          const arrIdx = parseInt(idxStr, 10);
+
+          // Patch rawData — written to campaign JSON on publish.
+          if (target.rawData) {
+            const arr = target.rawData[arrName];
+            if (Array.isArray(arr) && arr[arrIdx] != null) arr[arrIdx][field] = d.new;
+          }
+
+          // Patch roundData — drives the live card display via renderRoundNL().
+          // Without this, navigating to (or staying on) the item shows stale values.
+          if (target.roundData) {
+            if (arrName === 'slots') {
+              const rdField = SLOT_FIELD_MAP[field] || field;
+              const rdArr = target.roundData.slots;
+              if (Array.isArray(rdArr) && rdArr[arrIdx] != null) rdArr[arrIdx][rdField] = d.new;
+            } else if (arrName === 'enemy_turns' && field === 'description') {
+              const rdArr = target.roundData.enemy;
+              if (Array.isArray(rdArr) && rdArr[arrIdx] != null) rdArr[arrIdx].desc = d.new;
+            }
+          }
+        });
+      } else {
+        // Simple top-level field patch for all non-ROUND types (NPC, location, etc.).
+        // Reorder diffs (op:"reorder") have no 'k' — the !d.op guard skips them safely.
+        diffs.forEach(d => {
+          if (d.k && d.new !== undefined && target.rawData && !d.op) {
+            target.rawData[d.k] = d.new;
+          }
+        });
+      }
+
+      // Record the correction — drives the "Corrections Applied" section in renderReview()
+      // and the ✎ mark in the sidebar via renderQueue().
+      if (!target.appliedCorrections) target.appliedCorrections = [];
+      diffs.forEach(d => target.appliedCorrections.push({ ...d }));
+      target.corrected = true;
+
+      // For the active item: also run ground-truth fact extraction, propagation,
+      // and redirect detection — the same post-correction steps applyDiff() runs.
+      // These are skipped for non-active items because they require the item to be
+      // the confirmed correction source; propagation will reach them via sessionGroundTruth.
+      if (isSelf) {
+        _detectAndApplyRedirect(target, diffs);
+        const newFactKeys = extractAndRegisterFacts(target, diffs);
+        if (newFactKeys.length) propagateGroundTruth(newFactKeys, target.id);
+        // Clear uncertainty flags whose .text matches a corrected field key.
+        const diffKeys = new Set(diffs.map(d => d.k));
+        target.flags = (target.flags || []).filter(f => !diffKeys.has(f.text));
+        selfApplied = true;
+      }
+
+      applied++;
+    });
+  }
+
+  // Clear both diffs and globalScope — the unified block is no longer actionable.
+  msg.diffs = null;
+  msg.globalScope = null;
+  const noteText = applied > 0
+    ? `✓ Applied to ${applied} item${applied !== 1 ? 's' : ''}`
+    : checkedIndices.length === 0 ? '(no items selected)' : '(no matching pending items found)';
+  const noteColour = applied > 0 ? 'var(--teal)' : 'var(--muted)';
+  msg.content += ` <span style="color:${noteColour};font-size:0.82rem;">${noteText}</span>`;
+
   renderAssistant();
+  renderQueue();
+  // Re-render the active card only if the self-entry was checked — so the DM sees the
+  // Corrections Applied section and updated card content without an unexpected card jump.
+  if (selfApplied) renderReview();
 }
 
 function toggleGlobalMatch(el) { el.classList.toggle('checked'); }
