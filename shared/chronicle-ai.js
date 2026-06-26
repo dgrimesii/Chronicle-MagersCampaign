@@ -322,6 +322,9 @@ RULES — these are absolute, not guidelines:
 3. NULL MEANS NULL.
    If a field has no value in the user's description, output null for that field.
    Do not estimate, interpolate, or use "likely" values.
+   The "notes" field is for DM-written text only. Never put your own reasoning,
+   actor identification, turn-sequence labels ("First attack"), or inference notes
+   into it. If you have nothing from the user's text to put there, use null.
 
 4. ENEMY ACTIONS ONLY FROM TEXT.
    Only include enemy_actions entries for enemies explicitly described by the user.
@@ -338,6 +341,13 @@ RULES — these are absolute, not guidelines:
    entry shares the same slot, actor_id, action name, and action_type. Each gets its own
    result, value, target, and target_effects for that specific roll.
    NEVER collapse multiple attack rolls into a single entry with res:"mixed" — always split.
+
+   FAMILIAR ACTIONS: If a character's familiar uses an action on the caster's turn (most
+   commonly the Help action to grant advantage), record it as a SEPARATE initiative_grid
+   entry on the same slot with the same actor_id. Use the familiar's action as the "action"
+   field (e.g. "Help (Familiar)") and action_type:"free_action" — the familiar acts
+   independently; the caster spends no action or bonus action to direct it.
+   Never put familiar actions in the notes field of the caster's main action entry.
 
    MULTI-TARGET ABILITIES: If a single action affects more than one target (Acid Splash,
    Fireball, Burning Hands, Shatter, any AoE or save-or-X spell), produce ONE entry per
@@ -362,9 +372,11 @@ RULES — these are absolute, not guidelines:
 
    USE YOUR D&D 5e KNOWLEDGE: Note-takers write during a live game and do not annotate
    action economy. You must infer action_type from the ability name using standard 5e rules.
+   This campaign uses the 2024 D&D Player's Handbook rules where they differ from 2014.
    If you recognise the ability as a standard D&D 5e ability with a known action cost, use it.
    Examples:
      - Flurry of Blows, Two-Weapon Fighting (off-hand), Cunning Action → "bonus_action"
+     - Witch Bolt ongoing damage (activating on subsequent turns) → "bonus_action" [2024 rule]
      - Most spells, attacks, Help, Dash, Disengage, Hide → "action"
      - Opportunity Attack, Shield (spell), Counterspell, Absorb Elements → "reaction"
      - Drop item, speak a few words → "free_action"
