@@ -928,6 +928,32 @@ function _actionTypeBadgeForEdit(val) {
     `opacity:0.85;letter-spacing:0.04em;">${c.label}</span>`;
 }
 
+/**
+ * editableSpan(value, field, itemId)
+ *
+ * Returns an HTML span that the delegated click handler in initInlineRoundEditing()
+ * converts to a text input or textarea on click. Used for entity card fields
+ * (name, description, role, etc.) in issue #85.
+ *
+ * Why a shared helper: both ROUND table inline edit (issue #84) and entity card
+ * inline edit (issue #85) need identical visual treatment and the same delegated
+ * handler entry point. One function keeps the markup consistent.
+ *
+ * When value is empty/null: shows an italicised "click to add" prompt so the DM
+ * has a visible click target even for unpopulated optional fields — an invisible
+ * span would give no affordance for the initial edit.
+ *
+ * data-inline-edit="entity" distinguishes these spans from ROUND slot/enemy spans
+ * (data-inline-edit="slot"/"enemy") so the handler can branch correctly.
+ */
+function editableSpan(value, field, itemId) {
+  const safe    = escapeHtmlDR(value != null ? String(value) : '');
+  const display = safe || '<em style="color:var(--muted);font-size:0.85em;">click to add</em>';
+  return `<span class="inline-edit-cell" data-inline-edit="entity"` +
+    ` data-item-id="${escapeHtmlDR(itemId)}" data-field="${escapeHtmlDR(field)}"` +
+    ` title="Click to edit">${display}</span>`;
+}
+
 function renderRoundNL(r, itemId) {
   // action_type badge shown for non-standard action economy entries (issue #75).
   // Main actions get no badge — only bonus actions and reactions are labelled,
@@ -1072,12 +1098,105 @@ function initInlineRoundEditing() {
     // This handles clicks on child elements inside the span (e.g. the badge <span>).
     const cell = e.target.closest('[data-inline-edit]');
     if (!cell) return;
-    // If an input or select is already mounted in this cell, the user clicked
+    // If an input, select, or textarea is already mounted in this cell, the user clicked
     // the widget itself — let the widget handle the event normally.
-    if (cell.querySelector('input, select')) return;
+    // textarea added for entity description fields (issue #85).
+    if (cell.querySelector('input, select, textarea')) return;
 
-    const type    = cell.dataset.inlineEdit;  // 'slot' or 'enemy'
-    const itemId  = cell.dataset.itemId;
+    const type   = cell.dataset.inlineEdit;  // 'slot', 'enemy', or 'entity'
+    const itemId = cell.dataset.itemId;
+
+    // ── Entity card field editing (issue #85) ──────────────────────────────────
+    // Branched early because entity spans use data-field instead of data-rd-field /
+    // data-slot-idx — falling through to the ROUND variable reads below would
+    // produce NaN indices and undefined field names, breaking both paths.
+    if (type === 'entity') {
+      const field = cell.dataset.field;
+      const item  = getItem(itemId);
+      if (!item) return;
+
+      // Read the current value via dot-path (e.g. 'narrative.description' → rawData.narrative.description).
+      // The dot-path mirrors the field path used by commitInlineEntityEdit() for write-back,
+      // so oldVal always comes from the same location as the pending write.
+      const currentVal = field.split('.').reduce((o, k) => o?.[k], item.rawData);
+      const oldHtml    = cell.innerHTML;
+      const oldVal     = currentVal ?? '';
+
+      // Use textarea for prose fields (description, desc, notes) — they may be multi-line.
+      // Use a single-line input for short identity fields (name, role, title).
+      const isMultiline = /^(description|desc|notes|summary)$/.test(field.split('.').pop());
+
+      let cancelled = false;
+
+      if (isMultiline) {
+        const ta = document.createElement('textarea');
+        ta.className = 'inline-edit-input';
+        ta.value     = oldVal ? String(oldVal) : '';
+        ta.style.width     = '100%';
+        ta.style.minHeight = '3rem';
+        ta.style.resize    = 'vertical';
+
+        cell.innerHTML = '';
+        cell.appendChild(ta);
+        ta.focus();
+        ta.select();
+
+        ta.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Escape') {
+            ev.preventDefault();
+            cancelled = true;
+            // Restore synchronously before blur fires — same pattern as ROUND text input.
+            cell.innerHTML = oldHtml;
+          } else if (ev.key === 'Enter' && !ev.shiftKey) {
+            // Enter without Shift commits (Shift+Enter inserts a newline, matching
+            // standard textarea behaviour so the DM can add line breaks if needed).
+            ev.preventDefault();
+            ta.blur();
+          }
+        });
+
+        ta.addEventListener('blur', function() {
+          if (cancelled) return;
+          if (!cell.querySelector('textarea')) return; // already committed or restored
+          commitInlineEntityEdit(itemId, field, String(oldVal), ta.value, cell);
+        });
+
+      } else {
+        // Single-line input for name, role, title, and other short fields.
+        const inp = document.createElement('input');
+        inp.type      = 'text';
+        inp.className = 'inline-edit-input';
+        inp.value     = oldVal ? String(oldVal) : '';
+        inp.style.width = Math.max(80, (inp.value.length + 4) * 8) + 'px';
+
+        cell.innerHTML = '';
+        cell.appendChild(inp);
+        inp.focus();
+        inp.select();
+
+        inp.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            inp.blur(); // blur handler commits
+          } else if (ev.key === 'Escape') {
+            ev.preventDefault();
+            cancelled = true;
+            // Restore synchronously — removes input before blur can fire.
+            cell.innerHTML = oldHtml;
+          }
+        });
+
+        inp.addEventListener('blur', function() {
+          if (cancelled) return;
+          if (!cell.querySelector('input')) return; // already committed or restored
+          commitInlineEntityEdit(itemId, field, String(oldVal), inp.value, cell);
+        });
+      }
+
+      return; // entity branch fully handled — do not fall through to ROUND logic
+    }
+
+    // ── ROUND slot / enemy editing (issue #84) ─────────────────────────────────
     const rdField = cell.dataset.rdField;
     const rawField= cell.dataset.rawField;
     const idx     = parseInt(type === 'slot' ? cell.dataset.slotIdx : cell.dataset.enemyIdx, 10);
@@ -1266,6 +1385,84 @@ function commitInlineRoundEdit(itemId, type, idx, rdField, rawField, oldVal, new
     const _newFactKeys = extractAndRegisterFacts(item, [{ k: rdField, old: oldVal, new: parsed }]);
     if (_newFactKeys.length) propagateGroundTruth(_newFactKeys, item.id);
   }
+}
+
+/**
+ * commitInlineEntityEdit(itemId, field, oldVal, newVal, spanEl)
+ *
+ * Writes a manually-edited entity card field back to rawData, updates the span
+ * to reflect the new value, records the correction, and fires ground truth
+ * propagation + redirect detection for name-field edits.
+ *
+ * Why dot-path write: entity items from different cascade paths store description
+ * at different locations — _buildCascadeItem uses rawData.description (flat) while
+ * the onEntities interpret cascade uses rawData.narrative.description (nested).
+ * Splitting field on '.' and walking the object handles both without special-casing
+ * each shape. The same dot-path is used by the editableSpan() data-field attribute
+ * so the read and write locations always match.
+ *
+ * Why propagation only for name: description and role edits are prose content, not
+ * identity tokens. Registering them as ground truth aliases would cause false
+ * propagation across items that happen to share a descriptive phrase.
+ *
+ * What breaks if removed: inline edits to entity card fields would not persist in
+ * rawData and would be lost on queue re-render or publish.
+ */
+function commitInlineEntityEdit(itemId, field, oldVal, newVal, spanEl) {
+  const item = getItem(itemId);
+  if (!item) return;
+
+  const trimmed = newVal.trim();
+
+  // ── Write to rawData via dot-path ─────────────────────────────────────────
+  // Handles both flat paths ('name', 'description') and nested paths
+  // ('narrative.description') without special-casing each entity shape.
+  const parts = field.split('.');
+  let target = item.rawData;
+  for (let i = 0; i < parts.length - 1; i++) {
+    // Create intermediate objects if they don't exist yet (defensive — should not
+    // normally be needed for well-formed cascade items, but prevents a TypeError
+    // if the rawData shape is missing a sub-object).
+    if (target[parts[i]] == null) target[parts[i]] = {};
+    target = target[parts[i]];
+  }
+  const leafKey = parts[parts.length - 1];
+  target[leafKey] = trimmed || null;
+
+  // ── Update span display ───────────────────────────────────────────────────
+  // Show the new value if non-empty; restore the "click to add" placeholder
+  // when the DM clears a field so there is still a click target for future edits.
+  if (trimmed) {
+    spanEl.textContent = trimmed;
+  } else {
+    spanEl.innerHTML = '<em style="color:var(--muted);font-size:0.85em;">click to add</em>';
+  }
+  spanEl.classList.add('cell-edited');
+
+  // ── Record the correction ─────────────────────────────────────────────────
+  // appliedCorrections is read by the publish path and the queue status indicators.
+  item.corrected = true;
+  if (!item.appliedCorrections) item.appliedCorrections = [];
+  item.appliedCorrections.push({ k: field, old: oldVal, new: trimmed || null });
+
+  // ── Ground truth propagation and redirect detection (name edits only) ────
+  // Fire only when the name field changes — other fields (description, role) are
+  // prose content that should not propagate as identity aliases.
+  // String(oldVal) normalises null/'undefined' to a comparable string.
+  if (field === 'name' && String(oldVal) !== trimmed) {
+    if (oldVal && trimmed) {
+      // Register the correction as a ground truth fact and propagate to other
+      // queue items that reference the old name anywhere in their rawData.
+      const newKeys = extractAndRegisterFacts(item, [{ k: 'name', old: String(oldVal), new: trimmed }]);
+      if (newKeys.length) propagateGroundTruth(newKeys, itemId);
+    }
+    // Check whether the new name matches an existing campaign entity — if so,
+    // the item should become a MOD of the existing entity, not a new entry.
+    if (trimmed) _checkEntityNameRedirect(item, trimmed);
+  }
+
+  // Refresh the sidebar queue to update status indicators (corrected badge, etc.).
+  renderQueue();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1823,7 +2020,24 @@ function _buildCascadeItem(casc, correctionText) {
     sourceQuote:`Correction note: "${correctionText}"`,
     sourceRef:`Cascade from ${casc.type}`,
     rawData:{ name:hint.name, type:hint.type, description:casc.desc },
-    nlRender(){ return `<div class="nl-narrative">A new <strong>${hint.type||'entry'}</strong> was identified: <strong>${hint.name||'unnamed'}</strong>.<br><br>${casc.desc||''}</div>`; },
+    // Regular function (not arrow) so `this` resolves to the item at call time.
+    // An arrow function would capture hint.name / casc.desc as closed-over locals
+    // at _buildCascadeItem() call time — inline edits made via commitInlineEntityEdit()
+    // mutate rawData but the arrow function would re-render the stale original values.
+    // This is the same issue fixed for the session stub in issue #64.
+    nlRender() {
+      const typeName = this.rawData.type || 'entry';
+      return `<div class="nl-narrative">
+          A new <strong>${escapeHtmlDR(typeName)}</strong> was identified:
+          <strong>${editableSpan(this.rawData.name, 'name', this.id)}</strong>.
+        </div>
+        <div class="field-grid" style="margin-top:0.6rem;">
+          <div class="field-row">
+            <div class="field-label">Description</div>
+            <div class="field-val">${editableSpan(this.rawData.description, 'description', this.id)}</div>
+          </div>
+        </div>`;
+    },
   };
 }
 
@@ -2156,12 +2370,29 @@ function interpretRawItem(itemId) {
           sourceRef:   `Interpret — ${item.title || 'OCR page'}`,
           sourceQuote: entity.desc || 'Detected in enemy turns during OCR interpret.',
           rawData,
+          // Regular function so this.rawData is read at call time — not captured
+          // as a closed-over local. Without this, inline edits via
+          // commitInlineEntityEdit() would not appear in subsequent re-renders
+          // (same issue as the session stub, fixed in issue #64).
+          //
+          // Description for these items lives at rawData.narrative.description
+          // (the v4 bestiary/NPC schema shape). The editableSpan uses field path
+          // 'narrative.description' so commitInlineEntityEdit() writes to the
+          // correct nested location via dot-path splitting.
           nlRender() {
-            return `<div style="color:var(--ink);font-size:0.85rem;line-height:1.5;">
-              <strong>${escapeHtmlDR(this.rawData.name)}</strong>
-              <span style="color:var(--muted);margin-left:6px;">(${escapeHtmlDR(this.array)})</span><br>
-              <span style="color:var(--muted);font-size:0.78rem;">${escapeHtmlDR(this.sourceQuote)}</span>
-            </div>`;
+            const typeLabel  = this.array === 'npc_directory' ? 'NPC' : 'Monster';
+            const descVal    = this.rawData.narrative?.description;
+            return `<div class="nl-narrative">
+                New <strong>${typeLabel}</strong>:
+                <strong>${editableSpan(this.rawData.name, 'name', this.id)}</strong>
+                <span style="color:var(--muted);font-size:0.82rem;margin-left:6px;">(${escapeHtmlDR(this.array)})</span>
+              </div>
+              <div class="field-grid" style="margin-top:0.6rem;">
+                <div class="field-row">
+                  <div class="field-label">Description</div>
+                  <div class="field-val">${editableSpan(descVal, 'narrative.description', this.id)}</div>
+                </div>
+              </div>`;
           },
         });
       });
@@ -3421,6 +3652,45 @@ function _mergeOrReplaceQueueItem(redirectedItem, existingId) {
   }
 }
 
+/**
+ * _checkEntityNameRedirect(item, newName)
+ *
+ * After an inline name edit on an entity card, checks whether the new name matches
+ * an existing campaign entity in campaignIntegrityData. If it does, triggers the
+ * same redirect logic as the AI correction sidebar (issue #58) — the item is
+ * promoted from NEW to MOD and deduplicated against any existing queue entry for
+ * that entity.
+ *
+ * Why: the AI correction sidebar triggers a redirect by returning a diff that sets
+ * the `id` field to an existing Chronicle ID. Inline editing bypasses the AI, so
+ * we detect the redirect by name-matching against the campaign roster instead.
+ * The result is identical to the AI path: _detectAndApplyRedirect() does the
+ * promotion and deduplication in both cases.
+ *
+ * What breaks if removed: renaming a NEW entity card to match an existing campaign
+ * entity name would silently create a duplicate NEW entry on publish instead of
+ * converting it to a MOD of the existing entity.
+ */
+function _checkEntityNameRedirect(item, newName) {
+  // Only NEW items can be redirected — MOD items already reference an existing entity.
+  if (item.type !== 'NEW' || !campaignIntegrityData) return;
+
+  // Search the campaign array that corresponds to this queue item's target array.
+  const entities = campaignIntegrityData[item.array];
+  if (!Array.isArray(entities)) return;
+
+  const match = entities.find(
+    e => (e.name || '').toLowerCase() === newName.toLowerCase()
+  );
+  if (!match?.id) return;
+
+  // Synthesise the id diff that _detectAndApplyRedirect expects — the same format
+  // that the AI correction sidebar produces when it resolves a new entity to existing.
+  _detectAndApplyRedirect(item, [{ k: 'id', old: item.rawData?.id ?? null, new: match.id }]);
+  renderQueue();
+  renderReview();
+}
+
 // Build the INCOMING array that ChronicleIntegrity.checks() expects from the
 // existing items[] and cascadeItems[]. Round items carry combatId + roundNumber.
 // Non-round items (session logs, NPCs, quests) are ignored by checks().
@@ -4205,6 +4475,68 @@ function loadIntakeDelta() {
         <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
           NPC/location IDs may be placeholders — verify against the campaign entity list before approving.
         </div>`;
+
+    } else if (['npc_directory', 'locations', 'bestiary', 'inventory_and_loot', 'quest_ledger'].includes(item.array)) {
+      // Entity cascade item (NPC, location, monster, item, or quest) rehydrated from
+      // sessionStorage after a page reload. nlRender() could not be serialised to JSON,
+      // so it must be re-attached here with a render that reads rawData at call time.
+      //
+      // Why a regular function: arrow functions capture rawData values as closed-over
+      // locals at loadIntakeDelta() time. Inline edits via commitInlineEntityEdit()
+      // mutate rawData in-place, so a stale-captured arrow would re-render the original
+      // values — the same bug fixed for the session stub in issue #64.
+      //
+      // Description path detection: cascade items from _buildCascadeItem() store
+      // description at rawData.description (flat). Items from the onEntities interpret
+      // cascade store it at rawData.narrative.description (nested v4 schema).
+      // We detect which path is present and pass the correct dot-path to editableSpan()
+      // so commitInlineEntityEdit() writes back to the same location.
+      render = function() {
+        const typeLabel = {
+          'npc_directory':    'NPC',
+          'locations':        'Location',
+          'bestiary':         'Monster',
+          'inventory_and_loot': 'Item',
+          'quest_ledger':     'Quest',
+        }[this.array] || 'Entity';
+
+        const name = this.rawData?.name || '';
+
+        // Detect which field path holds the description for this item's rawData shape.
+        // Prefer the flat 'description' field if present; fall back to 'narrative.description'.
+        const hasFlat = this.rawData?.description !== undefined;
+        const descField = hasFlat ? 'description' : 'narrative.description';
+        const descVal   = hasFlat
+          ? this.rawData.description
+          : this.rawData?.narrative?.description ?? this.rawData?.desc;
+
+        // Role / disposition: read-only label (controlled vocabulary — not free-text edit).
+        const role = this.rawData?.role || this.rawData?.mechanics?.disposition || '';
+
+        const rows = [
+          `<div class="field-row">
+            <div class="field-label">Name</div>
+            <div class="field-val">${editableSpan(name, 'name', this.id)}</div>
+          </div>`,
+        ];
+        // Description row: always render so the DM has a click target even for null values.
+        rows.push(`<div class="field-row">
+          <div class="field-label">Description</div>
+          <div class="field-val">${editableSpan(descVal, descField, this.id)}</div>
+        </div>`);
+        if (role) {
+          // Role/disposition is a controlled-vocabulary field — shown read-only.
+          // Inline editing of disposition would require a select, not free-text input.
+          rows.push(`<div class="field-row">
+            <div class="field-label">Role / Disposition</div>
+            <div class="field-val">${escapeHtmlDR(role)}</div>
+          </div>`);
+        }
+        return `<div class="nl-narrative">New <strong>${typeLabel}</strong>:
+            <strong>${escapeHtmlDR(name || 'unnamed')}</strong>.
+          </div>
+          <div class="field-grid" style="margin-top:0.85rem;">${rows.join('')}</div>`;
+      };
 
     } else {
       // Fallback for any unrecognised item shape
