@@ -2073,25 +2073,26 @@ function interpretRawItem(itemId) {
         (campaignIntegrityData?.npc_directory || []).map(n => (n.name || '').toLowerCase())
       );
 
-      // Within-batch dedup: remove any entry whose name is a trailing-word shorthand
+      // Within-batch dedup: remove any entry whose name is a word-boundary shorthand
       // for a more-specific entry in the same batch (issue #84).
       // Example: AI emits both "Larkspur Dragon" and "Dragon" because notes use the
       // full name early and "dragon" as shorthand later. Keep the more specific name.
-      // Uses trailing-word matching ("dragon" is the last word of "larkspur dragon")
-      // rather than simple substring to avoid collapsing "goblin" and "hobgoblin".
-      function isTrailingWordOf(shorter, longer) {
-        // True when shorter is a complete word-sequence at the end of longer.
-        // e.g. isTrailingWordOf("dragon", "larkspur dragon") → true
-        //      isTrailingWordOf("goblin", "hobgoblin")       → false (no space boundary)
-        //      isTrailingWordOf("goblin", "goblin slinger")  → false (not at end)
-        return longer.length > shorter.length && longer.endsWith(' ' + shorter);
+      //
+      // Checks BOTH leading and trailing word boundaries — shorthands can appear at
+      // either end of the full name (e.g. "Dragon" is the last word of "Larkspur Dragon";
+      // "Dragon" could also be the first word of "Dragon Wyrmling").
+      // Space boundaries prevent merging distinct types that share a root word
+      // (e.g. "goblin" vs "hobgoblin" — no space before "goblin" in "hobgoblin").
+      function isWordBoundarySubsetOf(shorter, longer) {
+        if (longer.length <= shorter.length) return false;
+        return longer.endsWith(' ' + shorter) || longer.startsWith(shorter + ' ');
       }
       const batchNames = entities.map(e => (e.name || '').toLowerCase());
       const dedupedEntities = entities.filter((e, i) => {
         const name = batchNames[i];
         // Drop this entry if any other entry in the batch is a more-specific version
-        // of the same name (i.e. this name is a trailing-word shorthand of the other).
-        return !batchNames.some((other, j) => j !== i && isTrailingWordOf(name, other));
+        // (i.e. this name is a leading- or trailing-word shorthand of the other).
+        return !batchNames.some((other, j) => j !== i && isWordBoundarySubsetOf(name, other));
       });
 
       dedupedEntities.forEach(entity => {
@@ -2111,9 +2112,10 @@ function interpretRawItem(itemId) {
         // Cross-round shorthand guard: skip if an existing bestiary entry is a more
         // specific version of this name (e.g. "dragon" when "Larkspur Dragon" is
         // already in the bestiary from a previous session's interpret run).
+        // Checks both leading and trailing word boundaries — same logic as within-batch dedup.
         if (normType === 'monster') {
           const isKnownShorthand = Array.from(knownMonsters).some(
-            known => isTrailingWordOf(nameLower, known)
+            known => isWordBoundarySubsetOf(nameLower, known)
           );
           if (isKnownShorthand) return;
         }
