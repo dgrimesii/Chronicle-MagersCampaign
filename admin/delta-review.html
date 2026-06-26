@@ -2391,10 +2391,11 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
  * round proposals. The OCR text is already in a round-per-round format, so this
  * function is the right tool — it does not require pre-known round numbers.
  *
- * Why roundRange [1..30]: fillRoundsFromText filters its results to the supplied
- * roundNumbers allow-list. Passing a broad range lets the AI return whatever rounds
- * it finds in the text without the caller knowing them in advance. Sessions rarely
- * exceed 20 rounds; 30 is a safe ceiling.
+ * Why roundNumbers null (open-ended): the caller doesn't know which round numbers are on
+ * the page before calling the AI. Passing null tells fillRoundsFromText to prompt the AI to
+ * "extract all rounds found in the text" and accept every round it returns.
+ * The old approach of passing [1..30] caused the AI to produce 30 rounds for pages with
+ * only 1 real round (29 blank "unclear" entries flooded the queue).
  *
  * Why queue a NEW combat item before ROUND items when __new__ is selected:
  * applyDeltasToCampaign() processes the approved array in order. The ROUND branch
@@ -2488,9 +2489,12 @@ function interpretRawItem(itemId) {
     combatName = combat?.name || combatId;
   }
 
-  // Broad round range — the AI will return only rounds it finds in the text.
-  // 30 covers every realistic session length.
-  const roundRange = Array.from({ length: 30 }, (_, i) => i + 1);
+  // Open-ended round extraction: passing null tells fillRoundsFromText to prompt the AI
+  // to "extract all rounds found in the text" instead of enumerating a fixed range [1..30].
+  // The fixed-range approach caused the AI to produce 30 rounds for pages with only 1 real
+  // round (29 blank "unclear" entries flooded the queue). _normaliseRoundProposals accepts
+  // null targetNums and returns all rounds the AI included in its response.
+  const roundRange = null;
 
   // Disable the Run button and show thinking indicator while the AI call is in flight.
   statusEl.innerHTML = ChronicleAI.THINKING_HTML;

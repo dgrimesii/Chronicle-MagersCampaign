@@ -620,9 +620,17 @@ Output schema:
       '}\n' +
       '}';
 
-    const roundLabel = roundNumbers.length === 1
-      ? 'round ' + roundNumbers[0]
-      : 'rounds ' + roundNumbers.join(', ');
+    // Open-ended mode (roundNumbers null/falsy): the caller doesn't know which rounds
+    // are in the text (OCR interpret path). Tell the AI to extract all rounds it finds.
+    // Specific-rounds mode (roundNumbers is an array): caller knows the target set
+    // (integrity checker filling known missing rounds). Enumerate them explicitly.
+    // Without this guard, passing [1..30] caused the AI to produce 29 empty "unclear"
+    // rounds for pages with only 1 real round (issue #90 bug report).
+    const roundLabel = !roundNumbers || !roundNumbers.length
+      ? 'all rounds found in the text'
+      : roundNumbers.length === 1
+        ? 'round ' + roundNumbers[0]
+        : 'rounds ' + roundNumbers.join(', ');
 
     const userMessage =
       'Convert the following combat description to JSON for ' + roundLabel + '.' +
@@ -676,10 +684,19 @@ Output schema:
     });
   }
 
-  /** Internal: convert raw API round objects to proposal shape */
+  /** Internal: convert raw API round objects to proposal shape.
+   *
+   * targetNums: when provided, only rounds whose round_number is in the array are kept.
+   * When null/falsy (open-ended mode for OCR interpret), all rounds the AI returned are kept.
+   *
+   * Why the open-ended guard: interpretRawItem() doesn't know which round numbers are on
+   * the page before calling the AI. Passing [1..30] caused the AI to produce all 30 rounds
+   * (29 empty "unclear" ones) because the user message said "convert for rounds 1, 2, ..., 30".
+   * Passing null tells the AI to extract whatever rounds it finds, then accept them all here.
+   */
   function _normaliseRoundProposals(rounds, targetNums, sessionId, source) {
     return rounds
-      .filter(r => targetNums.includes(r.round_number))
+      .filter(r => !targetNums || targetNums.includes(r.round_number))
       .map(r => ({
         n:       r.round_number,
         sid:     r.session_id || sessionId,
