@@ -781,24 +781,25 @@ Output schema:
           if (onNarrative && parsed.narrative) {
             const n = parsed.narrative;
 
-            // Dedup: remove narrative.npcs entries whose name matches a new_entities entry
-            // with type:"monster". The AI sometimes puts a generic creature type (e.g. a dragon
-            // species) into both new_entities as a monster AND narrative.npcs, which would create
-            // duplicate entries — one in the bestiary and one in npc_directory.
+            // Dedup: remove narrative.npcs entries whose name matches any new_entities entry.
+            // new_entities come from enemy_actions and are always routed to bestiary on the
+            // client side (interpretRawItem onEntities handler). An entity in new_entities
+            // must not also appear in npc_directory via narrative.npcs — that would create
+            // a duplicate with wrong array placement.
             //
-            // The filter is restricted to type:"monster" entries. A named individual (type:"npc"
-            // in new_entities) may legitimately also appear in narrative.npcs — e.g. a named
-            // antagonist who fights the party is both a new combat entity and a narrative NPC.
-            // Filtering those out would silently drop valid NPC cascade items.
+            // Previously this filter was restricted to type:"monster" entries, allowing
+            // type:"npc" new_entities to pass through to narrative.npcs. This caused
+            // creature subtypes like "Goblin Slinger" — which the AI classifies as npc
+            // because they act distinctly — to slip into npc_directory instead of bestiary.
+            // Since the client now unconditionally routes ALL new_entities to bestiary,
+            // the type filter is no longer correct — remove it to match client behaviour.
             //
             // Name comparison is case-insensitive to catch capitalisation differences.
             if (Array.isArray(n.npcs) && Array.isArray(parsed.new_entities) && parsed.new_entities.length) {
-              const monsterNames = new Set(
-                parsed.new_entities
-                  .filter(e => e.type === 'monster')
-                  .map(e => e.name.toLowerCase())
+              const combatEntityNames = new Set(
+                parsed.new_entities.map(e => e.name.toLowerCase())
               );
-              n.npcs = n.npcs.filter(npc => !monsterNames.has(npc.name.toLowerCase()));
+              n.npcs = n.npcs.filter(npc => !combatEntityNames.has(npc.name.toLowerCase()));
             }
 
             const hasContent = (Array.isArray(n.npcs) && n.npcs.length)
