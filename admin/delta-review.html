@@ -3202,7 +3202,20 @@ function applyGlobalCorrection(msgId) {
       // Apply diffs to rawData (and roundData for ROUND items).
       // Mirrors applyDiff() logic per item type — kept in sync so bulk corrections
       // produce the same data state as item-by-item manual corrections.
-      if (target.type === 'ROUND') {
+      if (target.type === 'RAW') {
+        // RAW OCR items store their content as a single ocr_text string. Multiple diffs
+        // each target the same field key ('ocr_text') with different old/new substrings.
+        // String.replace() is used here — the same approach as applyDiff() — so each diff
+        // substitutes its specific substring rather than overwriting the entire field.
+        // Using direct assignment (the else-branch below) would let each successive diff
+        // replace the whole ocr_text with just that diff's 'new' value, leaving only the
+        // last replacement in place. That is what produced the corrupted rawData above.
+        diffs.forEach(d => {
+          if (d.k === 'ocr_text' && d.old != null && typeof target.rawData?.ocr_text === 'string') {
+            target.rawData.ocr_text = target.rawData.ocr_text.replace(d.old, d.new);
+          }
+        });
+      } else if (target.type === 'ROUND') {
         // Reorder op: replaces the entire slots array. Must be checked before the
         // bracket-path forEach because reorder diffs have no 'k' field.
         const reorderDiff = diffs.find(d => d.op === 'reorder' && Array.isArray(d.slots));
@@ -3253,7 +3266,7 @@ function applyGlobalCorrection(msgId) {
           }
         });
       } else {
-        // Simple top-level field patch for all non-ROUND types (NPC, location, etc.).
+        // Simple top-level field patch for non-RAW, non-ROUND types (NPC, location, etc.).
         // Reorder diffs (op:"reorder") have no 'k' — the !d.op guard skips them safely.
         diffs.forEach(d => {
           if (d.k && d.new !== undefined && target.rawData && !d.op) {
