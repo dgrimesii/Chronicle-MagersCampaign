@@ -50,6 +50,59 @@ const ChronicleAI = (() => {
   const PARTY_ROSTER = PARTY_CONTEXT;
 
   // ─────────────────────────────────────────────────────────
+  // Action economy reference — lazy-fetched at module init (issue #89)
+  // ─────────────────────────────────────────────────────────
+  // Start fetching pc-abilities.json immediately when this module loads so the
+  // data is cached and ready by the time the DM clicks Interpret. The promise
+  // is awaited lazily inside fillRoundsFromText() and fillRoundsFromImage().
+  //
+  // Why fetch at init rather than on demand: Interpret is usually clicked within
+  // seconds of the page loading; fetching on demand would add a network round-trip
+  // on the critical path. Fetching at init amortises that cost during page load.
+  //
+  // Silent failure: if the fetch fails or the file is malformed, _pcAbilitiesPromise
+  // resolves to null. fillRoundsFromText/Image then skips the injection block and
+  // the AI falls back to ROUND_SYSTEM_STRICT rule 7 alone (which covers standard
+  // 5e defaults but not party-specific cases like Nick weapon mastery).
+  const _pcAbilitiesPromise = fetch('../data/pc-abilities.json')
+    .then(r => r.ok ? r.json() : null)
+    .catch(() => null);
+
+  /**
+   * _buildActionEconomySummary(pcAbilities)
+   *
+   * Converts the action_economy arrays from pc-abilities.json into a compact
+   * multi-line reference string suitable for prepending to AI prompts.
+   *
+   * Why: ROUND_SYSTEM_STRICT rule 7 covers standard 5e action types, but cannot
+   * know party-specific exceptions — e.g. Goli's Nick weapon mastery making her
+   * off-hand dagger attack cost an Action rather than a Bonus Action. This summary
+   * gives the AI a per-character lookup so it uses the correct action_type instead
+   * of falling back to the 5e default.
+   *
+   * Format: one line per character with non-empty action_economy, e.g.:
+   *   Goli (pc_005): Nick (Dagger) = action (Nick mastery: ...) | Cunning Action = bonus_action (...)
+   *
+   * Returns null if pcAbilities is null/malformed or no characters have entries,
+   * so callers can skip injection when there is nothing to add.
+   */
+  function _buildActionEconomySummary(pcAbilities) {
+    if (!pcAbilities || !Array.isArray(pcAbilities.characters)) return null;
+
+    const lines = [];
+    for (const ch of pcAbilities.characters) {
+      if (!Array.isArray(ch.action_economy) || !ch.action_economy.length) continue;
+      // Each entry formatted as "ability = action_type (note)" joined by " | "
+      const entries = ch.action_economy
+        .map(e => `${e.ability} = ${e.action_type}${e.note ? ' (' + e.note + ')' : ''}`)
+        .join(' | ');
+      lines.push(`${ch.nickname} (${ch.pc_id}): ${entries}`);
+    }
+
+    return lines.length ? lines.join('\n') : null;
+  }
+
+  // ─────────────────────────────────────────────────────────
   // Core call
   // ─────────────────────────────────────────────────────────
   /**
@@ -420,22 +473,30 @@ RULES — these are absolute, not guidelines:
     Use null when val is null or the type is unclear.
 
 11. NEW ENTITIES.
-    Before the rounds array, include a "new_entities" array listing every distinct enemy
-    creature type or NPC that appears in enemy_actions. Include ALL types — generic
-    creatures (goblin, wolf, orc) as well as named ones (Larkspur Dragon, Captain Vorrath).
-    The campaign bestiary has one entry per creature type, not one per individual; a fight
-    against "goblins" adds one "goblin" entry to the bestiary, not one per goblin killed.
-    For each entry:
-      "name" — use the most specific name the text provides (e.g. "Larkspur Dragon",
-               not "dragon"). If the same creature is named fully early in the text
-               and then shortened later (e.g. "Larkspur Dragon" → "dragon"), use the
-               full name and emit only ONE entry for that creature. Never create a
-               separate entry for a shorthand that refers to an already-listed creature.
-      "type" — "monster" for any creature (dragons, beasts, undead, constructs,
-                humanoid enemies, goblins, wolves, etc.), "npc" for named persons
-                with agency (merchants, villains, quest-givers)
+    Before the rounds array, include a "new_entities" array listing every distinct entity
+    that appears in enemy_actions. For each entry:
+      "name" — use the most specific name the text provides. If a creature is named fully
+               early in the text and then shortened later (e.g. "Lurkspur Dragon" → "dragon"),
+               use the full name and emit only ONE entry. Never create a separate entry for
+               a shorthand that refers to an already-listed entity.
+      "type" — use exactly one of:
+                 "monster" — a creature type that the bestiary tracks as a category.
+                   Use this for any creature that is interchangeable with others of its
+                   kind in this encounter: "goblins", "hobgoblins", "Lurkspur Dragon"
+                   (a dragon species). One entry per species — not one per individual.
+                 "npc"     — a specific individual who stands apart from the generic group
+                   through narrative significance. A formal name is NOT required. Use "npc"
+                   when the text singles out one creature as individually important —
+                   because they took a unique action (stole something, taunted the party,
+                   escaped), have a distinguishing description ("the shaman with blue hair",
+                   "the hobgoblin carrying the banner"), or are clearly meant to recur.
+                   An NPC can be hostile and appear in combat. Use the most specific
+                   identifier the text gives — a description is fine when no name is known.
+                   The test: could this individual return in a future session as a distinct
+                   entity, separate from the rest of their group? If yes, npc. If they are
+                   interchangeable with the others around them, monster.
       "desc" — one sentence describing the entity from the text context
-    Do NOT list individual instances ("Goblin #1", "Goblin #2") — only the type once.
+    Do NOT list individual instances of a monster type ("Goblin #1", "Goblin #2").
     The caller deduplicates against the existing bestiary; always include the full list.`;
 
   // ─────────────────────────────────────────────────────────
@@ -513,7 +574,19 @@ Output schema:
    */
   async function fillRoundsFromImage({ images, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading }) {
     const imageBlocks = images.map(imageContent);
-    const system = `${ROUND_SYSTEM_BASE}\nCombat: ${combatName} (${combatId}). Session: ${sessionId}. Extract only Rounds: ${roundNumbers.join(', ')}.`;
+
+    // Inject action economy reference into the image OCR prompt so the AI uses
+    // character-specific action types (e.g. Nick = action) rather than 5e defaults.
+    // Await the promise fetched at module init — it resolves immediately if already cached.
+    // If the fetch failed, pcAbilities is null and economySummary is null → no injection.
+    const pcAbilities = await _pcAbilitiesPromise;
+    const economySummary = _buildActionEconomySummary(pcAbilities);
+
+    const system = `${ROUND_SYSTEM_BASE}\nCombat: ${combatName} (${combatId}). Session: ${sessionId}. Extract only Rounds: ${roundNumbers.join(', ')}.` +
+      (economySummary
+        ? '\n\n[ACTION ECONOMY REFERENCE — use these instead of 5e defaults for these abilities]\n' +
+          economySummary + '\n[END ACTION ECONOMY REFERENCE]'
+        : '');
 
     const messages = [{
       role: 'user',
@@ -623,8 +696,18 @@ Output schema:
       // Include ONLY when non-round content appears on the same page (NPC introductions,
       // location references, quest updates, post-combat narrative). Omit entirely for
       // pure combat pages — the callback fires only when this block is present and non-empty.
+      //
+      // narrative.npcs is for individuals who stand apart from the generic group through
+      // narrative significance. A formal name is NOT required — use the best identifier
+      // the text provides ("the shaman with blue hair", "the hobgoblin who escaped with the
+      // amulet"). An NPC can be hostile and can appear in combat.
+      //
+      // Do NOT use narrative.npcs for generic creature types (dragon, goblin, hobgoblin, wolf)
+      // that are interchangeable with others of their kind. Those belong in new_entities as
+      // type:"monster". The distinction: the hobgoblins in a fight = monster; the one hobgoblin
+      // shaman who taunted the party and fled with the McGuffin = npc.
       '"narrative": {\n' +
-      '  "npcs": [{ "name": "<NPC name>", "role": "<brief description>", "disposition": "friendly|neutral|hostile|unknown" }],\n' +
+      '  "npcs": [{ "name": "<individual identifier — name or description; not a generic creature type>", "role": "<brief description>", "disposition": "friendly|neutral|hostile|unknown" }],\n' +
       '  "locations": [{ "name": "<location name>", "description": "<one sentence>" }],\n' +
       '  "quest_updates": [{ "quest_hint": "<quest name>", "progress_entry": "<one sentence>" }],\n' +
       '  "items": [{ "name": "<item or coin name>", "description": "<source/context or null>" }],\n' +
@@ -644,7 +727,22 @@ Output schema:
         ? 'round ' + roundNumbers[0]
         : 'rounds ' + roundNumbers.join(', ');
 
+    // Inject action economy reference so the AI uses character-specific action types
+    // (e.g. Nick (Dagger) = action) rather than 5e defaults (which would be bonus_action).
+    // Await the module-init fetch — resolves instantly if already cached.
+    // economySummary is null when the fetch failed or file has no entries → block omitted.
+    const pcAbilities = await _pcAbilitiesPromise;
+    const economySummary = _buildActionEconomySummary(pcAbilities);
+
     const userMessage =
+      // Prepend action economy reference block when available.
+      // Placed before the combat description so the AI processes it as context
+      // before encountering the ability names in the round text.
+      (economySummary
+        ? '[ACTION ECONOMY REFERENCE — use these instead of 5e defaults for these abilities]\n' +
+          economySummary + '\n' +
+          '[END ACTION ECONOMY REFERENCE]\n\n'
+        : '') +
       'Convert the following combat description to JSON for ' + roundLabel + '.' +
       '\n\nCombat: ' + combatName +
       '\nSession: ' + sessionId +
@@ -682,6 +780,27 @@ Output schema:
           // so pure combat pages never trigger the narrative cascade item creation path.
           if (onNarrative && parsed.narrative) {
             const n = parsed.narrative;
+
+            // Dedup: remove narrative.npcs entries whose name matches a new_entities entry
+            // with type:"monster". The AI sometimes puts a generic creature type (e.g. a dragon
+            // species) into both new_entities as a monster AND narrative.npcs, which would create
+            // duplicate entries — one in the bestiary and one in npc_directory.
+            //
+            // The filter is restricted to type:"monster" entries. A named individual (type:"npc"
+            // in new_entities) may legitimately also appear in narrative.npcs — e.g. a named
+            // antagonist who fights the party is both a new combat entity and a narrative NPC.
+            // Filtering those out would silently drop valid NPC cascade items.
+            //
+            // Name comparison is case-insensitive to catch capitalisation differences.
+            if (Array.isArray(n.npcs) && Array.isArray(parsed.new_entities) && parsed.new_entities.length) {
+              const monsterNames = new Set(
+                parsed.new_entities
+                  .filter(e => e.type === 'monster')
+                  .map(e => e.name.toLowerCase())
+              );
+              n.npcs = n.npcs.filter(npc => !monsterNames.has(npc.name.toLowerCase()));
+            }
+
             const hasContent = (Array.isArray(n.npcs) && n.npcs.length)
                             || (Array.isArray(n.locations) && n.locations.length)
                             || (Array.isArray(n.quest_updates) && n.quest_updates.length)

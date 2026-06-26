@@ -1,9 +1,10 @@
 {
-  "generated_at": "2026-06-24T16:56:29.293Z",
+  "generated_at": "2026-06-26T00:00:00.000Z",
   "source": "D&D Beyond character service v5",
   "characters": [
     {
       "nickname": "Ashton",
+      "pc_id": "pc_003",
       "full_name": "Ashton, Scion of Hadar",
       "race": "Tiefling",
       "classes": [
@@ -44,10 +45,28 @@
         "Thaumaturgy",
         "Umbral Tendril",
         "Witch Bolt"
+      ],
+      "action_economy": [
+        {
+          "ability": "Pact of the Blade: Conjure",
+          "action_type": "action",
+          "note": "Warlock: summoning the pact weapon to hand uses an action"
+        },
+        {
+          "ability": "Pact of the Blade: Bond",
+          "action_type": "action",
+          "note": "Warlock: bonding with a non-magical weapon uses an action"
+        },
+        {
+          "ability": "Magical Cunning",
+          "action_type": "action",
+          "note": "Warlock: recovering expended spell slots via Magical Cunning uses an action"
+        }
       ]
     },
     {
       "nickname": "Asphodel",
+      "pc_id": "pc_004",
       "full_name": "Asphodel",
       "race": "Aasimar",
       "classes": [
@@ -81,10 +100,33 @@
         "Minor Illusion",
         "Spellfire Flare",
         "Toll the Dead"
+      ],
+      "action_economy": [
+        {
+          "ability": "Flurry of Blows",
+          "action_type": "bonus_action",
+          "note": "Monk: spend 1 Focus Point after the Attack action to make 2 bonus unarmed strikes"
+        },
+        {
+          "ability": "Patient Defense",
+          "action_type": "bonus_action",
+          "note": "Monk: spend 1 Focus Point as a bonus action to take the Dodge action"
+        },
+        {
+          "ability": "Step of the Wind",
+          "action_type": "bonus_action",
+          "note": "Monk: spend 1 Focus Point as a bonus action to Dash or Disengage"
+        },
+        {
+          "ability": "Deflect Attack",
+          "action_type": "reaction",
+          "note": "Monk: reaction to reduce damage from an attack that hits"
+        }
       ]
     },
     {
       "nickname": "Atticus",
+      "pc_id": "pc_006",
       "full_name": "Atticus",
       "race": "Human",
       "classes": [
@@ -135,10 +177,33 @@
         "Starry Wisp",
         "Thorn Whip",
         "Wither and Bloom"
+      ],
+      "action_economy": [
+        {
+          "ability": "Wild Shape",
+          "action_type": "bonus_action",
+          "note": "2024 D&D rules: Wild Shape costs a bonus action for all Druids at level 2+"
+        },
+        {
+          "ability": "Assume Starry Form",
+          "action_type": "bonus_action",
+          "note": "Circle of the Stars: expend a Wild Shape use as a bonus action to assume Starry Form instead of transforming"
+        },
+        {
+          "ability": "Healing Word",
+          "action_type": "bonus_action",
+          "note": "Healing Word costs a bonus action (unlike Cure Wounds which costs an action)"
+        },
+        {
+          "ability": "Shield",
+          "action_type": "reaction",
+          "note": "Reaction to an incoming hit — raises AC by 5 until the start of next turn (Magic Initiate)"
+        }
       ]
     },
     {
       "nickname": "Goli",
+      "pc_id": "pc_005",
       "full_name": "Derwin \"Goli\" Warmfire",
       "race": "Halfling",
       "classes": [
@@ -174,10 +239,33 @@
         "Blade Ward",
         "Feather Fall",
         "Mage Hand"
+      ],
+      "action_economy": [
+        {
+          "ability": "Nick (Dagger)",
+          "action_type": "action",
+          "note": "Nick weapon mastery: the off-hand attack from Nick costs the main Action, not a Bonus Action"
+        },
+        {
+          "ability": "Cunning Action",
+          "action_type": "bonus_action",
+          "note": "Rogue: use a bonus action each turn to Dash, Disengage, or Hide"
+        },
+        {
+          "ability": "Steady Aim",
+          "action_type": "bonus_action",
+          "note": "Rogue: spend a bonus action to gain Advantage on next attack; cannot move this turn"
+        },
+        {
+          "ability": "Absorb Elements",
+          "action_type": "reaction",
+          "note": "Reaction to incoming elemental damage — reduces damage and stores energy for next melee attack"
+        }
       ]
     },
     {
       "nickname": "Malachite",
+      "pc_id": "pc_002",
       "full_name": "Malachite",
       "race": "Aasimar",
       "classes": [
@@ -207,10 +295,28 @@
       ],
       "spells": [
         "Light"
+      ],
+      "action_economy": [
+        {
+          "ability": "Rage (Enter)",
+          "action_type": "bonus_action",
+          "note": "Entering Rage costs a bonus action (2024 D&D rules)"
+        },
+        {
+          "ability": "Pole Strike",
+          "action_type": "bonus_action",
+          "note": "Polearm Master feat: bonus action attack with the butt of the polearm after hitting with the main attack"
+        },
+        {
+          "ability": "Reactive Strike",
+          "action_type": "reaction",
+          "note": "Polearm Master feat: opportunity attack reaction when a creature enters your reach"
+        }
       ]
     },
     {
       "nickname": "Goldie",
+      "pc_id": "pc_001",
       "full_name": "Zragar \"Goldie\" Aurtesh",
       "race": "Dragonborn",
       "classes": [
@@ -267,6 +373,33 @@
         "Vortex Warp",
         "Web",
         "Witch Bolt"
+      ],
+      "action_economy": [
+        {
+          "ability": "Bladesong (Invoke)",
+          "action_type": "bonus_action",
+          "note": "Bladesinger Wizard: invoke Bladesong as a bonus action (not an action)"
+        },
+        {
+          "ability": "Absorb Elements",
+          "action_type": "reaction",
+          "note": "Reaction to incoming elemental damage — reduces damage and stores energy for next melee attack"
+        },
+        {
+          "ability": "Shield",
+          "action_type": "reaction",
+          "note": "Reaction to an incoming hit — raises AC by 5 until the start of next turn"
+        },
+        {
+          "ability": "Silvery Barbs",
+          "action_type": "reaction",
+          "note": "Reaction to a successful d20 roll — forces a reroll and can redirect advantage"
+        },
+        {
+          "ability": "Reactive Spell",
+          "action_type": "reaction",
+          "note": "War Caster feat: cast a spell as your opportunity attack reaction when a creature leaves reach"
+        }
       ]
     }
   ]
