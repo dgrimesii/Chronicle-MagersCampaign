@@ -2073,7 +2073,28 @@ function interpretRawItem(itemId) {
         (campaignIntegrityData?.npc_directory || []).map(n => (n.name || '').toLowerCase())
       );
 
-      entities.forEach(entity => {
+      // Within-batch dedup: remove any entry whose name is a trailing-word shorthand
+      // for a more-specific entry in the same batch (issue #84).
+      // Example: AI emits both "Larkspur Dragon" and "Dragon" because notes use the
+      // full name early and "dragon" as shorthand later. Keep the more specific name.
+      // Uses trailing-word matching ("dragon" is the last word of "larkspur dragon")
+      // rather than simple substring to avoid collapsing "goblin" and "hobgoblin".
+      function isTrailingWordOf(shorter, longer) {
+        // True when shorter is a complete word-sequence at the end of longer.
+        // e.g. isTrailingWordOf("dragon", "larkspur dragon") → true
+        //      isTrailingWordOf("goblin", "hobgoblin")       → false (no space boundary)
+        //      isTrailingWordOf("goblin", "goblin slinger")  → false (not at end)
+        return longer.length > shorter.length && longer.endsWith(' ' + shorter);
+      }
+      const batchNames = entities.map(e => (e.name || '').toLowerCase());
+      const dedupedEntities = entities.filter((e, i) => {
+        const name = batchNames[i];
+        // Drop this entry if any other entry in the batch is a more-specific version
+        // of the same name (i.e. this name is a trailing-word shorthand of the other).
+        return !batchNames.some((other, j) => j !== i && isTrailingWordOf(name, other));
+      });
+
+      dedupedEntities.forEach(entity => {
         const nameLower = (entity.name || '').toLowerCase();
         if (!nameLower) return;
 
@@ -2083,9 +2104,19 @@ function interpretRawItem(itemId) {
         // entry — the bestiary stores all creature types regardless of D&D category.
         const normType = (entity.type || '').toLowerCase() === 'npc' ? 'npc' : 'monster';
 
-        // Skip if the entity already exists in the campaign under its normalised type.
+        // Skip exact name match against existing campaign entries.
         if (normType === 'monster' && knownMonsters.has(nameLower)) return;
         if (normType === 'npc'     && knownNPCs.has(nameLower))     return;
+
+        // Cross-round shorthand guard: skip if an existing bestiary entry is a more
+        // specific version of this name (e.g. "dragon" when "Larkspur Dragon" is
+        // already in the bestiary from a previous session's interpret run).
+        if (normType === 'monster') {
+          const isKnownShorthand = Array.from(knownMonsters).some(
+            known => isTrailingWordOf(nameLower, known)
+          );
+          if (isKnownShorthand) return;
+        }
 
         // Map normalised type to the campaign array and a minimal rawData stub.
         // arrayPrefixMap in applyDeltasToCampaign will auto-assign the ID on publish.

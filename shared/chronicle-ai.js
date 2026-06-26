@@ -426,7 +426,11 @@ RULES — these are absolute, not guidelines:
     The campaign bestiary has one entry per creature type, not one per individual; a fight
     against "goblins" adds one "goblin" entry to the bestiary, not one per goblin killed.
     For each entry:
-      "name" — the creature type name as written (e.g. "goblin", "Larkspur Dragon")
+      "name" — use the most specific name the text provides (e.g. "Larkspur Dragon",
+               not "dragon"). If the same creature is named fully early in the text
+               and then shortened later (e.g. "Larkspur Dragon" → "dragon"), use the
+               full name and emit only ONE entry for that creature. Never create a
+               separate entry for a shorthand that refers to an already-listed creature.
       "type" — "monster" for any creature (dragons, beasts, undead, constructs,
                 humanoid enemies, goblins, wolves, etc.), "npc" for named persons
                 with agency (merchants, villains, quest-givers)
