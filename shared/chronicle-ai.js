@@ -931,6 +931,22 @@ Respond ONLY with valid JSON. Do not include any reasoning, explanation, or text
 
 Omit diffs, cascades, or globalScope if not applicable. Never omit content. Never write text before or after the JSON block.
 
+STRUCTURAL CORRECTIONS — reorder operation (ROUND items only):
+When the initiative order is wrong (wrong actor in the wrong slot, two actors swapped,
+etc.), use the reorder operation instead of individual k/old/new diffs:
+  {"op": "reorder", "slots": [<full replacement slots array>]}
+
+Use reorder when two or more actors need to swap slot positions, or when an actor_id
+needs to move from one slot position to another. Do NOT use reorder for single-field
+fixes (wrong action name, wrong result, wrong value) — use the standard k/old/new diff
+for those. Only use reorder when the slot assignments themselves are wrong.
+
+When producing a reorder, copy the ENTIRE current slots array from "Current data" above
+exactly as shown, then change only the actor_id (and slot number if applicable) on the
+affected entries. Preserve all other field values verbatim — action, result, value, notes,
+action_type, target, target_effects, val_type must all be copied unchanged. Use the
+PARTY ROSTER in the user message to confirm the correct actor_ids for each slot.
+
 Entity type rules for cascades:
 - Use type "monster" for any D&D creature: dragons, drakes, beasts, undead, constructs, humanoid enemies (goblins, ogres, etc.), and any entity that would appear in a monster manual. These go to the bestiary array.
 - Use type "npc" only for named persons with agency: merchants, guards, quest-givers, allies, villains who speak and make decisions, and similar characters.
@@ -1000,11 +1016,37 @@ Never produce a cascade for a ROUND correction — round data is self-contained.
    * onError / onLoading as usual
    */
   async function sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems = [], campaignRoster = '', onResult, onError, onLoading }) {
-    // 6000-char limit — raised from 800 (issue #76 followup).
-    // RAW OCR items can contain multiple rounds totalling 2000+ chars; at 800 the AI
-    // never saw Round 5 data and could not generate diffs for it. 6000 covers any
-    // realistic single-page OCR payload without exceeding the prompt context window.
-    const contextStr = JSON.stringify(itemContext?.rawData || {}, null, 2).slice(0, 6000);
+    // Context serialization — ROUND vs non-ROUND items have different truncation needs.
+    //
+    // ROUND items: the slots array is the critical payload for structural corrections
+    // (reorder op). A round with 6 slots, multiple attack rolls, bonus actions, and
+    // reactions can produce ~3–5KB of JSON — well within 6000 chars — but truncation
+    // risks cutting off the final slots and leaving the AI with an incomplete array to
+    // copy from. For ROUND items we skip truncation entirely so the AI always receives
+    // the full current state to work from.
+    //
+    // Non-ROUND items: the 6000-char limit is kept. RAW OCR items (the only other large
+    // payload) were raised to 6000 from 800 in issue #76 — that covers any realistic
+    // single-page OCR block without exceeding the prompt context window.
+    const isRound = itemContext?.type === 'ROUND';
+    const rawJson = JSON.stringify(itemContext?.rawData || {}, null, 2);
+    const contextStr = isRound ? rawJson : rawJson.slice(0, 6000);
+
+    // For ROUND items, inject the party roster directly into the user message so the
+    // AI sees slot assignments alongside the slots array. This is the same roster that
+    // ROUND_SYSTEM_STRICT embeds, repeated here so the AI can use it when deciding
+    // which actor_id belongs in which slot during a reorder correction.
+    // Non-ROUND corrections do not need this — they have no slot-assignment context.
+    const rosterBlock = isRound
+      ? '\nPARTY ROSTER (slot → actor_id):\n' +
+        'slot 1: Zragar/Goldie (pc_001)\n' +
+        'slot 2: Malachite/Mal (pc_002)\n' +
+        'slot 3: Ashton/Ash (pc_003)\n' +
+        'slot 4: Asphodel/Del (pc_004)\n' +
+        'slot 5: Derwin/Goli (pc_005)\n' +
+        'slot 6: Atticus/Att (pc_006)\n'
+      : '';
+
     const scopeNote  = scope === 'global'
       ? `\nThis correction may apply broadly. Pending items: ${pendingItems.map(i => i.title).join('; ')}`
       : '';
@@ -1020,7 +1062,7 @@ Never produce a cascade for a ROUND correction — round data is self-contained.
     const messages = [{
       role: 'user',
       content: `Correction note: "${correctionText}"
-
+${rosterBlock}
 Current item: ${itemContext?.title || 'unknown'} (${itemContext?.type || ''} · ${itemContext?.array || ''})
 Current data:
 ${contextStr}${scopeNote}`,

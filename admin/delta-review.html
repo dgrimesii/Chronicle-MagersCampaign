@@ -1632,15 +1632,26 @@ function renderReview() {
   const correctionsHtml = item.corrected && item.appliedCorrections?.length ? `
     <div class="corrections-applied">
       <div class="corrections-label">✎ Corrections applied</div>
-      ${item.appliedCorrections.map(d => `
-        <div class="correction-row">
+      ${item.appliedCorrections.map(d => {
+        // Reorder diffs have op/slots but no k/old/new — render a summary row
+        // rather than trying to display field-level before/after values.
+        if (d.op === 'reorder') {
+          const slotCount = Array.isArray(d.slots) ? d.slots.length : '?';
+          return `<div class="correction-row">
+            <span class="correction-key">slot order</span>
+            <span class="correction-arrow">↺</span>
+            <span class="correction-new">${slotCount} slots reordered</span>
+          </div>`;
+        }
+        return `<div class="correction-row">
           <span class="correction-key">${escapeHtmlDR(d.k)}</span>
           ${d.old != null
             ? `<span class="correction-old">${escapeHtmlDR(String(d.old))}</span>
                <span class="correction-arrow">→</span>`
             : `<span class="correction-arrow">+</span>`}
           <span class="correction-new">${escapeHtmlDR(String(d.new))}</span>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>` : '';
 
   // Build "Show original JSON" toggle — only present when _originalRawData was
@@ -1885,7 +1896,15 @@ function renderAssistant() {
       extra += `<div class="diff-preview">
         <div class="diff-preview-title">Proposed changes</div>
         <div class="diff-lines-scroll">
-        ${msg.diffs.map(d=>`<div class="diff-line"><span class="diff-key">${escapeHtmlDR(d.k)}</span>${d.old!=null?`<span class="diff-old">${escapeHtmlDR(String(d.old))}</span><span style="color:var(--muted);margin:0 4px;">→</span>`:'<span style="color:var(--muted);margin-right:4px;">+</span>'}<span class="diff-new">${escapeHtmlDR(String(d.new))}</span></div>`).join('')}
+        ${msg.diffs.map(d => {
+          // Reorder diffs have op/slots but no k/old/new — render a summary line
+          // rather than trying to show field-level before/after values.
+          if (d.op === 'reorder') {
+            const slotCount = Array.isArray(d.slots) ? d.slots.length : '?';
+            return `<div class="diff-line"><span class="diff-key">slot order</span><span style="color:var(--muted);margin:0 4px;">↺</span><span class="diff-new">${slotCount} slots reordered</span></div>`;
+          }
+          return `<div class="diff-line"><span class="diff-key">${escapeHtmlDR(d.k)}</span>${d.old!=null?`<span class="diff-old">${escapeHtmlDR(String(d.old))}</span><span style="color:var(--muted);margin:0 4px;">→</span>`:'<span style="color:var(--muted);margin-right:4px;">+</span>'}<span class="diff-new">${escapeHtmlDR(String(d.new))}</span></div>`;
+        }).join('')}
         </div>
         <div class="diff-apply-bar">
           <button class="btn btn-approve" style="font-size:0.62rem;padding:4px 12px;" onclick="applyDiff('${msg.id}')">Apply these changes ✓</button>
@@ -2882,11 +2901,53 @@ function applyDiff(msgId) {
   if (item.type === 'ROUND') {
     const SLOT_FIELD_MAP = { action: 'act', result: 'res', value: 'val', notes: 'notes' };
 
+    // Reorder op: replaces the entire slots array when the AI determines that slot
+    // assignments (actor_ids) are structurally wrong across multiple entries — e.g.
+    // two actors are swapped. Must be checked BEFORE the bracket-path forEach because
+    // reorder diffs have no 'k' field; the bracketMatch regex below would silently
+    // skip them, leaving the item unchanged and the DM with no visual feedback.
+    //
+    // Two objects must be patched (same dual-object rule as bracket-path corrections):
+    //   rawData.slots  — persisted to campaign JSON on publish
+    //   roundData.slots — drives renderRoundNL() display
+    // Both use the same abbreviated field names (s/a/act/res/val) because rawData.slots
+    // is written by _normaliseRoundProposals() which produces abbreviated names. The AI
+    // copies those names when producing the reorder replacement array.
+    const reorderDiff = msg.diffs.find(d => d.op === 'reorder' && Array.isArray(d.slots));
+    if (reorderDiff) {
+      if (item.rawData) {
+        item.rawData.slots = reorderDiff.slots;
+      }
+      if (item.roundData) {
+        // Rebuild roundData.slots from the AI's replacement array.
+        //
+        // rawData.slots stores abbreviated field names (s, a, act, res, val) — the same
+        // shape _normaliseRoundProposals() writes. When the AI produces a reorder diff it
+        // copies the slots from "Current data" (serialized rawData), so the replacement
+        // array also uses abbreviated names. The ?? fallbacks handle the full-name shape
+        // (slot/actor_id/action/result/value) defensively in case the AI ever uses it.
+        item.roundData.slots = reorderDiff.slots.map(s => ({
+          s:              s.s              ?? s.slot        ?? null,
+          a:              s.a              ?? s.actor_id    ?? null,
+          act:            s.act            ?? s.action      ?? null,
+          res:            (s.res ?? s.result)                || 'neutral',
+          val:            s.val            ?? s.value       ?? null,
+          notes:          s.notes                           || null,
+          action_type:    s.action_type                     || null,
+          target:         s.target                          || null,
+          target_effects: Array.isArray(s.target_effects) ? s.target_effects : [],
+          val_type:       s.val_type                        || null,
+        }));
+      }
+    }
+
     msg.diffs.forEach(d => {
       // Match "arrayName[index].fieldName" — the only nesting level ROUND rawData uses.
       // Deeper paths (e.g. slots[0].action.sub) have no match in the round schema and
       // are silently skipped rather than throwing, keeping applyDiff() non-fatal.
-      const bracketMatch = d.k.match(/^(\w+)\[(\d+)\]\.(\w+)$/);
+      // Reorder diffs (op:"reorder") are handled above and have no 'k' field — the
+      // match below correctly returns null for them, so they are skipped here safely.
+      const bracketMatch = d.k?.match(/^(\w+)\[(\d+)\]\.(\w+)$/);
       if (!bracketMatch) return;
       const [, arrName, idxStr, field] = bracketMatch;
       const idx = parseInt(idxStr, 10);
