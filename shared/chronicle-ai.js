@@ -1015,7 +1015,7 @@ Never produce a cascade for a ROUND correction — round data is self-contained.
    * onResult(response) — called with parsed correction response object
    * onError / onLoading as usual
    */
-  async function sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems = [], campaignRoster = '', onResult, onError, onLoading }) {
+  async function sendCorrectionToAI({ correctionText, itemContext, scope, pendingItems = [], campaignRoster = '', entityContext = '', onResult, onError, onLoading }) {
     // Context serialization — ROUND vs non-ROUND items have different truncation needs.
     //
     // ROUND items: the slots array is the critical payload for structural corrections
@@ -1059,10 +1059,17 @@ Never produce a cascade for a ROUND correction — round data is self-contained.
       ? campaignRoster + '\n\n' + CORRECTION_SYSTEM
       : CORRECTION_SYSTEM;
 
+    // entityContext carries the type-scoped existing-entity list for NPC, location, and
+    // monster cascade items (issue #56). It is placed here — in the user message — rather
+    // than the system prompt so it is sent exactly once per conversation, not repeated
+    // with every turn. An empty string (the default for all other item types) leaves the
+    // user message unchanged.
+    const entityBlock = entityContext ? entityContext + '\n' : '';
+
     const messages = [{
       role: 'user',
       content: `Correction note: "${correctionText}"
-${rosterBlock}
+${rosterBlock}${entityBlock}
 Current item: ${itemContext?.title || 'unknown'} (${itemContext?.type || ''} · ${itemContext?.array || ''})
 Current data:
 ${contextStr}${scopeNote}`,

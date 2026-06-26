@@ -399,6 +399,17 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
   border-radius:0 3px 3px 0;padding:0.45rem 0.75rem;margin-bottom:0.75rem;
   font-size:0.82rem;color:var(--amber);line-height:1.4;}
 
+/* Duplicate candidate warning — queue chip and review card block (issue #56 Layer 1).
+   Amber treatment signals advisory (not blocking) — the DM makes the final call.
+   qi-dup-flag is inline (not absolute) so it flows with the title text in the queue card.
+   dup-warning-block uses the same left-border style as the provenance banner for visual
+   consistency — both are pre-approval advisory notices about the item's provenance. */
+.qi-dup-flag{font-family:'JetBrains Mono',monospace;font-size:0.56rem;color:var(--amber);
+  margin-left:5px;vertical-align:middle;}
+.dup-warning-block{background:rgba(212,175,55,0.07);border-left:3px solid var(--amber);
+  border-radius:0 3px 3px 0;padding:0.5rem 0.75rem;margin-bottom:0.85rem;
+  font-size:0.81rem;color:var(--amber);line-height:1.5;}
+
 /* Container for the corrections-applied block on the review card */
 .corrections-applied{background:rgba(42,107,107,0.05);border:1px solid rgba(42,107,107,0.18);
   border-radius:3px;padding:0.75rem 0.85rem;margin-bottom:0.85rem;}
@@ -1578,7 +1589,7 @@ function queueItemHTML(item, isRound=false) {
     <div class="qi-status ${dotClass}"></div>
     <div class="qi-body">
       <div class="qi-type">${typeLabel} · ${item.array}</div>
-      <div class="qi-title">${item.title}${item.corrected ? `<span class="queue-edited-mark" title="Corrections applied">✎</span>` : ''}</div>
+      <div class="qi-title">${item.title}${item.corrected ? `<span class="queue-edited-mark" title="Corrections applied">✎</span>` : ''}${item._possibleDuplicate ? `<span class="qi-flag qi-dup-flag" title="Possible duplicate of ${item._possibleDuplicate.type} ${item._possibleDuplicate.id}: ${item._possibleDuplicate.name}">⚠ dup?</span>` : ''}</div>
     </div>
     ${flagged ? `<span class="qi-flag">[?]</span>` : ''}
   </div>`;
@@ -1695,6 +1706,12 @@ function renderReview() {
       ${item.flags?.length ? `<span class="delta-flag">[?] ${item.flags.length} flag${item.flags.length>1?'s':''}</span>` : ''}
       <span style="margin-left:auto;font-size:0.82rem;color:var(--muted);font-style:italic;">${item.sourceRef||''}</span>
     </div>
+
+    ${item._possibleDuplicate
+      ? `<div class="dup-warning-block">
+          ⚠ Possible duplicate — ${item._possibleDuplicate.type} <strong>${item._possibleDuplicate.id}</strong> "<strong>${item._possibleDuplicate.name}</strong>" already exists in the campaign roster. Confirm this is a genuinely new entity before approving.
+        </div>`
+      : ''}
 
     <div class="nl-card">
       <div class="nl-card-title">${item.title}</div>
@@ -2010,16 +2027,37 @@ function sendCorrection() {
     updateProgress();
   };
 
+  // Build a type-scoped existing-entity list for NPC, location, and monster cascade items
+  // (issue #56 Layer 2). Only these types can produce duplicate-creation errors during
+  // AI correction — ROUND items, session stubs, and quest items do not carry this risk.
+  //
+  // Placed in the user message (via entityContext) rather than the system prompt (via
+  // campaignRoster) so it is sent once per conversation — not repeated every turn.
+  // At end-of-campaign (~72 NPCs × ~6 tokens) this costs ~430 tokens total vs ~2,200+
+  // per turn if injected into the system prompt.
+  //
+  // Not injected when campaignIntegrityData is not yet loaded — the fetch may still be
+  // in flight when the DM immediately opens the AI sidebar on a newly loaded page.
+  const entityTypeLabels = { npc_directory: 'NPCS', locations: 'LOCATIONS', bestiary: 'MONSTERS' };
+  const entityTypeLabel  = entityTypeLabels[itemContext?.array];
+  const entityRosterBlock = (entityTypeLabel && campaignIntegrityData)
+    ? `EXISTING ${entityTypeLabel} (do not create duplicates):\n` +
+      (campaignIntegrityData[itemContext.array] || [])
+        .map(e => `${e.id} ${e.name}`).join(', ')
+    : '';
+
   ChronicleAI.sendCorrectionToAI({
     correctionText: text,
     itemContext,
     scope: correctionScope,
     pendingItems: allPending,
-    // Inject the campaign roster AND any DM-confirmed session facts so the AI
-    // treats both as hard constraints. buildAIContextString() concatenates the
-    // static roster with the session ground truth block (issue #57).
-    // Falls back to roster-only (or '') when no facts have been registered yet.
+    // campaignRoster carries only DM-confirmed session facts (issue #57).
+    // The full campaign roster was removed from here in issue #56 revised spec —
+    // it is now type-scoped and placed in the user message via entityContext instead.
     campaignRoster: buildAIContextString(),
+    // Type-scoped entity list for NPC/location/monster items only (issue #56 Layer 2).
+    // '' for all other item types (ROUND, session_logs, quest_ledger, etc.).
+    entityContext: entityRosterBlock,
     onLoading: () => {},
     onResult:  response => handleResponse(response),
     onError:   ()       => handleResponse(ChronicleAI.demoCorrectionResponse(text, itemContext)),
@@ -2050,6 +2088,11 @@ function _buildCascadeItem(casc, correctionText) {
     console.warn('[Chronicle] _buildCascadeItem: unknown entity type, skipping:', hint.type, casc);
     return null;
   }
+  // Client-side duplicate check (issue #56 Layer 1): if a campaign entity already
+  // has this name, flag the item so the DM sees a ⚠ dup? warning before approving.
+  // Does not block creation — the DM makes the final call; the warning is advisory.
+  const dupMatch = checkDuplicateName(hint.name);
+
   return {
     id: 'd_cascade_'+Date.now(), type:'NEW', array,
     group:'Other', status:'pending', flags:[], isCascade:true,
@@ -2057,6 +2100,10 @@ function _buildCascadeItem(casc, correctionText) {
     sourceQuote:`Correction note: "${correctionText}"`,
     sourceRef:`Cascade from ${casc.type}`,
     rawData:{ name:hint.name, type:hint.type, description:casc.desc },
+    // _possibleDuplicate is set when a campaign entity with the same normalised name exists.
+    // Rendered as a ⚠ dup? chip in the queue card and a warning block in the review panel.
+    // Null when no match — most cascade items will not have this set.
+    _possibleDuplicate: dupMatch || null,
     // Regular function (not arrow) so `this` resolves to the item at call time.
     // An arrow function would capture hint.name / casc.desc as closed-over locals
     // at _buildCascadeItem() call time — inline edits made via commitInlineEntityEdit()
@@ -2287,6 +2334,10 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
       title:       `New NPC — ${npc.name}`,
       sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
       sourceQuote: npc.role || 'Extracted from session notes.',
+      // Client-side duplicate check (issue #56 Layer 1). knownNPCs already filters
+      // exact lowercase matches; checkDuplicateName catches punctuation variants and
+      // provides the {id, type, name} needed to render the ⚠ dup? warning.
+      _possibleDuplicate: checkDuplicateName(npc.name) || null,
       rawData: {
         name:      npc.name,
         // Description lives at rawData.narrative.description (v4 NPC schema shape)
@@ -2336,6 +2387,8 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
       title:       `New Location — ${loc.name}`,
       sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
       sourceQuote: loc.description || 'Extracted from session notes.',
+      // Client-side duplicate check (issue #56 Layer 1).
+      _possibleDuplicate: checkDuplicateName(loc.name) || null,
       rawData: {
         name:        loc.name,
         // Flat description field (v4 location schema uses top-level description).
@@ -2633,49 +2686,46 @@ function interpretRawItem(itemId) {
         const nameLower = (entity.name || '').toLowerCase();
         if (!nameLower) return;
 
-        // Normalise entity type. The schema says "monster|npc" but the AI sometimes
-        // returns D&D creature subtypes (e.g. "dragon", "beast", "undead") for creature
-        // entries. Anything that isn't exactly "npc" is treated as a monster/bestiary
-        // entry — the bestiary stores all creature types regardless of D&D category.
-        const normType = (entity.type || '').toLowerCase() === 'npc' ? 'npc' : 'monster';
+        // All new_entities entries come from enemy_actions — they are always bestiary
+        // (monster) entries, never npc_directory entries. The AI's type field in
+        // new_entities distinguishes "monster" (interchangeable creature type) from "npc"
+        // (individually significant antagonist), but in practice the AI over-uses "npc"
+        // for creature subtypes like "Goblin Slinger" that acted distinctly in one round.
+        //
+        // Design intent: combat enemies go to bestiary; named antagonists who are
+        // narratively significant also appear in narrative.npcs and route to npc_directory
+        // via _processNarrativeResult(). Using the AI's npc classification here produces
+        // wrong array placement and bypasses the cross-round shorthand guard below.
+        // Force monster unconditionally — the narrative path handles true NPCs separately.
+        const normType = 'monster';
 
-        // Skip exact name match against existing campaign entries.
-        if (normType === 'monster' && knownMonsters.has(nameLower)) return;
-        if (normType === 'npc'     && knownNPCs.has(nameLower))     return;
+        // Skip exact name match against existing campaign entries (both arrays —
+        // a creature type already tracked as an NPC should not also enter the bestiary).
+        if (knownMonsters.has(nameLower)) return;
+        if (knownNPCs.has(nameLower))     return;
 
         // Cross-round shorthand guard: skip if an existing bestiary entry is a more
         // specific version of this name (e.g. "dragon" when "Larkspur Dragon" is
         // already in the bestiary from a previous session's interpret run).
         // Checks both leading and trailing word boundaries — same logic as within-batch dedup.
-        if (normType === 'monster') {
-          const isKnownShorthand = Array.from(knownMonsters).some(
-            known => isWordBoundarySubsetOf(nameLower, known)
-          );
-          if (isKnownShorthand) return;
-        }
+        const isKnownShorthand = Array.from(knownMonsters).some(
+          known => isWordBoundarySubsetOf(nameLower, known)
+        );
+        if (isKnownShorthand) return;
 
-        // Map normalised type to the campaign array and a minimal rawData stub.
-        // arrayPrefixMap in applyDeltasToCampaign will auto-assign the ID on publish.
-        let array, rawData;
-        if (normType === 'monster') {
-          array   = 'bestiary';
-          rawData = {
-            name:      entity.name,
-            mechanics: { reliability: 'unverified', appearances: [sessionId] },
-            narrative: { description: entity.desc || null },
-          };
-        } else {
-          // normType === 'npc'
-          array   = 'npc_directory';
-          rawData = {
-            name:      entity.name,
-            mechanics: { disposition: 'unknown' },
-            narrative: { description: entity.desc || null },
-          };
-        }
+        // All entity cascade items from interpret go to bestiary (see normType comment above).
+        const array   = 'bestiary';
+        const rawData = {
+          name:      entity.name,
+          mechanics: { reliability: 'unverified', appearances: [sessionId] },
+          narrative: { description: entity.desc || null },
+        };
 
-        // Stable cascade ID: item + entity name, so re-running interpret doesn't duplicate.
-        const cascadeId = `d_entity_${itemId}_${nameLower.replace(/\W+/g, '_')}`;
+        // Cross-item cascade ID: uses array name (not itemId) so the same entity name
+        // from two different RAW pages (two separate Interpret calls on the same session)
+        // dedups correctly. Using itemId caused a second Interpret run on a different RAW
+        // item to produce a duplicate bestiary cascade for the same creature type.
+        const cascadeId = `d_entity_${array}_${nameLower.replace(/\W+/g, '_')}`;
         if (cascadeItems.some(i => i.id === cascadeId) || items.some(i => i.id === cascadeId)) return;
 
         cascadeItems.push({
@@ -2686,10 +2736,15 @@ function interpretRawItem(itemId) {
           status:      'pending',
           flags:       [],
           isCascade:   true,
-          title:       `New ${entity.type} — ${entity.name}`,
+          title:       `New Monster — ${entity.name}`,
           sourceRef:   `Interpret — ${item.title || 'OCR page'}`,
           sourceQuote: entity.desc || 'Detected in enemy turns during OCR interpret.',
           rawData,
+          // Client-side duplicate check (issue #56 Layer 1). The knownMonsters/knownNPCs
+          // sets already filter exact lowercase matches, but checkDuplicateName uses the
+          // full normalised index (includes punctuation-stripped variants) and produces the
+          // {id, type, name} object the ⚠ dup? chip needs to identify the matched entity.
+          _possibleDuplicate: checkDuplicateName(entity.name) || null,
           // Regular function so this.rawData is read at call time — not captured
           // as a closed-over local. Without this, inline edits via
           // commitInlineEntityEdit() would not appear in subsequent re-renders
@@ -3537,10 +3592,11 @@ let deferredGaps     = [];        // deferred gap records — appended to publis
 let deferredGapCount = 0;         // counter for gap_NNN ID assignment
 let showingIntegrityPanel = false; // true when the center shows the integrity view
 
-// Campaign roster string injected into every sendCorrectionToAI() system prompt.
-// Initialised to '' so the call site is safe even when initIntegrity() is skipped
-// (e.g. when items[] is empty and the early-return fires before buildCampaignRoster runs).
-window.campaignRoster = '';
+// Normalised name → entity lookup for duplicate detection (issue #56).
+// Populated by buildCampaignNameIndex() after initIntegrity() fetches the campaign JSON.
+// Null when initIntegrity() is skipped (no staged items) or when the fetch fails —
+// checkDuplicateName() guards against null so cascade sites never throw.
+window.campaignNameIndex = null;
 
 // Session-scoped ground truth registry (issue #57).
 // Stores DM-confirmed entity resolutions for the duration of the review session.
@@ -3551,43 +3607,61 @@ window.campaignRoster = '';
 window.sessionGroundTruth = {};
 
 /**
- * buildCampaignRoster(json)
+ * buildCampaignNameIndex(data)
  *
- * Builds a compact roster string from the raw campaign JSON for injection into
- * the AI correction system prompt. Listing all existing entities as ground truth
- * prevents the AI from proposing new entities that already exist in the campaign.
+ * Builds a Map of normalised entity name → {id, type, name} from the raw campaign JSON.
+ * Used for client-side duplicate detection when cascade items are created (issue #56 Layer 1).
  *
- * Called once after initIntegrity() successfully fetches magers-campaign.json.
- * The result is stored on window.campaignRoster and passed to every
- * sendCorrectionToAI() call. An empty section (e.g. factions: []) emits "(none)"
- * rather than a blank line, keeping the prompt readable for the AI.
+ * Why a Map instead of the old roster string: the old approach injected the full roster
+ * into every AI system prompt — at end-of-campaign (~320 entities) that costs ~88,000
+ * tokens per intake run and dilutes AI attention on the actual correction task. The Map
+ * is zero token cost and catches the majority of real-world duplicates entirely in JS.
  *
- * Handles missing/empty factions[] and cohorts[] gracefully — both arrays were
- * introduced in schema v4.1 and may be absent in older campaign snapshots.
+ * Called once after initIntegrity() fetches the campaign JSON. Stored as window.campaignNameIndex.
+ * Returns an empty Map (not null) when all entity arrays are absent — callers can always call .get().
+ *
+ * Normalisation: lowercase, strip punctuation, collapse whitespace. This catches exact
+ * matches and minor punctuation variants (e.g. "The Hooded Figure" = "the hooded figure").
+ * Edit-distance fuzzy matching is a future enhancement — exact normalised match is sufficient
+ * for the common case and avoids false positives.
  */
-function buildCampaignRoster(json) {
-  // Helper: format an array of entities as "id name, id name, ..." or "(none)"
-  function fmt(arr, nameFn) {
-    if (!arr || arr.length === 0) return '(none)';
-    return arr.map(nameFn).join(', ');
-  }
+function buildCampaignNameIndex(data) {
+  const index = new Map();
+  // Normalise a name for comparison: lowercase, strip non-alphanumeric (except spaces),
+  // collapse whitespace. Using the same normalisation at lookup time avoids mismatches
+  // caused by punctuation or capitalisation variants.
+  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  const add  = (id, type, name) => { if (name) index.set(norm(name), { id, type, name }); };
 
-  const lines = [
-    'CAMPAIGN ROSTER (ground truth — do not create duplicates):',
-    'LOCATIONS: ' + fmt(json.locations,          l => l.id + ' ' + l.name),
-    'NPCS: '      + fmt(json.npc_directory,       n => n.id + ' ' + n.name),
-    'PARTY: '     + fmt(json.party,               p => p.id + ' ' + p.name),
-    'QUESTS: '    + fmt(json.quest_ledger,        q => q.id + ' ' + q.name),
-    // factions[] and cohorts[] introduced in v4.1 — guard with || [] for older snapshots
-    'FACTIONS: '  + fmt(json.factions  || [],     f => f.id + ' ' + f.name),
-    'COHORTS: '   + fmt(json.cohorts   || [],     c => c.id + ' ' + c.name),
-    'BESTIARY: '  + fmt(json.bestiary,            m => m.id + ' ' + m.name),
-    'RULES FRAMEWORK: D&D 5.5e. All characters, actions, and mechanics operate within this framework.',
-    'When interpreting notes, always match against this roster before proposing new entities.',
-    'Use "unknown" only when no roster match can be reasonably inferred.',
-  ];
+  // All entity types that can appear as cascade items. factions/cohorts use || [] guard
+  // because they were introduced in schema v4.1 and may be absent in older snapshots.
+  (data.npc_directory      || []).forEach(e => add(e.id, 'npc',      e.name));
+  (data.locations          || []).forEach(e => add(e.id, 'location',  e.name));
+  (data.bestiary           || []).forEach(e => add(e.id, 'monster',   e.name));
+  (data.factions           || []).forEach(e => add(e.id, 'faction',   e.name));
+  (data.cohorts            || []).forEach(e => add(e.id, 'cohort',    e.name));
+  (data.inventory_and_loot || []).forEach(e => add(e.id, 'item',      e.name));
+  (data.quest_ledger       || []).forEach(e => add(e.id, 'quest',     e.name));
 
-  return lines.join('\n');
+  return index;
+}
+
+/**
+ * checkDuplicateName(name)
+ *
+ * Looks up a proposed entity name in window.campaignNameIndex.
+ * Returns the matched entry {id, type, name} if an existing entity shares this
+ * normalised name, or null if no match (or if the index is not yet loaded).
+ *
+ * Why: called at each cascade item creation site so the DM sees a ⚠ dup? warning
+ * before approving — zero token cost, zero AI call, runs entirely in JS (issue #56 Layer 1).
+ * What breaks if removed: duplicate detection falls back to Layer 2 (AI-side injection)
+ * only, losing the client-side pre-flight that catches obvious cases instantly.
+ */
+function checkDuplicateName(name) {
+  if (!window.campaignNameIndex || !name) return null;
+  const norm = (s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim());
+  return window.campaignNameIndex.get(norm(name)) || null;
 }
 
 // ══════════════════════════════════════════════════════
@@ -3607,8 +3681,8 @@ function buildCampaignRoster(json) {
 // 2. extractAndRegisterFacts() writes name-change facts to window.sessionGroundTruth.
 // 3. applyDiff() then calls propagateGroundTruth() with the newly registered keys.
 // 4. propagateGroundTruth() auto-applies confident matches and flags uncertain ones.
-// 5. sendCorrection() calls buildAIContextString() which appends the facts block
-//    to the campaign roster — the AI receives both as hard constraints.
+// 5. sendCorrection() calls buildAIContextString() which serialises the facts block
+//    as the campaignRoster system prompt arg — the AI receives it as hard constraints.
 // ══════════════════════════════════════════════════════
 
 /**
@@ -3671,21 +3745,20 @@ function buildSessionFactsBlock() {
 /**
  * buildAIContextString()
  *
- * Combines the static campaign roster with the session facts block for injection
- * into sendCorrectionToAI(). Replaces the bare `window.campaignRoster ?? ''` at
- * the call site so the AI always receives both layers of ground truth in one string.
+ * Returns the session ground truth block for injection into the sendCorrectionToAI()
+ * system prompt. Previously combined with the full campaign roster string (issue #56
+ * original spec), but the roster is now handled separately via type-scoped user-message
+ * injection (issue #56 revised spec, Layer 2) — injecting the full roster into the
+ * system prompt repeats it every turn and costs ~88,000 tokens/run at end-of-campaign.
  *
- * Why: chronicle-ai.js accepts a single campaignRoster string — rather than adding
- * a second parameter and changing the module, we build the combined string here and
- * pass it as the existing parameter. chronicle-ai.js stays unaware of the registry.
- * What breaks if removed: session facts stop reaching the AI, reverting to issue #57 state.
+ * Why kept as a wrapper: the call site passes this to campaignRoster — keeping the
+ * function avoids touching the call site and makes the no-roster change self-documenting.
+ * What breaks if removed: DM-confirmed session facts (issue #57) stop reaching the AI.
  */
 function buildAIContextString() {
-  const roster = window.campaignRoster ?? '';
-  const facts  = buildSessionFactsBlock();
-  // Only join with separator when both parts are non-empty; avoids leading newlines
-  // before any facts are registered or when initIntegrity() was skipped.
-  return (roster && facts) ? roster + '\n\n' + facts : roster || facts;
+  // The full campaign roster is intentionally NOT included here (issue #56 revised spec).
+  // Type-scoped entity lists are injected per-item in the user message via entityContext.
+  return buildSessionFactsBlock();
 }
 
 /**
@@ -4151,8 +4224,20 @@ async function initIntegrity() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
 
-    // Build the minimal campaign shape that ChronicleIntegrity.checks() needs.
-    // Only combat_encounters is used — other arrays are not needed here.
+    // Build the campaign data shape used by integrity checks and entity dedup.
+    //
+    // combat_encounters is shaped for ChronicleIntegrity.checks() — only the fields
+    // that function reads are included (id, name, totalRounds, sessions, rounds[].n).
+    //
+    // The entity arrays (npc_directory, locations, bestiary, etc.) are stored as-is
+    // from the raw JSON. They are used by:
+    //   - _processNarrativeResult() and interpretRawItem(): exact-name dedup guards
+    //     that skip cascade creation when the name already exists in the campaign
+    //   - checkDuplicateName(): client-side ⚠ dup? flag (issue #56 Layer 1)
+    //   - sendCorrectionToAI() call: type-scoped entity list injection (issue #56 Layer 2)
+    //   - _checkEntityNameRedirect(): inline-edit redirect detection (issue #58)
+    // Previously these arrays returned undefined because campaignIntegrityData only
+    // stored combat_encounters. Expanding the shape here fixes all of those sites.
     campaignIntegrityData = {
       combat_encounters: (json.combat_encounters || []).map(c => ({
         id:          c.id,
@@ -4162,6 +4247,16 @@ async function initIntegrity() {
         sessions:    c.mechanics?.sessions            ?? [],
         rounds:      (c.rounds || []).map(r => ({ n: r.n })),
       })),
+      // Raw entity arrays — stored directly from JSON for name-lookup and dedup use.
+      // factions/cohorts guarded with || [] because they were added in schema v4.1
+      // and may be absent in older campaign snapshots.
+      npc_directory:      json.npc_directory      || [],
+      locations:          json.locations          || [],
+      bestiary:           json.bestiary           || [],
+      factions:           json.factions           || [],
+      cohorts:            json.cohorts            || [],
+      inventory_and_loot: json.inventory_and_loot || [],
+      quest_ledger:       json.quest_ledger       || [],
     };
 
     gapResults = ChronicleIntegrity.checks(campaignIntegrityData, buildIncomingFromItems());
@@ -4194,11 +4289,11 @@ async function initIntegrity() {
       showIntegrityPanel();
     }
 
-    // Build the campaign roster from the same JSON fetch so it is ready for
-    // every sendCorrectionToAI() call without a second network request.
-    // This is the only place window.campaignRoster is set — if the fetch fails
-    // the catch block below leaves it as '' (initialised at declaration above).
-    window.campaignRoster = buildCampaignRoster(json);
+    // Build the client-side name index for cascade duplicate detection (issue #56 Layer 1).
+    // Uses the same JSON fetch as integrity checks — no second network request.
+    // If the fetch fails the catch block below leaves window.campaignNameIndex as null,
+    // which checkDuplicateName() handles gracefully by returning null.
+    window.campaignNameIndex = buildCampaignNameIndex(json);
 
   } catch(e) {
     // Log but do not block — the review queue works independently of integrity
