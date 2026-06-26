@@ -438,6 +438,63 @@ RULES — these are absolute, not guidelines:
     Do NOT list individual instances ("Goblin #1", "Goblin #2") — only the type once.
     The caller deduplicates against the existing bestiary; always include the full list.`;
 
+  // ─────────────────────────────────────────────────────────
+  // Narrative extraction system prompt — used by extractNarrativeEntities().
+  //
+  // Why separate from ROUND_SYSTEM_STRICT: round extraction requires a known
+  // combat context (name, ID, party roster in slot order). Narrative extraction
+  // has no combat context — it needs different output fields and different rules.
+  // Combining them would require the caller to lie about combat context for
+  // pure-narrative pages, producing confusing empty round arrays alongside
+  // the actual entity content.
+  //
+  // Also used by fillRoundsFromText() when the AI detects non-round content
+  // on a mixed page — the caller passes onNarrative() which fires when
+  // parsed.narrative is non-empty in the combined response.
+  // ─────────────────────────────────────────────────────────
+  const NARRATIVE_EXTRACT_SYSTEM = `You are a D&D 5e session notes transcription assistant for the Magers Campaign.
+Your job is to extract structured entity data from prose session notes — handwritten or typed text
+that describes what happened in the session WITHOUT combat round structure.
+
+PARTY MEMBERS (do not list these as NPCs):
+${PARTY_CONTEXT}
+
+RULES — these are absolute, not guidelines:
+
+1. TRANSCRIBE, DO NOT INVENT.
+   Every value in the JSON must come directly from the text provided.
+   If the text does not explicitly name a location, do not infer one.
+   If a quest hint is ambiguous, record what the text says verbatim as quest_hint.
+
+2. DO NOT LIST PARTY MEMBERS AS NPCS.
+   The party members listed above are known PCs. Never add them to the npcs array.
+
+3. NULL MEANS NULL.
+   If a field has no stated value in the text, use null. Do not estimate or infer.
+
+4. ONE JSON OBJECT ONLY.
+   Output a single JSON object. No explanation, no preamble, no markdown fences.
+   If nothing extractable is found in a category, use an empty array [].
+
+5. QUEST HINTS.
+   quest_hint should be the quest name or a brief identifying phrase from the text.
+   Use the exact name as written if known (e.g. "Escort to Lake Town").
+   progress_entry should be a single sentence describing what happened with the quest.
+
+Output schema:
+{
+  "npcs": [
+    { "name": "<NPC name>", "role": "<brief role or description from text>", "disposition": "friendly|neutral|hostile|unknown" }
+  ],
+  "locations": [
+    { "name": "<location name>", "description": "<one sentence from the text>" }
+  ],
+  "quest_updates": [
+    { "quest_hint": "<quest name or identifying phrase>", "progress_entry": "<one sentence: what happened>" }
+  ],
+  "session_notes": "<one or two sentence DM-reference summary of the page — not a cascade item>"
+}`;
+
   /**
    * fillRoundsFromImage({ images, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading })
    * Calls the Vision API to extract round data from handwritten note images.
@@ -477,10 +534,16 @@ RULES — these are absolute, not guidelines:
    * Sends a plain-language description to the API and converts it to round proposals.
    * onResult receives an array of normalised proposal objects.
    */
-  async function fillRoundsFromText({ text, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading, onEntities }) {
+  async function fillRoundsFromText({ text, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading, onEntities, onNarrative }) {
     // onEntities(entities) — optional callback receiving [{name, type, desc}] for any
     // new entity the AI flags in enemy_actions (rule 11 of ROUND_SYSTEM_STRICT).
     // Callers can use this to queue cascade items without a second AI call.
+    //
+    // onNarrative(narrative) — optional callback receiving the structured narrative
+    // block when the AI detects non-round content on the page (issue #90 Branch B).
+    // Fires only when parsed.narrative is non-empty. Shape mirrors extractNarrativeEntities()
+    // output: { npcs, locations, quest_updates, session_notes }.
+    // Pure combat pages with no narrative content will not trigger this callback.
     const rosterLines = [
       'slot 1: Zragar/Goldie (pc_001)',
       'slot 2: Malachite/Mal (pc_002)',
@@ -544,7 +607,18 @@ RULES — these are absolute, not guidelines:
       '  "enemy_actions": [\n' +
       '    { "description": "<string>", "impact": "<string or null>" }\n' +
       '  ]\n' +
-      '}]}';
+      '}],\n' +
+      // Optional narrative block for mixed pages (issue #90 Branch B).
+      // Include ONLY when non-round content appears on the same page (NPC introductions,
+      // location references, quest updates, post-combat narrative). Omit entirely for
+      // pure combat pages — the callback fires only when this block is present and non-empty.
+      '"narrative": {\n' +
+      '  "npcs": [{ "name": "<NPC name>", "role": "<brief description>", "disposition": "friendly|neutral|hostile|unknown" }],\n' +
+      '  "locations": [{ "name": "<location name>", "description": "<one sentence>" }],\n' +
+      '  "quest_updates": [{ "quest_hint": "<quest name>", "progress_entry": "<one sentence>" }],\n' +
+      '  "session_notes": "<one sentence DM-reference summary>"\n' +
+      '}\n' +
+      '}';
 
     const roundLabel = roundNumbers.length === 1
       ? 'round ' + roundNumbers[0]
@@ -581,6 +655,18 @@ RULES — these are absolute, not guidelines:
           // Callers that don't pass onEntities simply ignore this field.
           if (onEntities && Array.isArray(parsed.new_entities) && parsed.new_entities.length) {
             onEntities(parsed.new_entities);
+          }
+          // Fire onNarrative when the AI included a narrative block alongside the rounds.
+          // This handles mixed pages (combat + narrative content on the same page).
+          // Guard: only fire when the block is present and at least one sub-array is non-empty,
+          // so pure combat pages never trigger the narrative cascade item creation path.
+          if (onNarrative && parsed.narrative) {
+            const n = parsed.narrative;
+            const hasContent = (Array.isArray(n.npcs) && n.npcs.length)
+                            || (Array.isArray(n.locations) && n.locations.length)
+                            || (Array.isArray(n.quest_updates) && n.quest_updates.length)
+                            || n.session_notes;
+            if (hasContent) onNarrative(n);
           }
         } catch (e) {
           onError(e);
@@ -624,6 +710,49 @@ RULES — these are absolute, not guidelines:
         })),
         summary: r.round_summary || null,
       }));
+  }
+
+  /**
+   * extractNarrativeEntities({ text, sessionId, onResult, onError, onLoading })
+   *
+   * Sends OCR text from a non-combat session page to the AI and extracts structured
+   * entity data — NPCs, locations, quest updates, and a session summary note.
+   *
+   * Why a separate method from fillRoundsFromText: round extraction requires a combat
+   * name and ID. Pure narrative pages have no combat context. Calling fillRoundsFromText
+   * for a narrative page would require fabricating a combat ID, and the AI would return
+   * an empty rounds array alongside the entity data — needlessly confusing the result shape.
+   *
+   * onResult receives the parsed JSON object directly:
+   *   { npcs, locations, quest_updates, session_notes }
+   * The caller (delta-review.html _processNarrativeResult) converts these into cascade items.
+   *
+   * What breaks if removed: the '-- Non-Combat --' path in interpretRawItem() has no AI call.
+   */
+  async function extractNarrativeEntities({ text, sessionId, onResult, onError, onLoading }) {
+    const userMessage =
+      'Extract structured entity data from the following session notes.\n\n' +
+      'Session ID: ' + sessionId + '\n\n' +
+      'Session notes (treat as authoritative ground truth — do not invent content ' +
+      'not found in the text):\n' + text +
+      '\n\nReturn ONLY the JSON object. No explanation, no markdown fences.';
+
+    const messages = [{ role: 'user', content: userMessage }];
+
+    await call({
+      system: NARRATIVE_EXTRACT_SYSTEM,
+      messages,
+      onLoading,
+      onResult: raw => {
+        try {
+          const parsed = parseJSON(raw);
+          onResult(parsed);
+        } catch (e) {
+          onError(e);
+        }
+      },
+      onError,
+    });
   }
 
   // ─────────────────────────────────────────────────────────
@@ -882,6 +1011,7 @@ ${contextStr}${scopeNote}`,
     // Integrity checker
     fillRoundsFromImage,
     fillRoundsFromText,
+    extractNarrativeEntities,
     demoRoundProposals,
 
     // Delta review

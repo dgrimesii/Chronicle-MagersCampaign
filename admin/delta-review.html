@@ -2094,9 +2094,10 @@ function showInterpretForm(itemId) {
 
   const combats = campaignIntegrityData.combat_encounters || [];
 
-  // '-- New combat --' is always the first option (value __new__) so the DM can
-  // record an encounter that does not yet exist in the campaign JSON. Existing
-  // combats follow in campaign order.
+  // '-- Non-Combat --' (__narrative__) is always the first option — pure narrative
+  // pages are more common than pages that start a brand-new combat. '-- New combat --'
+  // (__new__) follows so the DM can declare an encounter not yet in the JSON.
+  // Existing combats follow in campaign order.
   const existingOptions = combats.map(c =>
     `<option value="${escapeHtmlDR(c.id)}">${escapeHtmlDR(c.name || c.id)} (${escapeHtmlDR(c.id)})</option>`
   ).join('');
@@ -2106,13 +2107,17 @@ function showInterpretForm(itemId) {
       border-radius:3px;padding:0.75rem;">
       <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
         color:var(--muted);text-transform:uppercase;margin-bottom:0.5rem;">
-        Which combat does this OCR page record?
+        Page content type / combat:
       </div>
       <select id="interpret-combat-${itemId}"
         onchange="toggleNewCombatFields('${itemId}')"
         style="width:100%;padding:5px 8px;
         background:var(--parchment);border:1px solid var(--border-strong);border-radius:3px;
         color:var(--ink);font-size:0.88rem;margin-bottom:0.5rem;">
+        <!-- __narrative__ is listed first so pure-narrative pages are the default selection.
+             toggleNewCombatFields() checks for __new__ specifically — __narrative__ naturally
+             hides the new-combat name fields with no additional code change needed. -->
+        <option value="__narrative__">— Non-Combat (narrative / session notes) —</option>
         <option value="__new__">— New combat —</option>
         ${existingOptions}
       </select>
@@ -2137,9 +2142,10 @@ function showInterpretForm(itemId) {
       </div>
     </div>`;
 
-  // If there are no existing combats the only valid choice is a new one — show the
-  // name/ID fields immediately rather than waiting for an onchange that won't fire.
-  if (!combats.length) toggleNewCombatFields(itemId);
+  // Note: when there are no existing combats, __narrative__ (the default first option)
+  // is selected. The DM can switch to __new__ if they want to create a new combat;
+  // toggleNewCombatFields() will show the name/ID fields at that point.
+  // We no longer auto-show combat fields — the Non-Combat option is a valid default.
 }
 
 /**
@@ -2187,6 +2193,195 @@ function toggleNewCombatFields(itemId) {
 }
 
 /**
+ * _processNarrativeResult(result, itemId, sessionId, rawItem)
+ *
+ * Converts a narrative extraction result (from extractNarrativeEntities() or the
+ * optional narrative block returned by fillRoundsFromText() on mixed pages) into
+ * cascade delta items: NPC NEW items, Location NEW items, and quest MOD items with
+ * _progress_append payload for publish-time progress_log insertion.
+ *
+ * Why a separate helper: both the pure-narrative path (interpretRawItem with
+ * __narrative__ selected) and the mixed-content path (combat selected + narrative
+ * block in the AI response) need to create the same cascade items. Extracting the
+ * logic here avoids duplication and makes the two code paths easy to compare.
+ *
+ * rawItem._narrativeSummary is set to result.session_notes if present — surfaced
+ * as a collapsible reference block on the RAW card, not a separate queue item.
+ *
+ * Returns the number of new cascade items added to cascadeItems[].
+ */
+function _processNarrativeResult(result, itemId, sessionId, rawItem) {
+  if (!result) return 0;
+  let added = 0;
+
+  // Store session notes on the RAW item for reference display in the card.
+  // Not a queue item — the DM fills the session stub separately.
+  if (rawItem && result.session_notes) {
+    rawItem._narrativeSummary = result.session_notes;
+  }
+
+  // Build lowercase name sets for dedup against the existing campaign.
+  const knownNPCs = new Set(
+    (campaignIntegrityData?.npc_directory || []).map(n => (n.name || '').toLowerCase())
+  );
+  const knownLocations = new Set(
+    (campaignIntegrityData?.locations || []).map(l => (l.name || '').toLowerCase())
+  );
+
+  // ── NPC cascade items ─────────────────────────────────────────────
+  (result.npcs || []).forEach(npc => {
+    if (!npc.name) return;
+    const nameLower = npc.name.toLowerCase();
+    // Skip if already tracked in the campaign — DM doesn't need to approve a duplicate.
+    if (knownNPCs.has(nameLower)) return;
+
+    // Stable cascade ID using itemId + name so re-running interpret doesn't duplicate.
+    const cascadeId = `d_npc_${itemId}_${nameLower.replace(/\W+/g, '_')}`;
+    if (cascadeItems.some(i => i.id === cascadeId) || items.some(i => i.id === cascadeId)) return;
+
+    cascadeItems.push({
+      id:          cascadeId,
+      type:        'NEW',
+      array:       'npc_directory',
+      group:       'Other',
+      status:      'pending',
+      flags:       [],
+      isCascade:   true,
+      title:       `New NPC — ${npc.name}`,
+      sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
+      sourceQuote: npc.role || 'Extracted from session notes.',
+      rawData: {
+        name:      npc.name,
+        // Description lives at rawData.narrative.description (v4 NPC schema shape)
+        // so that editableSpan uses field path 'narrative.description' and
+        // commitInlineEntityEdit() writes to the correct nested location.
+        mechanics: { disposition: npc.disposition || 'unknown' },
+        narrative: { description: npc.role || null },
+      },
+      // Regular function so rawData reads happen at call time, not at push time.
+      // This ensures inline edits via commitInlineEntityEdit() are reflected in
+      // subsequent re-renders (same issue as session stub fixed in issue #64).
+      nlRender() {
+        const descVal = this.rawData.narrative?.description;
+        return `<div class="nl-narrative">
+            New <strong>NPC</strong>:
+            <strong>${editableSpan(this.rawData.name, 'name', this.id)}</strong>
+            <span style="color:var(--muted);font-size:0.82rem;margin-left:6px;">(npc_directory)</span>
+          </div>
+          <div class="field-grid" style="margin-top:0.6rem;">
+            <div class="field-row">
+              <div class="field-label">Description</div>
+              <div class="field-val">${editableSpan(descVal, 'narrative.description', this.id)}</div>
+            </div>
+          </div>`;
+      },
+    });
+    added++;
+  });
+
+  // ── Location cascade items ────────────────────────────────────────
+  (result.locations || []).forEach(loc => {
+    if (!loc.name) return;
+    const nameLower = loc.name.toLowerCase();
+    if (knownLocations.has(nameLower)) return;
+
+    const cascadeId = `d_loc_${itemId}_${nameLower.replace(/\W+/g, '_')}`;
+    if (cascadeItems.some(i => i.id === cascadeId) || items.some(i => i.id === cascadeId)) return;
+
+    cascadeItems.push({
+      id:          cascadeId,
+      type:        'NEW',
+      array:       'locations',
+      group:       'Other',
+      status:      'pending',
+      flags:       [],
+      isCascade:   true,
+      title:       `New Location — ${loc.name}`,
+      sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
+      sourceQuote: loc.description || 'Extracted from session notes.',
+      rawData: {
+        name:        loc.name,
+        // Flat description field (v4 location schema uses top-level description).
+        description: loc.description || null,
+      },
+      nlRender() {
+        return `<div class="nl-narrative">
+            New <strong>Location</strong>:
+            <strong>${editableSpan(this.rawData.name, 'name', this.id)}</strong>
+            <span style="color:var(--muted);font-size:0.82rem;margin-left:6px;">(locations)</span>
+          </div>
+          <div class="field-grid" style="margin-top:0.6rem;">
+            <div class="field-row">
+              <div class="field-label">Description</div>
+              <div class="field-val">${editableSpan(this.rawData.description, 'description', this.id)}</div>
+            </div>
+          </div>`;
+      },
+    });
+    added++;
+  });
+
+  // ── Quest update cascade items ────────────────────────────────────
+  // Type MOD + _progress_append: on publish, applyDeltasToCampaign() matches the quest
+  // by title and pushes the entry to mechanics.progress_log[] rather than Object.assign.
+  (result.quest_updates || []).forEach(qu => {
+    if (!qu.quest_hint) return;
+    const hintLower = qu.quest_hint.toLowerCase();
+
+    const cascadeId = `d_qupd_${itemId}_${hintLower.replace(/\W+/g, '_')}`;
+    if (cascadeItems.some(i => i.id === cascadeId) || items.some(i => i.id === cascadeId)) return;
+
+    cascadeItems.push({
+      id:          cascadeId,
+      type:        'MOD',
+      array:       'quest_ledger',
+      group:       'Other',
+      status:      'pending',
+      flags:       [],
+      isCascade:   true,
+      title:       `Quest Update — ${qu.quest_hint}`,
+      sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
+      sourceQuote: qu.progress_entry || 'Quest update extracted from session notes.',
+      rawData: {
+        quest_hint: qu.quest_hint,
+        // _progress_append carries the progress_log entry shape.
+        // applyDeltasToCampaign() detects this field on quest MOD items and
+        // pushes to progress_log[] rather than calling Object.assign on the quest.
+        _progress_append: {
+          session_id:         sessionId,
+          type:               'progress',
+          fact:               qu.progress_entry || qu.quest_hint,
+          progress_narrative: null,  // generated later by Gemini narrative pass
+        },
+      },
+      // Regular function so this.rawData is read at call time (issue #64 pattern).
+      // Read-only card — the AI extracted these facts from authoritative OCR text;
+      // inline editing is not offered (DM can correct via the AI sidebar if needed).
+      nlRender() {
+        const hint = this.rawData?.quest_hint || '?';
+        const fact = this.rawData?._progress_append?.fact || '(no fact recorded)';
+        return `<div class="nl-narrative">
+            Quest update — <strong>${escapeHtmlDR(hint)}</strong>
+          </div>
+          <div class="field-grid" style="margin-top:0.6rem;">
+            <div class="field-row">
+              <div class="field-label">Progress entry</div>
+              <div class="field-val" style="font-style:italic;line-height:1.5;">${escapeHtmlDR(fact)}</div>
+            </div>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
+            On publish: appended to <em>${escapeHtmlDR(hint)}</em>'s progress_log (matched by title).
+            Verify the quest exists in the campaign before approving.
+          </div>`;
+      },
+    });
+    added++;
+  });
+
+  return added;
+}
+
+/**
  * interpretRawItem(itemId)
  *
  * Sends the RAW item's OCR text to the AI and converts the returned round proposals
@@ -2216,6 +2411,57 @@ function interpretRawItem(itemId) {
   const statusEl     = document.getElementById('interpret-status-' + itemId);
   if (!combatSelect || !statusEl) return;
 
+  // Derive session ID and OCR text early — needed by both narrative and combat paths.
+  const sessionId = [...items, ...cascadeItems]
+    .find(i => i.array === 'session_logs' && i.rawData?.session_id)
+    ?.rawData?.session_id || 'unknown';
+
+  const ocrText = item.rawData?.ocr_text || '';
+  if (!ocrText.trim()) {
+    statusEl.textContent = 'No OCR text to interpret.';
+    return;
+  }
+
+  // ── Non-Combat / Narrative path ──────────────────────────────────────────
+  // DM selected '-- Non-Combat --' (__narrative__ sentinel): skip all combat-ID
+  // resolution and call extractNarrativeEntities() instead.
+  //
+  // Why early return: all code below reads combatId/combatName, which do not exist
+  // for narrative pages. The early return keeps the two paths clearly separated and
+  // prevents accidental fall-through to the combat-resolution block.
+  if (combatSelect.value === '__narrative__') {
+    statusEl.innerHTML = ChronicleAI.THINKING_HTML;
+    const runBtn = combatSelect.closest('div').querySelector('.btn-approve');
+    if (runBtn) runBtn.disabled = true;
+
+    ChronicleAI.extractNarrativeEntities({
+      text:      ocrText,
+      sessionId,
+      onLoading: () => {},
+      onResult: (result) => {
+        if (runBtn) runBtn.disabled = false;
+        const added = _processNarrativeResult(result, itemId, sessionId, item);
+        if (added === 0 && !result?.session_notes) {
+          statusEl.textContent = 'No extractable content found in these notes.';
+        } else {
+          // Mark the RAW item as interpreted — it no longer blocks publish as pending.
+          // The item stays in the queue so the DM can refer back to the OCR text.
+          item.status = 'interpreted';
+          statusEl.textContent = `Done — ${added} item${added !== 1 ? 's' : ''} added to queue.`;
+          renderQueue();
+          updateProgress();
+          renderReview();
+        }
+      },
+      onError: (err) => {
+        if (runBtn) runBtn.disabled = false;
+        statusEl.textContent = 'AI error: ' + (err?.message || String(err));
+      },
+    });
+    return; // early return — do not fall through to combat resolution below
+  }
+  // ── End of narrative path ─────────────────────────────────────────────────
+
   // Branch on whether the DM selected an existing combat or declared a new one.
   // __new__ is the sentinel value set by the '-- New combat --' option (issue #73).
   const isNewCombat = combatSelect.value === '__new__';
@@ -2240,18 +2486,6 @@ function interpretRawItem(itemId) {
     if (!combatId) { statusEl.textContent = 'Select a combat first.'; return; }
     const combat = (campaignIntegrityData?.combat_encounters || []).find(c => c.id === combatId);
     combatName = combat?.name || combatId;
-  }
-
-  // Derive the session ID from the session stub in the queue.
-  // Falls back to 'unknown' if no stub is present (e.g. direct navigation to delta-review).
-  const sessionId = [...items, ...cascadeItems]
-    .find(i => i.array === 'session_logs' && i.rawData?.session_id)
-    ?.rawData?.session_id || 'unknown';
-
-  const ocrText = item.rawData?.ocr_text || '';
-  if (!ocrText.trim()) {
-    statusEl.textContent = 'No OCR text to interpret.';
-    return;
   }
 
   // Broad round range — the AI will return only rounds it finds in the text.
@@ -2398,6 +2632,19 @@ function interpretRawItem(itemId) {
       });
 
       renderQueue();
+    },
+
+    // onNarrative: fires when the AI detects non-round content (NPCs, locations,
+    // quest updates) alongside the combat rounds — i.e. a mixed-content page
+    // (issue #90 Branch B). Uses the same _processNarrativeResult() helper as
+    // the pure-narrative path, so cascade item shapes are identical in both cases.
+    // For pure combat pages with no narrative content, this callback never fires
+    // (chronicle-ai.js guards on parsed.narrative being non-empty).
+    onNarrative: (narrative) => {
+      if (narrative) {
+        _processNarrativeResult(narrative, itemId, sessionId, item);
+        renderQueue();
+      }
     },
 
     onResult: (proposals) => {
@@ -2941,11 +3188,55 @@ function applyDeltasToCampaign(campaign, approved) {
       if (delta.rawData) out[arr].push(delta.rawData);
 
     } else if (delta.type === 'MOD') {
-      // Patch fields on an existing entity
+      // Patch fields on an existing entity.
+      // Two paths depending on whether the MOD item carries a _progress_append payload:
+      //
+      // Standard MOD (id-matched): find by rawData.id or targetId, Object.assign.
+      //   Used for corrections and AI-proposed field patches.
+      //
+      // Quest progress-log append (_progress_append): find by quest title (case-insensitive
+      //   match on rawData.quest_hint). Push to mechanics.progress_log[] rather than
+      //   Object.assign — so only the progress entry is added, not the whole quest overwritten.
+      //   Used for quest update cascade items generated by extractNarrativeEntities() (issue #90).
       const id = delta.rawData?.id || delta.targetId;
-      const idx = out[arr].findIndex(e => e.id === id);
+      let idx  = out[arr].findIndex(e => e.id === id);
+
+      // Quest progress-log path: no id on the delta, but _progress_append is present.
+      // Try to find the quest by exact title, then partial title, using quest_hint.
+      // Guard: only applies to quest_ledger — other array MODs always have an id.
+      if (idx === -1 && arr === 'quest_ledger' && delta.rawData?._progress_append) {
+        const hint = (delta.rawData.quest_hint || '').toLowerCase().trim();
+        if (hint) {
+          // Exact title match first (preferred — avoids ambiguous partial matches).
+          idx = out[arr].findIndex(q => (q.title || '').toLowerCase() === hint);
+          // Partial match fallback: quest_hint appears anywhere in the quest title.
+          if (idx === -1) {
+            idx = out[arr].findIndex(q => (q.title || '').toLowerCase().includes(hint));
+          }
+          if (idx === -1) {
+            // Name-match failed — log a warning so the DM knows to correct manually.
+            // We do not error out — other approved items should still publish.
+            console.warn('[applyDeltasToCampaign] Quest progress-log: no title match for hint "' +
+              delta.rawData.quest_hint + '" — entry skipped. DM must add manually.');
+          }
+        }
+      }
+
       if (idx > -1 && delta.rawData) {
-        Object.assign(out[arr][idx], delta.rawData);
+        if (delta.rawData._progress_append) {
+          // Push the progress_log entry rather than overwriting the quest object.
+          // Object.assign would replace the entire quest, destroying its existing fields.
+          // _progress_append is detected only on quest MOD items from issue #90 —
+          // existing MOD items never have this field, so the Object.assign path below
+          // is unchanged for all current (non-issue-#90) MOD items.
+          if (!out[arr][idx].mechanics) out[arr][idx].mechanics = {};
+          if (!Array.isArray(out[arr][idx].mechanics.progress_log)) {
+            out[arr][idx].mechanics.progress_log = [];
+          }
+          out[arr][idx].mechanics.progress_log.push(delta.rawData._progress_append);
+        } else {
+          Object.assign(out[arr][idx], delta.rawData);
+        }
       }
 
     } else if (delta.type === 'ROUND') {
@@ -4338,17 +4629,21 @@ function loadIntakeDelta() {
       // renderReview() calls would re-render the stale original text. `this` is the
       // item object because renderReview() calls item.nlRender() as a method (issue #72).
       render = function() {
-        const ocrText   = this.rawData?.ocr_text   || '(empty)';
-        const failed    = this.rawData?.page_failed;
-        const pageTitle = this.title || 'OCR Page';
-        const itemId    = this.id;
+        const ocrText         = this.rawData?.ocr_text   || '(empty)';
+        const failed          = this.rawData?.page_failed;
+        const pageTitle       = this.title || 'OCR Page';
+        const itemId          = this.id;
+        // _narrativeSummary is set by _processNarrativeResult() when extractNarrativeEntities()
+        // returns session_notes. Read at render time (regular function, not arrow) so
+        // it reflects the value after the Interpret call rather than the value at load time.
+        const narrativeSummary = this._narrativeSummary || '';
         return `
         <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);
           border-radius:3px;padding:0.6rem 0.85rem;margin-bottom:0.75rem;font-size:0.88rem;
           color:var(--amber-dim);line-height:1.5;">
           <strong>⚠ OCR pages are not written to the campaign on publish.</strong><br>
           Approve this item only as a reference record, or use <strong>Interpret →</strong>
-          below to convert it to ROUND entries that can be approved and published normally.
+          below to convert it to ROUND or entity items that can be approved and published normally.
         </div>
         <div class="nl-narrative">
           ${failed ? '<span style="color:var(--rust);font-weight:600;">⚠ This page was typed manually — OCR failed.</span><br><br>' : ''}
@@ -4358,10 +4653,22 @@ function loadIntakeDelta() {
           color:var(--text2);background:var(--parchment-dark);border:1px solid var(--border);
           border-radius:3px;padding:0.75rem;margin-top:0.75rem;max-height:400px;overflow-y:auto;
           line-height:1.55;">${escapeHtmlDR(ocrText)}</pre>
+        ${narrativeSummary ? `
+        <details style="margin-top:0.6rem;">
+          <summary style="cursor:pointer;font-size:0.82rem;color:var(--amber);
+            user-select:none;list-style:none;">
+            ▶ AI session notes (reference only — not a queue item)
+          </summary>
+          <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);
+            border-radius:3px;padding:0.6rem 0.85rem;margin-top:0.4rem;font-size:0.85rem;
+            color:var(--text2);line-height:1.6;white-space:pre-wrap;">
+            ${escapeHtmlDR(narrativeSummary)}
+          </div>
+        </details>` : ''}
         <div style="margin-top:0.85rem;">
           <button class="btn" style="font-size:0.75rem;border-color:var(--teal);color:var(--teal);
             background:rgba(30,120,120,0.06);" onclick="showInterpretForm('${itemId}')">
-            Interpret → Convert to ROUND entries
+            Interpret →
           </button>
           <div id="interpret-panel-${itemId}" style="margin-top:0.6rem;"></div>
         </div>`;
@@ -4475,6 +4782,36 @@ function loadIntakeDelta() {
         <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
           NPC/location IDs may be placeholders — verify against the campaign entity list before approving.
         </div>`;
+
+    } else if (item.array === 'quest_ledger' && item.rawData?._progress_append) {
+      // Quest progress-log append item (issue #90). rawData has quest_hint for title-match
+      // on publish and _progress_append carrying the progress_log entry to push.
+      //
+      // Why this handler comes BEFORE the generic entity array handler: the generic handler
+      // checks item.array === 'quest_ledger' too (it's in the array list), but it reads
+      // rawData.name — which quest MOD items from narrative extraction don't have. Without
+      // this specific handler first, quest update items fall into the generic handler and
+      // render incorrectly (blank name, no fact shown).
+      //
+      // Read-only card: the AI extracted facts from authoritative OCR text. The DM
+      // approves or rejects; correction via the AI sidebar is available if needed.
+      render = function() {
+        const hint = this.rawData?.quest_hint || '?';
+        const fact = this.rawData?._progress_append?.fact || '(no fact recorded)';
+        return `<div class="nl-narrative">
+            Quest update — <strong>${escapeHtmlDR(hint)}</strong>
+          </div>
+          <div class="field-grid" style="margin-top:0.85rem;">
+            <div class="field-row">
+              <div class="field-label">Progress entry</div>
+              <div class="field-val" style="font-style:italic;line-height:1.5;">${escapeHtmlDR(fact)}</div>
+            </div>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
+            On publish: appended to <em>${escapeHtmlDR(hint)}</em>'s progress_log (matched by title).
+            Verify the quest exists in the campaign before approving.
+          </div>`;
+      };
 
     } else if (['npc_directory', 'locations', 'bestiary', 'inventory_and_loot', 'quest_ledger'].includes(item.array)) {
       // Entity cascade item (NPC, location, monster, item, or quest) rehydrated from
