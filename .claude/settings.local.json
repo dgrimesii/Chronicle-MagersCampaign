@@ -30,7 +30,8 @@
       "Bash(cmd:*)",
       "Bash(/usr/bin/wc -l \"/c/Users/David/MyCodeProjects/Chronicle/Chronicle-MagersCampaign/admin/delta-review.html\")",
       "Bash(node.exe:*)",
-      "Bash(gh issue:*)"
+      "Bash(gh issue:*)",
+      "Bash(python3 -c \"import json,sys; issues=json.load\\(sys.stdin\\); [print\\(f'#{i[\\\\\"number\\\\\"]} [{\\\\\"|\\\\\".join\\(l[\\\\\"name\\\\\"] for l in i[\\\\\"labels\\\\\"]\\)}] {i[\\\\\"title\\\\\"]}'\\) for i in sorted\\(issues, key=lambda x: x['number']\\)]\")"
     ]
   }
 }
