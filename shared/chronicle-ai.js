@@ -358,21 +358,33 @@ RULES — these are absolute, not guidelines:
      "bonus_action" — a bonus action taken in the same turn
      "reaction"     — a reaction (opportunity attack, shield, etc.)
      "free_action"  — a free action (drop item, speak, etc.)
-     null           — REQUIRED when you cannot determine which action type was used.
-                      Note-takers are players writing during a live game — notes are brief
-                      and often omit action economy. Do NOT infer from context or ability
-                      knowledge. Only populate action_type when the text makes it explicit.
+     null           — when you genuinely do not know and cannot determine it (see below)
+
+   USE YOUR D&D 5e KNOWLEDGE: Note-takers write during a live game and do not annotate
+   action economy. You must infer action_type from the ability name using standard 5e rules.
+   If you recognise the ability as a standard D&D 5e ability with a known action cost, use it.
+   Examples:
+     - Flurry of Blows, Two-Weapon Fighting (off-hand), Cunning Action → "bonus_action"
+     - Most spells, attacks, Help, Dash, Disengage, Hide → "action"
+     - Opportunity Attack, Shield (spell), Counterspell, Absorb Elements → "reaction"
+     - Drop item, speak a few words → "free_action"
+
+   LEAVE NULL only when:
+     - The ability name is campaign-specific, homebrew, or unrecognisable as a standard 5e ability
+     - A class feature or weapon property may have substituted a different action slot
+       (see ACTION ECONOMY SUBSTITUTIONS below) and you are not certain whether it applies
+     - You cannot identify the ability with enough confidence to assign an action type
 
    REACTION RESET: A reaction resets at the START of a character's own turn (not end of
    round). A character whose turn falls mid-round may use a reaction before their turn
    (e.g. Shield against an attack) and again after their turn ends (reaction has reset).
    Two reaction entries for the same slot in one round is valid — do not deduplicate.
 
-   ACTION ECONOMY SUBSTITUTIONS: Some features change which action slot an ability uses.
-   For example, the Nick weapon mastery property lets an off-hand attack consume the main
-   Attack action instead of a bonus action — record that as action_type:"action". However,
-   the notes will NOT describe this substitution explicitly. If the text is ambiguous,
-   use null rather than guessing which substitution applies.
+   ACTION ECONOMY SUBSTITUTIONS: Some class features change which action slot an ability
+   uses. For example, the Nick weapon mastery property lets an off-hand attack consume the
+   main Attack action instead of a bonus action — record that as action_type:"action".
+   When a substitution might be in effect and you are not certain it applies, use null
+   rather than guessing either the original or the modified cost.
 
 8. TARGET.
    Set target to the descriptive name of what was targeted: "goblin", "dragon", "self",
