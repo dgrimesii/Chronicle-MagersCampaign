@@ -481,6 +481,14 @@ RULES — these are absolute, not guidelines:
    Use the exact name as written if known (e.g. "Escort to Lake Town").
    progress_entry should be a single sentence describing what happened with the quest.
 
+6. ITEMS AND LOOT.
+   Include any items, coins, treasure, or rewards found or received by the party.
+   Each item should be a separate entry. For coin stacks (cp, sp, gp), use one entry
+   per denomination (e.g. name: "1400 cp", description: "Copper pieces from dragon's lair").
+   For named items (Bag of Holding, Immovable Rod, etc.), include the full name and any
+   description given in the text. Generic potions ("2x Potion of Healing") can be grouped
+   as one entry with the quantity in the name (e.g. name: "Potion of Healing ×2").
+
 Output schema:
 {
   "npcs": [
@@ -491,6 +499,9 @@ Output schema:
   ],
   "quest_updates": [
     { "quest_hint": "<quest name or identifying phrase>", "progress_entry": "<one sentence: what happened>" }
+  ],
+  "items": [
+    { "name": "<item or coin name>", "description": "<source or context from text, or null>" }
   ],
   "session_notes": "<one or two sentence DM-reference summary of the page — not a cascade item>"
 }`;
@@ -616,6 +627,7 @@ Output schema:
       '  "npcs": [{ "name": "<NPC name>", "role": "<brief description>", "disposition": "friendly|neutral|hostile|unknown" }],\n' +
       '  "locations": [{ "name": "<location name>", "description": "<one sentence>" }],\n' +
       '  "quest_updates": [{ "quest_hint": "<quest name>", "progress_entry": "<one sentence>" }],\n' +
+      '  "items": [{ "name": "<item or coin name>", "description": "<source/context or null>" }],\n' +
       '  "session_notes": "<one sentence DM-reference summary>"\n' +
       '}\n' +
       '}';
@@ -673,6 +685,7 @@ Output schema:
             const hasContent = (Array.isArray(n.npcs) && n.npcs.length)
                             || (Array.isArray(n.locations) && n.locations.length)
                             || (Array.isArray(n.quest_updates) && n.quest_updates.length)
+                            || (Array.isArray(n.items) && n.items.length)
                             || n.session_notes;
             if (hasContent) onNarrative(n);
           }

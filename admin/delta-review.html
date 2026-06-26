@@ -2378,6 +2378,51 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
     added++;
   });
 
+  // ── Item / loot cascade items ─────────────────────────────────────
+  // Coins, treasures, named items, potions found by the party.
+  // Each maps to inventory_and_loot as a NEW item (flat rawData shape — description at top level).
+  (result.items || []).forEach(it => {
+    if (!it.name) return;
+    const nameLower = it.name.toLowerCase();
+
+    // Stable cascade ID from itemId + item name — prevents duplicates on re-run.
+    const cascadeId = `d_loot_${itemId}_${nameLower.replace(/\W+/g, '_')}`;
+    if (cascadeItems.some(i => i.id === cascadeId) || items.some(i => i.id === cascadeId)) return;
+
+    cascadeItems.push({
+      id:          cascadeId,
+      type:        'NEW',
+      array:       'inventory_and_loot',
+      group:       'Other',
+      status:      'pending',
+      flags:       [],
+      isCascade:   true,
+      title:       `New Item — ${it.name}`,
+      sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
+      sourceQuote: it.description || 'Extracted from session notes.',
+      rawData: {
+        name:        it.name,
+        // Flat description field matches the inventory_and_loot schema shape.
+        // editableSpan field path 'description' writes to rawData.description directly.
+        description: it.description || null,
+      },
+      nlRender() {
+        return `<div class="nl-narrative">
+            New <strong>Item</strong>:
+            <strong>${editableSpan(this.rawData.name, 'name', this.id)}</strong>
+            <span style="color:var(--muted);font-size:0.82rem;margin-left:6px;">(inventory_and_loot)</span>
+          </div>
+          <div class="field-grid" style="margin-top:0.6rem;">
+            <div class="field-row">
+              <div class="field-label">Description</div>
+              <div class="field-val">${editableSpan(this.rawData.description, 'description', this.id)}</div>
+            </div>
+          </div>`;
+      },
+    });
+    added++;
+  });
+
   return added;
 }
 
