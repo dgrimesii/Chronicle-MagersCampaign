@@ -550,6 +550,18 @@ RULES — these are absolute, not guidelines:
    description given in the text. Generic potions ("2x Potion of Healing") can be grouped
    as one entry with the quantity in the name (e.g. name: "Potion of Healing ×2").
 
+7. COHORT DETECTION.
+   A cohort is an anonymous recurring GROUP — goblins in a region, mercenary bands, a dragon flight.
+   It is NOT a named NPC. If the group has a personal name, list them as an NPC instead.
+   Propose a cohort only when the text describes an unnamed group plausibly re-encountered
+   (anchored to a place, quest, or creature type). Output cohorts: [] when no such group appears.
+   anchor_type must be one of: geography (regional area), quest (active quest name), location (specific named place).
+   anchor_detail is the specific value from the text (e.g. "Lake Town region", "Escort to Lake Town").
+   bestiary_hints: list creature names as written in the text (e.g. ["Goblin", "Hobgoblin"]).
+   match_id: ONLY set this when an EXISTING COHORTS block appears in your context AND an entry there
+   matches on 2 or more of: same geographic region, same creature type, overlapping quest, recent sessions.
+   Never guess a match_id without the EXISTING COHORTS block being present.
+
 Output schema:
 {
   "npcs": [
@@ -564,7 +576,19 @@ Output schema:
   "items": [
     { "name": "<item or coin name>", "description": "<source or context from text, or null>" }
   ],
-  "session_notes": "<one or two sentence DM-reference summary of the page — not a cascade item>"
+  "session_notes": "<one or two sentence DM-reference summary of the page — not a cascade item>",
+  "cohorts": [
+    {
+      "name": "<snake_case descriptive id — e.g. lake_town_region_goblinoids>",
+      "description": "<one sentence describing the group>",
+      "home_location": "<place name from text, or null>",
+      "creature_type": "<creature family name, or null>",
+      "bestiary_hints": ["<creature name>"],
+      "anchor_type": "geography|quest|location",
+      "anchor_detail": "<the specific value that anchors this group — region name, quest name, location name>",
+      "match_id": "<existing coh_NNN id if confident match, or null>"
+    }
+  ]
 }`;
 
   /**
@@ -863,26 +887,38 @@ Output schema:
   }
 
   /**
-   * extractNarrativeEntities({ text, sessionId, onResult, onError, onLoading })
+   * extractNarrativeEntities({ text, sessionId, cohortContext, onResult, onError, onLoading })
    *
    * Sends OCR text from a non-combat session page to the AI and extracts structured
-   * entity data — NPCs, locations, quest updates, and a session summary note.
+   * entity data — NPCs, locations, quest updates, items, cohorts, and a session summary note.
    *
    * Why a separate method from fillRoundsFromText: round extraction requires a combat
    * name and ID. Pure narrative pages have no combat context. Calling fillRoundsFromText
    * for a narrative page would require fabricating a combat ID, and the AI would return
    * an empty rounds array alongside the entity data — needlessly confusing the result shape.
    *
+   * cohortContext (optional): a compact text block of existing cohorts from the campaign,
+   *   formatted for injection into the user message. When present, the AI can recommend a
+   *   match_id for a previously-seen group rather than proposing a duplicate new cohort.
+   *   Built by interpretRawItem() from campaignIntegrityData.cohorts (issue #62).
+   *
    * onResult receives the parsed JSON object directly:
-   *   { npcs, locations, quest_updates, session_notes }
+   *   { npcs, locations, quest_updates, items, session_notes, cohorts }
    * The caller (delta-review.html _processNarrativeResult) converts these into cascade items.
    *
    * What breaks if removed: the '-- Non-Combat --' path in interpretRawItem() has no AI call.
    */
-  async function extractNarrativeEntities({ text, sessionId, onResult, onError, onLoading }) {
+  async function extractNarrativeEntities({ text, sessionId, cohortContext, onResult, onError, onLoading }) {
+    // When existing cohorts are present, inject a compact roster block so the AI can
+    // recommend a match rather than proposing a duplicate new cohort.
+    // Placed in the user message (not system prompt) so it is sent once per call, not per turn.
+    const cohortBlock = cohortContext
+      ? '\n\n' + cohortContext + '\n'
+      : '';
+
     const userMessage =
       'Extract structured entity data from the following session notes.\n\n' +
-      'Session ID: ' + sessionId + '\n\n' +
+      'Session ID: ' + sessionId + cohortBlock + '\n\n' +
       'Session notes (treat as authoritative ground truth — do not invent content ' +
       'not found in the text):\n' + text +
       '\n\nReturn ONLY the JSON object. No explanation, no markdown fences.';

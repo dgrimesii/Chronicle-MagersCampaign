@@ -1589,7 +1589,7 @@ function queueItemHTML(item, isRound=false) {
     <div class="qi-status ${dotClass}"></div>
     <div class="qi-body">
       <div class="qi-type">${typeLabel} · ${item.array}</div>
-      <div class="qi-title">${item.title}${item.corrected ? `<span class="queue-edited-mark" title="Corrections applied">✎</span>` : ''}${item._possibleDuplicate ? `<span class="qi-flag qi-dup-flag" title="Possible duplicate of ${item._possibleDuplicate.type} ${item._possibleDuplicate.id}: ${item._possibleDuplicate.name}">⚠ dup?</span>` : ''}</div>
+      <div class="qi-title">${item.title}${item.corrected ? `<span class="queue-edited-mark" title="Corrections applied">✎</span>` : ''}${item._possibleDuplicate ? `<span class="qi-flag qi-dup-flag" title="Possible duplicate of ${item._possibleDuplicate.type} ${item._possibleDuplicate.id}: ${item._possibleDuplicate.name}">⚠ dup?</span>` : ''}${item._isMatchRecommend ? `<span class="qi-flag" style="background:#e8a020;color:#000;" title="AI recommends matching this encounter to an existing cohort — confirm or dismiss on the card">⚠ match?</span>` : ''}${item.array === 'cohorts' && !item._isMatchRecommend ? `<span class="qi-flag" style="background:#4a7c59;color:#fff;" title="New cohort proposal">🏕 Cohort</span>` : ''}</div>
     </div>
     ${flagged ? `<span class="qi-flag">[?]</span>` : ''}
   </div>`;
@@ -2546,6 +2546,145 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
     added++;
   });
 
+  // ── Cohort cascade items ──────────────────────────────────────────
+  // Two sub-paths based on whether the AI identified a match to an existing cohort:
+  //
+  // NEW path (match_id absent or not found): propose a new cohort entry in cohorts[].
+  //   rawData follows the cohort schema (issue #55). bestiary_hints (string names from
+  //   the AI) are stored in mechanics._bestiary_hints — the DM fills bestiary_entries[]
+  //   (mon_NNN ids) later via the AI sidebar. No fake IDs are invented.
+  //
+  // MATCH_RECOMMEND path (match_id found in campaign roster): propose updating an
+  //   existing cohort's associated_sessions[]. Rendered with Confirm/Dismiss buttons
+  //   rather than the standard Approve flow — DM must explicitly confirm before the
+  //   match is applied (issue #62 behaviour spec).
+  (result.cohorts || []).forEach(coh => {
+    if (!coh.name) return;
+    const nameLower = coh.name.toLowerCase();
+    const cascadeId = `d_coh_${itemId}_${nameLower.replace(/\W+/g, '_')}`;
+    if (cascadeItems.some(i => i.id === cascadeId) || items.some(i => i.id === cascadeId)) return;
+
+    // Check whether the AI's match_id refers to a real cohort in the campaign.
+    const existingCohort = coh.match_id
+      ? (campaignIntegrityData?.cohorts || []).find(c => c.id === coh.match_id)
+      : null;
+
+    if (existingCohort) {
+      // ── MATCH_RECOMMEND: AI thinks this is an existing cohort ──────────────
+      // Type MOD so applyDeltasToCampaign() can update the cohort record.
+      // _isMatchRecommend flag prevents the standard Approve flow — DM must
+      // click Confirm first, which clears the flag and makes it a normal MOD item.
+      cascadeItems.push({
+        id:               cascadeId,
+        type:             'MOD',
+        array:            'cohorts',
+        group:            'Other',
+        status:           'pending',
+        flags:            [],
+        isCascade:        true,
+        _isMatchRecommend: true,
+        title:            `Cohort Match — ${existingCohort.name}`,
+        sourceRef:        `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
+        sourceQuote:      coh.anchor_detail || coh.description || 'Match recommended by AI.',
+        rawData: {
+          id: existingCohort.id,
+          // _cohort_session_append is detected by applyDeltasToCampaign() and handled
+          // by pushing sessionId to associated_sessions[] rather than Object.assign-ing
+          // the whole cohort (which would overwrite its existing fields).
+          _cohort_session_append: { sessionId },
+        },
+        // Preserve proposal data so Dismiss can create a new cohort from it.
+        _proposalData: { ...coh },
+        nlRender() {
+          return `<div class="nl-narrative">
+              <span style="color:#e8a020;font-weight:600;">⚠ Possible cohort match</span>:
+              <strong>${escapeHtmlDR(existingCohort.name)}</strong>
+              <span style="color:var(--muted);font-size:0.82rem;margin-left:6px;">(${existingCohort.id})</span>
+            </div>
+            <div class="field-grid" style="margin-top:0.6rem;">
+              <div class="field-row">
+                <div class="field-label">Anchor</div>
+                <div class="field-val">${escapeHtmlDR(coh.anchor_type || '—')}: ${escapeHtmlDR(coh.anchor_detail || '—')}</div>
+              </div>
+            </div>
+            <div style="font-size:0.82rem;color:var(--muted);margin-top:0.5rem;">
+              On confirm: adds <em>${escapeHtmlDR(sessionId)}</em> to this cohort's associated_sessions[].
+            </div>
+            <div style="margin-top:0.8rem;display:flex;gap:0.5rem;">
+              <button class="btn-approve" onclick="confirmCohortMatch('${this.id}')">Confirm match ✓</button>
+              <button class="btn-discard" onclick="dismissCohortMatch('${this.id}')">Dismiss — treat as new</button>
+            </div>`;
+        },
+      });
+    } else {
+      // ── NEW cohort proposal ────────────────────────────────────────────────
+      cascadeItems.push({
+        id:          cascadeId,
+        type:        'NEW',
+        array:       'cohorts',
+        group:       'Other',
+        status:      'pending',
+        flags:       [],
+        isCascade:   true,
+        title:       `New Cohort — ${coh.name}`,
+        sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
+        sourceQuote: coh.description || coh.anchor_detail || 'Extracted from session notes.',
+        rawData: {
+          // id is omitted here — applyDeltasToCampaign() assigns coh_NNN via arrayPrefixMap.
+          name: coh.name,
+          mechanics: {
+            status:               'active',
+            home_location:        coh.home_location || null,
+            associated_quests:    [],
+            associated_sessions:  [sessionId],
+            // bestiary_hints stores the AI's string names (e.g. ["Goblin", "Hobgoblin"]).
+            // bestiary_entries[] (mon_NNN ids) is left empty — DM fills via AI sidebar.
+            // The two fields coexist: hints are display-only, entries are the authoritative links.
+            _bestiary_hints:      coh.bestiary_hints || [],
+            bestiary_entries:     [],
+            promoted_to:          null,
+            origin_session:       sessionId,
+          },
+          narrative: {
+            description: coh.description || null,
+          },
+        },
+        // Regular function so rawData reads happen at call time (issue #64 pattern).
+        nlRender() {
+          const m = this.rawData.mechanics;
+          const hints = (m._bestiary_hints || []).join(', ') || '—';
+          return `<div class="nl-narrative">
+              New <strong>Cohort</strong>:
+              <strong>${editableSpan(this.rawData.name, 'name', this.id)}</strong>
+              <span style="color:var(--muted);font-size:0.82rem;margin-left:6px;">(cohorts)</span>
+            </div>
+            <div class="field-grid" style="margin-top:0.6rem;">
+              <div class="field-row">
+                <div class="field-label">Description</div>
+                <div class="field-val">${editableSpan(this.rawData.narrative?.description, 'narrative.description', this.id)}</div>
+              </div>
+              <div class="field-row">
+                <div class="field-label">Home location</div>
+                <div class="field-val">${editableSpan(m.home_location, 'mechanics.home_location', this.id)}</div>
+              </div>
+              <div class="field-row">
+                <div class="field-label">Creature type</div>
+                <div class="field-val" style="color:var(--muted);">${escapeHtmlDR(hints)}</div>
+              </div>
+            </div>
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
+              On publish: added to cohorts[] with auto-assigned coh_NNN id.
+              bestiary_entries[] (mon_NNN links) can be added via the AI sidebar after approval.
+            </div>
+            <div style="margin-top:0.8rem;">
+              <button class="btn-secondary" style="font-size:0.82rem;" onclick="promoteCohortToFaction('${this.id}')">↑ Promote to Faction instead</button>
+            </div>`;
+        },
+      });
+    }
+    added++;
+  });
+
   return added;
 }
 
@@ -2572,6 +2711,172 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
  *
  * What breaks if removed: clicking "Run Interpret" has no handler.
  */
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Cohort match and promotion actions (issue #62) ───────────────────────────
+//
+// These functions handle the three DM actions on cohort cascade items:
+//
+// confirmCohortMatch(itemId) — DM agrees this encounter matches an existing cohort.
+//   Clears the _isMatchRecommend flag, converting the item to a normal approvable
+//   MOD entry. The _cohort_session_append payload is already in rawData — publish
+//   handles it via the applyDeltasToCampaign() _cohort_session_append branch.
+//
+// dismissCohortMatch(itemId) — DM disagrees with the AI's match recommendation.
+//   Removes the MATCH_RECOMMEND cascade item and replaces it with a NEW cohort
+//   proposal built from the same _proposalData the AI originally returned.
+//
+// promoteCohortToFaction(itemId) — DM decides a proposed cohort has grown to
+//   campaign-level significance. Marks the cohort as promoted and creates a
+//   companion faction NEW cascade item in the queue for DM review.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function confirmCohortMatch(itemId) {
+  const item = cascadeItems.find(i => i.id === itemId);
+  if (!item || !item._isMatchRecommend) return;
+  // Remove the warning flag — the item now behaves as a standard approvable MOD item.
+  // The _cohort_session_append payload in rawData is already correct; no further change needed.
+  item._isMatchRecommend = false;
+  item.title = item.title.replace('Cohort Match — ', 'Cohort Update — ');
+  renderQueue();
+  renderReview();
+}
+
+function dismissCohortMatch(itemId) {
+  const item = cascadeItems.find(i => i.id === itemId);
+  if (!item || !item._isMatchRecommend) return;
+
+  const proposal = item._proposalData || {};
+  const sessionId = item.rawData?._cohort_session_append?.sessionId || 'unknown';
+
+  // Remove the match-recommend item — DM has decided it is not a match.
+  const idx = cascadeItems.indexOf(item);
+  if (idx > -1) cascadeItems.splice(idx, 1);
+
+  // Create a replacement NEW cohort cascade from the AI's original proposal data.
+  // Reuses the dismissed item's id with a suffix so it won't collide with the original.
+  const newId = itemId + '_new';
+  if (!cascadeItems.some(i => i.id === newId) && !items.some(i => i.id === newId)) {
+    const name = proposal.name || 'unnamed_cohort';
+    cascadeItems.push({
+      id:          newId,
+      type:        'NEW',
+      array:       'cohorts',
+      group:       'Other',
+      status:      'pending',
+      flags:       [],
+      isCascade:   true,
+      title:       `New Cohort — ${name}`,
+      sourceRef:   item.sourceRef,
+      sourceQuote: proposal.description || proposal.anchor_detail || 'DM dismissed AI match — treating as new cohort.',
+      rawData: {
+        name,
+        mechanics: {
+          status:              'active',
+          home_location:       proposal.home_location || null,
+          associated_quests:   [],
+          associated_sessions: [sessionId],
+          _bestiary_hints:     proposal.bestiary_hints || [],
+          bestiary_entries:    [],
+          promoted_to:         null,
+          origin_session:      sessionId,
+        },
+        narrative: { description: proposal.description || null },
+      },
+      nlRender() {
+        const m = this.rawData.mechanics;
+        const hints = (m._bestiary_hints || []).join(', ') || '—';
+        return `<div class="nl-narrative">
+            New <strong>Cohort</strong>:
+            <strong>${editableSpan(this.rawData.name, 'name', this.id)}</strong>
+            <span style="color:var(--muted);font-size:0.82rem;margin-left:6px;">(cohorts — match dismissed)</span>
+          </div>
+          <div class="field-grid" style="margin-top:0.6rem;">
+            <div class="field-row">
+              <div class="field-label">Description</div>
+              <div class="field-val">${editableSpan(this.rawData.narrative?.description, 'narrative.description', this.id)}</div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">Home location</div>
+              <div class="field-val">${editableSpan(m.home_location, 'mechanics.home_location', this.id)}</div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">Creature type</div>
+              <div class="field-val" style="color:var(--muted);">${escapeHtmlDR(hints)}</div>
+            </div>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
+            On publish: added to cohorts[] with auto-assigned coh_NNN id.
+          </div>
+          <div style="margin-top:0.8rem;">
+            <button class="btn-secondary" style="font-size:0.82rem;" onclick="promoteCohortToFaction('${this.id}')">↑ Promote to Faction instead</button>
+          </div>`;
+      },
+    });
+  }
+
+  renderQueue();
+  renderReview();
+}
+
+function promoteCohortToFaction(itemId) {
+  const item = cascadeItems.find(i => i.id === itemId);
+  if (!item || item.type !== 'NEW' || item.array !== 'cohorts') return;
+
+  // Mark the cohort as promoted — status and promoted_to will be written on publish.
+  // promoted_to is set to 'fac_TBD' because the faction's fac_NNN id is not yet assigned;
+  // applyDeltasToCampaign() resolves the placeholder after processing the faction NEW item.
+  item.rawData.mechanics.status = 'promoted';
+  item.rawData.mechanics.promoted_to = 'fac_TBD';
+
+  const cohortName = item.rawData.name || 'unnamed_cohort';
+  const factionId  = itemId + '_fac';
+
+  // Create a companion faction NEW cascade item for DM review.
+  // The DM must approve both: the cohort (now with status=promoted) and the new faction.
+  if (!cascadeItems.some(i => i.id === factionId) && !items.some(i => i.id === factionId)) {
+    cascadeItems.push({
+      id:                    factionId,
+      type:                  'NEW',
+      array:                 'factions',
+      group:                 'Other',
+      status:                'pending',
+      flags:                 [],
+      isCascade:             true,
+      _promotedFromCohortId: itemId,   // back-reference so the DM knows the origin
+      title:                 `New Faction — ${cohortName}`,
+      sourceRef:             item.sourceRef,
+      sourceQuote:           `Promoted from cohort: ${item.rawData.narrative?.description || cohortName}`,
+      rawData: {
+        // id omitted — applyDeltasToCampaign() assigns fac_NNN via arrayPrefixMap.
+        // Name copied from cohort — DM should refine to a proper faction display name.
+        name:      cohortName,
+        narrative: { description: item.rawData.narrative?.description || null },
+      },
+      nlRender() {
+        return `<div class="nl-narrative">
+            New <strong>Faction</strong>:
+            <strong>${editableSpan(this.rawData.name, 'name', this.id)}</strong>
+            <span style="color:var(--muted);font-size:0.82rem;margin-left:6px;">(factions — promoted from cohort)</span>
+          </div>
+          <div class="field-grid" style="margin-top:0.6rem;">
+            <div class="field-row">
+              <div class="field-label">Description</div>
+              <div class="field-val">${editableSpan(this.rawData.narrative?.description, 'narrative.description', this.id)}</div>
+            </div>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
+            On publish: added to factions[] with auto-assigned fac_NNN id.
+            Refine the name and description to reflect the faction's full identity.
+          </div>`;
+      },
+    });
+  }
+
+  renderQueue();
+  renderReview();
+}
+
 function interpretRawItem(itemId) {
   const item = getItem(itemId);
   if (!item || item.type !== 'RAW') return;
@@ -2603,9 +2908,23 @@ function interpretRawItem(itemId) {
     const runBtn = combatSelect.closest('div').querySelector('.btn-approve');
     if (runBtn) runBtn.disabled = true;
 
+    // Build a compact existing-cohorts block for the AI so it can recommend a match
+    // on subsequent encounters rather than proposing a new duplicate cohort.
+    // Only injected when cohorts exist in the campaign — empty array means first session,
+    // so no context is needed and the AI will propose new cohorts freely.
+    const cohortContext = (campaignIntegrityData?.cohorts || []).length
+      ? 'EXISTING COHORTS (recommend match if 2+ criteria align — do not auto-apply):\n' +
+        campaignIntegrityData.cohorts.map(c =>
+          `${c.id} "${c.name}" — geography: ${c.mechanics?.home_location || 'unknown'}, ` +
+          `creatures: ${(c.mechanics?.bestiary_entries || []).join('/') || 'unknown'}, ` +
+          `sessions: ${(c.mechanics?.associated_sessions || []).join(', ') || 'none'}`
+        ).join('\n')
+      : null;
+
     ChronicleAI.extractNarrativeEntities({
-      text:      ocrText,
+      text:         ocrText,
       sessionId,
+      cohortContext,   // inject existing cohorts for match recommendation (issue #62)
       onLoading: () => {},
       onResult: (result) => {
         if (runBtn) runBtn.disabled = false;
@@ -3548,6 +3867,8 @@ const arrayPrefixMap = {
   quest_ledger:       'qst',
   bestiary:           'mon',
   session_logs:       'session',
+  cohorts:            'coh',   // added: issue #62
+  factions:           'fac',   // added: issue #62 (faction cascade from Promote to Faction)
 };
 
 // Apply the approved review-queue deltas to a campaign JSON object.
@@ -3627,6 +3948,22 @@ function applyDeltasToCampaign(campaign, approved) {
             out[arr][idx].mechanics.progress_log = [];
           }
           out[arr][idx].mechanics.progress_log.push(delta.rawData._progress_append);
+        } else if (delta.rawData._cohort_session_append) {
+          // Cohort session-append path: push the session id to associated_sessions[]
+          // rather than Object.assign-ing the whole cohort record.
+          // This preserves all existing cohort fields (description, home_location, etc.)
+          // and only appends the new session association.
+          const sessionToAdd = delta.rawData._cohort_session_append.sessionId;
+          if (sessionToAdd) {
+            if (!out[arr][idx].mechanics) out[arr][idx].mechanics = {};
+            if (!Array.isArray(out[arr][idx].mechanics.associated_sessions)) {
+              out[arr][idx].mechanics.associated_sessions = [];
+            }
+            // Guard against duplicate appends if DM approves the same match twice.
+            if (!out[arr][idx].mechanics.associated_sessions.includes(sessionToAdd)) {
+              out[arr][idx].mechanics.associated_sessions.push(sessionToAdd);
+            }
+          }
         } else {
           Object.assign(out[arr][idx], delta.rawData);
         }
@@ -3717,6 +4054,26 @@ function applyDeltasToCampaign(campaign, approved) {
         }
       }
     }
+  }
+
+  // Resolve promoted_to placeholders: when a cohort was promoted during this publish run,
+  // its mechanics.promoted_to was set to 'fac_TBD' at queue time (because the faction
+  // hadn't received its fac_NNN id yet). Now that all NEW deltas have been processed
+  // and faction ids are assigned, replace 'fac_TBD' with the real id.
+  //
+  // Match by name: the faction cascade created by promoteCohortToFaction() copies
+  // the cohort's name into the faction rawData, so the names will be identical.
+  if (Array.isArray(out.cohorts) && Array.isArray(out.factions)) {
+    out.cohorts.forEach(coh => {
+      if (coh.mechanics?.promoted_to === 'fac_TBD') {
+        const matchFaction = out.factions.find(f =>
+          (f.name || '').toLowerCase() === (coh.name || '').toLowerCase()
+        );
+        if (matchFaction?.id) {
+          coh.mechanics.promoted_to = matchFaction.id;
+        }
+      }
+    });
   }
 
   // Append any deferred integrity gaps to the published JSON.
@@ -5253,10 +5610,14 @@ function loadIntakeDelta() {
           </div>`;
       };
 
-    } else if (['npc_directory', 'locations', 'bestiary', 'inventory_and_loot', 'quest_ledger'].includes(item.array)) {
-      // Entity cascade item (NPC, location, monster, item, or quest) rehydrated from
-      // sessionStorage after a page reload. nlRender() could not be serialised to JSON,
-      // so it must be re-attached here with a render that reads rawData at call time.
+    } else if (['npc_directory', 'locations', 'bestiary', 'inventory_and_loot', 'quest_ledger', 'cohorts', 'factions'].includes(item.array)) {
+      // Entity cascade item (NPC, location, monster, item, quest, cohort, or faction)
+      // rehydrated from sessionStorage after a page reload. nlRender() could not be
+      // serialised to JSON, so it must be re-attached here with a render that reads
+      // rawData at call time.
+      // cohorts and factions added to this list for issue #62 — they arrive via
+      // extractNarrativeEntities() and the promoteCohortToFaction() action, and need
+      // the same rehydration treatment as other entity cascade items after a page reload.
       //
       // Why a regular function: arrow functions capture rawData values as closed-over
       // locals at loadIntakeDelta() time. Inline edits via commitInlineEntityEdit()
