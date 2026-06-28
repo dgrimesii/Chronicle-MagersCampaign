@@ -50,6 +50,35 @@ const ChronicleAI = (() => {
   const PARTY_ROSTER = PARTY_CONTEXT;
 
   // ─────────────────────────────────────────────────────────
+  // Table rules — single source of truth for all AI prompts
+  // ─────────────────────────────────────────────────────────
+  // Injected into every system prompt via ${TABLE_RULES}.
+  // Add any campaign-specific rule here that the AI must apply
+  // regardless of whether it is extracting OCR rounds or correcting
+  // DM proposals. Keeping rules here prevents the two prompts from
+  // drifting out of sync — the failure mode that caused the True Strike
+  // 2024 vs 2014 confusion when the ruleset declaration existed only
+  // in the OCR prompt and not in the correction prompt.
+  const TABLE_RULES = `\
+RULESET: This campaign uses the 2024 D&D Player's Handbook rules where they differ \
+from 2014. Apply 2024 PHB rules when evaluating ability names, spell names, and \
+action economy — not 2014 rules.
+
+KEY 2024 RULE CHANGES — apply these; do not use the 2014 versions:
+- True Strike: an action that includes a weapon attack using the spellcasting modifier.
+  Record res/val/val_type from the weapon attack on the True Strike slot directly.
+  (2014: concentration cantrip granting advantage on next attack — no longer in use.)
+- Witch Bolt ongoing damage: activating the ongoing damage on subsequent rounds costs a
+  bonus_action. (2014: cost an action.)
+
+FAMILIAR COMMANDS: Commanding a familiar to act costs the player nothing — no action,
+bonus action, or free action slot is consumed. Do NOT create a separate slot for the
+familiar command. Record it in the notes field of the player's primary action slot for
+that turn: "Familiar commanded to [action] [target] (free; no resource cost) — [outcome]."
+Do not infer any causal link between the familiar's action and the player's own action
+result unless the DM's notes explicitly state one.`;
+
+  // ─────────────────────────────────────────────────────────
   // Action economy reference — lazy-fetched at module init (issue #89)
   // ─────────────────────────────────────────────────────────
   // Start fetching pc-abilities.json immediately when this module loads so the
@@ -425,14 +454,13 @@ RULES — these are absolute, not guidelines:
 
    USE YOUR D&D 5e KNOWLEDGE: Note-takers write during a live game and do not annotate
    action economy. You must infer action_type from the ability name using standard 5e rules.
-   This campaign uses the 2024 D&D Player's Handbook rules where they differ from 2014.
-   If you recognise the ability as a standard D&D 5e ability with a known action cost, use it.
-   Examples:
+   If you recognise a standard D&D ability with a known action cost, use it. Examples:
      - Flurry of Blows, Two-Weapon Fighting (off-hand), Cunning Action → "bonus_action"
-     - Witch Bolt ongoing damage (activating on subsequent turns) → "bonus_action" [2024 rule]
      - Most spells, attacks, Help, Dash, Disengage, Hide → "action"
      - Opportunity Attack, Shield (spell), Counterspell, Absorb Elements → "reaction"
      - Drop item, speak a few words → "free_action"
+
+${TABLE_RULES}
 
    LEAVE NULL only when:
      - The ability name is campaign-specific, homebrew, or unrecognisable as a standard 5e ability
@@ -949,6 +977,8 @@ Output schema:
   // response object with diffs, cascades, global-scope, etc.
   // ─────────────────────────────────────────────────────────
   const CORRECTION_SYSTEM = `You are a D&D 5e campaign log correction assistant for the Magers Campaign.
+
+${TABLE_RULES}
 
 Party: ${PARTY_CONTEXT}
 
