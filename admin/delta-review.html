@@ -292,6 +292,49 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 .btn-publish:hover{background:#205555;}
 .btn-publish:disabled{opacity:0.4;cursor:not-allowed;}
 
+/* Pre-publish confirmation panel (issue #37) —
+   Sits between the narrative prompt and the publish bar. Hidden until
+   showPublishConfirm() populates and reveals it. Intercepts the Publish
+   button so no Drive write occurs until the DM clicks Confirm Publish. */
+.publish-confirm-panel{border-top:2px solid var(--amber);background:var(--parchment-mid);
+  padding:1rem 1.25rem;display:flex;flex-direction:column;gap:0.75rem;}
+.publish-confirm-panel h3{font-family:'Cinzel',serif;font-size:0.82rem;letter-spacing:0.1em;
+  color:var(--amber);margin:0;}
+/* SafeTestMode warning — amber banner visible only when safeTestMode:true */
+.confirm-safetest-banner{background:rgba(212,175,55,0.15);border:1px solid var(--amber);
+  border-radius:3px;padding:0.5rem 0.85rem;font-family:'Cinzel',serif;font-size:0.72rem;
+  letter-spacing:0.08em;color:var(--amber);}
+/* Session context line */
+.confirm-session-ctx{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--muted);}
+/* Scrollable item list — capped so the panel doesn't overflow on long queues */
+.confirm-item-list{max-height:40vh;overflow-y:auto;border:1px solid var(--border);
+  border-radius:3px;background:var(--card-bg);padding:0.5rem 0.75rem;
+  display:flex;flex-direction:column;gap:0.25rem;}
+.confirm-group-header{font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.1em;
+  color:var(--muted);margin-top:0.4rem;padding-top:0.4rem;border-top:1px solid var(--border);}
+.confirm-group-header:first-child{margin-top:0;padding-top:0;border-top:none;}
+.confirm-item-row{font-family:'JetBrains Mono',monospace;font-size:0.7rem;
+  color:var(--ink);display:flex;align-items:center;gap:0.5rem;padding:0.1rem 0;}
+/* Type badge chips on each item row */
+.confirm-badge{font-size:0.62rem;padding:1px 5px;border-radius:2px;font-family:'Cinzel',serif;
+  letter-spacing:0.05em;flex-shrink:0;}
+.confirm-badge-new{background:rgba(42,107,107,0.25);color:var(--teal);}
+.confirm-badge-mod{background:rgba(212,175,55,0.2);color:var(--amber);}
+.confirm-badge-round{background:rgba(180,180,180,0.12);color:var(--muted);}
+/* Aggregate count summary line */
+.confirm-counts{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--ink);
+  padding:0.4rem 0.75rem;background:var(--card-bg);border:1px solid var(--border);border-radius:3px;}
+/* Confirm / Cancel button row */
+.confirm-actions{display:flex;gap:0.75rem;align-items:center;}
+.btn-confirm-publish{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;
+  padding:7px 18px;border-radius:3px;background:var(--teal);color:white;
+  border:1px solid var(--teal);cursor:pointer;transition:all 0.15s;}
+.btn-confirm-publish:hover{background:#205555;}
+.btn-cancel-publish{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;
+  padding:7px 14px;border-radius:3px;background:transparent;color:var(--muted);
+  border:1px solid var(--border);cursor:pointer;transition:all 0.15s;}
+.btn-cancel-publish:hover{color:var(--ink);border-color:var(--muted);}
+
 /* ═══════════════════════════════
    INTEGRITY PANEL (Phase B)
    Gap-detection pre-flight above the approval queue.
@@ -576,6 +619,25 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
         onclick="dismissNarrativePrompt()">Not now</button>
     </div>
   </div>
+  <!-- Pre-publish confirmation panel (issue #37) — hidden until showPublishConfirm() reveals it.
+       Intercepts the Publish button so no Drive write occurs until DM clicks Confirm Publish.
+       cancelPublish() hides it without touching items[] or approval state. -->
+  <div id="publish-confirm-panel" class="publish-confirm-panel" style="display:none;">
+    <h3>Review before publishing</h3>
+    <!-- SafeTestMode banner — shown only when window.CHRONICLE_CONFIG.safeTestMode is true.
+         Makes it unmistakable that the write target is the test fixture, not the live campaign. -->
+    <div id="confirm-safetest-banner" class="confirm-safetest-banner" style="display:none;">
+      ⚠ SAFE TEST MODE — this publish will write to the test fixture, not the live campaign
+    </div>
+    <div id="confirm-session-ctx" class="confirm-session-ctx"></div>
+    <!-- Scrollable list of all approved items, grouped by array (populated by showPublishConfirm) -->
+    <div id="confirm-item-list" class="confirm-item-list"></div>
+    <div id="confirm-counts" class="confirm-counts"></div>
+    <div class="confirm-actions">
+      <button class="btn-confirm-publish" onclick="confirmPublish()">Confirm Publish →</button>
+      <button class="btn-cancel-publish" onclick="cancelPublish()">Cancel</button>
+    </div>
+  </div>
   <!-- Publish bar at very bottom -->
   <div class="publish-bar">
     <div class="publish-stats">
@@ -585,7 +647,7 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
     </div>
     <!-- publish-status: target for setPublishStatus() — was missing from HTML, causing silent no-ops -->
     <span id="publish-status" style="font-size:0.78rem;color:var(--muted);flex:1;text-align:center;"></span>
-    <button class="btn-publish" id="publish-btn" onclick="publish()" disabled>Publish approved →</button>
+    <button class="btn-publish" id="publish-btn" onclick="showPublishConfirm()" disabled>Publish approved →</button>
   </div>
 </div>
 
@@ -3646,9 +3708,133 @@ document.getElementById('correction-input').addEventListener('keydown', e => {
 // ══════════════════════════════════════════════════════
 // PUBLISH
 // ══════════════════════════════════════════════════════
-async function publish() {
-  const approved = [...items,...cascadeItems].filter(i=>i.status==='approved');
+/**
+ * showPublishConfirm()
+ *
+ * Intercepts the Publish button click. Populates and reveals the pre-publish
+ * confirmation panel (#publish-confirm-panel) so the DM can review what will
+ * be written before any Drive I/O begins.
+ *
+ * Why an intercept step: the Drive write is irreversible — a wrong publish
+ * corrupts the campaign JSON and requires a backup restore. The confirmation
+ * panel gives the DM one final review with zero cost to cancel.
+ *
+ * What breaks if removed: the Publish button would call nothing (onclick points
+ * here). Change onclick back to confirmPublish() to restore immediate-publish
+ * behaviour without the panel.
+ */
+function showPublishConfirm() {
+  const approved = [...items, ...cascadeItems].filter(i => i.status === 'approved');
   if (!approved.length) { alert('No approved items to publish.'); return; }
+
+  // SafeTestMode banner — make it unmistakable when the DM is about to write to the
+  // test fixture rather than the live campaign. Optional chaining guards against absent
+  // config.js (gitignored — may not exist in all environments).
+  const isSafeTest = !!window.CHRONICLE_CONFIG?.safeTestMode;
+  const banner = document.getElementById('confirm-safetest-banner');
+  if (banner) banner.style.display = isSafeTest ? 'block' : 'none';
+
+  // Session context line — session ID from the envelope, today's date for reference.
+  const sessionId = items.find(i => i.array === 'session_logs')?.rawData?.session_id
+    || 'unknown_session';
+  const ctx = document.getElementById('confirm-session-ctx');
+  if (ctx) {
+    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    ctx.textContent = `Session: ${sessionId} · ${today}`;
+  }
+
+  // Build grouped item list — group approved items by array name, render each group
+  // as a header row followed by item rows with a type badge.
+  // Grouping makes it easier to spot missing or unexpected items before committing.
+  const groups = {};
+  approved.forEach(item => {
+    const key = item.array || 'other';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  });
+
+  // Human-readable labels for array names — keeps the panel scannable without
+  // requiring the DM to know internal array identifiers.
+  const arrayLabels = {
+    combat_encounters: 'Combat Rounds',
+    session_logs:      'Session Log',
+    npc_directory:     'NPCs',
+    locations:         'Locations',
+    bestiary:          'Bestiary',
+    inventory_and_loot:'Loot & Items',
+    quest_ledger:      'Quests',
+    cohorts:           'Cohorts',
+    factions:          'Factions',
+    entity_relationships: 'Relationships',
+    deferred_gaps:     'Deferred Gaps',
+  };
+
+  const listEl = document.getElementById('confirm-item-list');
+  if (listEl) {
+    listEl.innerHTML = Object.entries(groups).map(([arr, arrItems]) => {
+      const label = arrayLabels[arr] || arr;
+      const rows = arrItems.map(item => {
+        // Type badge: NEW (teal), MOD (amber), ROUND/RELATIONSHIP/etc (muted).
+        const badgeClass = item.type === 'NEW' ? 'confirm-badge-new'
+          : item.type === 'MOD' ? 'confirm-badge-mod'
+          : 'confirm-badge-round';
+        return `<div class="confirm-item-row">
+          <span class="confirm-badge ${badgeClass}">${escapeHtmlDR(item.type)}</span>
+          <span>${escapeHtmlDR(item.title || item.id || '(untitled)')}</span>
+        </div>`;
+      }).join('');
+      return `<div class="confirm-group-header">${escapeHtmlDR(label)}</div>${rows}`;
+    }).join('');
+  }
+
+  // Aggregate counts — gives a quick sanity check total before confirming.
+  const nNew    = approved.filter(i => i.type === 'NEW').length;
+  const nMod    = approved.filter(i => i.type === 'MOD').length;
+  const nRounds = approved.filter(i => i.array === 'combat_encounters').length;
+  const countsEl = document.getElementById('confirm-counts');
+  if (countsEl) {
+    countsEl.textContent =
+      `${approved.length} total · ${nNew} new · ${nMod} modified · ${nRounds} combat round${nRounds !== 1 ? 's' : ''}`;
+  }
+
+  // Reveal the panel — Drive write does not begin until DM clicks Confirm Publish.
+  const panel = document.getElementById('publish-confirm-panel');
+  if (panel) panel.style.display = 'flex';
+}
+
+/**
+ * cancelPublish()
+ *
+ * Hides the pre-publish confirmation panel without touching items[] or approval
+ * state. The DM can return to the queue and make changes before trying again.
+ *
+ * What breaks if removed: the Cancel button has no action. Use display:none on
+ * the panel directly in the browser console to recover.
+ */
+function cancelPublish() {
+  const panel = document.getElementById('publish-confirm-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+/**
+ * confirmPublish()
+ *
+ * Called by the "Confirm Publish" button in the pre-publish panel. Hides the
+ * panel and executes the Drive write sequence — backup → fetch → apply → write.
+ *
+ * Why renamed from publish(): the old publish() fired on every Publish button
+ * click. With the confirmation panel, the button calls showPublishConfirm()
+ * instead; confirmPublish() is the second-click that actually commits.
+ * This makes the call chain explicit: show → (DM reviews) → confirm.
+ *
+ * What breaks if removed: the Confirm Publish button in the panel has no action.
+ */
+async function confirmPublish() {
+  // Hide the panel before starting — prevents a second Confirm click during the write.
+  cancelPublish();
+
+  const approved = [...items,...cascadeItems].filter(i=>i.status==='approved');
+  if (!approved.length) return; // guard — should not happen if showPublishConfirm ran first
 
   const btn = document.getElementById('publish-btn');
   const orig = btn ? btn.textContent : '';
