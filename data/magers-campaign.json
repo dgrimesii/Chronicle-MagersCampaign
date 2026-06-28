@@ -1775,7 +1775,13 @@
         "locations_visited": [
           "loc_011"
         ],
-        "player_absences": []
+        "player_absences": [
+          {
+            "type": "player_absence",
+            "pc_id": "pc_002",
+            "note": "Malachite piloted by David due to Lance's work schedule."
+          }
+        ]
       },
       "narrative": {
         "summary": "Continuation of the Goblin Ambush (cbt_005). Two Larkspur dragons appeared during the fight \u2014 the party's first dragon encounter. The escorted group was killed. Party took the cart and bodies to Lake Town. Levelled up to 3. Ambushed again by goblins and ogres on the road back to Menne's Ranch. Session ends mid-combat.",
@@ -1791,7 +1797,13 @@
         "human_guidance": null,
         "generation_warnings": []
       },
-      "mechanical_notes": [],
+      "mechanical_notes": [
+        {
+          "type": "player_absence",
+          "pc_id": "pc_002",
+          "note": "Malachite piloted by David due to Lance's work schedule."
+        }
+      ],
       "notes": "PLACEHOLDER \u2014 full session data to be entered via Chronicle intake. Combat round data, key moments, and full narrative pending. Level-up milestone recorded here to anchor Phase 11 DnDBeyond sync."
     },
     {
