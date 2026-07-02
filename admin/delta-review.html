@@ -1724,14 +1724,22 @@ function renderReview() {
     <div class="corrections-applied">
       <div class="corrections-label">✎ Corrections applied</div>
       ${item.appliedCorrections.map(d => {
-        // Reorder diffs have op/slots but no k/old/new — render a summary row
-        // rather than trying to display field-level before/after values.
+        // Structured ops (reorder, add_slot) have no k/old/new — render summary rows.
         if (d.op === 'reorder') {
           const slotCount = Array.isArray(d.slots) ? d.slots.length : '?';
           return `<div class="correction-row">
             <span class="correction-key">slot order</span>
             <span class="correction-arrow">↺</span>
             <span class="correction-new">${slotCount} slots reordered</span>
+          </div>`;
+        }
+        if (d.op === 'add_slot') {
+          const sl = d.slot || {};
+          const label = [sl.act, sl.action_type, sl.a].filter(Boolean).join(' · ');
+          return `<div class="correction-row">
+            <span class="correction-key">new slot</span>
+            <span class="correction-arrow">+</span>
+            <span class="correction-new">${escapeHtmlDR(label || 'slot added')}</span>
           </div>`;
         }
         return `<div class="correction-row">
@@ -1991,6 +1999,11 @@ function renderAssistant() {
                const slotCount = Array.isArray(d.slots) ? d.slots.length : '?';
                return `<div class="diff-line"><span class="diff-key">slot order</span><span style="color:var(--muted);margin:0 4px;">↺</span><span class="diff-new">${slotCount} slots reordered</span></div>`;
              }
+             if (d.op === 'add_slot') {
+               const sl = d.slot || {};
+               const label = [sl.act, sl.action_type, sl.a].filter(Boolean).join(' · ');
+               return `<div class="diff-line"><span class="diff-key">new slot</span><span style="color:var(--muted);margin:0 4px;">+</span><span class="diff-new">${escapeHtmlDR(label || 'slot added')}</span></div>`;
+             }
              return `<div class="diff-line"><span class="diff-key">${escapeHtmlDR(d.k)}</span>${d.old!=null?`<span class="diff-old">${escapeHtmlDR(String(d.old))}</span><span style="color:var(--muted);margin:0 4px;">→</span>`:'<span style="color:var(--muted);margin-right:4px;">+</span>'}<span class="diff-new">${escapeHtmlDR(String(d.new))}</span></div>`;
            }).join('')}
            </div>`
@@ -2015,11 +2028,15 @@ function renderAssistant() {
         <div class="diff-preview-title">Proposed changes</div>
         <div class="diff-lines-scroll">
         ${msg.diffs.map(d => {
-          // Reorder diffs have op/slots but no k/old/new — render a summary line
-          // rather than trying to show field-level before/after values.
+          // Structured ops (reorder, add_slot) have no k/old/new — render summary lines.
           if (d.op === 'reorder') {
             const slotCount = Array.isArray(d.slots) ? d.slots.length : '?';
             return `<div class="diff-line"><span class="diff-key">slot order</span><span style="color:var(--muted);margin:0 4px;">↺</span><span class="diff-new">${slotCount} slots reordered</span></div>`;
+          }
+          if (d.op === 'add_slot') {
+            const sl = d.slot || {};
+            const label = [sl.act, sl.action_type, sl.a].filter(Boolean).join(' · ');
+            return `<div class="diff-line"><span class="diff-key">new slot</span><span style="color:var(--muted);margin:0 4px;">+</span><span class="diff-new">${escapeHtmlDR(label || 'slot added')}</span></div>`;
           }
           return `<div class="diff-line"><span class="diff-key">${escapeHtmlDR(d.k)}</span>${d.old!=null?`<span class="diff-old">${escapeHtmlDR(String(d.old))}</span><span style="color:var(--muted);margin:0 4px;">→</span>`:'<span style="color:var(--muted);margin-right:4px;">+</span>'}<span class="diff-new">${escapeHtmlDR(String(d.new))}</span></div>`;
         }).join('')}
@@ -3408,6 +3425,42 @@ function applyDiff(msgId) {
     // Both use the same abbreviated field names (s/a/act/res/val) because rawData.slots
     // is written by _normaliseRoundProposals() which produces abbreviated names. The AI
     // copies those names when producing the reorder replacement array.
+    // add_slot op: appends one or more new slot entries to the round.
+    // Used when a correction adds a reaction, bonus action, or any slot that was
+    // absent from the original OCR data — distinct from reorder (replaces existing
+    // slots) and bracket-path diffs (edits fields on existing slots).
+    // Must be processed BEFORE the bracket-path forEach so the new slots are present
+    // if a subsequent diff in the same batch tries to edit them by index.
+    const addSlotDiffs = msg.diffs.filter(d => d.op === 'add_slot' && d.slot);
+    addSlotDiffs.forEach(d => {
+      // Normalise to abbreviated field names (s/a/act/res/val) — the same shape
+      // _normaliseRoundProposals() writes, so rawData and roundData stay consistent.
+      // Defensive ?? fallbacks handle full-name shape (action/result/value) in case
+      // the AI uses them despite the prompt specifying abbreviated names.
+      const newSlot = {
+        s:              d.slot.s              ?? null,
+        a:              d.slot.a              ?? null,
+        act:            d.slot.act            ?? d.slot.action      ?? null,
+        res:            d.slot.res            ?? d.slot.result      ?? 'neutral',
+        val:            d.slot.val            ?? d.slot.value       ?? null,
+        notes:          d.slot.notes                                ?? null,
+        action_type:    d.slot.action_type                          ?? null,
+        target:         d.slot.target                               ?? null,
+        target_effects: Array.isArray(d.slot.target_effects) ? d.slot.target_effects : [],
+        val_type:       d.slot.val_type                             ?? null,
+      };
+      if (item.rawData) {
+        if (!Array.isArray(item.rawData.slots)) item.rawData.slots = [];
+        item.rawData.slots.push(newSlot);
+      }
+      if (item.roundData) {
+        if (!Array.isArray(item.roundData.slots)) item.roundData.slots = [];
+        // Spread into a fresh object so rawData and roundData do not share a reference —
+        // an inline edit on one must not silently mutate the other.
+        item.roundData.slots.push({ ...newSlot });
+      }
+    });
+
     const reorderDiff = msg.diffs.find(d => d.op === 'reorder' && Array.isArray(d.slots));
     if (reorderDiff) {
       if (item.rawData) {

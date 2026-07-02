@@ -1014,6 +1014,27 @@ affected entries. Preserve all other field values verbatim — action, result, v
 action_type, target, target_effects, val_type must all be copied unchanged. Use the
 PARTY ROSTER in the user message to confirm the correct actor_ids for each slot.
 
+STRUCTURAL CORRECTIONS — add_slot operation (ROUND items only):
+When a correction requires adding a slot entry that does not currently exist — e.g. a
+reaction that fired during the enemy turn, a bonus action that was omitted from the
+original OCR — use the add_slot operation:
+  {"op": "add_slot", "slot": {<full slot object>}}
+
+The slot object must include ALL fields: s, a, act, res, val, notes, action_type,
+target, target_effects, val_type. Use null for unknown or non-applicable values.
+
+Multiple add_slot entries may appear in the same diffs array if more than one slot
+needs to be added.
+
+CRITICAL: You MUST include the add_slot entry in the diffs array in the JSON you
+output — not only describe it in the "content" field. If the slot is absent from the
+diffs array it will not be applied, regardless of what the content field says.
+
+Operation guide — use exactly one per purpose, never mix:
+  add_slot  → adding a new slot entry that does not exist yet
+  reorder   → changing which actor occupies which slot number across existing entries
+  k/old/new → modifying a field on an existing slot entry
+
 Entity type rules for cascades:
 - Use type "monster" for any D&D creature: dragons, drakes, beasts, undead, constructs, humanoid enemies (goblins, ogres, etc.), and any entity that would appear in a monster manual. These go to the bestiary array.
 - Use type "npc" only for named persons with agency: merchants, guards, quest-givers, allies, villains who speak and make decisions, and similar characters.
