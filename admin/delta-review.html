@@ -4706,6 +4706,19 @@ function extractAndRegisterFacts(item, diffs) {
     if (CONTENT_FIELDS.has(d.k)) return;
     if (d.old.includes('\n') && d.new.includes('\n')) return; // multi-line block swap — not a name alias
 
+    // For bracket-path diffs (ROUND item structural fields like "slots[2].action_type"),
+    // only register facts when the field is act or desc — the only ROUND fields whose
+    // values are ability/action names that could meaningfully propagate to other items.
+    // Controlled-vocabulary fields (action_type, result, res, val_type, target_effects,
+    // notes) hold short generic words ('action', 'hit', 'bonus_action') that must NEVER
+    // propagate as name aliases — they appear in every round and would corrupt any item
+    // containing those words in any string field, including raw OCR text.
+    const bracketField = d.k?.match(/\[\d+\]\.(\w+)$/)?.[1];
+    if (bracketField) {
+      const ROUND_PROPAGATE_FIELDS = new Set(['act', 'action', 'desc', 'description']);
+      if (!ROUND_PROPAGATE_FIELDS.has(bracketField)) return;
+    }
+
     // Extract the minimal changed token from the diff. The AI returns diffs at
     // phrase level ("Gold — True Strike..." → "Goldie — True Strike..."), but we
     // need just the changed word ("Gold" → "Goldie") as the registry key so it
