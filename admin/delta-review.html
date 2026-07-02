@@ -3449,6 +3449,18 @@ function applyDiff(msgId) {
         target_effects: Array.isArray(d.slot.target_effects) ? d.slot.target_effects : [],
         val_type:       d.slot.val_type                             ?? null,
       };
+      // Dedup guard: skip if a slot with the same s/a/act/action_type already exists.
+      // Prevents double-append when the AI emits two identical add_slot diffs in one
+      // correction, or when a correction is applied more than once against the same item.
+      // Matches on the four fields that uniquely identify a player action within a round —
+      // the same actor can have two slots at the same s (e.g. action + bonus action), but
+      // not two slots with identical act and action_type.
+      const alreadyPresent = Array.isArray(item.rawData?.slots) && item.rawData.slots.some(
+        ex => ex.s === newSlot.s && ex.a === newSlot.a &&
+              ex.act === newSlot.act && ex.action_type === newSlot.action_type
+      );
+      if (alreadyPresent) return; // skip without error — idempotent re-apply
+
       if (item.rawData) {
         if (!Array.isArray(item.rawData.slots)) item.rawData.slots = [];
         item.rawData.slots.push(newSlot);
