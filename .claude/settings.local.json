@@ -31,7 +31,13 @@
       "Bash(/usr/bin/wc -l \"/c/Users/David/MyCodeProjects/Chronicle/Chronicle-MagersCampaign/admin/delta-review.html\")",
       "Bash(node.exe:*)",
       "Bash(gh issue:*)",
-      "Bash(python3 -c \"import json,sys; issues=json.load\\(sys.stdin\\); [print\\(f'#{i[\\\\\"number\\\\\"]} [{\\\\\"|\\\\\".join\\(l[\\\\\"name\\\\\"] for l in i[\\\\\"labels\\\\\"]\\)}] {i[\\\\\"title\\\\\"]}'\\) for i in sorted\\(issues, key=lambda x: x['number']\\)]\")"
+      "Bash(python3 -c \"import json,sys; issues=json.load\\(sys.stdin\\); [print\\(f'#{i[\\\\\"number\\\\\"]} [{\\\\\"|\\\\\".join\\(l[\\\\\"name\\\\\"] for l in i[\\\\\"labels\\\\\"]\\)}] {i[\\\\\"title\\\\\"]}'\\) for i in sorted\\(issues, key=lambda x: x['number']\\)]\")",
+      "Bash(python3 -c \"import json; j=json.load\\(open\\('data/magers-campaign.json'\\)\\); print\\('schema:', j.get\\('_schema_version'\\)\\); print\\('cohorts:', j.get\\('cohorts'\\)\\); print\\('factions len:', len\\(j.get\\('factions', []\\)\\)\\); print\\('factions[0]:', json.dumps\\(j.get\\('factions', []\\)[0]\\) if j.get\\('factions'\\) else 'none'\\)\")",
+      "Bash(powershell:*)",
+      "Bash(where.exe powershell.exe)",
+      "Bash(where.exe pwsh.exe)",
+      "Bash(where.exe python.exe)",
+      "Bash(where.exe node.exe)"
     ]
   }
 }

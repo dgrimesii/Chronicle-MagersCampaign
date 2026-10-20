@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../../../CampaignLogApp"
+		},
+		{
+			"name": "Chronicle-MagersCampaign",
+			"path": ".."
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "Chronicle-MagersCampaign"
+	}
+}
