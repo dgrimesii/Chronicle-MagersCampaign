@@ -40,7 +40,8 @@ Chronicle-MagersCampaign/
 │   └── phase1-claude-code-prompt.md  # Historical prompt used to migrate data reads from Drive to repo fetch
 ├── docs/
 │   ├── chronicle-issue-prompt.md     # Reusable five-phase prompt template for completing GitHub issues
-│   └── intake-flow.md                # Mermaid flowchart of the current session intake → Delta Review → publish → repo sync flow, with known blockers marked
+│   ├── intake-flow.md                # Mermaid flowchart of the current session intake → Delta Review → publish → repo sync flow, with known blockers marked
+│   └── intake-redesign.md            # Design document for the intake rebuild: identity-first five-step flow, turn schema, decisions and build order
 ├── tests/
 │   ├── run-all.js                    # Test runner — runs all test files, reports pass/fail summary
 │   ├── integrity.test.js             # Tests for shared/chronicle-integrity.js
