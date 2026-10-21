@@ -356,10 +356,11 @@ mark{background:rgba(212,175,55,0.2);color:var(--ink);border-radius:2px;padding:
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<!-- config.js is gitignored and absent on GitHub Pages; the fetch call below
-     uses optional chaining so the page still loads when it is not present.
-     Load it here so getCampaignPath() is available for Safe Test Mode locally. -->
+<!-- config.js is gitignored and absent on GitHub Pages; chronicle-store.js
+     works without it. Load it here so Safe Test Mode still applies locally. -->
 <script src="../shared/config.js"></script>
+<!-- chronicle-store.js loads the campaign at init (issue #96). -->
+<script src="../shared/chronicle-store.js"></script>
 <script>
 const CONFIG = {
   mode:         'player',
@@ -1601,13 +1602,9 @@ function focusParty() {
 // ══════════════════════════════════════════════════════
 function init() {
   setStatus('Loading campaign data…', 'loading');
-  // Route through the Safe Test Mode resolver so test runs target the fixture.
-  // Falls back to the hardcoded path when config.js is absent (GitHub Pages).
-  fetch(window.CHRONICLE_CONFIG?.getCampaignPath?.() ?? '../data/magers-campaign.json')
-    .then(function(res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.json();
-    })
+  // Load through the store module (issue #96). It resolves Safe Test Mode,
+  // works without config.js (GitHub Pages) and rejects on a failed fetch.
+  ChronicleStore.loadCampaign()
     .then(function(json) {
       DATA = normaliseCampaignJson(json);
       registerAll();

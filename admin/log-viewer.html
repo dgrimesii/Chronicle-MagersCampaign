@@ -395,6 +395,8 @@ mark{background:rgba(212,175,55,0.2);color:var(--ink);border-radius:2px;padding:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="../shared/config.js"></script>
+<!-- chronicle-store.js loads the campaign at init (issue #96). -->
+<script src="../shared/chronicle-store.js"></script>
 <script>
 
 // ── Copyable error alert ──────────────────────────────────────────
@@ -1730,11 +1732,9 @@ function focusParty() {
 async function init() {
   setStatus('Loading campaign data…', 'loading');
   try {
-    // Route through the Safe Test Mode resolver so test runs target the fixture.
-    // Falls back to the hardcoded path when config.js is absent (GitHub Pages).
-    const res = await fetch(window.CHRONICLE_CONFIG?.getCampaignPath?.() ?? '../data/magers-campaign.json');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    // Load through the store module (issue #96). It resolves Safe Test Mode,
+    // works without config.js (GitHub Pages) and throws on a failed fetch.
+    const json = await ChronicleStore.loadCampaign();
     DATA = normaliseCampaignJson(json);
     registerAll();
     renderSessionTimeline();

@@ -983,6 +983,8 @@
 </main>
 
 <script src="../shared/config.js"></script>
+<!-- chronicle-store.js loads the campaign for OCR name lists (issue #96). -->
+<script src="../shared/chronicle-store.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script>
 // ══════════════════════════════════════════════════════
@@ -1023,7 +1025,9 @@ let pcAbilities = null;
  * proper nouns from scratch, which is the primary source of FM2 (confident
  * misreading) errors identified in docs/intake-pipeline-review.md.
  *
- * Fetches from ../data/magers-campaign.json (same-origin, no Drive needed).
+ * Loads through ChronicleStore.loadCampaign() (issue #96) — the repo copy, or
+ * the test fixture in Safe Test Mode. Before #96 this page fetched the repo
+ * file directly and ignored Safe Test Mode.
  * On failure: logs a warning and leaves campaignEntities null — OCR degrades
  * gracefully to the base prompt without the entity block.
  *
@@ -1031,9 +1035,7 @@ let pcAbilities = null;
  */
 async function loadCampaignContext() {
   try {
-    const res = await fetch('../data/magers-campaign.json');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    const json = await ChronicleStore.loadCampaign();
 
     // Extract name lists from the four entity arrays that appear in handwritten notes.
     // Optional chaining guards against missing arrays — an absent section produces

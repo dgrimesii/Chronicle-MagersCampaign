@@ -19,7 +19,7 @@ Read these files first, in this order:
 3. `data/magers-campaign.json` — if the task involves adding or changing campaign data
 
 Before writing any code:
-- Verify the fetch path matches the file's location in the directory tree (`../data/magers-campaign.json` from `admin/`, `../../data/magers-campaign.json` from nowhere — only two levels of nesting exist)
+- Campaign data paths live only in `shared/chronicle-store.js`, relative to the calling page; every page that loads it is one folder below the root (`admin/` or `player/`). A page at any other depth needs the store's paths changed first
 - Verify any ID you assign does not already exist in `magers-campaign.json`
 
 Ask for clarification rather than proceeding if:
@@ -133,19 +133,17 @@ The player view (`player/index.html`) has a "⇄ Admin" button linking to `../ad
 
 ## Data loading rules
 
-- Admin files fetch campaign data from `../data/magers-campaign.json`
-- Player file fetches from `../data/magers-campaign.json` (same path — both are one folder deep from root)
-- Use standard `fetch()` — no proxy, no special headers needed for data reads (same origin on GitHub Pages)
+- Every campaign read and write goes through `shared/chronicle-store.js` (`window.ChronicleStore`). Never `fetch()` the campaign JSON, call the Drive proxy, or check `safeTestMode` in a page — add a method to the store module instead. The store is the seam for the planned moves to repo publishing (#97) and Postgres (rebuild phase 7); a page that bypasses it breaks those moves.
+- `ChronicleStore.loadCampaign()` fetches `../data/magers-campaign.json` same-origin (the test fixture in Safe Test Mode) and returns the raw JSON; pages normalise it themselves
+- `admin/drive-test.html` is the one exception: it tests the Drive proxy directly
 - There is no EMBEDDED_DATA block in any HTML file — do not add one
 - There is no sync indicator bar — do not add one
-- If a fetch fails, show a clear error state — do not silently fall back to stale or hardcoded data
+- If a load fails, show a clear error state — do not silently fall back to stale or hardcoded data. `loadCampaign()` throws on HTTP errors so the page's catch can do this.
 
 The standard pattern:
 ```javascript
 async function loadCampaignData() {
-  const res = await fetch('../data/magers-campaign.json');
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const json = await res.json();
+  const json = await ChronicleStore.loadCampaign();
   return normaliseCampaignJson(json);
 }
 ```
@@ -156,24 +154,27 @@ async function loadCampaignData() {
 
 - Proxy URL and campaign file ID live ONLY in `shared/config.js` as `window.CHRONICLE_CONFIG`
 - Never hardcode the proxy URL or file ID in an individual HTML file
-- Admin files that need Drive access must load `../shared/config.js` before any page script
+- All Drive calls live in `shared/chronicle-store.js`. Pages that need Drive load `../shared/config.js` then `../shared/chronicle-store.js` before the page script and call `ChronicleStore` methods
 - GET for all Drive reads (avoids CORS preflight); POST with `Content-Type: text/plain` for writes
-- Drive is used for: write-back after Delta Review publish, backup copies, listing backups
-- Drive is NOT used for reading campaign data — all reads come from the repo fetch
+- Drive is used for: the publish base and write-back in Delta Review (`loadPublishBase()` / `publishSession()`), backup copies, listing and downloading backups
+- Drive is NOT used for the campaign data pages display — `loadCampaign()` reads the repo copy
 
 ---
 
 ## Shared module load order
 
-When a page needs all four shared modules, load them in this order — each depends on the previous:
+When a page needs all five shared modules, load them in this order:
 
 ```html
 <script src="../shared/config.js"></script>
+<script src="../shared/chronicle-store.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script src="../shared/chronicle-narrative.js"></script>
 <!-- page script here -->
 ```
+
+`chronicle-store.js` exports `window.ChronicleStore`. Load it on every page that reads or writes campaign data. It reads `config.js` at call time and works without it for reads (config.js is absent on GitHub Pages), so the player view loads it too.
 
 `chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 
@@ -456,7 +457,7 @@ The DM manages the post-session workflow through the admin tools, then manually 
 3. Add a nav link for the new page to all other admin pages in the correct position
 4. Load `../shared/config.js` at the bottom of `<body>` before the page script
 5. Load `../shared/chronicle-ai.js` only if the page uses AI features
-6. If the page needs campaign data, fetch `../data/magers-campaign.json` at init — not from Drive
+6. If the page needs campaign data, load `../shared/chronicle-store.js` and call `ChronicleStore.loadCampaign()` at init — never a direct fetch, never from Drive
 
 ---
 

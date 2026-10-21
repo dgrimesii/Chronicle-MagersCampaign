@@ -29,6 +29,7 @@ const TEST_FILES = [
   'tests/intake-preparation.test.js',
   'tests/delta-schema.test.js',
   'tests/delta-apply.test.js',
+  'tests/store.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

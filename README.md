@@ -27,6 +27,7 @@ Chronicle-MagersCampaign/
 │   └── drive-test.html         # Drive proxy diagnostics (write path only) — no nav bar
 ├── shared/
 │   ├── config.js               # GITIGNORED — Drive proxy URL, campaign file ID, Anthropic and Gemini API keys
+│   ├── chronicle-store.js      # Storage module — every campaign read and write goes through window.ChronicleStore
 │   ├── chronicle-ai.js         # Shared Anthropic API module — exports window.ChronicleAI
 │   ├── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
 │   └── chronicle-narrative.js  # Shared Gemini narrative module — exports window.ChronicleNarrative
@@ -48,6 +49,8 @@ Chronicle-MagersCampaign/
 │   ├── intake-image.test.js          # Group A — OCR round-data shape validation
 │   ├── intake-preparation.test.js    # Group C — session data preparation checks
 │   ├── delta-schema.test.js          # Group E — delta item schema validation
+│   ├── delta-apply.test.js           # Tests for the applyDeltasToCampaign() logic copied from delta-review.html
+│   ├── store.test.js                 # Tests for shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
 │   ├── fixtures/
 │   │   └── test-campaign.json        # Minimal v4.0.0 synthetic campaign for automated tests
 │   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
@@ -62,14 +65,17 @@ Chronicle-MagersCampaign/
 ## Data architecture
 
 ```
+STORAGE     → shared/chronicle-store.js  (window.ChronicleStore — the only code that reads or writes campaign data)
 DATA READS  → /data/magers-campaign.json  (same-origin fetch, served by GitHub Pages)
 DATA WRITES → Google Drive via Apps Script proxy  (delta-review publish, backups)
 APP HOSTING → GitHub Pages  (Chronicle-MagersCampaign repo)
 ```
 
-Campaign data lives in `data/magers-campaign.json`. Both the admin log-viewer and player view fetch this file directly using `fetch('../data/magers-campaign.json')` at page load — no proxy, no CORS. Updating the JSON and pushing to GitHub triggers an automatic Pages redeploy; both views pick up the new data on next load.
+Campaign data lives in `data/magers-campaign.json`. Every page that needs it calls `ChronicleStore.loadCampaign()`, which fetches this file same-origin (no proxy, no CORS) or, in Safe Test Mode, the test fixture. No page calls `fetch()` on the campaign file or talks to the Drive proxy itself; the one exception is `admin/drive-test.html`, which exists to test the proxy directly. Updating the JSON and pushing to GitHub triggers an automatic Pages redeploy; every page picks up the new data on next load.
 
-Drive proxy is used for:
+The store module exists so the planned storage moves change only one file: rebuild phase 2 makes publish commit to the repo instead of Drive (#97), and phase 7 replaces the repo and Drive with an API backed by Postgres (see `docs/intake-redesign.md`, "Build order").
+
+Drive proxy is used (through `ChronicleStore`) for:
 - Writing updated JSON to Drive after a Delta Review publish
 - Creating named Drive backups before sessions
 - Listing Drive backups in the Versions page
@@ -257,7 +263,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/player/`
 - **Audience:** Players — read-only, shareable
-- Fetches `../data/magers-campaign.json` at init using `fetch()`
+- Loads the campaign at init with `ChronicleStore.loadCampaign()` (`../data/magers-campaign.json`); loads `../shared/config.js` (optional — absent on Pages) and `../shared/chronicle-store.js`
 - Two views toggled by header buttons: **Browse** and **Graph**
 - **Browse view:** Left sidebar with search box, category filter pills, and entity list grouped by type. Right area shows entity detail cards with relationship chips, timelines, quest progress, and full combat round tables
 - **Graph view:** D3.js (v7.9, cdnjs CDN) force-directed graph of entities. Toolbar with legend, Reset View button, Focus Party button. Click a node to open a side panel with entity summary
@@ -270,8 +276,8 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/log-viewer.html`
 - **Audience:** DM only
-- Fetches `../data/magers-campaign.json` at init using `async/await fetch()`
-- Loads D3.js (v7.9, cdnjs CDN) and `../shared/config.js`
+- Loads the campaign at init with `ChronicleStore.loadCampaign()` (`../data/magers-campaign.json`)
+- Loads D3.js (v7.9, cdnjs CDN), `../shared/config.js` and `../shared/chronicle-store.js`
 - Identical UI structure to player view: Browse + Graph views, sidebar, entity detail cards
 - 7-item admin nav bar; "⇄ Player View" button to `../player/`
 - On load failure, shows an error panel with message and copy-to-clipboard option
@@ -285,7 +291,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - Three-step wizard: (1) upload session pages via single "Session Pages" zone (images and/or text files, mixed drops supported), (2) review OCR output page-by-page, (3) consolidate into session document. "← Back to Upload" in Step 2 returns to Step 1 with all files and generated OCR text preserved; re-running OCR only processes new unprocessed pages
 - Loads `../shared/config.js` and `../shared/chronicle-ai.js`
 - Uses `ChronicleAI.call()` with vision to extract handwritten combat notes from uploaded images; images are compressed to ≤1800px before sending to stay within the Anthropic 5MB base64 limit
-- Fetches `../data/magers-campaign.json` once at page load via `loadCampaignContext()` to extract NPC, location, monster, and combat name lists for OCR prompt enrichment. If the fetch fails, `campaignEntities` stays null and OCR continues with the base prompt only (graceful degradation)
+- Loads `../shared/chronicle-store.js` and calls `ChronicleStore.loadCampaign()` once at page load via `loadCampaignContext()` (so Safe Test Mode now applies here too) to extract NPC, location, monster, and combat name lists for OCR prompt enrichment. If the fetch fails, `campaignEntities` stays null and OCR continues with the base prompt only (graceful degradation)
 - Fetches `../data/pc-abilities.json` once at page load via `loadPCAbilities()` to extract per-PC action and spell lists. Generated by `scripts/harvest-characters.js` from D&D Beyond character sheets; re-run that script after characters level up. If the fetch fails, `pcAbilities` stays null and OCR continues without the abilities block (graceful degradation). Both fetches run in parallel at script init.
 - **OCR review correction modes (Step 2):** three paths per page — (a) manual textarea edit, (b) re-run OCR with the same prompt, (c) re-run with steering (DM-typed context prepended to the system prompt). Steering text can be logged as a prompt improvement suggestion via sessionStorage (key `chronicle_prompt_improvement_log`)
 - "Send to Delta Review" button writes a `chronicle_intake_delta` envelope to sessionStorage (containing one session stub, one RAW item per confirmed OCR page, and one narrative item if present), then navigates to `delta-review.html`. Delta Review reads and clears this key on load.
@@ -309,11 +315,11 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/delta-review.html`
 - **Audience:** DM only
 - Reviews AI-proposed session deltas (new entities, round data, quest updates) before committing them to the campaign JSON
-- Loads `../shared/config.js`, `../shared/chronicle-integrity.js`, and `../shared/chronicle-ai.js`
+- Loads `../shared/config.js`, `../shared/chronicle-store.js`, `../shared/chronicle-integrity.js`, `../shared/chronicle-ai.js` and `../shared/chronicle-narrative.js`
 - Uses `ChronicleAI.sendCorrectionToAI()` to refine individual delta items via an AI assistant chat panel
 - On load, calls `loadIntakeDelta()` — if a `chronicle_intake_delta` key exists in sessionStorage (written by `intake.html` "Send to Delta Review"), the envelope items replace the default empty queue and a banner identifies the session source. The key is **not cleared on load** — it persists until `publish()` succeeds, so the DM can navigate away and return without losing the queue (restoration banner auto-dismisses after 5 seconds). If no key exists, the queue is empty as usual.
-- **Integrity pre-flight panel**: on load, fetches `../data/magers-campaign.json` and runs `ChronicleIntegrity.checks()` against the staged session data. If gaps are found, an integrity panel appears in the center area before the review queue. Each gap presents three options: **Accept** (acknowledged, no record written), **Defer** (flagged for future correction — written to `deferred_gaps[]` in the published JSON), or **Edit** (AI-assisted fill via image or typed description; approved proposals join the approval queue). The Publish button is blocked until every gap has an explicit Accept or Defer decision. The **Reprocess** sub-option under Edit is a disabled placeholder — see code comments for design decisions required before building
-- **Publish** action: fetches current campaign JSON from Drive (not from `/data/`), applies approved deltas, appends any deferred gap records to `deferred_gaps[]`, then writes the result back to Drive via the proxy
+- **Integrity pre-flight panel**: on load, calls `ChronicleStore.loadCampaign()` (`../data/magers-campaign.json`) and runs `ChronicleIntegrity.checks()` against the staged session data. If gaps are found, an integrity panel appears in the center area before the review queue. Each gap presents three options: **Accept** (acknowledged, no record written), **Defer** (flagged for future correction — written to `deferred_gaps[]` in the published JSON), or **Edit** (AI-assisted fill via image or typed description; approved proposals join the approval queue). The Publish button is blocked until every gap has an explicit Accept or Defer decision. The **Reprocess** sub-option under Edit is a disabled placeholder — see code comments for design decisions required before building
+- **Publish** action: `ChronicleStore.loadPublishBase()` fetches the current campaign JSON from Drive (not from `/data/`); the page applies approved deltas and appends any deferred gap records to `deferred_gaps[]`; then `ChronicleStore.publishSession()` makes a Drive backup labelled with the session stub's item id and writes the result back to Drive. In Safe Test Mode the base is the local fixture and the result is downloaded as `test-campaign.json` instead of written
 - **RAW item Interpret button** (issue #70): RAW OCR-page items are not written on publish. Each RAW item card has an **Interpret** button that sends the OCR text to the AI and converts it to ROUND delta items for normal review and approval. The source RAW item is marked `'interpreted'` once complete.
 - Approval workflow: each queue item can be Approved, Rejected, or sent for AI correction. Items include session metadata, NPC entries, location entries, combat rounds, and quest updates
 - Does not read campaign data from Drive for the integrity check — uses `../data/magers-campaign.json` (same-origin repo copy). The Drive copy and repo copy can diverge; integrity checks against whichever is currently in the repo
@@ -324,7 +330,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/integrity.html`
 - **Audience:** DM only
-- Fetches `../data/magers-campaign.json` at init. Loads `../shared/config.js`, `../shared/chronicle-integrity.js`, and `../shared/chronicle-ai.js`
+- Loads the campaign at init with `ChronicleStore.loadCampaign()`. Loads `../shared/config.js`, `../shared/chronicle-store.js`, `../shared/chronicle-integrity.js`, and `../shared/chronicle-ai.js`
 - The intake gap-checker that formerly lived here was moved to `delta-review.html` (Phase B). This page is now a placeholder shell for the future campaign quality scanner
 - The **Run Scan** button is present but disabled — functionality is not yet implemented. When built, this tool will surface structural gaps and quality improvement opportunities across the full campaign JSON. It will also display the `deferred_gaps[]` queue (entries created when the DM chose Defer during a delta-review session)
 - See the page script comments for the full planned feature set (scan types, output format, write-back options)
@@ -337,8 +343,8 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - **Audience:** DM only
 - In-browser editor for party, NPC, location, quest, item, and lore entries
 - Loads `../shared/config.js`
-- Fetches `../data/magers-campaign.json` at init and rebuilds the ENTITIES list from live v4 JSON; shows a toast error (rather than silently falling back) if fetch fails
-- Loads `../shared/config.js` and `../shared/chronicle-ai.js` — AI draft panel (`ChronicleAI.call()`) is wired and available
+- Loads the campaign at init with `ChronicleStore.loadCampaign()` and rebuilds the ENTITIES list from live v4 JSON; shows a toast error (rather than silently falling back) if fetch fails
+- Loads `../shared/config.js`, `../shared/chronicle-store.js` and `../shared/chronicle-ai.js` — AI draft panel (`ChronicleAI.call()`) is wired and available
 - Edits are applied to the in-memory ENTITIES array only — there is no write-back to the JSON file or Drive. "Save" commits changes locally within the browser session; they are lost on page reload
 - The `previewChanges()` function shows an alert describing pending edits; it does not produce a real JSON diff or write to any file
 
@@ -349,9 +355,9 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/versions.html`
 - **Audience:** DM only
 - Manages a local backup ledger (stored in `localStorage`) and syncs with Drive backups
-- Loads `../shared/config.js`
-- Fetches backup list from Drive via proxy; can download any Drive backup as a JSON file
-- "Pre-session backup" action: calls `fetchCampaignFromDrive()` (reads from Drive, not from `/data/`) to compute stats, then writes a backup copy to Drive
+- Loads `../shared/config.js` and `../shared/chronicle-store.js`
+- Fetches the backup list from Drive with `ChronicleStore.listBackups()`; can download any Drive backup as a JSON file via `ChronicleStore.loadBackup()`
+- "Pre-session backup" action: `ChronicleStore.createBackup()` makes a Drive backup copy, then `ChronicleStore.loadPublishBase()` reads the Drive file (not `/data/`; the local fixture in Safe Test Mode) to compute stats
 - Backup ledger stored in browser `localStorage` — cleared if the user clears site data
 
 ---
@@ -360,6 +366,7 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/drive-test.html`
 - **Audience:** DM only (for debugging Drive proxy issues)
+- The only page that calls the Drive proxy directly instead of through `ChronicleStore` — its job is to test the proxy itself
 - Runs a suite of diagnostic tests against the Drive proxy: proxy reachability, file access, diagnose, campaign-read (now unused since reads moved to repo), campaign-write, backup
 - Loads `../shared/config.js`
 - No admin nav bar (standalone diagnostic page)
@@ -386,11 +393,32 @@ GET for all operations except writes avoids CORS preflight. POST uses `Content-T
 
 ## Shared modules
 
+Load order when a page needs several: `config.js` → `chronicle-store.js` → `chronicle-integrity.js` → `chronicle-ai.js` → `chronicle-narrative.js` → page script.
+
+### `shared/chronicle-store.js`
+
+Loaded by every page that reads or writes campaign data: `player/index.html` and the admin pages `log-viewer`, `intake`, `delta-review`, `integrity`, `log-editor` and `versions`. Exports `window.ChronicleStore`. It is the only code that fetches the campaign JSON or calls the Drive proxy (except `drive-test.html`, which tests the proxy directly). It reads `window.CHRONICLE_CONFIG` when each call runs, and works without `config.js` for reads (GitHub Pages).
+
+| Method | What it does today | Planned change |
+|---|---|---|
+| `.loadCampaign()` | Same-origin fetch of `../data/magers-campaign.json` (the test fixture in Safe Test Mode). Returns the raw v4 JSON; throws on HTTP error | Phase 7: API call |
+| `.loadPublishBase()` | Reads the Drive campaign file through the proxy (`?action=read`), which publish builds on (the fixture in Safe Test Mode) | #97: same as `loadCampaign()` |
+| `.publishSession(campaign, summary, options)` | `summary = { sessionId, label }`, `options = { onProgress }`. Makes a Drive backup labelled `summary.label`, then POSTs the campaign to Drive. Returns `{ mode: 'drive', backup }`. In Safe Test Mode downloads `test-campaign.json` instead and returns `{ mode: 'test-download', filename }` | #97: commit to the repo |
+| `.createBackup(label)` | Drive `?action=backup` on the campaign file | Phase 7 |
+| `.listBackups()` | Drive `?action=listBackups` | Phase 7 |
+| `.loadBackup(backupId)` | Drive `?id=<backupId>`; returns the backup's JSON | Phase 7 |
+| `.saveDraft()` / `.loadDraft()` | Stubs — always reject with "not available until … Postgres" | Phase 7: saved review drafts |
+| `.isSafeTestMode()` | `true` when `CHRONICLE_CONFIG.safeTestMode === true` | — |
+
+Drive calls use the test Drive file (`testCampaignFileId`) in Safe Test Mode and throw "Drive is not configured" when `config.js` or its `proxyUrl` is missing.
+
+---
+
 ### `shared/chronicle-integrity.js`
 
 Loaded by `delta-review.html` and `integrity.html`. Exports `window.ChronicleIntegrity` with a single method:
 
-- `.checks(campaignData, incomingData)` — pure gap-detection function. Takes a campaign object and an array of incoming delta items; returns a flat array of gap objects. No DOM access, no API calls. Load order when all three shared modules are needed: `config.js` → `chronicle-integrity.js` → `chronicle-ai.js` → page script.
+- `.checks(campaignData, incomingData)` — pure gap-detection function. Takes a campaign object and an array of incoming delta items; returns a flat array of gap objects. No DOM access, no API calls. Load order: see the top of this section.
 
 Gap object shape: `{ id, group, sev, block, isNew, cbtId, cbtName, sessHint, miss, have, rmin, rmax, title, detail, ctx }`
 
@@ -453,6 +481,8 @@ tests/
 ├── intake-image.test.js            # Group A — OCR round-data shape validation
 ├── intake-preparation.test.js      # Group C — session data preparation checks
 ├── delta-schema.test.js            # Group E — delta item schema validation
+├── delta-apply.test.js             # applyDeltasToCampaign() logic (copy of the delta-review.html function)
+├── store.test.js                   # shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
 ├── fixtures/
 │   └── test-campaign.json          # Minimal v4.0.0 synthetic campaign — no real data
 ├── ocr-ground-truth/
@@ -472,7 +502,7 @@ All tests are plain Node.js — no install required.
 
 ### Safe Test Mode
 
-`shared/config.js` (gitignored) contains two fields and two resolver functions that redirect data reads and Drive writes to test targets:
+`shared/config.js` (gitignored) contains two fields that redirect data reads and Drive writes to test targets. `shared/chronicle-store.js` applies them; no page checks them itself:
 
 | Field | Default | Purpose |
 |---|---|---|
@@ -480,10 +510,11 @@ All tests are plain Node.js — no install required.
 | `testCampaignFileId` | `''` | Drive file ID of the test campaign copy |
 
 When `safeTestMode: true`:
-- `getCampaignPath()` returns `'../tests/fixtures/test-campaign.json'` instead of `'../data/magers-campaign.json'`
-- `getCampaignFileId()` returns `testCampaignFileId` instead of `campaignFileId`
+- `ChronicleStore.loadCampaign()` and `.loadPublishBase()` read `../tests/fixtures/test-campaign.json` instead of the repo file or Drive
+- `ChronicleStore.publishSession()` downloads the result as `test-campaign.json` instead of writing to Drive, and makes no backup
+- `ChronicleStore.createBackup()` and `.listBackups()` target `testCampaignFileId` instead of `campaignFileId`
 
-All HTML pages call these resolvers rather than using hardcoded paths. This means switching test mode on or off requires changing only `config.js`.
+Switching test mode on or off requires changing only `config.js`. Older copies of `config.js` also define `getCampaignPath()` and `getCampaignFileId()` resolvers; only `drive-test.html` still calls `getCampaignFileId()`, and nothing calls `getCampaignPath()`.
 
 **Never commit `safeTestMode: true`** — it would redirect all data reads for anyone who deploys the page locally.
 

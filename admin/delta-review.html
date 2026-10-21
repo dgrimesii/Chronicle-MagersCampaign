@@ -656,83 +656,18 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 </div><!-- end shell -->
 
 <script src="../shared/config.js"></script>
+<!-- chronicle-store.js owns every campaign read and the publish write (issue #96).
+     It must load before the page script, which calls it at init and on publish. -->
+<script src="../shared/chronicle-store.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <!-- chronicle-narrative.js loaded here for detectCascadeCandidates (issue #44).
-     Per CLAUDE.md load order: config → integrity → ai → narrative → page script. -->
+     Per CLAUDE.md load order: config → store → integrity → ai → narrative → page script. -->
 <script src="../shared/chronicle-narrative.js"></script>
 <script>
-// ── Drive integration ─────────────────────────────────────────────────────────
-// All requests use GET to avoid CORS preflight. Write data is JSON-encoded
-// in the URL 'payload' parameter. The proxy returns { ok, raw } for reads
-// and { ok, ... } for mutations.
-
-const DRIVE_PROXY    = window.CHRONICLE_CONFIG.proxyUrl;
-// Use the resolver so Drive writes target the test Drive file when safeTestMode is on.
-const CAMPAIGN_FILE  = window.CHRONICLE_CONFIG.getCampaignFileId();
-
-async function driveGet(params) {
-  var url = DRIVE_PROXY + '?';
-  var parts = [];
-  Object.keys(params).forEach(function(k) {
-    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
-  });
-  url += parts.join('&');
-  const res  = await fetch(url);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || 'Drive error');
-  return data;
-}
-
-// Read campaign JSON — returns the parsed campaign object
-async function fetchCampaignFromDrive() {
-  const data = await driveGet({ action: 'read', id: CAMPAIGN_FILE });
-  // Proxy returns { ok: true, raw: "<json string>" }
-  return JSON.parse(data.raw);
-}
-
-// Write uses POST with Content-Type: text/plain to avoid CORS preflight.
-// text/plain is a CORS "simple" type — no OPTIONS request is sent.
-async function writeCampaignToDrive(campaignObj) {
-  const body = JSON.stringify({ action: 'write', fileId: CAMPAIGN_FILE, data: campaignObj });
-  const res  = await fetch(DRIVE_PROXY, {
-    method:  'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body:    body,
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || 'Drive write error');
-  return data;
-}
-
-
-// Create a backup copy
-async function backupCampaignOnDrive(label) {
-  return driveGet({
-    action: 'backup',
-    id:     CAMPAIGN_FILE,
-    label:  label || '',
-  });
-}
-
-// List existing backups
-async function listDriveBackups() {
-  return driveGet({ action: 'listBackups', id: CAMPAIGN_FILE });
-}
-
-// Compatibility shim — routes write to POST, everything else to GET
-async function driveRequest(action, extra) {
-  if (action === 'write') {
-    const data = (extra || {}).data;
-    if (!data) throw new Error('driveRequest write: data required');
-    return writeCampaignToDrive(data);
-  }
-  var params = Object.assign({ action: action, id: CAMPAIGN_FILE }, extra || {});
-  return driveGet(params);
-}
-
+// Drive access (read, backup, write) now lives in shared/chronicle-store.js
+// as ChronicleStore.loadPublishBase() and ChronicleStore.publishSession().
+// This page no longer talks to the Drive proxy directly (issue #96).
 
 // ══════════════════════════════════════════════════════
 // PARTY LOOKUP
@@ -3793,9 +3728,9 @@ function showPublishConfirm() {
   if (!approved.length) { alert('No approved items to publish.'); return; }
 
   // SafeTestMode banner — make it unmistakable when the DM is about to write to the
-  // test fixture rather than the live campaign. Optional chaining guards against absent
-  // config.js (gitignored — may not exist in all environments).
-  const isSafeTest = !!window.CHRONICLE_CONFIG?.safeTestMode;
+  // test fixture rather than the live campaign. Asks the store module, which owns
+  // the Safe Test Mode rule and copes with an absent config.js (issue #96).
+  const isSafeTest = ChronicleStore.isSafeTestMode();
   const banner = document.getElementById('confirm-safetest-banner');
   if (banner) banner.style.display = isSafeTest ? 'block' : 'none';
 
@@ -3885,7 +3820,8 @@ function cancelPublish() {
  * confirmPublish()
  *
  * Called by the "Confirm Publish" button in the pre-publish panel. Hides the
- * panel and executes the Drive write sequence — backup → fetch → apply → write.
+ * panel and executes the publish sequence — load base → apply → publish, with
+ * the storage steps delegated to ChronicleStore (backup + Drive write today).
  *
  * Why renamed from publish(): the old publish() fired on every Publish button
  * click. With the confirmation panel, the button calls showPublishConfirm()
@@ -3911,70 +3847,35 @@ async function confirmPublish() {
     || 'unknown_session';
 
   try {
-    // safeTestMode: bypass Drive entirely.
-    // Browsers cannot write to the local filesystem, so we:
-    //   1. Read from the local fixture (getCampaignPath) instead of Drive
-    //   2. Apply deltas as normal
-    //   3. Trigger a file download of the result so you can replace the fixture manually
-    // No backup is created — there is no Drive target to back up to.
-    if (window.CHRONICLE_CONFIG.safeTestMode) {
-      setPublishStatus('Safe test mode — reading local fixture…', 'loading');
-      const res = await fetch(window.CHRONICLE_CONFIG.getCampaignPath());
-      if (!res.ok) throw new Error('Could not read local fixture: HTTP ' + res.status);
-      const campaign = await res.json();
+    // Every storage step goes through ChronicleStore (issue #96), so moving
+    // publish from Drive to the repo (#97) and later to Postgres changes only
+    // shared/chronicle-store.js. The store also handles Safe Test Mode: the base
+    // comes from the local fixture and the result is downloaded, not written.
 
-      setPublishStatus('Applying deltas…', 'loading');
-      const updated = applyDeltasToCampaign(campaign, approved);
-
-      // Trigger a download of the merged JSON so it can be saved back to the fixture manually.
-      // Live Server has no write endpoint — this is the closest equivalent to a local write.
-      const blob = new Blob([JSON.stringify(updated, null, 2)], { type: 'application/json' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = 'test-campaign.json';
-      a.click();
-      URL.revokeObjectURL(url);
-
-      const n = approved.length;
-      setPublishStatus(`✓ [TEST MODE] ${n} delta${n!==1?'s':''} applied — download started. Replace tests/fixtures/test-campaign.json with the downloaded file.`, 'ok');
-      approved.forEach(i => { i.status = 'published'; });
-      renderQueue();
-      updateProgress();
-
-      // Post-publish narrative trigger still fires in test mode — it only reads
-      // the updated JSON and writes to sessionStorage, so no Drive access needed.
-      afterPublishSuccess(updated, sessionId);
-
-      // Clear intake sessionStorage now that publish succeeded (issue #83).
-      // Placed after afterPublishSuccess so that function can still read narrative
-      // beats from the envelope. Both keys removed together — the loaded flag must
-      // be cleared so the next intake run is not mistakenly detected as a restoration.
-      sessionStorage.removeItem('chronicle_intake_delta');
-      sessionStorage.removeItem('chronicle_intake_delta_loaded');
-      return;
-    }
-
-    // Step 1 — pre-publish backup
-    setPublishStatus('Creating backup…', 'loading');
-    const sessionLabel = items.find(i=>i.array==='session_logs')?.id || 'pre-publish';
-    await driveRequest('backup', { label: sessionLabel });
-
-    // Step 2 — fetch current campaign JSON from Drive
+    // Step 1 — fetch the copy this publish builds on (the Drive file today).
     setPublishStatus('Fetching current log…', 'loading');
-    const campaign = await fetchCampaignFromDrive();
+    const campaign = await ChronicleStore.loadPublishBase();
 
-    // Step 3 — apply approved deltas to the campaign object
+    // Step 2 — apply approved deltas to the campaign object
     setPublishStatus('Applying deltas…', 'loading');
     const updated = applyDeltasToCampaign(campaign, approved);
 
-    // Step 4 — write the updated JSON back to Drive
-    setPublishStatus('Writing to Drive…', 'loading');
-    await driveRequest('write', { data: updated });
+    // Step 3 — store it. Today: Drive backup, then Drive write. The backup label
+    // is the session stub's item id, as before; 'pre-publish' when there is none.
+    const sessionLabel = items.find(i=>i.array==='session_logs')?.id || 'pre-publish';
+    const result = await ChronicleStore.publishSession(
+      updated,
+      { sessionId: sessionId, label: sessionLabel },
+      { onProgress: msg => setPublishStatus(msg, 'loading') }
+    );
 
-    // Step 5 — done
+    // Step 4 — done. The test-mode wording tells the DM what to do with the download.
     const n = approved.length;
-    setPublishStatus(`✓ Published ${n} delta${n!==1?'s':''} · backup created`, 'ok');
+    if (result.mode === 'test-download') {
+      setPublishStatus(`✓ [TEST MODE] ${n} delta${n!==1?'s':''} applied — download started. Replace tests/fixtures/test-campaign.json with the downloaded file.`, 'ok');
+    } else {
+      setPublishStatus(`✓ Published ${n} delta${n!==1?'s':''} · backup created`, 'ok');
+    }
     approved.forEach(i => { i.status = 'published'; });
     renderQueue();
     updateProgress();
@@ -4384,7 +4285,7 @@ function applyDeltasToCampaign(campaign, approved) {
 //
 // DATA FLOW
 // ---------
-// 1. initIntegrity() fetches ../data/magers-campaign.json at page load.
+// 1. initIntegrity() loads the campaign via ChronicleStore.loadCampaign() at page load.
 //    This is the same-origin repo copy — NOT the Drive copy that publish()
 //    writes to. The two can diverge; integrity checks against the repo copy.
 // 2. buildIncomingFromItems() extracts combatId+roundNumber from items[]
@@ -5041,11 +4942,9 @@ async function initIntegrity() {
     return;
   }
   try {
-    // Route through the Safe Test Mode resolver so test runs target the fixture.
-    // Falls back to the hardcoded path when config.js is absent (GitHub Pages).
-    const res = await fetch(window.CHRONICLE_CONFIG?.getCampaignPath?.() ?? '../data/magers-campaign.json');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    // Load through the store module (issue #96), which resolves Safe Test Mode
+    // and throws on a failed fetch, so the catch below still reports it.
+    const json = await ChronicleStore.loadCampaign();
 
     // Build the campaign data shape used by integrity checks and entity dedup.
     //

@@ -209,9 +209,11 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 </div>
 
 <script src="../shared/config.js"></script>
+<!-- chronicle-store.js loads the campaign at init (issue #96). -->
+<script src="../shared/chronicle-store.js"></script>
 <!-- chronicle-integrity.js must load before chronicle-ai.js — it has no dependencies
      of its own, and chronicle-ai.js may call gap-detection helpers at init time.
-     Required order: config.js → chronicle-integrity.js → chronicle-ai.js → page script -->
+     Required order: config.js → chronicle-store.js → chronicle-integrity.js → chronicle-ai.js → page script -->
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script>
@@ -341,11 +343,9 @@ let CAMPAIGN = null;
 
 async function initCampaignData() {
   try {
-    // Route through the Safe Test Mode resolver so test runs target the fixture.
-    // Falls back to the hardcoded path when config.js is absent (GitHub Pages).
-    const res = await fetch(window.CHRONICLE_CONFIG?.getCampaignPath?.() ?? '../data/magers-campaign.json');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    // Load through the store module (issue #96). It resolves Safe Test Mode
+    // and throws on a failed fetch, so the catch below still reports it.
+    const json = await ChronicleStore.loadCampaign();
 
     // Build the minimal CAMPAIGN shape that ChronicleIntegrity.checks() needs.
     // Only combat_encounters is required for hard gap detection.

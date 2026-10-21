@@ -272,6 +272,7 @@ aside{border-right:1px solid var(--border-strong);display:flex;flex-direction:co
 <div class="toast" id="toast"></div>
 
 <script src="../shared/config.js"></script>
+<script src="../shared/chronicle-store.js"></script><!-- loads the campaign at init (issue #96) -->
 <script src="../shared/chronicle-ai.js"></script><!-- required for AI draft panel; load before page script -->
 <script>
 // ══════════════════════════════════════════════════════
@@ -1088,11 +1089,9 @@ function showToast(msg) {
 // Edits are still in-memory only — no write-back to JSON or Drive exists yet.
 (async () => {
   try {
-    // Route through the Safe Test Mode resolver so test runs target the fixture.
-    // Falls back to the hardcoded path when config.js is absent (GitHub Pages).
-    const res = await fetch(window.CHRONICLE_CONFIG?.getCampaignPath?.() ?? '../data/magers-campaign.json');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    // Load through the store module (issue #96). It resolves Safe Test Mode
+    // and throws on a failed fetch, so the catch below still shows the error toast.
+    const json = await ChronicleStore.loadCampaign();
 
     // Rebuild ENTITIES from live v4 JSON. All mechanics fields are nested in
     // entity.mechanics; narrative prose is in entity.narrative.

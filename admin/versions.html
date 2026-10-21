@@ -243,78 +243,13 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 <div class="toast" id="toast"></div>
 
 <script src="../shared/config.js"></script>
+<!-- chronicle-store.js owns every Drive call this page makes: backup, backup
+     list, backup download and the campaign read for stats (issue #96). -->
+<script src="../shared/chronicle-store.js"></script>
 <script>
-// ── Drive integration ─────────────────────────────────────────────────────────
-// All requests use GET to avoid CORS preflight. Write data is JSON-encoded
-// in the URL 'payload' parameter. The proxy returns { ok, raw } for reads
-// and { ok, ... } for mutations.
-
-const DRIVE_PROXY    = window.CHRONICLE_CONFIG.proxyUrl;
-// Use the resolver so Drive writes target the test Drive file when safeTestMode is on.
-const CAMPAIGN_FILE  = window.CHRONICLE_CONFIG.getCampaignFileId();
-
-async function driveGet(params) {
-  var url = DRIVE_PROXY + '?';
-  var parts = [];
-  Object.keys(params).forEach(function(k) {
-    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
-  });
-  url += parts.join('&');
-  const res  = await fetch(url);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || 'Drive error');
-  return data;
-}
-
-// Read campaign JSON — returns the parsed campaign object
-async function fetchCampaignFromDrive() {
-  const data = await driveGet({ action: 'read', id: CAMPAIGN_FILE });
-  // Proxy returns { ok: true, raw: "<json string>" }
-  return JSON.parse(data.raw);
-}
-
-// Write uses POST with Content-Type: text/plain to avoid CORS preflight.
-// text/plain is a CORS "simple" type — no OPTIONS request is sent.
-async function writeCampaignToDrive(campaignObj) {
-  const body = JSON.stringify({ action: 'write', fileId: CAMPAIGN_FILE, data: campaignObj });
-  const res  = await fetch(DRIVE_PROXY, {
-    method:  'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body:    body,
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || 'Drive write error');
-  return data;
-}
-
-
-// Create a backup copy
-async function backupCampaignOnDrive(label) {
-  return driveGet({
-    action: 'backup',
-    id:     CAMPAIGN_FILE,
-    label:  label || '',
-  });
-}
-
-// List existing backups
-async function listDriveBackups() {
-  return driveGet({ action: 'listBackups', id: CAMPAIGN_FILE });
-}
-
-// Compatibility shim — routes write to POST, everything else to GET
-async function driveRequest(action, extra) {
-  if (action === 'write') {
-    const data = (extra || {}).data;
-    if (!data) throw new Error('driveRequest write: data required');
-    return writeCampaignToDrive(data);
-  }
-  var params = Object.assign({ action: action, id: CAMPAIGN_FILE }, extra || {});
-  return driveGet(params);
-}
-
+// Drive access now lives in shared/chronicle-store.js. This page calls
+// ChronicleStore.createBackup / listBackups / loadBackup / loadPublishBase
+// instead of keeping its own copy of the proxy code (issue #96).
 
 // ══════════════════════════════════════════════════════
 // VERSION LEDGER — persisted to localStorage
@@ -373,7 +308,7 @@ function setVersionStatus(msg, state) {
 async function syncBackupsFromDrive() {
   try {
     setVersionStatus('Syncing backup list from Drive…', 'loading');
-    const result  = await driveRequest('listBackups', {});
+    const result  = await ChronicleStore.listBackups();
     const backups = result.backups || [];
 
     let added = 0;
@@ -409,10 +344,10 @@ async function syncBackupsFromDrive() {
 async function downloadDriveBackup(driveBackupId, filename) {
   try {
     setVersionStatus('Fetching backup from Drive…', 'loading');
-    const res  = await fetch(`${DRIVE_PROXY}?id=${driveBackupId}`);
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
-    const blob = new Blob([JSON.stringify(data.data, null, 2)], {type:'application/json'});
+    // The store throws on an HTTP error or a { ok:false } reply, so a failed
+    // read lands in the catch below instead of downloading "undefined".
+    const backup = await ChronicleStore.loadBackup(driveBackupId);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a'); a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
@@ -726,13 +661,15 @@ async function startPreSessionBackup() {
 
     // Step 1 — backup file on Drive (server-side copy, stays in campaign folder)
     setVersionStatus('Creating Drive backup…', 'loading');
-    const result = await driveRequest('backup', { label });
+    const result = await ChronicleStore.createBackup(label);
     const driveBackupId   = result.backupId;
     const driveBackupName = result.name;
 
-    // Step 2 — fetch current campaign data to store stats locally
+    // Step 2 — fetch current campaign data to store stats locally.
+    // loadPublishBase() is the Drive file that was just backed up, so the
+    // stats describe the backup (in Safe Test Mode: the local test fixture).
     setVersionStatus('Reading campaign data…', 'loading');
-    const data  = await fetchCampaignFromDrive();
+    const data  = await ChronicleStore.loadPublishBase();
     const stats = statsFromData(data);
 
     // Step 3 — record in local ledger
