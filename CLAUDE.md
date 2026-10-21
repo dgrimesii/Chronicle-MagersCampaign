@@ -348,22 +348,37 @@ outcome: c.mechanics?.outcome ?? c.outcome ?? '',
 
 ### Combat slot format
 
-In v4, each slot's action fields are nested inside a `slot.action` object. The normaliser's `flattenSlot` helper translates to the flat shape the combat viewer expects:
+Schema 5.0.0 (issue #93) uses the turn schema. A slot is `{ s, a, activities[], notes }`. Each activity is `{ economy, name, detail?, val_type?, outcomes[], notes?, member?, ready_ref? }`, and each outcome is `{ res, val, target_id, target_text?, detail?, effect?, notes? }`. README "Turn schema (5.0.0)" and the data file's own `_field_type_reference.slot_fields` define every field and value. Rules that are easy to get wrong:
+
+- `economy` is one of `action`, `bonus_action`, `reaction`, `movement`, `free`, `legendary_action`, `legendary_resistance`
+- For the `action` economy, `name` is a standard action (Attack, Magic, Dash, Ready…), `Death Save`, or `No Action: <reason>`; the spell or weapon goes in `detail`. For other economies `name` is the feature or spell itself
+- Down is an outcome `effect`, never an activity. Death saves record `success` or `failure`. A down or kill matched to its roll lives only in that outcome's `effect`, not also in `special_events`
+- `target_id` is an ID or null: an entity ID, or a roster `actor_id` until enemies get IDs (#95). One target per outcome; never slash-joined. A target that is not an entity goes in `target_text` with `target_id` null. Never invent an ID
+- One outcome per attack roll, even when the target repeats ("Melee (x2)" on one PC is two outcomes). An outcome's own `detail` (Bite, Claw) names the attack used for that roll and overrides the activity's `detail`
+- Enemies have no slots: one `enemy_turns[]` entry per roster group per round, `{ actor_id, activities[], special_events[], notes }`
+- Never add the 4.x fields (`action`, `bonus_action`, `reaction`, `movement`, `object_interaction`, `attacks`) back to a slot
+
+The normaliser's `flattenSlot` helper translates a slot to the flat shape the combat viewer expects:
 
 ```javascript
-// flattenSlot: v4 nests act/res/val inside slot.action — renderer uses flat fields.
-{ s, a, act: slot.action?.name, res: slot.action?.res, val: slot.action?.val, notes: slot.notes || slot.action?.notes }
+// flattenSlot: act lists every activity (activityLabel); res/val come from the
+// action activity's single outcome, else null (no badge for multi-attacks).
+{ s, a, act: activities.map(activityLabel).join(' / '), res: one?.res ?? null, val: one?.val ?? null, notes: slot.notes || primary?.notes }
 ```
 
-Enemy turns: v4 uses `round.enemy_turns[]` with `{actor_id, action:{name,res,val}, special_events:[{description}]}`. The normaliser's `flattenEnemyTurn` helper builds `{desc, impact}` for the renderer:
+The `flattenEnemyTurn` helper builds `{desc, impact}` for the renderer:
 
 ```javascript
-// flattenEnemyTurn: builds desc from actor_id + action; impact from special_events[].description
-desc   = actor_id + ': ' + action.name + ' (' + action.res + ', ' + action.val + ')';
+// flattenEnemyTurn: desc lists every activity of the group; impact from special_events[].description
+desc   = actor_id + ': ' + activities.map(a => activityLabel(a) + (single outcome ? ' (res, val)' : '')).join('; ');
 impact = special_events.map(ev => ev.description).join('; ') || null;
 ```
 
-The `flattenSlot` and `flattenEnemyTurn` helpers are nested functions inside `normaliseCampaignJson`. They are not exported.
+Both helpers keep a compatibility branch for 4.x slots (`slot.action`) and enemy turns (`et.action`), because delta-review publish writes 4.x rounds until #92. Remove that branch when #92 ships.
+
+`flattenSlot`, `flattenEnemyTurn`, `activityLabel` and `singleOutcome` are nested functions inside `normaliseCampaignJson`. They are not exported. `tests/turn-schema.test.js` cuts `normaliseCampaignJson` out of both pages and checks that the two produce identical combats.
+
+To convert a file that still has 4.x rounds (for example after a pre-#92 publish), run `node scripts/migrate-turn-schema.js <file>` for a dry run, or add `--write` to rewrite the file. The script only reports inconsistencies; it never fixes them.
 
 ### What the JSON must never store
 
@@ -377,7 +392,7 @@ The `flattenSlot` and `flattenEnemyTurn` helpers are nested functions inside `no
 
 ### Schema version
 
-Do not change `_schema_version` without explicit instruction. It lives at the root of the JSON, not inside `meta`.
+Do not change `_schema_version` without explicit instruction. It lives at the root of the JSON, not inside `meta`. Current version: `5.0.0`, approved by the DM on issue #93 for the turn schema. The test fixture uses the same version.
 
 ---
 

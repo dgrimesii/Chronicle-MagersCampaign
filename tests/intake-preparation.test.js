@@ -73,14 +73,15 @@ console.log('\nTest C-1 — fixture has all required top-level sections');
   });
 }
 
-// ── Test C-2 — Schema version is a v4 release ────────────────────────────────
-// The intake pipeline expects v4 schema (mechanics/narrative two-layer pattern).
-// The minor version advances as new arrays are added (e.g. factions[] in 4.1.0).
+// ── Test C-2 — Schema version is a v5 release ────────────────────────────────
+// The fixture follows the campaign schema: 5.0.0 replaced the 4.x combat slot
+// fields with the activities/outcomes turn schema (issue #93, approved by the
+// DM on the issue). The mechanics/narrative two-layer pattern from v4 is kept.
 // We check the major version only — a hard pin to an exact minor would fail on
 // every schema extension, which defeats the purpose of the test.
-console.log('\nTest C-2 — schema version is v4.x');
+console.log('\nTest C-2 — schema version is v5.x');
 {
-  assert('_schema_version starts with "4."', fixture._schema_version?.startsWith('4.'));
+  assert('_schema_version starts with "5."', fixture._schema_version?.startsWith('5.'));
 }
 
 // ── Test C-3 — All entity IDs follow the <type>_<number> format ──────────────

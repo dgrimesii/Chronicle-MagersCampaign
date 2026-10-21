@@ -1,24 +1,36 @@
 {
-  "_schema_version": "4.1.0",
+  "_schema_version": "5.0.0",
   "meta": {
     "campaign_name": "Test Campaign",
     "system": "D&D 5e",
-    "last_updated": "2026-04-20",
+    "last_updated": "2026-10-20",
     "note": "Synthetic test data — no real Magers campaign content"
   },
   "party": [
     {
       "id": "pc_001",
       "name": "Aldric",
-      "mechanics": { "class": "Fighter", "level": 3, "race": "Human" },
-      "narrative": { "background": "Soldier" },
+      "mechanics": {
+        "class": "Fighter",
+        "level": 3,
+        "race": "Human"
+      },
+      "narrative": {
+        "background": "Soldier"
+      },
       "campaign_notes": "Test PC 1"
     },
     {
       "id": "pc_002",
       "name": "Sable",
-      "mechanics": { "class": "Rogue", "level": 3, "race": "Halfling" },
-      "narrative": { "background": "Criminal" },
+      "mechanics": {
+        "class": "Rogue",
+        "level": 3,
+        "race": "Halfling"
+      },
+      "narrative": {
+        "background": "Criminal"
+      },
       "campaign_notes": "Test PC 2"
     }
   ],
@@ -30,14 +42,22 @@
         "summary": "The party arrived at the test location and encountered the first combat.",
         "tone": "tense",
         "key_moments": [
-          { "description": "Aldric defeated the lead goblin" },
-          { "description": "Sable found a hidden door" }
+          {
+            "description": "Aldric defeated the lead goblin"
+          },
+          {
+            "description": "Sable found a hidden door"
+          }
         ]
       },
       "mechanics": {
         "xp_awarded": 300,
-        "combats": ["cbt_001"],
-        "locations_visited": ["loc_001"]
+        "combats": [
+          "cbt_001"
+        ],
+        "locations_visited": [
+          "loc_001"
+        ]
       }
     },
     {
@@ -47,13 +67,17 @@
         "summary": "The party explored the ruins and resolved the goblin quest.",
         "tone": "hopeful",
         "key_moments": [
-          { "description": "The quest was completed" }
+          {
+            "description": "The quest was completed"
+          }
         ]
       },
       "mechanics": {
         "xp_awarded": 200,
         "combats": [],
-        "locations_visited": ["loc_002"]
+        "locations_visited": [
+          "loc_002"
+        ]
       }
     }
   ],
@@ -64,7 +88,9 @@
       "mechanics": {
         "outcome": "victory",
         "location": "loc_001",
-        "sessions": ["session_001"],
+        "sessions": [
+          "session_001"
+        ],
         "total_rounds_logged": 3
       },
       "narrative": {
@@ -76,28 +102,171 @@
         {
           "n": 1,
           "slots": [
-            { "s": 1, "a": "pc_001", "action": { "name": "Longsword", "res": "hit", "val": 8 }, "notes": null },
-            { "s": 2, "a": "pc_002", "action": { "name": "Sneak Attack", "res": "hit", "val": 11 }, "notes": null }
+            {
+              "s": 1,
+              "a": "pc_001",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Longsword",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 8,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Sneak Attack",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 11,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            }
           ],
           "enemy_turns": [
-            { "actor_id": "Goblin A", "action": { "name": "Scimitar", "res": "miss", "val": 0 }, "special_events": [] }
+            {
+              "actor_id": "Goblin A",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Scimitar",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": 0,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "special_events": [],
+              "notes": null
+            }
           ]
         },
         {
           "n": 2,
           "slots": [
-            { "s": 1, "a": "pc_001", "action": { "name": "Longsword", "res": "crit", "val": 16 }, "notes": null },
-            { "s": 2, "a": "pc_002", "action": { "name": "Shortbow", "res": "miss", "val": 0 }, "notes": null }
+            {
+              "s": 1,
+              "a": "pc_001",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Longsword",
+                  "outcomes": [
+                    {
+                      "res": "crit",
+                      "val": 16,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Shortbow",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": 0,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            }
           ],
           "enemy_turns": [
-            { "actor_id": "Goblin B", "action": { "name": "Scimitar", "res": "hit", "val": 5 }, "special_events": [] }
+            {
+              "actor_id": "Goblin B",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Scimitar",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 5,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "special_events": [],
+              "notes": null
+            }
           ]
         },
         {
           "n": 3,
           "slots": [
-            { "s": 1, "a": "pc_001", "action": { "name": "Longsword", "res": "hit", "val": 9 }, "notes": "final blow" },
-            { "s": 2, "a": "pc_002", "action": { "name": "Disengage", "res": "success", "val": null }, "notes": null }
+            {
+              "s": 1,
+              "a": "pc_001",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Longsword",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 9,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": "final blow"
+            },
+            {
+              "s": 2,
+              "a": "pc_002",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Disengage",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            }
           ],
           "enemy_turns": []
         }
@@ -108,34 +277,60 @@
     {
       "id": "npc_001",
       "name": "Grak",
-      "mechanics": { "disposition": "hostile", "affiliation": null, "first_seen": "session_001" },
-      "narrative": { "description": "Leader of the goblin skirmish group. Defeated in session 1." }
+      "mechanics": {
+        "disposition": "hostile",
+        "affiliation": null,
+        "first_seen": "session_001"
+      },
+      "narrative": {
+        "description": "Leader of the goblin skirmish group. Defeated in session 1."
+      }
     },
     {
       "id": "npc_002",
       "name": "Elder Wynn",
-      "mechanics": { "disposition": "friendly", "affiliation": "Village Council", "first_seen": "session_001" },
-      "narrative": { "description": "Village elder who hired the party to clear the road." }
+      "mechanics": {
+        "disposition": "friendly",
+        "affiliation": "Village Council",
+        "first_seen": "session_001"
+      },
+      "narrative": {
+        "description": "Village elder who hired the party to clear the road."
+      }
     },
     {
       "id": "npc_003",
       "name": "Mira",
-      "mechanics": { "disposition": "neutral", "affiliation": null, "first_seen": "session_002" },
-      "narrative": { "description": "Traveller encountered at the ruins. Knows about the hidden cache." }
+      "mechanics": {
+        "disposition": "neutral",
+        "affiliation": null,
+        "first_seen": "session_002"
+      },
+      "narrative": {
+        "description": "Traveller encountered at the ruins. Knows about the hidden cache."
+      }
     }
   ],
   "locations": [
     {
       "id": "loc_001",
       "name": "North Road Ambush Site",
-      "mechanics": { "visibility": "known" },
-      "narrative": { "description": "The stretch of road where the goblin ambush took place." }
+      "mechanics": {
+        "visibility": "known"
+      },
+      "narrative": {
+        "description": "The stretch of road where the goblin ambush took place."
+      }
     },
     {
       "id": "loc_002",
       "name": "Crumbled Watch Tower",
-      "mechanics": { "visibility": "known" },
-      "narrative": { "description": "Ancient ruins the party explored in session 2." }
+      "mechanics": {
+        "visibility": "known"
+      },
+      "narrative": {
+        "description": "Ancient ruins the party explored in session 2."
+      }
     }
   ],
   "quest_ledger": [
@@ -148,13 +343,20 @@
         "category": "combat",
         "origin_session": "session_001",
         "objectives": [
-          { "description": "Defeat the goblin ambush group", "is_completed": true }
+          {
+            "description": "Defeat the goblin ambush group",
+            "is_completed": true
+          }
         ],
         "progress_log": [
-          { "fact": "Goblins defeated in session 1" }
+          {
+            "fact": "Goblins defeated in session 1"
+          }
         ]
       },
-      "narrative": { "motivation": "Elder Wynn offered payment to make the road safe." }
+      "narrative": {
+        "motivation": "Elder Wynn offered payment to make the road safe."
+      }
     },
     {
       "id": "qst_002",
@@ -165,13 +367,20 @@
         "category": "exploration",
         "origin_session": "session_002",
         "objectives": [
-          { "description": "Locate the cache beneath the ruins", "is_completed": false }
+          {
+            "description": "Locate the cache beneath the ruins",
+            "is_completed": false
+          }
         ],
         "progress_log": [
-          { "fact": "Mira hinted the cache is below the east tower" }
+          {
+            "fact": "Mira hinted the cache is below the east tower"
+          }
         ]
       },
-      "narrative": { "motivation": "The crude map from the goblins pointed to a hidden stash." }
+      "narrative": {
+        "motivation": "The crude map from the goblins pointed to a hidden stash."
+      }
     }
   ],
   "inventory_and_loot": [
@@ -184,7 +393,9 @@
         "found_session": "session_001",
         "is_quest_relevant": true
       },
-      "narrative": { "description": "A hand-drawn map found on the goblin leader. Marks a location in the ruins." }
+      "narrative": {
+        "description": "A hand-drawn map found on the goblin leader. Marks a location in the ruins."
+      }
     },
     {
       "id": "item_002",
@@ -195,7 +406,9 @@
         "found_session": "session_001",
         "is_quest_relevant": false
       },
-      "narrative": { "description": "A battered short blade looted from the ambush. Functional but ugly." }
+      "narrative": {
+        "description": "A battered short blade looted from the ambush. Functional but ugly."
+      }
     }
   ],
   "bestiary": [],

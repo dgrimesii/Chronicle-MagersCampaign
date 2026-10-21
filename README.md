@@ -32,11 +32,12 @@ Chronicle-MagersCampaign/
 │   ├── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
 │   └── chronicle-narrative.js  # Shared Gemini narrative module — exports window.ChronicleNarrative
 ├── data/
-│   ├── magers-campaign.json    # Campaign data — single source of truth, schema version 4.0.0
+│   ├── magers-campaign.json    # Campaign data — single source of truth, schema version 5.0.0
 │   └── pc-abilities.json       # Per-PC ability/spell/action lists harvested from D&D Beyond; used by intake.html OCR prompt enrichment (issue #80). Regenerate with: node scripts/harvest-characters.js
 ├── scripts/
 │   ├── build.js                # STALE — injected EMBEDDED_DATA into HTML files; markers removed in Phase 1, script is now dead code
-│   └── harvest-characters.js  # Fetches all 6 PC character sheets from D&D Beyond, extracts key ability/spell names, writes data/pc-abilities.json. Run manually after sessions where characters level up.
+│   ├── harvest-characters.js  # Fetches all 6 PC character sheets from D&D Beyond, extracts key ability/spell names, writes data/pc-abilities.json. Run manually after sessions where characters level up.
+│   └── migrate-turn-schema.js # Converts combat rounds from 4.x slots to the 5.0.0 turn schema (issue #93). Dry run by default; --write rewrites the file. Idempotent; prints before/after counts and the inconsistencies it found.
 ├── notes/
 │   └── phase1-claude-code-prompt.md  # Historical prompt used to migrate data reads from Drive to repo fetch
 ├── docs/
@@ -51,8 +52,9 @@ Chronicle-MagersCampaign/
 │   ├── delta-schema.test.js          # Group E — delta item schema validation
 │   ├── delta-apply.test.js           # Tests for the applyDeltasToCampaign() logic copied from delta-review.html
 │   ├── store.test.js                 # Tests for shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
+│   ├── turn-schema.test.js           # Tests for the 5.0.0 turn schema: migration rules, converted data, both viewers' normalisers
 │   ├── fixtures/
-│   │   └── test-campaign.json        # Minimal v4.0.0 synthetic campaign for automated tests
+│   │   └── test-campaign.json        # Minimal v5.0.0 synthetic campaign for automated tests
 │   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
 │   └── ai-input-fixtures/            # Captured AI response fixtures for offline test runs
 ├── .gitignore                  # Ignores shared/config.js
@@ -129,9 +131,9 @@ Phase 2 goal (not yet implemented): Publish commits directly to the repo via the
 ## Schema
 
 File: `data/magers-campaign.json`  
-Schema version: `4.0.0` (stored as `_schema_version` at root)
+Schema version: `5.0.0` (stored as `_schema_version` at root). The change from 4.1.0 to 5.0.0 was approved by the DM on issue #93.
 
-v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. Mechanical facts (queryable, structured) live in `mechanics`; prose for human readers lives in `narrative`. The `normaliseCampaignJson` function translates v4 paths into the flat shape the renderers already expect — the rendering code is unchanged.
+v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. Mechanical facts (queryable, structured) live in `mechanics`; prose for human readers lives in `narrative`. v5.0.0 keeps that pattern and replaces each combat slot's fixed action fields with the turn schema below (activities tagged by action economy, each with outcomes). The `normaliseCampaignJson` function translates both into the flat shape the renderers already expect. The file's own `_field_type_reference` (`slot_fields`, `enemy_turn_fields`, `common_optional_fields`) documents every field.
 
 ### Top-level sections
 
@@ -147,7 +149,7 @@ v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. 
 | `inventory_and_loot` | Items; item_type/holder/found_session/is_quest_relevant in `mechanics`, description in `narrative` |
 | `locations` | Named locations; visibility in `mechanics`, description in `narrative` |
 | `quest_ledger` | Quests; status/priority/objectives/progress_log in `mechanics`, motivation in `narrative` |
-| `combat_encounters` | Combats; outcome/location/sessions in `mechanics`, setup/finale/aftermath in `narrative`; slots have nested `action` object; enemy turns use `enemy_turns[]` |
+| `combat_encounters` | Combats; outcome/location/sessions/`enemies_roster` in `mechanics`, setup/finale/aftermath in `narrative`; each round's party `slots[]` and `enemy_turns[]` hold `activities[]` with `outcomes[]` (see Turn schema below) |
 | `deferred_gaps` | Workflow state array written by delta-review when the DM defers an integrity gap. Each entry: `{ id, combat_id, combat_name, session_id, missing_rounds[], gap_type, deferred_at, status }`. Not campaign narrative — persists alongside the JSON so the future campaign scanner can surface pending entries as a correction queue. |
 | `prompt_improvement_log` | Workflow state array written by delta-review publish when the DM logged steering context during an OCR re-run in Session Intake. Each entry: `{ id, session_id, page_index, steering_text, failure_summary, corrected, logged_at, status }`. IDs use `pil_NNN` prefix. `status` starts as `'pending_review'`. Not campaign narrative — captures OCR prompt failure cases for future prompt improvement review (placeholder UI in `integrity.html`). |
 | `entity_relationships` | Root-level array for explicit relationship records between any two entities (PCs, NPCs, locations, quests, etc.). Each entry: `{ id, source_id, target_id, relationship_type, session_id, notes }`. Starts empty; populated by future admin tooling. `relationship_type` uses a controlled vocabulary: `combat_antagonist`, `allied`, `quest_connection`, `location_inhabitant`, `social_contact`, `witnessed`, `unknown`. IDs use `rel_NNN` prefix. |
@@ -197,10 +199,11 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `combat_encounters[].narrative.setup` | `combats[].narrativeContext` | was root-level in v3 |
 | `combat_encounters[].narrative.finale` | `combats[].finale` | was root-level in v3 |
 | `combat_encounters[].narrative.aftermath` | `combats[].aftermath` | was root-level in v3 |
-| `rounds[].slots[].action.name` | `rounds[].slots[].act` | v4 nests action; normaliser flattens |
-| `rounds[].slots[].action.res` | `rounds[].slots[].res` | v4 nests action; normaliser flattens |
-| `rounds[].slots[].action.val` | `rounds[].slots[].val` | v4 nests action; normaliser flattens |
-| `rounds[].enemy_turns[]` | `rounds[].enemy[{desc, impact}]` | v4 richer structure; normaliser builds desc/impact strings |
+| `rounds[].slots[].activities[]` | `rounds[].slots[].act` | 5.0.0: every activity as one label, joined with ` / ` (`activityLabel()`): the action bare, others prefixed `BA:`, `R:`, `Move:`, `Free:`, `Legendary:`. Attack and Magic show their `detail` (weapon or spell); other names show `name · detail`. 4.x: `slot.action.name` |
+| `rounds[].slots[].activities[economy=action].outcomes[0].res` | `rounds[].slots[].res` | 5.0.0: the action activity's result when it has exactly one outcome, else null (no badge), as 4.x did for `attacks[]`. Falls back to the first activity when there is no action. 4.x: `slot.action.res` |
+| `rounds[].slots[].activities[economy=action].outcomes[0].val` | `rounds[].slots[].val` | Same rule as `res`. 4.x: `slot.action.val` |
+| `rounds[].slots[].notes` + outcome `effect` | `rounds[].slots[].notes` | Slot notes, else the action activity's `notes`, followed by one "`<target> <effect>`" line per outcome effect (e.g. `Ogre killed`), joined with `; ` (`effectLines()`) |
+| `rounds[].enemy_turns[]` | `rounds[].enemy[{desc, impact}]` | 5.0.0: `desc` = `actor_id: ` + every activity's label, each with ` (res, val)` when it has one outcome, joined with `; `. `impact` = one "`<target> <effect>`" line per outcome effect (`pc_004 downed`), then the `special_events[].description`s not matched to a roll, joined with `; `. 4.x: built from `action.name/res/val` and `special_events` |
 | `world_lore[].narrative.content` | `lore[].content` | was root-level in v3 |
 | `world_lore[].mechanics.reliability` | `lore[].reliability` | was root-level in v3 |
 | `bestiary[].mechanics.reliability` | `bestiary[].reliability` | was root-level in v3 |
@@ -225,7 +228,72 @@ rounds[n].slots[{ s, a, act, res, val?, notes? }]
 rounds[n].enemy[{ desc, impact? }]
 ```
 
-`s` = slot number (1–6), `a` = actor_id, `act` = action name, `res` = result (hit/miss/crit/save/success/neutral/unclear), `val` = damage or value, `notes` = optional string.
+`s` = slot number (1–6), `a` = actor_id, `act` = every activity's label (see the mappings above), `res` = result (hit/miss/crit/save/success/failure/neutral/unclear; death saves use success/failure and keep the hit/miss colours), `val` = damage or value, `notes` = optional string.
+
+Both normalisers still read a 4.x slot (`slot.action`) or enemy turn (`et.action`) when it has no `activities[]`. This is a compatibility shim, because delta-review publish writes 4.x rounds until #92 rebuilds it. Remove the shim once #92 ships and no 4.x rounds remain in `data/`.
+
+### Turn schema (5.0.0)
+
+Introduced by issue #93 (design: `docs/intake-redesign.md`, "What a turn holds"). A turn records what the entity's action economy was spent on:
+
+```json
+{ "s": 6, "a": "pc_005",
+  "activities": [
+    { "economy": "action", "name": "Attack", "detail": "3 Melee Attacks",
+      "outcomes": [ { "res": "hit", "val": null, "target_id": null }, { "res": "hit", "val": null, "target_id": null } ],
+      "notes": "3 Rocks killed" }
+  ],
+  "notes": null }
+```
+
+| Level | Field | Values / meaning |
+|---|---|---|
+| Slot | `s`, `a`, `activities[]`, `notes` | Party members only. Replaces 4.x `action`, `bonus_action`, `reaction`, `movement`, `object_interaction` |
+| Activity | `economy` | `action`, `bonus_action`, `reaction`, `movement`, `free`, `legendary_action`, `legendary_resistance` |
+| Activity | `name` | Action economy: a standard action (Attack, Dash, Disengage, Dodge, Help, Hide, Influence, Magic, Ready, Search, Study, Utilize), `Death Save`, or `No Action` / `No Action: <reason>`. Other economies: the feature or spell (Flurry of Blows, Healing Word) |
+| Activity | `outcomes[]` | One per attack roll or spell target; empty when there was no roll |
+| Activity (optional) | `detail`, `val_type`, `notes`, `member` | Spell or weapon; damage/healing; annotation; named group member (goblin 3) |
+| Activity (optional) | `ready_ref` | On a reaction releasing a readied action: `{ round, s }` of the Ready activity |
+| Outcome | `res`, `val`, `target_id` | Always present (null when unknown). Replaces 4.x `attacks[]` entries and the action's own result. `target_id` is an ID or null: an entity ID (`pc_NNN`…), or the `actor_id` of one of the combat's `enemies_roster` groups until enemies get IDs (#95). It is never free text, and never several targets joined |
+| Outcome (optional) | `target_text` | The target exactly as written when it is not an entity (`"horse"`). Only present when `target_id` is null |
+| Outcome (optional) | `detail` | The attack used for this one roll (`Bite`, `Claw`). Overrides the activity's `detail`, so one Multiattack can hold a claw and a bite with separate targets. Carried from each 4.x `attacks[].name`, except labels that are not attack names ("Attack"/"attacks" restate the activity; "hits" is a result) |
+| Outcome (rule) | one per attack | One outcome per attack roll, even when the target repeats: "Melee (x2)" on Malachite is two outcomes with `target_id: "pc_002"` |
+| Outcome (optional) | `effect`, `notes` | `downed` / `killed` (down is an outcome, never an activity); per-roll note such as `Nat 1` or `Bite`. A down or kill matched to its roll lives only here, not also in `special_events` |
+
+**Enemy turns:** `{ actor_id, activities[], special_events[], notes }`. There is one turn per `enemies_roster` group per round, holding every activity of that group. Enemies have no initiative slots, so the 4.x `initiative_position` was dropped (it was null on every recorded turn). Legendary actions and resistances are activities in the boss's turn. Lair actions are their own turn with `actor_id: "lair"`.
+
+**New optional fields (5.0.0):**
+- `aliases[]` on every entity: other names the notes use for it.
+- `passages[]` on any entity, combat, round, activity, quest progress entry, character moment or session. Each entry is `{ text, session_id, speaker, page }`, where `speaker` is `"dm"` or an entity ID.
+- `role` on an `enemies_roster` group, to tell apart groups of the same creature (`melee`, `slinger`). The group's `count` is recorded only when known at the start of the combat.
+- `target_text` on an outcome: a target that is not an entity, kept as written (`"horse"`), with `target_id` null.
+
+`aliases`, `passages` and `role` are not populated yet. They are filled by later rebuild issues (#94 sets the Goblin Slingers role, and #100 to #102 add aliases and passages). `target_text` is used by the migrated data (`cbt_003` rounds 5 and 7).
+
+**How the 42 recorded rounds converted** (`scripts/migrate-turn-schema.js`):
+- **Action names:**
+  - `type: spell` → `Magic` with the spell as `detail`.
+  - `type: attack` → `Attack` with the weapon as `detail`.
+  - `death_save` → `Death Save`, with hit/miss relabelled success/failure.
+  - `other` → `No Action` (`Stable` became `No Action: Stable`).
+  - `Ready: X` → `Ready` with `X` as `detail`.
+  - Any other ability name is kept as written and reported.
+- **Results:** a result of `neutral` (or none) with no value gives an activity with no outcomes.
+- **Attack lists:** `attacks[]` entries become outcomes. Each entry's `name` becomes the outcome's `detail` (`Bite` ×4 in `cbt_004` r3, `Melee` ×2 in `cbt_005` r2), and its notes move to the outcome's `notes`. By DM ruling on #93, labels that are not attack names are left out: "Attack"/"attacks"/"Attacks" only restate the activity, and "hits" is a result already held in `res`. The unexplained "s" (12 outcomes) is kept as recorded.
+- **Movement:** strings become `movement` activities.
+- **Targets:**
+  - A slash-joined target (`"pc_001/pc_005"`) becomes one outcome per target, each with the same `res` and `val` null.
+  - A non-entity target goes to `target_text`.
+  - An action-level target that only summarised its per-attack targets (`cbt_004` r3 ROUS `"party"`) is dropped and reported.
+- **DM decisions on #93** (listed in the script's `EFFECT_DECISIONS` and `expandNoteTargets`):
+  - `cbt_002` r4's note "Hits on Goli, Del, Mal" becomes three hit outcomes (pc_005, pc_004, pc_002).
+  - `cbt_002` r13 and r15 "Melee (x2)" on Malachite each become two hit outcomes on pc_002.
+  - Nine downs and kills move from `special_events` onto their outcome's `effect`: `cbt_001` r2; `cbt_002` r7, r12 and r14; `cbt_003` r7 (horse killed, pc_004 downed) and r9; `cbt_005` r2; and `cbt_005` r3 (Atti's Ice Knife targets the Ogre, killed).
+  - Two stay in `special_events`: `cbt_002` r6 (held for the DM's ID check) and Del's familiar in `cbt_004` r4 (no roll to attach it to).
+  - The viewers show outcome effects in the enemy row's impact, or in a party slot's notes.
+- **Counts:** before and after the conversion match (280 actions, 3 bonus actions, 7 movements, 280 results counted per target, 34 enemy turns, 42 rounds). The `cbt_002` r4, r13 and r15 decisions then add 4 outcomes, so the file holds 284.
+- **Re-running:** the script is safe to re-run. From the 4.1.0 file it reproduces the committed combats exactly; on the converted file it changes nothing.
+- **Inconsistencies:** reported on issue #93, not fixed. Two items stay on the script's review list for the DM: the `cbt_003` r5 Axe Beaks note, and the `cbt_002` r6 ID/name mismatch.
 
 ### ID registry
 
@@ -456,6 +524,12 @@ Public API (`window.ChronicleAI`):
 
 | Issue | File | Detail |
 |---|---|---|
+| Publish still writes 4.x combat rounds | `admin/delta-review.html` | `applyDeltasToCampaign()` writes ROUND deltas as 4.x slots (`action`, `bonus_action`, …), so a publish before #92 mixes 4.x rounds into the 5.0.0 file. The viewers read both through a compatibility shim. Re-run `node scripts/migrate-turn-schema.js data/magers-campaign.json --write` after such a publish. Fixed by #92. |
+| AI round output is not the turn schema | `shared/chronicle-ai.js` | The round-fill prompts return their own flat per-roll format (`initiative_grid` entries with `action_type`), which delta-review turns into 4.x slots. They stay consistent with each other until #92 (publish) and #101 (extraction) move both to the turn schema. |
+| Turn-schema migration inconsistencies | `data/magers-campaign.json` | Reported by the migration and listed on issue #93, not fixed (scope). Examples: `cbt_002` r4 Goli's "3 Melee Attacks" has 2 results; Move/Dash logged as both the action and the movement in 5 turns; 3 spells with no result. |
+| `cbt_002` r6 IDs disagree with names | `data/magers-campaign.json` | The event "pc_001 (Goli) downed" and "pc_005 (Del) at 1HP" name the wrong IDs (pc_001 is Goldie, pc_005 is Goli). `mechanics.pcs_downed` records Del's round 7 down twice (under pc_005 and pc_004) and has pc_001 "Goli DOWNED Round 6". The round 6 hit targets pc_001 and pc_005. Slot data supports the names. Left unchanged for the DM to check against the notes as a separate data fix. |
+| `cbt_003` r5 note may sit on the wrong turn | `data/magers-campaign.json` | The Axe Beaks note "1 swarm attacks each horse (2 total). Del hit." reads like the Vespon Swarm's turn (one horse outcome, notes "2 separate swarm attacks"). Left as is pending the DM's check of the session_004 notes. |
+| Death saves no longer count in round hit/miss chips | `admin/log-viewer.html`, `player/index.html` | `roundSummaryChips()` and the combat totals count `res === 'hit'`/`'miss'`. Death saves were logged as hit/miss and inflated those counts; as success/failure they no longer do. Intentional, recorded here so the change in totals is not mistaken for lost data. |
 | `scripts/build.js` is dead code | `scripts/build.js` | EMBEDDED_DATA markers were removed from all HTML files in Phase 1. Running the script produces "SKIP (markers not found)" warnings and changes nothing. |
 | Log editor edits are in-memory only | `admin/log-editor.html` | No write-back to JSON or Drive. Changes are lost on page reload. |
 | Player view links to admin | `player/index.html` | Has a "⇄ Admin" button linking to `../admin/log-viewer.html`. |
@@ -483,8 +557,9 @@ tests/
 ├── delta-schema.test.js            # Group E — delta item schema validation
 ├── delta-apply.test.js             # applyDeltasToCampaign() logic (copy of the delta-review.html function)
 ├── store.test.js                   # shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
+├── turn-schema.test.js             # 5.0.0 turn schema — migration rules, converted data, both normalisers
 ├── fixtures/
-│   └── test-campaign.json          # Minimal v4.0.0 synthetic campaign — no real data
+│   └── test-campaign.json          # Minimal v5.0.0 synthetic campaign — no real data
 ├── ocr-ground-truth/
 │   └── README.md                   # Ground-truth pair format (image + expected JSON)
 └── ai-input-fixtures/
@@ -520,7 +595,7 @@ Switching test mode on or off requires changing only `config.js`. Older copies o
 
 ### Test fixture
 
-`tests/fixtures/test-campaign.json` is a minimal v4.0.0 campaign with synthetic data (no real Magers campaign content). It contains: 2 party members, 2 sessions, 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. All automated tests run against this fixture.
+`tests/fixtures/test-campaign.json` is a minimal v5.0.0 campaign with synthetic data (no real Magers campaign content). It contains: 2 party members, 2 sessions, 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. All automated tests run against this fixture.
 
 ---
 

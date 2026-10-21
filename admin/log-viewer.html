@@ -491,36 +491,122 @@ function normaliseCampaignJson(json) {
   // Fast path: data is already in viewer shape. Handles any future pre-normalised format.
   if (json.sessions && json.combats) return json;
 
-  // v4 campaign format (schema 4.0.0): root keys are combat_encounters and party.
+  // v4/v5 campaign format (schema 4.x and 5.0.0): root keys are combat_encounters and party.
   // v4 moves flat fields into mechanics/narrative sub-objects on every entity type.
   if (json.combat_encounters && json.party) {
 
-    // Flatten a v4 slot to the compact shape the renderer expects.
-    // v4 slot: {s, a, action:{name, res, val, ...}, notes}
-    // viewer:  {s, a, act, res, val, notes}
+    // Short prefixes that mark which action economy an activity spent, so a
+    // turn with an action and a bonus action reads "Firebolt / BA: Healing Word".
+    // The action economy has no prefix: it is the main thing a turn does, and
+    // leaving it bare keeps single-action turns looking as they did in 4.x.
+    const ECONOMY_PREFIX = {
+      action: '', bonus_action: 'BA: ', reaction: 'R: ', movement: 'Move: ',
+      free: 'Free: ', legendary_action: 'Legendary: ', legendary_resistance: 'Legendary: ',
+    };
+
+    // activityLabel(act) — one line of text for a 5.0.0 activity.
+    // Why: the renderer has one text cell per turn. Attack and Magic are generic
+    // standard-action names, so the weapon or spell (detail) stands in for them,
+    // which is what the 4.x viewer showed ("Firebolt", not "Magic · Firebolt").
+    // Other activities show name · detail ("Ready · Firebolt"). A named group
+    // member (goblin 3) leads the line. Changing this changes every combat cell.
+    function activityLabel(act) {
+      const name = act.name || '?';
+      const core = (name === 'Attack' || name === 'Magic')
+        ? (act.detail || name)
+        : (act.detail ? name + ' · ' + act.detail : name);
+      // A movement activity is usually already named "Move…"; skip the prefix then.
+      let prefix = ECONOMY_PREFIX[act.economy] ?? '';
+      if (act.economy === 'movement' && /^move/i.test(core)) prefix = '';
+      return (act.member ? act.member + ': ' : '') + prefix + core;
+    }
+
+    // singleOutcome(act) — the activity's outcome when it has exactly one.
+    // Why: the renderer shows one result badge and one value per turn. With
+    // several outcomes (a multi-attack) there is no single result, so — as the
+    // 4.x viewer did for attacks[] — no badge is shown rather than a misleading one.
+    function singleOutcome(act) {
+      return act && Array.isArray(act.outcomes) && act.outcomes.length === 1 ? act.outcomes[0] : null;
+    }
+
+    // effectLines(activities) — "pc_004 downed", "horse killed" for every
+    // outcome that carries an effect.
+    // Why: in 5.0.0 a down or kill matched to a roll is stored once, as that
+    // outcome's effect, and removed from special_events (DM decision on #93).
+    // The renderer used to show it from special_events, so without these lines
+    // those downs and kills would silently disappear from the combat view.
+    function effectLines(activities) {
+      return (activities || []).flatMap(a => (a.outcomes || []).filter(o => o.effect)
+        .map(o => (o.target_id ?? o.target_text ?? 'target') + ' ' + o.effect));
+    }
+
+    // Flatten a slot to the compact shape the renderer expects.
+    // 5.0.0 slot: {s, a, activities:[{economy, name, detail?, outcomes:[{res, val, target_id}]}], notes}
+    // viewer:     {s, a, act, res, val, notes}
+    // act lists every activity; res/val come from the action activity's single
+    // outcome (or the first activity when there is no action), as 4.x took them
+    // from slot.action. Removing this breaks every round in the combat viewer.
     function flattenSlot(slot) {
+      // Compatibility shim: 4.x slots ({action:{name,res,val}}) are still written
+      // by delta-review publish until #92 rebuilds it to write activities[].
+      // Remove this branch once #92 has shipped and no 4.x slots remain in data/.
+      if (!Array.isArray(slot.activities)) {
+        return {
+          s:     slot.s,
+          a:     slot.a,
+          act:   slot.action?.name  ?? '—',    // 4.x: slot.action.name
+          res:   slot.action?.res   ?? null,    // 4.x: slot.action.res
+          val:   slot.action?.val   ?? null,    // 4.x: slot.action.val
+          notes: slot.notes || slot.action?.notes || null,
+        };
+      }
+      const acts    = slot.activities;
+      const primary = acts.find(a => a.economy === 'action') ?? acts[0] ?? null;
+      const one     = singleOutcome(primary);
+      // Effects a party member's roll caused (e.g. "Ogre killed") join the notes
+      // line, since slots have no separate impact cell.
+      const notes   = [slot.notes || primary?.notes, ...effectLines(acts)].filter(Boolean).join('; ');
       return {
         s:     slot.s,
         a:     slot.a,
-        act:   slot.action?.name  ?? '—',    // v4: slot.action.name  (was top-level slot.act)
-        res:   slot.action?.res   ?? null,    // v4: slot.action.res   (was top-level slot.res)
-        val:   slot.action?.val   ?? null,    // v4: slot.action.val   (was top-level slot.val)
-        notes: slot.notes || slot.action?.notes || null,
+        act:   acts.length ? acts.map(activityLabel).join(' / ') : '—',
+        res:   one?.res ?? null,
+        val:   one?.val ?? null,
+        notes: notes || null,
       };
     }
 
-    // Map a v4 enemy_turn entry to the {desc, impact} shape the combat renderer uses.
-    // v4 enemy_turn: {actor_id, action:{name, res, val}, special_events:[{type, description}]}
+    // Map an enemy_turn entry to the {desc, impact} shape the combat renderer uses.
+    // 5.0.0 enemy_turn: {actor_id, activities:[…same as slots…], special_events:[{type, description}], notes}
+    // One turn holds every activity of a roster group, so desc lists them all,
+    // each with its result when it has a single outcome.
     function flattenEnemyTurn(et) {
-      const act = et.action;
-      let desc = et.actor_id || '?';
-      if (act?.name) {
-        desc += ': ' + act.name;
-        if (act.res) desc += ' (' + act.res + (act.val != null ? ', ' + act.val : '') + ')';
-      }
       // special_events carry narrative impacts like downed/killed markers
       const impact = (et.special_events || []).map(ev => ev.description).filter(Boolean).join('; ') || null;
-      return { desc, impact };
+      let desc = et.actor_id || '?';
+
+      // Compatibility shim for 4.x enemy turns ({action:{name,res,val}}) written
+      // by delta-review until #92 ships. Remove with the flattenSlot shim above.
+      if (!Array.isArray(et.activities)) {
+        const act = et.action;
+        if (act?.name) {
+          desc += ': ' + act.name;
+          if (act.res) desc += ' (' + act.res + (act.val != null ? ', ' + act.val : '') + ')';
+        }
+        return { desc, impact };
+      }
+
+      const parts = et.activities.map(act => {
+        const one = singleOutcome(act);
+        let text = activityLabel(act);
+        if (one?.res) text += ' (' + one.res + (one.val != null ? ', ' + one.val : '') + ')';
+        return text;
+      });
+      if (parts.length) desc += ': ' + parts.join('; ');
+      // Outcome effects first, then any special_events that were not matched
+      // to a roll (e.g. "Ogre emerged from treeline").
+      const effectImpact = [...effectLines(et.activities), impact].filter(Boolean).join('; ') || null;
+      return { desc, impact: effectImpact };
     }
 
     return {
@@ -617,7 +703,7 @@ function normaliseCampaignJson(json) {
 
       // ── Combats ───────────────────────────────────────────────────────────────
       // v4: outcome/location/sessions/total_rounds_logged inside mechanics;
-      //     setup/finale/aftermath inside narrative; slots have nested action object;
+      //     setup/finale/aftermath inside narrative; slots hold activities[] (5.0.0);
       //     enemy array renamed enemy_turns with richer structure
       combats: (json.combat_encounters || []).map(c => ({
         ...c,
@@ -1043,7 +1129,10 @@ function resultClass(res) {
   if (r==='miss'||r==='unclear') return 'result-miss';
   if (r==='death') return 'result-death';
   if (r==='save'||r==='enemy-save') return 'result-save';
-  if (r==='hit') return 'result-hit';
+  // Death saves record success/failure from schema 5.0.0 (issue #93); before,
+  // they were logged as hit/miss, so they keep the same colours.
+  if (r==='hit'||r==='success') return 'result-hit';
+  if (r==='failure') return 'result-miss';
   return 'result-neutral';
 }
 function resultLabel(res) {
