@@ -507,6 +507,41 @@ When fixing this, also remove the silent catch that falls back to the hardcoded 
 
 ---
 
+## Workflow: working a GitHub issue
+
+Whenever you work a GitHub issue in this repo, post an implementation log as a comment on that issue. Do not wait to be asked. Post it when the work is finished, before reporting back to the DM. If the work is later committed, pushed or changed, post a short follow-up comment that says so and names the commit hash.
+
+The issue thread is the lasting record of why the code changed. Chat history is not kept, and the commit message is too short to hold the reasoning.
+
+Every comment must:
+
+- **Say that Claude wrote it.** Start with a line such as `🤖 Comment written by Claude (Claude Code) on behalf of the DM.` The DM posts through their own GitHub account, so without this line the comment reads as if the DM wrote it.
+- **Give the date and state.** Give today's date and say whether the work is uncommitted, committed (with hash) or pushed.
+
+The implementation log must contain these sections:
+
+1. **What was built.** New files, functions or methods, and what each does.
+2. **What changed.** Each file touched, with one line on what changed in it.
+3. **Deviations.** Anything that differs from the issue's scope or suggested design, and why. Also list any behaviour change a reader would not expect from the issue text. Write "None" if there are none.
+4. **Docs.** Which README.md and CLAUDE.md sections were updated.
+5. **Automated tests.** Document these explicitly, never as a one-word "tests pass":
+   - the exact command(s) run (for example `node tests/run-all.js`)
+   - the result for every test file, plus totals (for example `6/6 files passed`, `35 passed, 0 failed`)
+   - which tests were added or changed, and what they check
+   - what the automated tests do not cover. For example, no test loads the HTML pages themselves.
+   - If tests were not run, or any failed, say so plainly and include the failure output.
+6. **Manual verification.** Browser or other manual checks done, and what they showed.
+7. **Not exercised.** Anything deliberately left untested, and why (for example, a real Drive write that would hit live data).
+8. **Acceptance.** The issue's acceptance checklist, each item ticked or not, with a note on any exception.
+
+Rules:
+
+- Report results faithfully. Never mark an acceptance item done, or tests passing, unless you saw it happen in this session.
+- Never paste secrets into a comment: API keys, the proxy URL, Drive file IDs, or anything from `shared/config.js`.
+- Posting a comment is outward-facing. This section is the DM's standing authorisation to post implementation logs and their follow-ups on issues you work. It does not authorise other actions, such as closing, relabelling or editing issues.
+
+---
+
 ## Keeping documentation current
 
 After any significant change to the codebase — new page, changed fetch path, new JSON section, schema version change, resolved known issue — propose updates to README.md and CLAUDE.md to reflect the new state. Do not let the documentation drift from the code.
