@@ -1,2 +1,5 @@
 # Local config — contains API key, never commit
 shared/config.js
+
+# Claude Code personal permission settings — per machine, never commit
+.claude/settings.local.json
