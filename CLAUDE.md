@@ -509,6 +509,17 @@ When fixing this, also remove the silent catch that falls back to the hardcoded 
 
 ## Workflow: working a GitHub issue
 
+### Issue status
+
+Move each issue you work through these states:
+
+1. **Start: add the `in-progress` label.** Do this before you change any code. If the issue is already closed, ask the DM before reopening it. Setting labels replaces the issue's whole label list, so read the current labels first and send them back with `in-progress` added. Never drop the existing labels (`feature`, `wu-*`, and so on).
+2. **Finished but not pushed: leave it open with `in-progress`.** Work that exists only locally or only in a local commit is not complete.
+3. **Complete: close it.** Close the issue only after the commit is pushed to `main`, and use the reason "completed". In the same step, remove `in-progress` (keeping every other label) and post the follow-up comment naming the commit hash. A `Closes #N` line in the commit message closes the issue automatically on push. Then check the issue's state, and close it yourself only if it is still open. The label still has to be removed either way.
+4. **Stopped or abandoned:** remove `in-progress` and leave the issue open. Post a comment saying what was done, what remains, and why the work stopped.
+
+### Implementation log
+
 Whenever you work a GitHub issue in this repo, post an implementation log as a comment on that issue. Do not wait to be asked. Post it when the work is finished, before reporting back to the DM. If the work is later committed, pushed or changed, post a short follow-up comment that says so and names the commit hash.
 
 The issue thread is the lasting record of why the code changed. Chat history is not kept, and the commit message is too short to hold the reasoning.
@@ -538,7 +549,12 @@ Rules:
 
 - Report results faithfully. Never mark an acceptance item done, or tests passing, unless you saw it happen in this session.
 - Never paste secrets into a comment: API keys, the proxy URL, Drive file IDs, or anything from `shared/config.js`.
-- Posting a comment is outward-facing. This section is the DM's standing authorisation to post implementation logs and their follow-ups on issues you work. It does not authorise other actions, such as closing, relabelling or editing issues.
+- Posting comments and changing an issue's state are outward-facing. This section is the DM's standing authorisation for exactly these actions on issues you work:
+  - posting implementation logs and their follow-ups
+  - adding and removing the `in-progress` label
+  - closing the issue as completed once its commit is pushed
+
+  It does not authorise any other change. Do not edit issue titles or bodies, add other labels, reopen closed issues, or close issues you did not work.
 
 ---
 
