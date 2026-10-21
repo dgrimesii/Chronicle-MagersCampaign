@@ -31,6 +31,7 @@ const TEST_FILES = [
   'tests/delta-apply.test.js',
   'tests/store.test.js',
   'tests/turn-schema.test.js',
+  'tests/bestiary-fold.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

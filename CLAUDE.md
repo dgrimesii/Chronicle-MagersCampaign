@@ -275,7 +275,9 @@ All IDs follow `<type>_<zero-padded-number>`:
 | Faction | `fac_` | `fac_001` |
 | Cohort | `coh_` | `coh_001` |
 
-Never reuse a voided or skipped ID. The current gap IDs in the NPC registry (`npc_002`, `npc_005`, `npc_006`) are permanently voided.
+Never reuse a voided or skipped ID. The current gap IDs in the NPC registry (`npc_002`, `npc_005`, `npc_006`) and the bestiary (`mon_006`, Goblin Slinger, folded into Goblins `mon_004` by issue #94) are permanently voided.
+
+A variant of a creature (a goblin with a sling) is the same bestiary entry in a different role. Give its combat roster group a `role` and point `mon_ref` at the base creature; tag abilities seen only in that role with the same `role`. Do not add a second bestiary entry for it.
 
 ### `deferred_gaps` — workflow state array
 
@@ -321,7 +323,7 @@ The `relationship_type` field on each entry in `entity_relationships[]` must be 
 
 `pc_007`, `npc_015`, `loc_014`, `qst_006`, `item_012`, `cbt_007`, `session_008`, `mon_009`, `lore_004`, `moment_002`, `pil_001`, `rel_001`, `fac_001`, `coh_001`
 
-Voided/skipped NPC IDs (never reuse): `npc_002`, `npc_005`, `npc_006`
+Voided/skipped IDs (never reuse): `npc_002`, `npc_005`, `npc_006`, `mon_006`
 
 Update CLAUDE.md (this section) when new IDs are assigned.
 

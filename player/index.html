@@ -700,6 +700,24 @@ function normaliseCampaignJson(json) {
         reliability:        b.mechanics?.reliability        ?? null,  // v4: b.mechanics.reliability
         first_encountered:  b.mechanics?.first_encountered  ?? null,  // v4: b.mechanics.first_encountered
         combat_appearances: b.mechanics?.combat_appearances ?? [],    // v4: b.mechanics.combat_appearances
+        // The bestiary detail panel reads content (as "Knowledge") and traits (as
+        // "Observed traits"), names left over from v3. v4 moved both, so the panel
+        // showed nothing but reliability. Map them from the v4 paths so a merged
+        // entry such as Goblins (issue #94) shows its description and abilities.
+        content: b.narrative?.description ?? null,
+        // One line per observed ability. An ability seen only in one roster role
+        // (e.g. the slingers' ranged attacks) is prefixed with that role, so the
+        // single Goblins entry still tells the two kinds of goblin apart.
+        traits: (b.mechanics?.observed_abilities ?? []).map(a =>
+          (a.role ? '[' + a.role + '] ' : '') + a.name + (a.description ? ' — ' + a.description : '')),
+        // Every combat roster group that points at this creature, labelled with its
+        // role when it has one, e.g. "Goblins" and "Goblin Slingers (slinger)".
+        // Read from the rosters rather than stored on the entry, so it cannot drift
+        // from the combats. Removing it hides the roles from the bestiary panel.
+        roles: [...new Set((json.combat_encounters || []).flatMap(c =>
+          (c.mechanics?.enemies_roster ?? [])
+            .filter(g => g.mon_ref === b.id)
+            .map(g => g.role ? g.actor_id + ' (' + g.role + ')' : g.actor_id)))],
       })),
 
       // ── Character moments ─────────────────────────────────────────────────────
@@ -1430,6 +1448,7 @@ function renderDetail(id) {
       <div class="detail-body">
         ${ent.content ? `<div class="detail-section full"><div class="section-label">Knowledge</div><div class="section-text">${ent.content}</div></div>` : ''}
         ${ent.traits ? `<div class="detail-section full"><div class="section-label">Observed traits</div><div class="section-text">${ent.traits.map(t=>`<div style="padding:2px 0;">· ${t}</div>`).join('')}</div></div>` : ''}
+        ${ent.roles?.length ? `<div class="detail-section full"><div class="section-label">Seen as</div><div class="section-text">${ent.roles.map(r=>`<div style="padding:2px 0;">· ${r}</div>`).join('')}</div></div>` : ''}
         <div class="detail-section"><div class="section-label">Reliability</div><div class="section-text" style="text-transform:capitalize;">${ent.reliability||'unknown'}</div></div>
         ${rels.length ? `<div class="detail-section full">
           <div class="section-label">Connections</div>

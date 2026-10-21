@@ -313,6 +313,12 @@
         "speaker": "'dm' or an entity ID — who said it. DM exposition is fact; an NPC's words are testimony.",
         "page": "INTEGER or null — the notes page it came from"
       }
+    },
+    "bestiary_ability_fields": {
+      "_note": "Issue #94. One entry in bestiary[].mechanics.observed_abilities.",
+      "name": "STRING",
+      "description": "STRING",
+      "role": "STRING — OPTIONAL. The enemies_roster role the ability was seen in, e.g. 'slinger'. Omitted when the ability belongs to the creature in general."
     }
   },
   "_id_registry": {
@@ -2494,19 +2500,32 @@
           {
             "name": "Coordinated with slingers",
             "description": "Operated alongside Goblin Slingers and an Ogre in cbt_005 — suggests organised force."
+          },
+          {
+            "name": "Ranged sling attacks",
+            "description": "Operates at range while standard goblins engage in melee.",
+            "role": "slinger"
+          },
+          {
+            "name": "Coordinated positioning",
+            "description": "Stayed back during goblin advance, providing ranged support.",
+            "role": "slinger"
           }
         ],
         "observed_weaknesses": [],
         "threat_level": "low"
       },
       "narrative": {
-        "description": "Standard goblin — small, quick, cowardly alone, dangerous in numbers. Uses scrub and darkness.",
+        "description": "Standard goblin — small, quick, cowardly alone, dangerous in numbers. Uses scrub and darkness. Slingers: A goblin variant that hangs back and uses a sling. Distinguishable by positioning and attack pattern rather than appearance.",
         "sensory": [
           "guttural chatter",
           "quick movement in scrub",
-          "smell of unwashed leather"
+          "smell of unwashed leather",
+          "crack of sling",
+          "distance — never close",
+          "coordinated chatter with standard goblins"
         ],
-        "encounter_notes": "Organised force — not an opportunistic raid. Slingers, standard goblins, and an Ogre in deliberate formation. Suggests a commander or at least a plan."
+        "encounter_notes": "Organised force — not an opportunistic raid. Slingers, standard goblins, and an Ogre in deliberate formation. Suggests a commander or at least a plan. Slingers: Remove or close distance on slingers early. They are low-damage but persistent — the accumulated hits from Del being targeted multiple times contributed to two downed events."
       },
       "notes": null
     },
@@ -2548,41 +2567,6 @@
           "silence when it died"
         ],
         "encounter_notes": "Priority target in any Vespon engagement. Sonic Buzz is the dangerous ability — single-target but high damage. Killed by Asphodel using Unarmed Strike in Round 4."
-      },
-      "notes": null
-    },
-    {
-      "_object_type": "monster",
-      "id": "mon_006",
-      "name": "Goblin Slinger",
-      "mechanics": {
-        "reliability": "confirmed",
-        "first_encountered": "session_005",
-        "combat_appearances": [
-          "cbt_005"
-        ],
-        "creature_type": "Humanoid (goblinoid)",
-        "observed_abilities": [
-          {
-            "name": "Ranged sling attacks",
-            "description": "Operates at range while standard goblins engage in melee."
-          },
-          {
-            "name": "Coordinated positioning",
-            "description": "Stayed back during goblin advance, providing ranged support."
-          }
-        ],
-        "observed_weaknesses": [],
-        "threat_level": "low"
-      },
-      "narrative": {
-        "description": "A goblin variant that hangs back and uses a sling. Distinguishable by positioning and attack pattern rather than appearance.",
-        "sensory": [
-          "crack of sling",
-          "distance — never close",
-          "coordinated chatter with standard goblins"
-        ],
-        "encounter_notes": "Remove or close distance on slingers early. They are low-damage but persistent — the accumulated hits from Del being targeted multiple times contributed to two downed events."
       },
       "notes": null
     },
@@ -9510,10 +9494,11 @@
           {
             "actor_id": "Goblin Slingers",
             "type": "group",
-            "mon_ref": "mon_006",
+            "mon_ref": "mon_004",
             "count": null,
             "count_remaining": null,
-            "notes": "Active at end of Round 3."
+            "notes": "Active at end of Round 3.",
+            "role": "slinger"
           },
           {
             "actor_id": "Ogre",
@@ -10289,7 +10274,7 @@
     "setting": "Magers Homebrew",
     "dm": "John Magers",
     "started_date": "2026-02-10",
-    "last_updated": "2026-10-20",
+    "last_updated": "2026-10-21",
     "session_count": 5,
     "active": true,
     "notes": null,

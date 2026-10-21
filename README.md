@@ -53,6 +53,7 @@ Chronicle-MagersCampaign/
 │   ├── delta-apply.test.js           # Tests for the applyDeltasToCampaign() logic copied from delta-review.html
 │   ├── store.test.js                 # Tests for shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
 │   ├── turn-schema.test.js           # Tests for the 5.0.0 turn schema: migration rules, converted data, both viewers' normalisers
+│   ├── bestiary-fold.test.js         # Tests for the Goblin Slinger fold (#94): no mon_006, roster roles, both viewers' bestiary
 │   ├── fixtures/
 │   │   └── test-campaign.json        # Minimal v5.0.0 synthetic campaign for automated tests
 │   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
@@ -207,6 +208,9 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `world_lore[].narrative.content` | `lore[].content` | was root-level in v3 |
 | `world_lore[].mechanics.reliability` | `lore[].reliability` | was root-level in v3 |
 | `bestiary[].mechanics.reliability` | `bestiary[].reliability` | was root-level in v3 |
+| `bestiary[].narrative.description` | `bestiary[].content` | Shown as "Knowledge" in the detail panel (#94) |
+| `bestiary[].mechanics.observed_abilities[]` | `bestiary[].traits[]` | One string per ability: `[role] ` (when the ability has a `role`) + `name — description`. Shown as "Observed traits" (#94) |
+| every `combat_encounters[].mechanics.enemies_roster[]` group with this `mon_ref` | `bestiary[].roles[]` | Derived, not stored: the group's `actor_id`, plus ` (role)` when it has one, deduplicated. Shown as "Seen as" (#94) |
 | `character_moments[].mechanics.character_ids` | `moments[].character_ids` | was root-level in v3 |
 | `character_moments[].narrative.description` | `moments[].description` | was root-level in v3 |
 | `character_moments[].mechanics.parent_event_id` | `moments[].parent_event_id` | was root-level in v3 |
@@ -268,7 +272,7 @@ Introduced by issue #93 (design: `docs/intake-redesign.md`, "What a turn holds")
 - `role` on an `enemies_roster` group, to tell apart groups of the same creature (`melee`, `slinger`). The group's `count` is recorded only when known at the start of the combat.
 - `target_text` on an outcome: a target that is not an entity, kept as written (`"horse"`), with `target_id` null.
 
-`aliases`, `passages` and `role` are not populated yet. They are filled by later rebuild issues (#94 sets the Goblin Slingers role, and #100 to #102 add aliases and passages). `target_text` is used by the migrated data (`cbt_003` rounds 5 and 7).
+`aliases` and `passages` are not populated yet; #100 to #102 add them. `role` is set on one group: `cbt_005` Goblin Slingers (`slinger`, #94). An observed ability in a bestiary entry may carry the same `role` when it was seen only in that role. `target_text` is used by the migrated data (`cbt_003` rounds 5 and 7).
 
 **How the 42 recorded rounds converted** (`scripts/migrate-turn-schema.js`):
 - **Action names:**
@@ -305,7 +309,7 @@ Introduced by issue #93 (design: `docs/intake-redesign.md`, "What a turn holds")
 | Quests | qst_001–qst_005 | — |
 | Items | item_001–item_010 | — |
 | Combats | cbt_001–cbt_006 | — |
-| Bestiary | mon_001–mon_008 | — |
+| Bestiary | mon_001–mon_005, mon_007–mon_008 | 006 voided (Goblin Slinger, folded into Goblins `mon_004` by #94) |
 | Lore | lore_001–lore_002 | — |
 | Sessions | session_001–session_005 | — |
 | Factions | (none yet) | — |
@@ -558,6 +562,7 @@ tests/
 ├── delta-apply.test.js             # applyDeltasToCampaign() logic (copy of the delta-review.html function)
 ├── store.test.js                   # shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
 ├── turn-schema.test.js             # 5.0.0 turn schema — migration rules, converted data, both normalisers
+├── bestiary-fold.test.js           # Goblin Slinger fold (#94) — no mon_006, roster roles, both normalisers
 ├── fixtures/
 │   └── test-campaign.json          # Minimal v5.0.0 synthetic campaign — no real data
 ├── ocr-ground-truth/
