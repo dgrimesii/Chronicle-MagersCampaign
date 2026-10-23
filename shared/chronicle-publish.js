@@ -23,7 +23,10 @@
  *   applySession(campaign, approved, options) → { campaign, notes }
  *     campaign — the campaign JSON publish builds on. Never mutated.
  *     approved — the DM's approved queue items (NEW, MOD, ROUND, RELATIONSHIP;
- *                RAW and anything else is ignored). Never mutated.
+ *                RAW and anything else is ignored). Never mutated. A MOD may
+ *                carry _alias_append, _note_append or _roster_group_append
+ *                from the session page's entity identification (#100); those
+ *                add to the entity instead of replacing fields.
  *     options  — { deferredGaps, promptLog, spellNames, now }, all optional:
  *                deferredGaps — integrity gaps the DM deferred (gap_NNN records)
  *                promptLog    — prompt-improvement entries captured at intake
@@ -1053,8 +1056,62 @@
       target.mechanics = target.mechanics || {};
       if (!Array.isArray(target.mechanics.associated_sessions)) target.mechanics.associated_sessions = [];
       pushUnique(target.mechanics.associated_sessions, sid);
+    } else if (rawData._alias_append || rawData._note_append || rawData._roster_group_append) {
+      // Entity identification (#100) adds to an entity without replacing it:
+      // a Link to existing saves the words as an alias, Separate as new notes
+      // the look-alike, and Mark as sub-type adds a roster group. A whole-
+      // object MOD would overwrite the lists these append to.
+      appendIdentification(target, rawData, notes);
     } else {
       Object.assign(target, rawData);
+    }
+  }
+
+  /**
+   * appendIdentification(target, rawData, notes) — the three appends the
+   * session page's entity identification produces (issue #100).
+   *
+   *   _alias_append        [string]  added to target.aliases, skipping any
+   *                                  that equal the name or an existing alias
+   *                                  (case and punctuation ignored), so a
+   *                                  repeated publish adds nothing twice
+   *   _note_append         string    added to target.notes on a new line,
+   *                                  unless the same line is already there
+   *   _roster_group_append object    added to a combat's enemies_roster,
+   *                                  unless a group with that actor_id exists
+   *
+   * Why aliases are checked against the name: Bulk acknowledge trusts an
+   * exact name or alias, so a duplicate would be harmless but noisy, and an
+   * alias equal to the name would be meaningless.
+   */
+  function appendIdentification(target, rawData, notes) {
+    const key = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const label = target.name || target.title || target.legacy_id || target.id;
+    if (Array.isArray(rawData._alias_append)) {
+      const taken = new Set([key(target.name), key(target.title), key(target.nickname), ...(target.aliases || []).map(key)].filter(Boolean));
+      const add = rawData._alias_append.filter(a => a && !taken.has(key(a)) && taken.add(key(a)));
+      if (add.length) target.aliases = (target.aliases || []).concat(add);
+    }
+    if (typeof rawData._note_append === 'string' && rawData._note_append.trim()) {
+      const line = rawData._note_append.trim();
+      if (typeof target.notes === 'string' && target.notes.trim()) {
+        if (!target.notes.split('\n').some(l => l.trim() === line)) target.notes = target.notes + '\n' + line;
+      } else if (target.notes == null || target.notes === '') {
+        target.notes = line;
+      } else {
+        // notes holds structured data on a few older entities; leave it intact.
+        notes.add(`${label}: notes is not text, so the note "${line}" was not added.`);
+      }
+    }
+    const g = rawData._roster_group_append;
+    if (g && g.actor_id) {
+      target.mechanics = target.mechanics || {};
+      if (!Array.isArray(target.mechanics.enemies_roster)) target.mechanics.enemies_roster = [];
+      if (target.mechanics.enemies_roster.some(x => x.actor_id === g.actor_id)) {
+        notes.add(`${label}: already has a roster group "${g.actor_id}"; it was not added again.`);
+      } else {
+        target.mechanics.enemies_roster.push(clone(g));
+      }
     }
   }
 

@@ -118,8 +118,45 @@
   .kv dt { color:var(--muted); }
   .mono { font-family:'JetBrains Mono',monospace; font-size:0.85rem; }
 
+  /* ── Step 2: one row per page while the AI reads it ── */
+  .extract-row { display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--card-bg); border:1px solid var(--border); border-radius:3px; margin-bottom:6px; }
+  .extract-row .name { flex:1; }
+  .extract-row .state { font-size:0.85rem; font-style:italic; color:var(--muted); }
+  .extract-row .state.done { color:var(--teal); font-style:normal; }
+  .extract-row .state.error { color:var(--rust); font-style:normal; }
+
+  /* ── Step 3: the identification list ── */
+  .ident-toolbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1rem 0; flex-wrap:wrap; }
+  .ident-counts { color:var(--muted); font-size:0.95rem; }
+  .flag-box { border:1px solid var(--amber-dim); background:rgba(212,175,55,0.06); border-radius:3px; padding:0.6rem 0.9rem; margin:0.75rem 0; font-size:0.92rem; }
+  .flag-box li { margin-left:1.2rem; }
+  .ident-row { background:var(--card-bg); border:1px solid var(--border); border-left:3px solid var(--muted-light); border-radius:3px; padding:0.7rem 0.9rem; margin-bottom:8px; }
+  .ident-row.m-new { border-left-color:var(--rust); }
+  .ident-row.m-inexact { border-left-color:var(--amber); }
+  .ident-row.m-exact { border-left-color:var(--teal); }
+  .ident-row.settled { opacity:0.75; }
+  .ident-row.flagged { box-shadow:0 0 0 1px var(--amber-dim); }
+  .ident-head { display:grid; grid-template-columns:130px 1fr 1.3fr 110px; gap:10px; align-items:baseline; }
+  .ident-kind { font-family:'Cinzel',serif; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+  .ident-words { font-size:1.05rem; }
+  .ident-match .new { color:var(--rust); }
+  .ident-status { font-size:0.82rem; text-align:right; color:var(--muted); }
+  .ident-status.done { color:var(--teal); }
+  .ident-context { margin:0.4rem 0 0.2rem; font-size:0.88rem; color:var(--muted); }
+  .ident-context div { font-family:'JetBrains Mono',monospace; font-size:0.78rem; white-space:pre-wrap; }
+  .ident-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:0.5rem; }
+  .ident-actions .btn, .ident-form .btn { padding:5px 10px; font-size:0.62rem; }
+  .ident-form { margin-top:0.5rem; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .ident-form input, .ident-form select, .ident-form textarea {
+    background:var(--parchment-dark); color:var(--ink); border:1px solid var(--border-strong); border-radius:3px;
+    padding:5px 8px; font-family:'Crimson Pro',Georgia,serif; font-size:0.95rem; color-scheme:dark; }
+  .ident-form textarea { width:100%; min-height:3.5em; }
+  .ident-error { color:var(--rust); font-size:0.85rem; margin-top:0.3rem; }
+
   @media (max-width: 640px) {
     .session-pick { grid-template-columns:1fr; }
+    .ident-head { grid-template-columns:1fr; gap:2px; }
+    .ident-status { text-align:left; }
     main { padding:1.5rem 1rem 3rem; }
   }
 </style>
@@ -202,21 +239,43 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════ AFTER STEP 1 ═══════════════════════ -->
-  <!-- Shown by continueFromUpload(). Step 2 (extract) arrives with #100; until
-       then this shows the session header publish will receive, so the DM can
-       see the ID and date that will be written. -->
-  <div id="header-section" style="display:none;">
-    <div class="card">
+  <!-- ═══════════════════════ STEP 2: EXTRACT ═══════════════════════ -->
+  <!-- Shown by continueFromUpload(). The AI reads each page once and lists
+       every entity it mentions (issue #100). Facts and passages come from a
+       later per-page call (#101, #102) that uses the answers from step 3. -->
+  <div id="extract-section" style="display:none;">
+    <h1 class="page-title">Extract</h1>
+    <p class="page-subtitle">The AI reads each page and lists every name it mentions.</p>
+    <div class="card" style="margin-bottom:1.25rem;">
       <h2>Session header for publish</h2>
       <dl class="kv" id="header-kv"></dl>
     </div>
-    <div class="notice">
-      <strong>Extraction is the next step and is not built yet</strong> (issue #100). The pages stay loaded in this tab; nothing has been saved anywhere.
-    </div>
+    <div id="extract-list"></div>
     <div class="actions">
       <button class="btn" onclick="backToUpload()">← Back to Upload</button>
+      <button class="btn btn-primary" id="to-identify-btn" disabled onclick="showIdentify()">Continue to Identify →</button>
     </div>
+  </div>
+
+  <!-- ═══════════════════════ STEP 3: IDENTIFY ═══════════════════════ -->
+  <!-- Built by renderIdentify() from ChronicleEntities rows. New and inexact
+       matches come first, row by row; exact matches last, with Bulk
+       acknowledge. Every action covers all of a row's occurrences. -->
+  <div id="identify-section" style="display:none;">
+    <h1 class="page-title">Identify</h1>
+    <p class="page-subtitle">Settle what every name in the notes refers to. Each answer covers every place the words appear.</p>
+    <div class="ident-toolbar">
+      <span class="ident-counts" id="ident-counts"></span>
+      <button class="btn" id="bulk-btn" onclick="bulkAcknowledge()">Bulk acknowledge exact matches</button>
+    </div>
+    <div id="ident-flags"></div>
+    <div id="ident-list"></div>
+    <div class="actions">
+      <button class="btn" onclick="backToExtract()">← Back to Extract</button>
+      <button class="btn btn-primary" id="identify-done-btn" disabled onclick="finishIdentify()">Continue →</button>
+    </div>
+    <!-- Shown by finishIdentify(). Step 4 (review) is not built yet. -->
+    <div class="notice" id="identify-done" style="display:none;"></div>
   </div>
 </main>
 
@@ -229,6 +288,11 @@
 <!-- chronicle-publish.js supplies sessionChoices() and sessionHeader(), the
      same code publish reads the header with (issue #99). -->
 <script src="../shared/chronicle-publish.js"></script>
+<!-- chronicle-entities.js: the step 2 prompt and the step 3 rows and actions
+     (issue #100). Needs chronicle-ids.js, loaded above. -->
+<script src="../shared/chronicle-entities.js"></script>
+<!-- chronicle-ai.js sends each page to the AI (extractMentions, #100). -->
+<script src="../shared/chronicle-ai.js"></script>
 <script>
 // ══════════════════════════════════════════════════════
 // State
@@ -249,6 +313,15 @@ const session = {
   pages:       [],
   notes:       null,  // { name, size, text } — one typed notes file, optional
   header:      null,  // ChroniclePublish.sessionHeader(...) once Continue is pressed
+  // Step 2: one entry per page read by the AI, in reading order:
+  // { page, label, image|text, status: 'waiting'|'reading'|'done'|'error', error, mentions }
+  extract:     [],
+  extractKey:  '',    // pagesKey() when extract was built; a change rebuilds it
+  // Step 3: ChronicleEntities.buildIndex(campaign) and the review rows.
+  index:       null,
+  rows:        [],
+  openForm:    null,  // { key, action } — the row whose inline form is open
+  identityItems: [],  // ChronicleEntities.toQueueItems(...) once every row is settled
   // Context for extraction (#100), loaded now so it is ready by then. Both
   // stay null if their load fails; extraction must cope without them.
   entities:    null,  // { npcs, locations, monsters, combats } name lists
@@ -665,16 +738,355 @@ function continueFromUpload() {
     ['Notes file', session.notes ? escapeHtml(session.notes.name) : 'none'],
   ];
   document.getElementById('header-kv').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-  document.getElementById('upload-section').style.display = 'none';
-  document.getElementById('header-section').style.display = 'block';
-  setStep(2);
+  startExtract();
+}
+
+// show(id) — shows one step's section and hides the others.
+function show(id) {
+  for (const sec of ['upload-section', 'extract-section', 'identify-section']) {
+    document.getElementById(sec).style.display = sec === id ? 'block' : 'none';
+  }
+  window.scrollTo(0, 0);
 }
 
 // backToUpload() — returns to step 1 with every page and choice kept.
 function backToUpload() {
-  document.getElementById('header-section').style.display = 'none';
-  document.getElementById('upload-section').style.display = 'block';
+  show('upload-section');
   setStep(1);
+}
+
+// ══════════════════════════════════════════════════════
+// Step 2 — Extract (issue #100)
+// ══════════════════════════════════════════════════════
+
+/**
+ * pagesKey() → a string that changes whenever the pages, their order or the
+ * notes file change. Occurrence ids carry the page number, so after a
+ * reorder the old answers would point at the wrong page: extraction and
+ * identification are rebuilt instead. Unchanged pages keep both, so going
+ * back to check the date costs no AI calls.
+ */
+function pagesKey() {
+  return session.pages.map(p => p.name + ':' + p.size).join('|') + '#' + (session.notes ? session.notes.name + ':' + session.notes.size : '');
+}
+
+/**
+ * startExtract() — shows step 2 and reads every page not read yet.
+ * Pages are read one at a time, in order, so a failure is shown on its own
+ * row and the DM can retry just that page.
+ */
+function startExtract() {
+  if (session.extractKey !== pagesKey()) {
+    const n = session.pages.length;
+    session.extract = session.pages.map((p, i) => ({ page: i + 1, label: `page ${i + 1} of ${n}`, image: p.dataURL, status: 'waiting', error: '', mentions: null }));
+    if (session.notes) session.extract.push({ page: 'notes', label: 'the typed notes file', text: session.notes.text, status: 'waiting', error: '', mentions: null });
+    session.extractKey = pagesKey();
+    session.rows = [];
+  }
+  if (!session.index) session.index = ChronicleEntities.buildIndex(session.campaign);
+  show('extract-section');
+  setStep(2);
+  renderExtract();
+  readPages();
+}
+
+/**
+ * readPages() — sends each waiting page to the AI in turn.
+ * The prompt and the reply check come from ChronicleEntities, the call from
+ * ChronicleAI.extractMentions. Any failure (no API key, an API error, a cut-
+ * off or malformed reply) marks only that page as failed, with the reason.
+ * There is no demo or guessed fallback: a page with no list blocks step 3.
+ */
+let reading = false;
+async function readPages() {
+  if (reading) return; // one pass at a time; Retry re-enters after it ends
+  reading = true;
+  const entityList = ChronicleEntities.entityListForPrompt(session.index);
+  for (const ex of session.extract) {
+    if (ex.status !== 'waiting') continue;
+    ex.status = 'reading';
+    renderExtract();
+    try {
+      const system = ChronicleEntities.mentionPrompt({ entityList, pageLabel: ex.label });
+      const raw = await ChronicleAI.extractMentions({ system, image: ex.image, text: ex.text });
+      ex.mentions = ChronicleEntities.parseMentions(raw).mentions;
+      ex.status = 'done';
+    } catch (err) {
+      ex.status = 'error';
+      ex.error = err.message || String(err);
+    }
+    renderExtract();
+  }
+  reading = false;
+}
+
+// retryPage(i) — puts one failed page back in the queue and reads it.
+function retryPage(i) {
+  session.extract[i].status = 'waiting';
+  session.extract[i].error = '';
+  renderExtract();
+  readPages();
+}
+
+function renderExtract() {
+  document.getElementById('extract-list').innerHTML = session.extract.map((ex, i) => {
+    const state = ex.status === 'done' ? `<span class="state done">${ex.mentions.length} mentions</span>`
+      : ex.status === 'error' ? `<span class="state error">${escapeHtml(ex.error)}</span> <button class="btn" onclick="retryPage(${i})">Retry</button>`
+      : ex.status === 'reading' ? '<span class="state">reading…</span>' : '<span class="state">waiting</span>';
+    return `<div class="extract-row"><span class="name">${escapeHtml(ex.label[0].toUpperCase() + ex.label.slice(1))}</span>${state}</div>`;
+  }).join('');
+  document.getElementById('to-identify-btn').disabled = !session.extract.length || !session.extract.every(ex => ex.status === 'done');
+}
+
+// ══════════════════════════════════════════════════════
+// Step 3 — Identify (issue #100)
+// ══════════════════════════════════════════════════════
+
+/**
+ * showIdentify() — builds the rows from every page's mentions (once per
+ * extraction, so answers survive going back to step 2 and returning) and
+ * shows step 3.
+ */
+function showIdentify() {
+  if (!session.rows.length) {
+    session.rows = ChronicleEntities.buildRows(session.extract.map(ex => ({ page: ex.page, mentions: ex.mentions })), session.index);
+  }
+  session.openForm = null;
+  show('identify-section');
+  setStep(3);
+  renderIdentify();
+}
+
+function backToExtract() {
+  show('extract-section');
+  setStep(2);
+}
+
+// entityLabel(id) → "Asphodel (pc_004)", "Goblin Slingers (group in Goblin
+// Ambush)", or the new entity's name, for the Match column and summaries.
+function entityLabel(id) {
+  const e = session.index.entities.get(id);
+  if (!e) {
+    // A new entity made in this session lives only in the row that created
+    // it; rows linked to it carry its id but not its name.
+    const made = ChronicleEntities.newEntities(session.rows).get(id);
+    return made ? made.name + ' (new)' : id;
+  }
+  if (e.array === 'enemies_roster') return `${e.name} (group in ${e.combatName})`;
+  return e.name + (e.legacyId ? ` (${e.legacyId})` : '');
+}
+
+// resolutionText(row) → one line saying what the row's answer will do.
+function resolutionText(r) {
+  const res = r.resolution;
+  if (!res) return '';
+  switch (res.action) {
+    case 'acknowledge': return 'Acknowledged: ' + entityLabel(res.entityId) + (res.alias ? ` — saves "${res.alias}" as an alias` : '');
+    case 'link':        return 'Linked to ' + entityLabel(res.entityId) + (res.alias ? ` — saves "${res.alias}" as an alias` : '');
+    case 'new':         return `New entity "${res.name}" in ${res.array}`;
+    case 'separate':    return `New entity "${res.name}", noted as not to be confused with ${entityLabel(res.notConfusedWith)}`;
+    case 'split':       return 'Split into ' + res.parts.map(p => p.name + (p.existing ? '' : ' (new)')).join(', ') + ' — each occurrence is assigned in step 4';
+    case 'subtype':     return `Sub-type: group "${res.label}" (role ${res.role}) in ${entityLabel(res.combatId)}`;
+  }
+  return '';
+}
+
+/**
+ * renderIdentify() — redraws the counts, the flags and every row.
+ * Rows keep the order buildRows gave them (new, inexact, exact), so a row
+ * does not jump while the DM works down the list.
+ */
+function renderIdentify() {
+  const rows = session.rows;
+  const pending = rows.filter(r => r.status === 'pending');
+  const exactPending = pending.filter(r => r.matchType === 'exact').length;
+  document.getElementById('ident-counts').textContent =
+    `${rows.length} names · ${pending.length} to settle · ${rows.filter(r => r.matchType === 'new').length} new, ${rows.filter(r => r.matchType === 'inexact').length} inexact, ${rows.filter(r => r.matchType === 'exact').length} exact`;
+  const bulk = document.getElementById('bulk-btn');
+  bulk.disabled = exactPending === 0;
+  bulk.textContent = exactPending ? `Bulk acknowledge ${exactPending} exact match${exactPending === 1 ? '' : 'es'}` : 'No exact matches to acknowledge';
+
+  const flags = ChronicleEntities.flags(rows, session.index);
+  const flaggedOcc = new Set(flags.flatMap(f => f.occurrenceIds));
+  document.getElementById('ident-flags').innerHTML = flags.length
+    ? `<div class="flag-box"><strong>Possible merges — one name may be two entities:</strong><ul>${flags.map(f => `<li>${escapeHtml(f.name)} ${escapeHtml(f.detail)}</li>`).join('')}</ul>Split the row if so.</div>`
+    : '';
+
+  document.getElementById('ident-list').innerHTML = rows.map(r => renderRow(r, r.occurrences.some(o => flaggedOcc.has(o.id)))).join('');
+  document.getElementById('identify-done-btn').disabled = !ChronicleEntities.allSettled(rows);
+}
+
+/**
+ * renderRow(row, flagged) — one row: kind, words, match, every occurrence
+ * with its page and line, status, and the actions. An action that needs
+ * input (Link, Separate, Split, Sub-type, a new entity's name) opens an
+ * inline form under the row instead of a dialog.
+ */
+function renderRow(r, flagged) {
+  const kind = ChronicleEntities.KINDS[r.kind];
+  const match = r.matchId
+    ? `${escapeHtml(entityLabel(r.matchId))} <span style="color:var(--muted);font-size:0.8rem;">${r.matchType}${r.reason ? ' — ' + escapeHtml(r.reason) : ''}</span>`
+    : '<span class="new">New</span>';
+  const occ = r.occurrences.map(o =>
+    `<div>p.${escapeHtml(String(o.page))}${o.round != null ? ' r' + o.round : ''}: ${escapeHtml(o.context || o.asWritten)}</div>`).join('');
+  const k = escapeHtml(r.key).replace(/'/g, '&#39;');
+  let actions = '';
+  if (r.status === 'settled') {
+    actions = `<div class="ident-context" style="color:var(--teal);">${escapeHtml(resolutionText(r))}</div>
+      <div class="ident-actions"><button class="btn" onclick="rowAction('${k}','reopen')">Change</button></div>`;
+  } else {
+    const isCreature = r.kind === 'creature';
+    actions = `<div class="ident-actions">
+      <button class="btn btn-primary" onclick="rowAction('${k}','acknowledge')" ${r.matchType === 'new' && !kind.create ? 'disabled title="No party member has this name: link it instead"' : ''}>Acknowledge</button>
+      <button class="btn" onclick="openForm('${k}','link')">Link to existing</button>
+      ${r.matchId ? `<button class="btn" onclick="openForm('${k}','separate')">Separate as new</button>` : ''}
+      ${kind.create ? `<button class="btn" onclick="openForm('${k}','split')">Split</button>` : ''}
+      ${isCreature ? `<button class="btn" onclick="openForm('${k}','subtype')">Mark as sub-type</button>` : ''}
+    </div>${session.openForm?.key === r.key ? renderForm(r, session.openForm.action) : ''}`;
+  }
+  return `<div class="ident-row m-${r.matchType}${r.status === 'settled' ? ' settled' : ''}${flagged ? ' flagged' : ''}">
+    <div class="ident-head">
+      <span class="ident-kind">${escapeHtml(kind.group)}</span>
+      <span class="ident-words">"${escapeHtml(r.asWritten)}"</span>
+      <span class="ident-match">${match}</span>
+      <span class="ident-status${r.status === 'settled' ? ' done' : ''}">${r.status === 'settled' ? 'settled' : r.occurrences.length + ' occurrence' + (r.occurrences.length === 1 ? '' : 's')}</span>
+    </div>
+    <div class="ident-context">${occ}</div>
+    ${actions}
+    <div class="ident-error" id="err-${k}"></div>
+  </div>`;
+}
+
+// entityOptions(arrays) → <option>s for every entity in those arrays, by label.
+function entityOptions(arrays, selected) {
+  return [...session.index.entities.values()]
+    .filter(e => arrays.includes(e.array))
+    .sort((a, b) => entityLabel(a.id).localeCompare(entityLabel(b.id)))
+    .map(e => `<option value="${escapeHtml(e.id)}" ${e.id === selected ? 'selected' : ''}>${escapeHtml(entityLabel(e.id))}</option>`).join('');
+}
+
+/**
+ * renderForm(row, action) — the inline inputs an action needs.
+ *   new (acknowledge on a New row) — the new entity's name
+ *   link     — the entity to link to (any of the kind's arrays)
+ *   separate — the new entity's name
+ *   split    — one name per line, or "= <existing>" picked from the list
+ *   subtype  — the combat, the creature, the group label and the role
+ */
+function renderForm(r, action) {
+  const k = escapeHtml(r.key).replace(/'/g, '&#39;');
+  const arrays = ChronicleEntities.KINDS[r.kind].arrays;
+  const go = label => `<button class="btn btn-primary" onclick="submitForm('${k}','${action}')">${label}</button>
+    <button class="btn" onclick="openForm(null)">Cancel</button>`;
+  if (action === 'new' || action === 'separate') {
+    return `<div class="ident-form"><label>Name of the new entity</label>
+      <input id="f-name" value="${escapeHtml(r.asWritten)}" size="28">${go(action === 'new' ? 'Create' : 'Separate')}</div>`;
+  }
+  if (action === 'link') {
+    // Entities other rows of this session create can be linked to as well,
+    // so seven spellings of one new creature become one entity.
+    const made = [...ChronicleEntities.newEntities(session.rows).values()]
+      .filter(e => e.rowKey !== r.key && (arrays.includes(e.array) || e.array === ChronicleEntities.KINDS[r.kind].create));
+    const fresh = made.length ? `<optgroup label="Created in this session">${made.map(e =>
+      `<option value="${escapeHtml(e.id)}">${escapeHtml(e.name)} (new)</option>`).join('')}</optgroup>` : '';
+    // Saving the words as an alias is the default (the next session then
+    // matches them exactly); untick it for words that only make sense here,
+    // such as "#1" or "Combat Ended".
+    return `<div class="ident-form"><select id="f-entity"><option value="">Choose an entity…</option>${fresh}<optgroup label="In the campaign">${entityOptions(arrays, r.matchId)}</optgroup></select>
+      <label><input type="checkbox" id="f-alias" checked> save "${escapeHtml(r.asWritten)}" as an alias</label>${go('Link')}</div>`;
+  }
+  if (action === 'split') {
+    return `<div class="ident-form" style="display:block;"><label>One entity per line: a new name, or pick existing ones below</label>
+      <textarea id="f-parts" placeholder="Hank the innkeeper&#10;Hank the smuggler"></textarea>
+      <select id="f-split-existing" multiple size="4" style="width:100%;margin-top:4px;">${entityOptions(arrays)}</select>
+      <div style="margin-top:6px;">${go('Split')}</div></div>`;
+  }
+  if (action === 'subtype') {
+    const g = session.index.entities.get(r.matchId);
+    const creature = g?.array === 'enemies_roster' ? g.monRef : (g?.array === 'bestiary' ? g.id : '');
+    const combat = g?.array === 'enemies_roster' ? g.combatId : [...session.index.entities.values()].find(e => e.open)?.id;
+    return `<div class="ident-form">
+      <select id="f-combat">${entityOptions(['combat_encounters'], combat)}</select>
+      <select id="f-creature">${entityOptions(['bestiary'], creature)}</select>
+      <input id="f-label" placeholder="Group label, e.g. Goblin Slingers" value="${escapeHtml(r.asWritten)}" size="22">
+      <input id="f-role" placeholder="Role, e.g. slinger" size="12">${go('Add group')}</div>`;
+  }
+  return '';
+}
+
+// openForm(key, action) — opens one row's inline form (closing any other).
+function openForm(key, action) {
+  session.openForm = key ? { key, action } : null;
+  renderIdentify();
+}
+
+// rowOf(key) → the row with that key.
+function rowOf(key) { return session.rows.find(r => r.key === key); }
+
+/**
+ * rowAction(key, action) — the actions that need no input. Acknowledge on a
+ * New row opens the name form first, because the words as written ("gob
+ * archer") are often not the name the DM wants the entity to have.
+ */
+function rowAction(key, action) {
+  const r = rowOf(key);
+  if (action === 'acknowledge' && r.matchType === 'new') return openForm(key, 'new');
+  attempt(key, () => {
+    if (action === 'acknowledge') ChronicleEntities.acknowledge(r);
+    // Rows linked to an entity this row created are reopened with it.
+    if (action === 'reopen') ChronicleEntities.reopen(r, session.rows);
+  });
+}
+
+// submitForm(key, action) — reads the open form and applies its action.
+function submitForm(key, action) {
+  const r = rowOf(key);
+  const val = id => document.getElementById(id)?.value ?? '';
+  attempt(key, () => {
+    if (action === 'new') ChronicleEntities.acknowledge(r, val('f-name'));
+    if (action === 'link') ChronicleEntities.linkToExisting(r, val('f-entity'), session.index, session.rows,
+      { saveAlias: document.getElementById('f-alias')?.checked !== false });
+    if (action === 'separate') ChronicleEntities.separateAsNew(r, val('f-name'));
+    if (action === 'split') {
+      const parts = val('f-parts').split('\n').map(x => x.trim()).filter(Boolean).map(name => ({ name }));
+      for (const o of document.getElementById('f-split-existing').selectedOptions) parts.push({ linkId: o.value });
+      ChronicleEntities.split(r, parts, session.index);
+    }
+    if (action === 'subtype') ChronicleEntities.markSubType(r, { combatId: val('f-combat'), creatureId: val('f-creature'), label: val('f-label'), role: val('f-role') }, session.index);
+    session.openForm = null;
+  });
+}
+
+// attempt(key, fn) — runs an action; a refusal (a missing name, a PC with
+// no match) is shown under the row instead of changing it.
+function attempt(key, fn) {
+  try {
+    fn();
+  } catch (err) {
+    const el = document.getElementById('err-' + key);
+    if (el) el.textContent = err.message;
+    return;
+  }
+  renderIdentify();
+}
+
+function bulkAcknowledge() {
+  ChronicleEntities.bulkAcknowledgeExact(session.rows);
+  renderIdentify();
+}
+
+/**
+ * finishIdentify() — every row is settled. Builds the publish items the
+ * answers produce (new entities, aliases, notes, roster groups) and says
+ * how many. Step 4, review, is not built yet (#101–#105), so the page
+ * stops here; publish (#106) will send these items with the session header.
+ */
+function finishIdentify() {
+  session.identityItems = ChronicleEntities.toQueueItems(session.rows, session.index, session.legacyId);
+  const count = t => session.identityItems.filter(i => i.type === t).length;
+  const box = document.getElementById('identify-done');
+  box.innerHTML = `<strong>Every name is settled.</strong> Publish will add ${count('NEW')} new entit${count('NEW') === 1 ? 'y' : 'ies'} and ${count('MOD')} alias, note or roster change${count('MOD') === 1 ? '' : 's'}. The next step, reviewing facts, is not built yet (issues #101–#105), and nothing has been saved.`;
+  box.style.display = 'block';
 }
 
 // setStep(n) — marks steps before n done and step n active in the progress bar.

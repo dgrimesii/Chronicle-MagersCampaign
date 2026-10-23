@@ -175,13 +175,14 @@ async function loadCampaignData() {
 
 ## Shared module load order
 
-When a page needs all seven shared modules, load them in this order:
+When a page needs all eight shared modules, load them in this order:
 
 ```html
 <script src="../shared/config.js"></script>
 <script src="../shared/chronicle-store.js"></script>
 <script src="../shared/chronicle-ids.js"></script>
 <script src="../shared/chronicle-publish.js"></script>
+<script src="../shared/chronicle-entities.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script src="../shared/chronicle-narrative.js"></script>
@@ -193,6 +194,8 @@ When a page needs all seven shared modules, load them in this order:
 `chronicle-ids.js` exports `window.ChronicleIds` (and `module.exports` under Node): UUID allocation and legacy-ID translation (issue #95). No dependencies. Load it on any page that accepts IDs from outside the data (intake output, AI output, links) and must turn a legacy ID into a UUID, or that creates entities. The two viewers do not load it, because `normaliseCampaignJson` must stay self-contained.
 
 `chronicle-publish.js` exports `window.ChroniclePublish` (and `module.exports` under Node): `applySession()`, the one function that turns approved review items into campaign data (issue #92), plus `sessionChoices()` and `sessionHeader()`, which the session page uses to pick the session ID and date and hand them to `applySession()` (#99). Session choices and the header rule belong here, not in the page, so `tests/session-header.test.js` runs them through the real publish. It needs `chronicle-ids.js` loaded first and touches no DOM, sessionStorage or network; pages pass their state in as options. Any change to what publish writes goes in this module, not in a page, so `tests/delta-apply.test.js` keeps testing the real code. README "Shared modules" lists its round-conversion rules.
+
+`chronicle-entities.js` exports `window.ChronicleEntities` (and `module.exports` under Node): the session page's entity identification (#100), meaning the step 2 mention prompt and reply check, the step 3 rows and the DM's actions, and `toQueueItems()`, which turns the answers into publish items. It needs `chronicle-ids.js` loaded first and touches no DOM, storage or network. Matching rules belong here, not in the page, so `tests/entity-identification.test.js` tests the real code. Only an exact name, PC nickname or alias may be bulk-acknowledged; never let the AI's own confidence decide that.
 
 `chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 
@@ -251,7 +254,7 @@ The `geminiApiKey` must never be committed to the repo. It lives in `shared/conf
 
 ## Shared AI module rules
 
-`shared/chronicle-ai.js` is loaded by `intake.html`, `delta-review.html`, and `integrity.html` only. If you add AI capability to a new page, load both `config.js` and `chronicle-ai.js` before the page script. The API key is read from `window.CHRONICLE_CONFIG.anthropicApiKey` — never pass it any other way.
+`shared/chronicle-ai.js` is loaded by `intake.html`, `delta-review.html`, `integrity.html` and `session.html` only. If you add AI capability to a new page, load both `config.js` and `chronicle-ai.js` before the page script. The API key is read from `window.CHRONICLE_CONFIG.anthropicApiKey` — never pass it any other way.
 
 The Anthropic API is called directly from the browser using the `anthropic-dangerous-direct-browser-access: true` header. This header must remain in all `chronicle-ai.js` fetch calls — remove it and the requests will be rejected. Never attempt to proxy AI requests through the Drive Apps Script endpoint.
 
@@ -262,6 +265,7 @@ When to use which method:
 - `.fillRoundsFromImage()` — OCR from uploaded session photos (intake, integrity)
 - `.fillRoundsFromText()` — round fill from typed description (integrity)
 - `.sendCorrectionToAI()` — delta item correction chat (delta-review only)
+- `.extractMentions()` — one page's entity mentions for the session page (#100). It streams, because a dense page takes minutes; keep long calls streamed
 
 ---
 

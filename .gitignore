@@ -9,3 +9,6 @@ data/magers-campaign.prev.json
 
 # Safe Test Mode publish output (#97); the fixture itself stays tracked
 tests/output/
+
+# Photos of real session notes used to test AI extraction (#100); personal, never commit
+OCR Test Files/

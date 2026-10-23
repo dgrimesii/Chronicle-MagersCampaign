@@ -34,6 +34,7 @@ const TEST_FILES = [
   'tests/bestiary-fold.test.js',
   'tests/opaque-ids.test.js',
   'tests/session-header.test.js',
+  'tests/entity-identification.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

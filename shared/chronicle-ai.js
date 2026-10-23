@@ -139,11 +139,17 @@ result unless the DM's notes explicitly state one.`;
    *
    * system   — string system prompt
    * messages — array of { role: 'user'|'assistant', content: string|array }
-   * onResult(rawText)  — called with the full text response
+   * onResult(rawText, stopReason) — called with the full text response and
+   *                      the API's stop_reason ("end_turn", or "max_tokens"
+   *                      when the reply was cut off at the output limit).
+   *                      Callers written before #100 ignore the second value.
    * onError(err)       — called on network/API error
    * onLoading(bool)    — called with true before fetch, false after (optional)
+   * maxTokens          — output limit for this call (optional; default
+   *                      MAX_TOKENS). Entity extraction (#100) needs more than
+   *                      4096 for a dense page, and must know when it ran out.
    */
-  async function call({ system, messages, onResult, onError, onLoading }) {
+  async function call({ system, messages, onResult, onError, onLoading, maxTokens }) {
     const apiKey = window.CHRONICLE_CONFIG?.anthropicApiKey;
     if (!apiKey || apiKey === 'YOUR_KEY_HERE' || apiKey.trim() === '') {
       if (typeof onError === 'function') {
@@ -164,7 +170,7 @@ result unless the DM's notes explicitly state one.`;
         },
         body: JSON.stringify({
           model: MODEL,
-          max_tokens: MAX_TOKENS,
+          max_tokens: maxTokens || MAX_TOKENS,
           system,
           messages,
         }),
@@ -196,7 +202,7 @@ result unless the DM's notes explicitly state one.`;
         .join('');
 
       window.tpShowResponse?.(text);
-      onResult(text);
+      onResult(text, data.stop_reason);
     } catch (err) {
       onError(err);
     } finally {
@@ -1283,6 +1289,105 @@ ${contextStr}${scopeNote}`,
   }
 
   // ─────────────────────────────────────────────────────────
+  // Entity extraction — session page step 2 (issue #100)
+  // ─────────────────────────────────────────────────────────
+
+  // Output limit for one page's mention list. A dense combat page lists a
+  // mention per name per round line, which can pass the 4096 default.
+  const MENTION_MAX_TOKENS = 16000;
+
+  /**
+   * callStream({ system, messages, maxTokens }) → Promise<{ text, stopReason }>
+   *
+   * The same request as call(), sent with stream: true and read as it
+   * arrives. Why: a dense notes page takes the AI two minutes or more to
+   * list, and a non-streamed request that long was dropped on the way back
+   * (HTTP 503 with no CORS header, which the browser reports only as
+   * "Failed to fetch"; seen on a real session 6 page while building #100).
+   * Streaming keeps data flowing, so the connection stays open.
+   *
+   * Reads the server-sent events: text from content_block_delta, the stop
+   * reason from message_delta, and an error event as a rejection. Uses the
+   * same headers as call(), including the direct-browser-access header.
+   */
+  async function callStream({ system, messages, maxTokens }) {
+    const apiKey = window.CHRONICLE_CONFIG?.anthropicApiKey;
+    if (!apiKey || apiKey === 'YOUR_KEY_HERE' || apiKey.trim() === '') {
+      throw new Error('Anthropic API key not configured. Add your key to shared/config.js.');
+    }
+    let response;
+    try {
+      response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({ model: MODEL, max_tokens: maxTokens || MAX_TOKENS, system, messages, stream: true }),
+      });
+    } catch (err) {
+      // fetch() itself failing means no usable reply reached the page.
+      throw new Error('Could not reach the Anthropic API (' + err.message + '). Check the connection and retry.');
+    }
+    if (!response.ok) {
+      let detail = response.statusText;
+      try { const body = await response.json(); detail = body?.error?.message || JSON.stringify(body); } catch (_) { /* not JSON */ }
+      throw new Error(`HTTP ${response.status}: ${detail}`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', text = '', stopReason = null;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // Events are separated by a blank line; keep a partial one for later.
+      const events = buffer.split('\n\n');
+      buffer = events.pop();
+      for (const ev of events) {
+        const dataLine = ev.split('\n').find(l => l.startsWith('data:'));
+        if (!dataLine) continue;
+        let data;
+        try { data = JSON.parse(dataLine.slice(5).trim()); } catch (_) { continue; }
+        if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') text += data.delta.text;
+        else if (data.type === 'message_delta' && data.delta?.stop_reason) stopReason = data.delta.stop_reason;
+        else if (data.type === 'error') throw new Error(data.error?.message || 'The API reported an error mid-reply.');
+      }
+    }
+    if (!stopReason) throw new Error('The reply ended before the API said it was complete. Retry the page.');
+    return { text, stopReason };
+  }
+
+  /**
+   * extractMentions({ system, image, text }) → Promise<string>
+   *
+   * Sends one page to the AI and resolves with its raw reply, which the
+   * caller checks with ChronicleEntities.parseMentions(). image is a data URL
+   * (a compressed photo); text is a typed notes file; one of the two.
+   * The prompt comes from ChronicleEntities.mentionPrompt(), so the fields
+   * asked for and the fields read stay in one file.
+   *
+   * A reply cut off at the output limit is retried once, then rejected: a
+   * truncated list would silently drop the names at the end of the page
+   * (#101's rule, applied here first). API errors reject with the API's
+   * message. There is no demo fallback: a failure is shown as a failure.
+   */
+  function extractMentions({ system, image, text }) {
+    const content = image
+      ? [imageContent(image), { type: 'text', text: 'List every entity mention on this page as JSON.' }]
+      : [{ type: 'text', text: 'Typed session notes:\n\n' + text + '\n\nList every entity mention in these notes as JSON.' }];
+    // Streamed (callStream), because a dense page's list takes minutes.
+    const once = () => callStream({ system, messages: [{ role: 'user', content }], maxTokens: MENTION_MAX_TOKENS })
+      .then(r => ({ raw: r.text, stopReason: r.stopReason }));
+    return once().then(r => r.stopReason === 'max_tokens' ? once() : r).then(r => {
+      if (r.stopReason === 'max_tokens') throw new Error('The AI reply was cut off at the output limit twice; the page is too dense to list in one reply.');
+      return r.raw;
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────
   // Public API
   // ─────────────────────────────────────────────────────────
   return {
@@ -1303,6 +1408,9 @@ ${contextStr}${scopeNote}`,
     // Delta review
     sendCorrectionToAI,
     demoCorrectionResponse,
+
+    // Session page (issue #100)
+    extractMentions,
   };
 
 })();
