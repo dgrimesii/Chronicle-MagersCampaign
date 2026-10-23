@@ -703,7 +703,7 @@ Use character names and nicknames from ground_truth directly.`;
    * writeNarrativeField(campaignObj, targetId, targetType, fieldName, value)
    *
    * The only permitted write function in this module. Updates a narrative field
-   * in-memory on campaignObj. Does NOT write to Drive or the repo JSON file —
+   * in-memory on campaignObj. Does NOT write the campaign file —
    * the caller is responsible for persisting the updated campaignObj via Delta Review.
    *
    * Throws a descriptive Error if fieldName is not in APPROVED_FIELDS. This is the

@@ -99,7 +99,7 @@ If you are unsure whether a change warrants a README update, update it. Over-doc
 - Nav links use `onclick="window.location='filename.html'"` with same-folder relative paths
 - Script tags for shared modules appear at the bottom of `<body>`, before the page's own `<script>` block
 - D3.js is locked to v7.9 from cdnjs. Do not upgrade the version without explicit instruction and thorough graph testing — the force simulation parameters in both viewers are tuned to v7 behaviour.
-- `localStorage` is used only by `admin/versions.html` for its backup ledger. Do not introduce `localStorage` in any other page. Warn in comments wherever `localStorage` is read that the data is volatile — cleared if the user clears site data or opens the app in a different browser.
+- `localStorage` is used only by `admin/log-viewer.html`, to remember the admin/player mode toggle (`chronicle_mode`). The Versions page's backup ledger went with the page (#98). Do not introduce `localStorage` in any other page. Warn in comments wherever `localStorage` is read that the data is volatile — cleared if the user clears site data or opens the app in a different browser.
 - **IndexedDB exception (issue #97):** `shared/chronicle-store.js` keeps exactly one thing in IndexedDB: the repository folder handle publish writes through (database `chronicle-store`, store `handles`, key `repo-folder`). A directory handle cannot go in localStorage. Losing it only means the DM picks the folder again. Do not store anything else in IndexedDB, and never use it from a page.
 
 ---
@@ -120,13 +120,15 @@ Never revert to old Parchment theme values. Never introduce a new colour scheme.
 
 ## Navigation
 
-All admin pages share a 7-item nav bar in this exact order:
+All admin pages share a 6-item nav bar in this exact order:
 
-`Session Intake → OCR Glossary → Delta Review → Integrity → Campaign Log → Log Editor → Versions`
+`Session Intake → OCR Glossary → Delta Review → Integrity → Campaign Log → Log Editor`
+
+The Versions page was deleted with Google Drive (#98); git history is the backup.
 
 The active page's nav link has `class="nav-link active"`. All others have `class="nav-link"`. Every admin page also has a "⇄ Player View" button in the header right that links to `../player/`.
 
-`drive-test.html` is the only admin file with no nav bar.
+`admin/index.html`, a redirect to `log-viewer.html`, is the only admin file with no nav bar.
 
 The player view (`player/index.html`) has a "⇄ Admin" button linking to `../admin/log-viewer.html`. This is intentional.
 
@@ -134,9 +136,8 @@ The player view (`player/index.html`) has a "⇄ Admin" button linking to `../ad
 
 ## Data loading rules
 
-- Every campaign read and write goes through `shared/chronicle-store.js` (`window.ChronicleStore`). Never `fetch()` the campaign JSON, touch the file system (`showDirectoryPicker`, file handles), call the Drive proxy, or check `safeTestMode` in a page — add a method to the store module instead. The store is the seam for the move to Postgres (rebuild phase 7), as it was for local-file publishing (#97); a page that bypasses it breaks that move.
+- Every campaign read and write goes through `shared/chronicle-store.js` (`window.ChronicleStore`). Never `fetch()` the campaign JSON, touch the file system (`showDirectoryPicker`, file handles), or check `safeTestMode` in a page — add a method to the store module instead. The store is the seam for the move to Postgres (rebuild phase 7), as it was for local-file publishing (#97); a page that bypasses it breaks that move.
 - `ChronicleStore.loadCampaign()` fetches `../data/magers-campaign.json` same-origin and returns the raw JSON; pages normalise it themselves. In Safe Test Mode it fetches `../tests/output/test-campaign.published.json` when a test publish has written it, else the test fixture
-- `admin/drive-test.html` is the one exception: it tests the Drive proxy directly
 - There is no EMBEDDED_DATA block in any HTML file — do not add one
 - There is no sync indicator bar — do not add one
 - If a load fails, show a clear error state — do not silently fall back to stale or hardcoded data. `loadCampaign()` throws on HTTP errors so the page's catch can do this.
@@ -162,14 +163,11 @@ async function loadCampaignData() {
 - Every failure is an error ending "Nothing was written" (or saying the old file is unchanged), never a silent skip
 - `.vscode/settings.json` makes Live Server ignore `data/**` and `tests/**` so a publish does not reload the page and lose the review. Keep those entries, and keep Live Server's defaults in the list, because the setting replaces them
 
-## Drive integration rules
+## Google Drive is retired (issue #98)
 
-- Proxy URL and campaign file ID live ONLY in `shared/config.js` as `window.CHRONICLE_CONFIG`
-- Never hardcode the proxy URL or file ID in an individual HTML file
-- All Drive calls live in `shared/chronicle-store.js`. Pages that need Drive load `../shared/config.js` then `../shared/chronicle-store.js` before the page script and call `ChronicleStore` methods
-- GET for all Drive reads (avoids CORS preflight); POST with `Content-Type: text/plain` for writes
-- Drive is used only for the Versions page's backups: backup copies, listing and downloading backups. Publish no longer reads or writes Drive (#97), so the Drive campaign file is no longer updated; the design retires these backups separately
-- Drive is NOT used for the campaign data pages display — `loadCampaign()` reads the repo file
+- Chronicle no longer uses Google Drive. The proxy calls, the Versions page with its Drive backups, and `drive-test.html` were removed; git history is the backup. Turning off the Apps Script deployment is the DM's step
+- Do not add a Drive call, a proxy URL or a Drive file ID back to any page or to the store
+- A local `shared/config.js` may still hold `proxyUrl`, `campaignFileId` and `testCampaignFileId`. Nothing reads them; leave them to the DM to delete, and never copy them anywhere
 
 ---
 
@@ -413,7 +411,7 @@ Do not change `_schema_version` without explicit instruction. It lives at the ro
 
 - Do not add EMBEDDED_DATA blocks to any HTML file
 - Do not add a sync indicator bar to any page
-- Do not hardcode the Drive proxy URL or campaign file ID outside of `shared/config.js`
+- Do not add a Google Drive call, proxy URL or file ID back (#98)
 - Do not introduce npm packages, a bundler, or a JS framework
 - Do not reuse voided legacy IDs, and do not mint new typed or sequential ids: new ids are UUIDs from `ChronicleIds.newId()` (#95)
 - Do not change `_schema_version` without explicit instruction
@@ -422,7 +420,7 @@ Do not change `_schema_version` without explicit instruction. It lives at the ro
 - Do not remove data from existing campaign objects without explicit instruction
 - Do not commit or reference `shared/config.js` — it is gitignored and must stay that way
 - Do not run `node scripts/build.js` — it is dead code
-- **Never commit `safeTestMode: true`** in `shared/config.js` — it redirects all campaign data reads to the test files, publishes to the test output file and Drive backups to the test file ID, which would affect any admin working locally from the same config
+- **Never commit `safeTestMode: true`** in `shared/config.js` — it redirects all campaign data reads to the test files and publishes to the test output file, which would affect any admin working locally from the same config
 - Do not make publish commit, push or call GitHub, and never make it write the campaign file without the stale-file check and the `.prev` copy (#97)
 - Do not commit `data/magers-campaign.prev.json` or `tests/output/` — both are git-ignored
 
@@ -434,8 +432,7 @@ These features exist in the codebase but are broken. Do not treat them as refere
 
 | File | Broken feature | Status |
 |---|---|---|
-| `admin/log-editor.html` | Edits are in-memory only — no write-back to JSON or Drive | Document clearly; do not add fake "save" affordances |
-| `admin/drive-test.html` | `?action=read` test calls the proxy read endpoint — reads moved to same-origin fetch in Phase 1 | Do not use this as a pattern for data reads |
+| `admin/log-editor.html` | Edits are in-memory only — no write-back to JSON | Document clearly; do not add fake "save" affordances |
 
 ---
 
@@ -461,7 +458,7 @@ After any code change, open the affected page in a browser and check:
 - [ ] No game state fields (HP, spell slots, conditions) were added
 
 **For admin tool changes:**
-- [ ] Nav bar order matches the 7-item canonical order
+- [ ] Nav bar order matches the 6-item canonical order
 - [ ] Active page nav link has `class="nav-link active"`
 - [ ] "⇄ Player View" button is present in the header right
 
@@ -487,7 +484,7 @@ The DM manages the post-session workflow through the admin tools, then manually 
 3. Add a nav link for the new page to all other admin pages in the correct position
 4. Load `../shared/config.js` at the bottom of `<body>` before the page script
 5. Load `../shared/chronicle-ai.js` only if the page uses AI features
-6. If the page needs campaign data, load `../shared/chronicle-store.js` and call `ChronicleStore.loadCampaign()` at init — never a direct fetch, never from Drive
+6. If the page needs campaign data, load `../shared/chronicle-store.js` and call `ChronicleStore.loadCampaign()` at init — never a direct fetch
 
 ---
 
@@ -573,7 +570,7 @@ The implementation log must contain these sections:
    - what the automated tests do not cover. For example, no test loads the HTML pages themselves.
    - If tests were not run, or any failed, say so plainly and include the failure output.
 6. **Manual verification.** Browser or other manual checks done, and what they showed.
-7. **Not exercised.** Anything deliberately left untested, and why (for example, a real Drive write that would hit live data).
+7. **Not exercised.** Anything deliberately left untested, and why (for example, a real publish that would rewrite the live campaign file).
 8. **Acceptance.** The issue's acceptance checklist, each item ticked or not, with a note on any exception.
 
 Rules:

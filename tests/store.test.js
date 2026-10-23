@@ -7,8 +7,8 @@
  * WHY THIS FILE EXISTS
  * --------------------
  * ChronicleStore is now the only code that reads or writes the campaign
- * (issue #96). These tests pin down what each call touches — which path,
- * which Drive file ID, which proxy action, which local files are written —
+ * (issue #96). These tests pin down what each call touches — which path is
+ * fetched and which local files are written —
  * so that the local-file publish (#97) and the later move to Postgres
  * (phase 7) can be checked against the same expectations, and so Safe Test
  * Mode can never silently stop redirecting to the test files.
@@ -41,6 +41,8 @@ function assert(label, condition) {
   else           { console.log('  FAIL  ' + label); failed++; }
 }
 
+// A config.js written before #98 still carries the Drive keys. The store
+// must ignore them: Test 9 checks that no call goes near the proxy.
 const PROD_CONFIG = {
   proxyUrl:           'https://proxy.example/exec',
   campaignFileId:     'LIVE_ID',
@@ -212,11 +214,6 @@ function mockFetch(reply) {
       text:   async () => (typeof r.body === 'string' ? r.body : JSON.stringify(r.body)),
     };
   };
-}
-
-/** queryOf(url) — the query parameters of a recorded proxy GET, as an object. */
-function queryOf(url) {
-  return Object.fromEntries(new URL(url).searchParams);
 }
 
 /**
@@ -506,37 +503,17 @@ async function expectReject(fn) {
     assert('no githubToken setting', !/githubToken/.test(src));
   }
 
-  // ── Test 9 — Drive calls without config.js fail clearly ────────────────────
-  console.log('\nTest 9 — Drive calls without config.js fail with a clear message');
-  delete window.CHRONICLE_CONFIG;
-  mockFetch(() => ({ status: 200, body: { ok: true } }));
+  // ── Test 9 — Google Drive is gone (issue #98) ────────────────────────────
+  // The Drive backups were the last Drive calls. The exports and the source
+  // are both checked, so a Drive call added on a path no test reaches is
+  // still caught, as Test 8b does for GitHub.
+  console.log('\nTest 9 — the store has no Drive backup calls or proxy settings');
   {
-    const msg = await expectReject(() => Store.listBackups());
-    assert('rejects as not configured', msg && msg.includes('not configured'));
-    assert('makes no request', calls.length === 0);
-  }
-
-  // ── Test 10 — backups follow Safe Test Mode's file ID ──────────────────────
-  console.log('\nTest 10 — createBackup() / listBackups() in Safe Test Mode use testCampaignFileId');
-  window.CHRONICLE_CONFIG = TEST_CONFIG;
-  mockFetch(() => ({ status: 200, body: { ok: true, backups: [] } }));
-  {
-    await Store.createBackup('pre-session_008');
-    await Store.listBackups();
-    assert('backup targets TEST_ID', queryOf(calls[0].url).id === 'TEST_ID');
-    assert('list targets TEST_ID', queryOf(calls[1].url).id === 'TEST_ID');
-    assert('list uses action=listBackups', queryOf(calls[1].url).action === 'listBackups');
-  }
-
-  // ── Test 11 — loadBackup reads one backup by bare ID ───────────────────────
-  console.log('\nTest 11 — loadBackup() reads a backup by ID');
-  window.CHRONICLE_CONFIG = PROD_CONFIG;
-  mockFetch(() => ({ status: 200, body: { ok: true, data: { backup: true } } }));
-  {
-    const json = await Store.loadBackup('B42');
-    const q = queryOf(calls[0].url);
-    assert('sends only the id parameter', q.id === 'B42' && q.action === undefined);
-    assert('returns the backup data', json.backup === true);
+    assert('createBackup, listBackups and loadBackup are no longer exported',
+      !('createBackup' in Store) && !('listBackups' in Store) && !('loadBackup' in Store));
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'shared', 'chronicle-store.js'), 'utf8');
+    assert('no proxyUrl, campaignFileId or testCampaignFileId setting is read', !/proxyUrl|campaignFileId|testCampaignFileId/.test(src));
+    assert('no Apps Script URL', !/script\.google(usercontent)?\.com/i.test(src));
   }
 
   // ── Test 12 — draft stubs report they are unavailable ──────────────────────

@@ -198,7 +198,6 @@ aside{border-right:1px solid var(--border-strong);display:flex;flex-direction:co
     <span class="nav-link" onclick="window.location='integrity.html'">Integrity</span>
     <span class="nav-link" onclick="window.location='log-viewer.html'">Campaign Log</span>
     <span class="nav-link active" onclick="window.location='log-editor.html'">Log Editor</span>
-    <span class="nav-link" onclick="window.location='versions.html'">Versions</span>
   </nav>
   <div class="header-right">
     <button onclick="window.location='../player/'" style="background:none;border:1px solid var(--border-strong);border-radius:3px;padding:4px 10px;font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.1em;cursor:pointer;color:var(--muted);transition:all 0.15s;" onmouseover="this.style.color='var(--ink)';this.style.background='var(--parchment-dark)'" onmouseout="this.style.color='var(--muted)';this.style.background='none'">⇄ Player View</button>
@@ -1007,7 +1006,7 @@ function previewChanges() {
     const ent = ENTITIES.find(e=>e.id===id);
     return `${ent?.name||id}: ${Object.keys(fields).join(', ')}`;
   }).join('\n');
-  alert(`Changes to commit:\n\n${summary}\n\nIn production, this shows the full JSON diff before writing to Drive.`);
+  alert(`Changes to commit:\n\n${summary}\n\nEdits are in memory only; nothing is written to the campaign file.`);
 }
 
 function saveAll() { commitChanges(); }
@@ -1086,7 +1085,7 @@ function showToast(msg) {
 // ── Load live campaign data from the repo JSON, then render the entity list ──
 // Why: the hardcoded ENTITIES array below is stale. Fetching the live JSON at init
 // ensures the editor always reflects the current campaign state.
-// Edits are still in-memory only — no write-back to JSON or Drive exists yet.
+// Edits are still in-memory only — no write-back to the campaign file exists yet.
 (async () => {
   try {
     // Load through the store module (issue #96). It resolves Safe Test Mode

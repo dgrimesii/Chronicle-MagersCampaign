@@ -42,7 +42,7 @@ window.ChronicleIntegrity = {
    * ---------------
    * The DM needs to know which combat rounds are missing before approving
    * or publishing session data. Catching gaps here — before the delta goes
-   * to Drive — avoids committing incomplete records that are harder to find
+   * to the campaign file — avoids committing incomplete records that are harder to find
    * and fix later.
    *
    * WHAT WOULD BREAK IF REMOVED

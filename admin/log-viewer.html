@@ -286,7 +286,6 @@ mark{background:rgba(212,175,55,0.2);color:var(--ink);border-radius:2px;padding:
     <span class="nav-link" onclick="window.location='integrity.html'">Integrity</span>
     <span class="nav-link active" onclick="window.location='log-viewer.html'">Campaign Log</span>
     <span class="nav-link" onclick="window.location='log-editor.html'">Log Editor</span>
-    <span class="nav-link" onclick="window.location='versions.html'">Versions</span>
   </nav>
   <div class="header-right">
     <div style="display:flex;align-items:center;gap:12px;">
@@ -441,9 +440,11 @@ function copyError() {
 // CONFIG — edit these for your campaign
 // ══════════════════════════════════════════════════════
 const CONFIG = {
+  // The admin/player mode toggle is remembered in localStorage. Volatile:
+  // it is lost if the browser's site data is cleared or another browser is
+  // used, and the page then starts in admin mode, which is harmless.
   mode:         localStorage.getItem('chronicle_mode') || 'admin',
   campaignName: 'Magers Campaign',
-  lastLoaded:   null,
 };
 
 // ══════════════════════════════════════════════════════
@@ -453,39 +454,6 @@ let DATA = null;
 
 
 
-
-function ingestDriveData(json, fileId) {
-  const diag = msg => { setStatus(msg, 'loading'); };
-  try {
-    diag('Normalising campaign JSON...');
-    DATA = normaliseCampaignJson(json);
-
-    CONFIG.lastLoaded = new Date().toLocaleString();
-    localStorage.setItem('chronicle_last_loaded', CONFIG.lastLoaded);
-
-    diag('Clearing ENTITIES...');
-    Object.keys(ENTITIES).forEach(k => delete ENTITIES[k]);
-
-    diag('registerAll...');
-    registerAll();
-
-    diag('renderSessionTimeline...');
-    renderSessionTimeline();
-
-    diag('renderSidebar...');
-    renderSidebar();
-
-    setStatus('Loaded \u00b7 ' + (DATA.sessions?.length||0) + ' sessions \u00b7 ' + (DATA.party?.length||0) + ' PCs \u00b7 ' + (DATA.combats?.length||0) + ' combats', 'ok');
-    const settingsStatus = document.getElementById('settings-status');
-    if (settingsStatus) settingsStatus.textContent = 'Campaign log loaded: ' + (DATA.sessions?.length||0) + ' sessions, ' + (DATA.party?.length||0) + ' PCs, ' + (DATA.npcs?.length||0) + ' NPCs.';
-
-  } catch(e) {
-    const msg = 'ingestDriveData failed: ' + e.message;
-    console.error('[ingest] CRASH', e);
-    setStatus(msg, 'error');
-    try { showError(msg + '\n\nStack: ' + e.stack, 'ingestDriveData'); } catch(e2) {}
-  }
-}
 
 function normaliseCampaignJson(json) {
   // Fast path: data is already in viewer shape. Handles any future pre-normalised format.
@@ -862,8 +830,9 @@ function toggleSettings() {
   panel.style.display = isOpen ? 'none' : 'block';
   if (!isOpen) {
     updateModeButtons();
-    const lastLoaded = localStorage.getItem('chronicle_last_loaded');
-    if (lastLoaded) document.getElementById('settings-status').textContent = `Last loaded from Drive: ${lastLoaded}`;
+    // The "Last loaded from Drive" stamp was removed with Drive (#98).
+    // Nothing had written it since loading moved to loadCampaign(), so it
+    // showed a stale time from an old browser session.
   }
 }
 

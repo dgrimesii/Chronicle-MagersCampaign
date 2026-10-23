@@ -5,13 +5,13 @@
  *
  * WHY THIS MODULE EXISTS
  * ----------------------
- * Where campaign data is stored is going to change twice: phase 2 of the
- * rebuild moves publish from Google Drive to the local campaign file in the
- * DM's clone (#97), and phase 7 moves everything to an API backed by Postgres
- * (docs/intake-redesign.md, "Build order"). Before this module, every page
- * had its own fetch() of the campaign JSON and two pages carried their own
- * copy of the Drive proxy code. With every read and write routed through
- * here, each of those moves changes only this file.
+ * Where campaign data is stored changes twice: phase 2 of the rebuild moved
+ * publish from Google Drive to the local campaign file in the DM's clone
+ * (#97, and #98 removed Drive entirely), and phase 7 moves everything to an
+ * API backed by Postgres (docs/intake-redesign.md, "Build order"). Before
+ * this module, every page had its own fetch() of the campaign JSON and two
+ * pages carried their own copy of the Drive proxy code. With every read and
+ * write routed through here, each of those moves changes only this file.
  *
  * WHAT THIS MODULE DOES
  * ---------------------
@@ -21,23 +21,20 @@
  *                               file read from disk in the DM's clone (#97)
  *   publishSession(c, s, o)   — writes the published campaign to that file;
  *                               the DM commits it in VS Code (#97)
- *   createBackup(label)       — Drive backup copy of the Drive campaign file
- *   listBackups()             — Drive backups of that file
- *   loadBackup(backupId)      — reads one Drive backup
  *   saveDraft() / loadDraft() — stubs; saved review drafts arrive in phase 7
  *   isSafeTestMode()          — whether Safe Test Mode is on
  *
  * Safe Test Mode is resolved here and nowhere else. When
  * CHRONICLE_CONFIG.safeTestMode is true, publish builds on the test fixture
  * and writes tests/output/test-campaign.published.json (never the fixture or
- * the campaign file), page reads show that output once it exists and the
- * fixture until then, and backups target testCampaignFileId.
+ * the campaign file), and page reads show that output once it exists and
+ * the fixture until then.
  *
  * WHAT WOULD BREAK IF REMOVED
  * ----------------------------
- * Every admin page except glossary.html and drive-test.html, and the player
- * view, load their campaign data through this module. Without it none of
- * them can load, Delta Review cannot publish, and Versions cannot reach Drive.
+ * Every admin page except glossary.html, and the player view, load their
+ * campaign data through this module. Without it none of them can load and
+ * Delta Review cannot publish.
  *
  * LOAD ORDER
  * ----------
@@ -45,8 +42,8 @@
  *   config.js → chronicle-store.js → chronicle-integrity.js → chronicle-ai.js
  *   → chronicle-narrative.js → page script
  * config.js is optional. It is gitignored and absent on GitHub Pages, so
- * loadCampaign() must work without it. Publishing needs no settings from it
- * (only safeTestMode); the Drive backups need proxyUrl.
+ * loadCampaign() must work without it. The only setting this module reads
+ * from it is safeTestMode.
  */
 
 window.ChronicleStore = (function() {
@@ -119,49 +116,6 @@ window.ChronicleStore = (function() {
     // real failure and must show as one, not as the fixture.
     if (res.status !== 404) throw new Error('HTTP ' + res.status + ' loading ' + TEST_OUTPUT_PATH);
     return fetchJson(FIXTURE_PATH);
-  }
-
-  // ── Drive proxy plumbing ──────────────────────────────────────────────────
-  // Drive no longer receives publishes (#97 writes them to the local file). It is
-  // still used by the Versions page's backups (createBackup, listBackups,
-  // loadBackup), which the design retires separately. Remove these helpers
-  // when the last of those calls is gone.
-
-  /**
-   * driveSetup() → { proxy, fileId } for the Drive proxy calls.
-   *
-   * Why: Drive needs config.js, which is absent on GitHub Pages. Failing here
-   * with a plain message is clearer than a fetch to "undefined?action=…".
-   * The file ID follows Safe Test Mode so test runs never touch the live file.
-   */
-  function driveSetup() {
-    const cfg = config();
-    if (!cfg.proxyUrl) {
-      throw new Error('Drive is not configured — shared/config.js is missing or has no proxyUrl');
-    }
-    return {
-      proxy:  cfg.proxyUrl,
-      fileId: isSafeTestMode() ? cfg.testCampaignFileId : cfg.campaignFileId,
-    };
-  }
-
-  /**
-   * driveGet(params) — GET request to the Drive proxy, returning its JSON.
-   *
-   * Why GET: a GET with query parameters is a CORS "simple" request, so the
-   * browser sends no OPTIONS preflight, which the Apps Script proxy cannot
-   * answer. Throws when the proxy reports { ok: false }.
-   */
-  async function driveGet(params) {
-    const { proxy } = driveSetup();
-    const query = Object.keys(params)
-      .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
-      .join('&');
-    const res = await fetch(proxy + '?' + query);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Drive error');
-    return data;
   }
 
   // ── Publishing to the local campaign file (issue #97) ─────────────────────
@@ -479,42 +433,9 @@ window.ChronicleStore = (function() {
     return { mode: 'local-file', path: readName, previousPath: FILE_PREVIOUS.join('/'), testMode: false, commitMessage };
   }
 
-  /**
-   * createBackup(label) → { ok, backupId, name }
-   *
-   * What: asks the proxy to copy the Drive campaign file into the backup set.
-   * Why: used by the Versions pre-session backup. Publish no longer makes one
-   * (#97); git history and data/magers-campaign.prev.json replace it.
-   */
-  async function createBackup(label) {
-    const { fileId } = driveSetup();
-    return driveGet({ action: 'backup', id: fileId, label: label || '' });
-  }
-
-  /**
-   * listBackups() → { ok, backups: [{ id, name, modified, size }] }
-   *
-   * Why: the Versions page syncs its local ledger from this list.
-   */
-  async function listBackups() {
-    const { fileId } = driveSetup();
-    return driveGet({ action: 'listBackups', id: fileId });
-  }
-
-  /**
-   * loadBackup(backupId) → the backup's campaign JSON.
-   *
-   * Why: the Versions page downloads a backup for a manual restore. The proxy
-   * serves a file by bare ID (no action parameter) as { ok, data }.
-   */
-  async function loadBackup(backupId) {
-    const data = await driveGet({ id: backupId });
-    return data.data;
-  }
-
   // ── Saved review drafts ───────────────────────────────────────────────────
-  // Saving a half-finished review needs a server-side store; the repo and
-  // Drive cannot hold per-user working state safely. The design defers drafts
+  // Saving a half-finished review needs a server-side store; the repo file
+  // cannot hold per-user working state safely. The design defers drafts
   // to the Postgres move (phase 7). These stubs fix the interface now so
   // pages can be written against it; replace them in phase 7.
 
@@ -540,9 +461,6 @@ window.ChronicleStore = (function() {
     loadCampaign,
     loadPublishBase,
     publishSession,
-    createBackup,
-    listBackups,
-    loadBackup,
     saveDraft,
     loadDraft,
     isSafeTestMode,
