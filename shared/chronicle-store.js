@@ -190,6 +190,11 @@ window.ChronicleStore = (function() {
   const HANDLE_DB    = 'chronicle-store';
   const HANDLE_STORE = 'handles';
   const HANDLE_KEY   = 'repo-folder';
+  // How long to wait for IndexedDB before giving up on the remembered
+  // folder. IndexedDB normally answers in milliseconds; without a limit, a
+  // database stuck behind another tab would leave publish waiting forever
+  // on "Reading the campaign file…" with no error.
+  const HANDLE_DB_TIMEOUT_MS = 5000;
 
   // What loadPublishBase() last read: whether it was in Safe Test Mode, the
   // folder handle, the path read and the exact text found there.
@@ -205,15 +210,29 @@ window.ChronicleStore = (function() {
    * reused across visits (permission still has to be re-granted each new
    * browser session). Returns null when IndexedDB is unavailable, and the
    * DM is then asked for the folder on each publish.
+   * Rejects if the open is blocked (another tab holds the database open
+   * during a version change) or takes longer than HANDLE_DB_TIMEOUT_MS.
+   * Both callers swallow that rejection, so the worst case is the folder
+   * picker opening again, never a publish that hangs (#97 gate review).
+   * The caller must close() the database it gets back.
    */
   function openHandleDb() {
     const idb = window.indexedDB;
     if (!idb) return Promise.resolve(null);
     return new Promise((resolve, reject) => {
+      let gaveUp = false;
+      const timer = setTimeout(() => { gaveUp = true; reject(new Error('IndexedDB did not answer')); }, HANDLE_DB_TIMEOUT_MS);
       const req = idb.open(HANDLE_DB, 1);
       req.onupgradeneeded = () => req.result.createObjectStore(HANDLE_STORE);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        clearTimeout(timer);
+        // A database that opens after the timeout has nobody waiting for
+        // it, so close it instead of leaving the connection open.
+        if (gaveUp) { req.result.close(); return; }
+        resolve(req.result);
+      };
+      req.onerror = () => { clearTimeout(timer); reject(req.error); };
+      req.onblocked = () => { clearTimeout(timer); gaveUp = true; reject(new Error('IndexedDB open blocked by another tab')); };
     });
   }
 
@@ -222,30 +241,41 @@ window.ChronicleStore = (function() {
    * repository folder handle. A failure to remember is not an error for
    * the publish itself: it only means the folder is asked for again later.
    */
+  // Each call opens its own connection and closes it when done, so no
+  // connection is left open to block a later version change of the
+  // database. Before the #97 gate review they were never closed.
   async function savedFolder() {
+    let db = null;
     try {
-      const db = await openHandleDb();
+      db = await openHandleDb();
       if (!db) return null;
+      const req = db.transaction(HANDLE_STORE, 'readonly').objectStore(HANDLE_STORE).get(HANDLE_KEY);
       return await new Promise((resolve, reject) => {
-        const req = db.transaction(HANDLE_STORE, 'readonly').objectStore(HANDLE_STORE).get(HANDLE_KEY);
         req.onsuccess = () => resolve(req.result || null);
         req.onerror = () => reject(req.error);
       });
     } catch (e) {
       return null;
+    } finally {
+      if (db) db.close();
     }
   }
   async function saveFolder(handle) {
+    let db = null;
     try {
-      const db = await openHandleDb();
+      db = await openHandleDb();
       if (!db) return;
+      const tx = db.transaction(HANDLE_STORE, 'readwrite');
+      tx.objectStore(HANDLE_STORE).put(handle, HANDLE_KEY);
       await new Promise((resolve, reject) => {
-        const tx = db.transaction(HANDLE_STORE, 'readwrite');
-        tx.objectStore(HANDLE_STORE).put(handle, HANDLE_KEY);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
-    } catch (e) { /* asked for again next time; nothing else depends on it */ }
+    } catch (e) {
+      /* asked for again next time; nothing else depends on it */
+    } finally {
+      if (db) db.close();
+    }
   }
 
   /**
@@ -325,6 +355,16 @@ window.ChronicleStore = (function() {
       try {
         await fileHandle(folder, FILE_CAMPAIGN, false);
       } catch (e) {
+        // The common mistake is picking the data folder itself. The picker
+        // reopens in the folder picked last, and going up a level in the
+        // Windows dialog leaves that folder highlighted, so "Select Folder"
+        // picks data again (this happened at the #97 gate). Say so plainly.
+        let pickedData = false;
+        try { await folder.getFileHandle(FILE_CAMPAIGN[1]); pickedData = true; } catch (e2) { /* not the data folder */ }
+        if (pickedData) {
+          throw new Error('You picked the "' + folder.name + '" folder itself. Pick the repository folder that contains it. ' +
+            'The picker opens where you last picked, so go up one level and make sure "' + folder.name + '" is not highlighted before Select Folder. Nothing was written.');
+        }
         throw new Error('The folder "' + folder.name + '" is not the Chronicle repository (no data/magers-campaign.json in it). Pick the repository folder. Nothing was written.');
       }
       await saveFolder(folder);

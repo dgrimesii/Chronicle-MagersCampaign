@@ -3739,6 +3739,11 @@ function showPublishConfirm() {
   const approved = [...items, ...cascadeItems].filter(i => i.status === 'approved');
   if (!approved.length) { alert('No approved items to publish.'); return; }
 
+  // Clear the last publish's status so an old error is never shown under a
+  // new attempt. At the #97 gate a second attempt failed with the same
+  // message as the first, and the unchanged line read as "nothing happened".
+  setPublishStatus('', 'loading');
+
   // SafeTestMode banner — make it unmistakable when the DM is about to write to the
   // test fixture rather than the live campaign. Asks the store module, which owns
   // the Safe Test Mode rule and copes with an absent config.js (issue #96).

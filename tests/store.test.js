@@ -149,15 +149,26 @@ function fakeIndexedDB() {
       return tx;
     },
     createObjectStore() {},
+    // Counted so a test can check every connection the store opens is closed.
+    close() { fake.closes++; },
   };
-  return {
+  // mode 'blocked' fires onblocked (another tab in the way); 'hang' never
+  // answers at all. Both must fall back to the picker, never hang publish.
+  const fake = {
     saved,
+    opens: 0,
+    closes: 0,
+    mode: null,
     open() {
+      fake.opens++;
       const req = { result: db };
+      if (fake.mode === 'hang') return req;
+      if (fake.mode === 'blocked') { later(() => req.onblocked && req.onblocked()); return req; }
       later(() => { req.onupgradeneeded && req.onupgradeneeded(); req.onsuccess && req.onsuccess(); });
       return req;
     },
   };
+  return fake;
 }
 
 /**
@@ -437,6 +448,52 @@ async function expectReject(fn) {
     window.showDirectoryPicker = saved;
   }
   assert('no request was made in any failure case', calls.length === 0);
+
+  // ── Test 8c — fixes from the phase 2 gate run ──────────────────────────────
+  // At the gate the DM picked the data folder twice: the picker reopens in
+  // the last folder picked. These check the clearer message, and that the
+  // remembered-folder database can never leave publish waiting.
+  console.log('\nTest 8c — picking the data folder, and an IndexedDB that is blocked or silent');
+  window.CHRONICLE_CONFIG = PROD_CONFIG;
+  mockFetch(() => ({ status: 500, body: null }));
+  {
+    // The data folder itself: magers-campaign.json sits directly inside it.
+    const dataFolder = fakeRepo({ 'magers-campaign.json': '{}\n' }, { name: 'data' });
+    useDisk(dataFolder);
+    const msg = await expectReject(() => Store.loadPublishBase());
+    assert('picking the data folder says so and asks for the folder that contains it',
+      msg && msg.includes('You picked the "data" folder itself') && msg.includes('contains it') && msg.includes('Nothing was written'));
+    assert('is not remembered and nothing is written', Object.keys(window.indexedDB.saved).length === 0 && dataFolder.writes.length === 0);
+  }
+  {
+    const repo = fakeRepo({ [CAMPAIGN_FILE]: '{"ok":1}\n' });
+    useDisk(repo);
+    await Store.loadPublishBase();                 // read, then save
+    await Store.loadPublishBase();                 // read the remembered folder
+    const idb = window.indexedDB;
+    assert('every IndexedDB connection the store opens is closed', idb.opens === 3 && idb.closes === 3);
+  }
+  {
+    const repo = fakeRepo({ [CAMPAIGN_FILE]: '{"ok":1}\n' });
+    useDisk(repo);
+    window.indexedDB.mode = 'blocked';
+    const json = await Store.loadPublishBase();
+    assert('a blocked IndexedDB falls back to the picker and the publish read still works', json.ok === 1 && picks.length === 1);
+  }
+  {
+    // A database that never answers: the store's 5 s limit, made instant.
+    const realTimeout = global.setTimeout;
+    global.setTimeout = (fn, ms) => realTimeout(fn, ms >= 1000 ? 0 : ms);
+    try {
+      const repo = fakeRepo({ [CAMPAIGN_FILE]: '{"ok":1}\n' });
+      useDisk(repo);
+      window.indexedDB.mode = 'hang';
+      const json = await Store.loadPublishBase();
+      assert('an IndexedDB that never answers times out to the picker instead of hanging', json.ok === 1 && picks.length === 1);
+    } finally {
+      global.setTimeout = realTimeout;
+    }
+  }
 
   // ── Test 8b — nothing in the store talks to GitHub ─────────────────────────
   // The acceptance list says no GitHub token or API call anywhere. The
