@@ -215,5 +215,92 @@ console.log('\nTest F-6 — merging pages (gate: one combat across a page break)
   assert('F-6: a lower round on a later page is flagged too', across.issues.some(x => /round 2 on page 2 comes after round 5/.test(x.detail)));
 }
 
+// ── P-1 – P-4: passages (#102) ──────────────────────────────────────────────
+// A typed-notes page with an NPC conversation, a place description and a
+// round moment. Built on its own rows so it has an NPC (Rufus), a place
+// (Belfar) and a new piece of lore an NPC tells the party.
+const ChroniclePublish = require('../shared/chronicle-publish.js');
+const pRows = E.buildRows([{ page: 'notes', mentions: [
+  m('npc', 'Rufus'),                                        // occ_notes_1
+  m('place', 'Bel', { candidate_id: C.get('loc_006') }),    // occ_notes_2
+  m('lore', 'the dragon pact'),                             // occ_notes_3
+  m('pc', 'Mal'),                                           // occ_notes_4
+] }], index);
+E.bulkAcknowledgeExact(pRows);
+E.acknowledge(pRows.find(r => r.asWritten === 'Bel'));
+E.acknowledge(pRows.find(r => r.asWritten === 'the dragon pact'), 'The Dragon Pact');
+const pRefs = F.pageReferences('notes', pRows, index);
+const RUFUS = pRefs.find(r => r.occ === 'occ_notes_1').entityId;
+const BELFAR = C.get('loc_006');
+const LORE = pRefs.find(r => r.occ === 'occ_notes_3').entityId;
+function notesPage() {
+  return { combats: [{ combat: AMBUSH, rounds: [{ n: 8, turns: [
+      { actor: 'occ_notes_4', source_line: 'Mal - Hit (6)', activities: [act('action', 'Attack', [out('hit', 6)])] }], enemy_turns: [], events: [] }] }],
+    quest_progress: [], loot: [], self_check: [],
+    passages: [
+      { text: 'Rufus said he had not slept since the dragons came, and that he would guide the party for a share of the bounty.', speaker: 'occ_notes_1', attach: { to: 'entity', occ: 'occ_notes_1' }, source_lines: ['Rufus - no sleep since drags, will guide for share'] },
+      { text: 'Belfar is a walled market town on the river, its gates shut at dusk.', speaker: 'dm', attach: { to: 'entity', occ: 'occ_notes_2' }, source_lines: ['Bel - walled mkt town, river, gates shut dusk'] },
+      { text: 'Rufus claimed the dragons keep an old pact with the goblins of the ridge.', speaker: 'occ_notes_1', attach: { to: 'entity', occ: 'occ_notes_3' }, source_lines: ['R: drags have pact w/ ridge gobs'] },
+      { text: 'Malachite\'s blade bit deep as the last goblin turned to run.', speaker: 'dm', attach: { to: 'round', combat: AMBUSH, n: 8 }, source_lines: ['Mal - Hit (6)'] },
+      { text: 'The party rode on toward the river at dusk.', speaker: 'dm', attach: { to: 'session' }, source_lines: ['on to river'] },
+    ],
+    page_summary: 'The party meets Rufus, hears of a dragon pact and reaches Belfar.' };
+}
+
+console.log('\nTest P-1 — passages parse and validate');
+{
+  const parsed = F.parseFacts(JSON.stringify(notesPage()));
+  assert('P-1: passages and the page summary are kept', parsed.passages.length === 5 && /meets Rufus/.test(parsed.page_summary));
+  assert('P-1: a valid page has no errors', F.validateFacts(parsed, pRefs, combats).length === 0);
+  const bad = notesPage();
+  bad.passages[0].speaker = 'Rufus';
+  bad.passages[1].attach = { to: 'entity', occ: 'Belfar' };
+  bad.passages[3].attach = { to: 'round', combat: AMBUSH, n: 12 };
+  const errs = F.validateFacts(F.parseFacts(JSON.stringify(bad)), pRefs, combats);
+  assert('P-1: a speaker named instead of "dm" or an occurrence is an error', errs.some(e => /speaker "Rufus"/.test(e)));
+  assert('P-1: an attachment by name is an error', errs.some(e => /attaches to "Belfar"/.test(e)));
+  assert('P-1: an attachment to a round the page does not record is an error', errs.some(e => /round 12/.test(e)));
+  assert('P-1: a passage with no attachment defaults to the session', F.parseFacts('{"combats":[],"passages":[{"text":"x","speaker":"dm"}]}').passages[0].attach.to === 'session');
+  const p = F.factsPrompt({ pageLabel: 'notes', references: pRefs, combats, carry: null, reread: null });
+  assert('P-1: the prompt asks for passages: clean-up rule, speaker and attachment', /add no fact the notes do not contain/.test(p) && /"speaker": "dm"/.test(p) && /A description of a place goes on the place/.test(p));
+}
+
+console.log('\nTest P-2 — passages become publish items (gate)');
+{
+  const merged = F.mergePages([{ page: 'notes', facts: F.parseFacts(JSON.stringify(notesPage())) }], pRefs);
+  assert('P-2: the page summary is gathered', merged.summaries.length === 1);
+  const { items, deferred } = F.passageItems(merged, pRefs, 'session_006');
+  const on = id => items.filter(i => i.targetId === id);
+  const rufus = on(RUFUS);
+  assert('P-2: the NPC conversation goes on the NPC, with the NPC as speaker',
+    rufus.length === 1 && rufus[0].array === 'npc_directory' && rufus[0].rawData._passage_append[0].speaker === RUFUS);
+  const bel = on(BELFAR);
+  assert('P-2: the place description goes on the place (DM as speaker), not the session',
+    bel.length === 1 && bel[0].array === 'locations' && bel[0].rawData._passage_append[0].speaker === 'dm' &&
+    !items.some(i => i.array === 'session_logs' && /walled market town/.test(i.rawData._passage_append[0].text)));
+  assert('P-2: a scene-setting passage goes on the session, by its session_NNN', on('session_006').length === 1 && on('session_006')[0].array === 'session_logs');
+  assert('P-2: a round passage waits for the round to be written (#106)', deferred.length === 1 && deferred[0].passage.attach.to === 'round');
+  assert('P-2: each passage has the #93 shape', items.every(i => { const p = i.rawData._passage_append[0]; return p.text && p.session_id === 'session_006' && p.speaker && 'page' in p; }));
+  assert('P-2: nothing is copied to a second place', items.length + deferred.length === merged.passages.length);
+
+  // Through the real applySession, with the new lore from identification.
+  const identity = F.testimonyUpdates(E.toQueueItems(pRows, index, 'session_006'), merged.passages, pRefs);
+  const lore = identity.find(i => i.array === 'world_lore');
+  assert('P-2: new lore an NPC told the party is rumoured npc_testimony, sourced to the NPC',
+    lore.rawData.mechanics.reliability === 'rumoured' && lore.rawData.mechanics.source_type === 'npc_testimony' && lore.rawData.mechanics.source === RUFUS);
+  const out = ChroniclePublish.applySession(campaign, identity.concat(items)).campaign;
+  const pub = (arr, id) => out[arr].find(e => e.id === id);
+  assert('P-2: published — Rufus has the conversation, speaker Rufus',
+    pub('npc_directory', RUFUS).passages?.length === 1 && pub('npc_directory', RUFUS).passages[0].speaker === RUFUS);
+  assert('P-2: published — Belfar has the description', pub('locations', BELFAR).passages?.length === 1);
+  assert('P-2: published — the session passage, with session_id translated to the session\'s UUID',
+    pub('session_logs', C.get('session_006')).passages?.[0]?.session_id === C.get('session_006'));
+  const newLore = out.world_lore.find(l => l.title === 'The Dragon Pact');
+  assert('P-2: published — the new lore carries its testimony passage and rumoured reliability',
+    newLore && newLore.passages?.length === 1 && newLore.mechanics.reliability === 'rumoured' && newLore.passages[0].speaker === RUFUS);
+  const again = ChroniclePublish.applySession(out, items).campaign;
+  assert('P-2: a repeat publish adds no passage twice', again.npc_directory.find(n => n.id === RUFUS).passages.length === 1);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

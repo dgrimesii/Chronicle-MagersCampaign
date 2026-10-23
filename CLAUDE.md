@@ -200,6 +200,8 @@ When a page needs all nine shared modules, load them in this order:
 
 `chronicle-facts.js` exports `window.ChronicleFacts` (and `module.exports` under Node): the session page's per-page facts (#101), meaning the facts prompt, the reply check, the imbalance and action-economy checks, and the merge across page breaks. It needs `chronicle-entities.js` loaded first and touches no DOM, storage or network. A fact names actors and targets only by the occurrence ids step 3 settled, never by name, and never assigns an initiative slot: keep both rules in `validateFacts()` and the prompt.
 
+Passages (#102) come from the same call. Each is `{ text, session_id, speaker, page }` and lives on exactly one object, the most specific thing it describes; never copy one to a second place. `speaker` is `"dm"` (exposition, fact) or the NPC's entity id (testimony), and an NPC's words keep the NPC as speaker whether quoted or reported. New lore an NPC told the party is `reliability: "rumoured"`, `source_type: "npc_testimony"`. A passage is cleaned into sentences but adds no fact the notes do not contain. Gemini reads confirmed entity text and passages, never raw notes.
+
 `chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 
 `chronicle-narrative.js` exports `window.ChronicleNarrative`. It is completely independent of `chronicle-ai.js` — the two modules never import each other. Load `chronicle-narrative.js` only on pages that use Gemini narrative generation.

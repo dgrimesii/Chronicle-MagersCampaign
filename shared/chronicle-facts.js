@@ -1,7 +1,8 @@
 /**
  * shared/chronicle-facts.js
  *
- * Per-page fact extraction for the session page (issue #101).
+ * Per-page fact extraction for the session page (issue #101), including the
+ * narrative passages from the same call (issue #102).
  *
  * WHY THIS MODULE EXISTS
  * ----------------------
@@ -39,7 +40,13 @@
  *   checkFacts(facts, refs)             — the self-checks: imbalance and
  *                                         action economy (from #104)
  *   mergePages(pages, refs)             — one session: rounds across page
- *                                         breaks merged, round resets flagged
+ *                                         breaks merged, round resets flagged,
+ *                                         passages and page summaries gathered
+ *   passageItems(merged, refs, session) — the passages as publish items
+ *                                         (#102), plus those that wait for
+ *                                         their round or entry to be written
+ *   testimonyUpdates(items, passages)   — marks new lore an NPC told the
+ *                                         party as rumoured npc_testimony
  *
  * Depends on shared/chronicle-entities.js (resolveOccurrences, newEntities).
  *
@@ -71,7 +78,7 @@
 
   /**
    * pageReferences(page, rows, index) → [{ occ, asWritten, context, label,
-   *   entityId, group, kind }]
+   *   entityId, group, kind, array }]
    *
    * Every occurrence step 3 found on this page, with the entity it was
    * settled as (or "needs assignment" for a split). The facts call may name
@@ -105,7 +112,10 @@
         } else {
           label = 'unsettled';
         }
-        out.push({ occ: o.id, asWritten: o.asWritten, context: o.context, label, entityId, group, kind: r.kind });
+        // array: where the entity lives (a new one's array comes from step 3),
+        // so a passage attached to it can be published to the right list.
+        out.push({ occ: o.id, asWritten: o.asWritten, context: o.context, label, entityId, group, kind: r.kind,
+          array: res.roster ? 'enemies_roster' : (entityId ? arrayOf(entityId) : null) });
       }
     }
     return out;
@@ -172,10 +182,23 @@ RULES:
 7. "Dead", "killed" or "Down" on a roll is that outcome's effect: "killed" or "downed". It is never an activity. A death save is the action "Death Save" with res success or failure.
 8. A sentence that is not a turn (the dragons descend, goblins flee) goes in the round's "events" as written, or in "special_events" of the enemy group it is about (type one of ${ENUMS.special.join(', ')}).
 9. Quest progress and items found, given, lost or used go in "quest_progress" and "loot", each with its occurrence id and source line.
+11. PASSAGES: every piece of narrative on the page that is not a turn — the DM's descriptions and exposition, and what NPCs say — becomes a passage in "passages". Clean each into complete sentences and expand abbreviations, but add no fact the notes do not contain: clean up and flesh out, do not invent.
+    - "speaker": "dm" for the DM's own description or exposition (it is fact), or the occurrence id of the NPC who said it (it is testimony). What an NPC tells the party counts as said by that NPC whether the notes quote it or report it ("Rufus says he hasn't slept", "R: will guide for a share"): keep the NPC as speaker, and keep what the NPC said separate from the DM's own description of them.
+    - What an NPC says about themselves, their past or what they want goes on that NPC; what they say about something else (a place, a creature, a piece of lore) goes on that thing.
+    - "attach": the most specific thing the passage describes, one of:
+      {"to":"entity","occ":"<occurrence id>"} — what a person, creature, group, place, thing or piece of knowledge is like, or what an NPC said about themselves;
+      {"to":"combat","combat":"<combat id>"} — how a fight opened, turned or ended;
+      {"to":"round","combat":"<combat id>","n":<round>} — a moment in one round;
+      {"to":"activity","combat":"<combat id>","n":<round>,"actor":"<occurrence id>","index":<0-based activity index in that turn>} — how one action landed;
+      {"to":"quest_progress","index":<0-based index in quest_progress>} — what happened at a quest step;
+      {"to":"session"} — scene-setting and transitions that belong to nothing narrower.
+      A description of a place goes on the place. The party arriving at a place is an event: attach it to the round or combat if it happens in one, otherwise the session.
+    - "source_lines": the lines of the notes it came from, copied exactly.
+12. "page_summary": one or two sentences saying what happens on this page, for the DM's reference.
 10. Before answering, check your own rounds. Imbalance: one character with two action-economy actions in a round while another listed character has none usually means a line was misread. Action economy: more than one action or more than one bonus action in a turn needs a feature that allows it (Action Surge). Re-read those lines and fix them. List anything you still cannot resolve in "self_check".
 ${reread && reread.length ? `\nA FIRST READ OF THIS PAGE HAD THESE PROBLEMS. Re-read the page and fix them:\n- ${reread.join('\n- ')}\n` : ''}
 Respond with JSON only, no prose:
-{"combats":[{"combat":"<combat id>","rounds":[{"n":4,"turns":[{"actor":"occ_1_1","source_line":"Asp - Healing Hands","activities":[{"economy":"action","name":"Magic","detail":"Healing Hands","val_type":null,"outcomes":[{"res":"unclear","val":null,"target":null,"target_text":null,"detail":null,"effect":null}],"notes":null}]}],"enemy_turns":[{"actor":"occ_1_4","source_line":"Goblins - Hit Mal (opportunity)","activities":[{"economy":"reaction","name":"Opportunity Attack","outcomes":[{"res":"hit","val":null,"target":"occ_1_5"}]}],"special_events":[]}],"events":[]}]}],"quest_progress":[],"loot":[],"self_check":[]}`;
+{"combats":[{"combat":"<combat id>","rounds":[{"n":4,"turns":[{"actor":"occ_1_1","source_line":"Asp - Healing Hands","activities":[{"economy":"action","name":"Magic","detail":"Healing Hands","val_type":null,"outcomes":[{"res":"unclear","val":null,"target":null,"target_text":null,"detail":null,"effect":null}],"notes":null}]}],"enemy_turns":[{"actor":"occ_1_4","source_line":"Goblins - Hit Mal (opportunity)","activities":[{"economy":"reaction","name":"Opportunity Attack","outcomes":[{"res":"hit","val":null,"target":"occ_1_5"}]}],"special_events":[]}],"events":[]}]}],"quest_progress":[],"loot":[],"passages":[{"text":"Two Larkspur dragons swooped down on the cart from the ridges and killed everyone at the cart.","speaker":"dm","attach":{"to":"round","combat":"<combat id>","n":4},"source_lines":["Larkspur dragons descend on cart from ridges. Kill all at the cart."]}],"page_summary":"The Goblin Ambush continues through rounds 4 and 5 as Larkspur dragons join the fight.","self_check":[]}`;
   }
 
   /**
@@ -192,7 +215,12 @@ Respond with JSON only, no prose:
     let parsed;
     try { parsed = JSON.parse(body.slice(start, end + 1)); } catch (e) { throw new Error('The AI reply was not valid JSON: ' + e.message); }
     if (!parsed || !Array.isArray(parsed.combats)) throw new Error('The AI reply has no "combats" list.');
-    for (const k of ['quest_progress', 'loot', 'self_check']) if (!Array.isArray(parsed[k])) parsed[k] = [];
+    for (const k of ['quest_progress', 'loot', 'self_check', 'passages']) if (!Array.isArray(parsed[k])) parsed[k] = [];
+    if (typeof parsed.page_summary !== 'string') parsed.page_summary = null;
+    for (const p of parsed.passages) {
+      if (!Array.isArray(p.source_lines)) p.source_lines = p.source_lines ? [String(p.source_lines)] : [];
+      if (!p.attach || typeof p.attach !== 'object') p.attach = { to: 'session' };
+    }
     for (const c of parsed.combats) {
       c.rounds = Array.isArray(c.rounds) ? c.rounds : [];
       for (const r of c.rounds) {
@@ -247,6 +275,25 @@ Respond with JSON only, no prose:
       }
     });
     for (const q of facts.quest_progress) if (q.quest != null && !occ.has(q.quest)) errors.push(`Quest progress names "${q.quest}" instead of an occurrence id.`);
+    // Passages (#102): the speaker is "dm" or an occurrence; the attachment
+    // names an occurrence, a combat from the list, or a round, activity or
+    // quest step that this reply itself contains.
+    (facts.passages || []).forEach((p, i) => {
+      const at = `Passage ${i + 1}`;
+      if (!p.text || !String(p.text).trim()) errors.push(`${at} has no text.`);
+      if (p.speaker !== 'dm' && !occ.has(p.speaker)) errors.push(`${at}: speaker "${p.speaker}" is neither "dm" nor an occurrence id.`);
+      const a = p.attach || { to: 'session' };
+      const roundOf = (cmb, n) => facts.combats.find(c => c.combat === cmb)?.rounds.find(r => Number(r.n) === Number(n));
+      if (a.to === 'entity') { if (!occ.has(a.occ)) errors.push(`${at} attaches to "${a.occ}", not an occurrence id.`); }
+      else if (a.to === 'combat') { if (!refs.has(a.combat) && !facts.combats.some(c => c.combat === a.combat)) errors.push(`${at} attaches to an unknown combat "${a.combat}".`); }
+      else if (a.to === 'round') { if (!roundOf(a.combat, a.n)) errors.push(`${at} attaches to round ${a.n} of "${a.combat}", which this page does not record.`); }
+      else if (a.to === 'activity') {
+        const t = roundOf(a.combat, a.n) && roundOf(a.combat, a.n).turns.concat(roundOf(a.combat, a.n).enemy_turns).find(x => x.actor === a.actor);
+        if (!t || !t.activities[Number(a.index)]) errors.push(`${at} attaches to an activity this page does not record.`);
+      }
+      else if (a.to === 'quest_progress') { if (!facts.quest_progress[Number(a.index)]) errors.push(`${at} attaches to a quest step this page does not record.`); }
+      else if (a.to !== 'session') errors.push(`${at} has an unknown attachment "${a.to}".`);
+    });
     for (const l of facts.loot) {
       if (l.item != null && !occ.has(l.item)) errors.push(`Loot names "${l.item}" instead of an occurrence id.`);
       if (l.holder != null && !occ.has(l.holder)) errors.push(`Loot holder "${l.holder}" is not an occurrence id.`);
@@ -318,7 +365,7 @@ Respond with JSON only, no prose:
   function mergePages(pages, references) {
     const combats = new Map();
     const issues = [];
-    const quest_progress = [], loot = [];
+    const quest_progress = [], loot = [], passages = [], summaries = [];
     for (const p of pages) {
       const f = p.facts;
       for (const c of f.combats) {
@@ -341,16 +388,100 @@ Respond with JSON only, no prose:
         }
         m.maxSeen = Math.max(m.maxSeen, ...c.rounds.map(r => Number(r.n) || 0));
       }
+      // A passage's quest step is an index into its own page's list; it is
+      // turned into the session-wide index here, as the lists are joined.
+      const qOffset = quest_progress.length;
+      for (const ps of f.passages || []) {
+        const attach = Object.assign({}, ps.attach);
+        if (attach.to === 'quest_progress') attach.index = qOffset + Number(attach.index);
+        passages.push(Object.assign({}, ps, { attach, page: p.page }));
+      }
+      if (f.page_summary) summaries.push({ page: p.page, text: f.page_summary });
       quest_progress.push(...f.quest_progress.map(q => Object.assign({ page: p.page }, q)));
       loot.push(...f.loot.map(l => Object.assign({ page: p.page }, l)));
     }
     return {
       combats: [...combats.values()].map(m => ({ combat: m.combat, rounds: [...m.rounds.values()].sort((a, b) => a.n - b.n) })),
-      quest_progress, loot, issues,
+      quest_progress, loot, passages, summaries, issues,
     };
   }
 
-  const api = { ENUMS, pageReferences, combatChoices, factsPrompt, parseFacts, validateFacts, checkFacts, mergePages };
+  /**
+   * passageItems(merged, references, sessionLegacyId) → { items, deferred }
+   *
+   * Turns the session's passages into publish items (#102). Each passage is
+   * stored as { text, session_id, speaker, page } — the shape #93 gave the
+   * optional passages[] list — on exactly one object, so nothing is copied:
+   *   entity            → MOD _passage_append on that entity. An occurrence
+   *                        of an enemy roster group attaches to its combat,
+   *                        because a roster group is not an entity.
+   *   combat            → MOD _passage_append on the combat
+   *   session           → MOD _passage_append on the session (by its
+   *                        session_NNN, which publish translates)
+   *   round, activity,
+   *   quest step        → deferred: those objects are written with the facts
+   *                        at publish (#106), so their passages go with them
+   * speaker is "dm" or the speaker's entity id (a new entity's working id,
+   * which publish maps to the id it assigns). An occurrence still waiting for
+   * a split assignment, as speaker or target, is deferred too.
+   */
+  function passageItems(merged, references, sessionLegacyId) {
+    const byOcc = new Map(references.map(r => [r.occ, r]));
+    const items = [], deferred = [];
+    const entityOf = occ => {
+      const r = byOcc.get(occ);
+      if (!r || !r.entityId) return null;
+      const m = /^roster:([^:]+):/.exec(r.entityId);
+      return m ? { array: 'combat_encounters', id: m[1] } : { array: r.array, id: r.entityId };
+    };
+    merged.passages.forEach((p, i) => {
+      let speaker = 'dm';
+      if (p.speaker !== 'dm') {
+        const sp = entityOf(p.speaker);
+        if (!sp) { deferred.push({ passage: p, reason: 'its speaker is waiting for a split assignment' }); return; }
+        speaker = sp.id;
+      }
+      const passage = { text: String(p.text).trim(), session_id: sessionLegacyId, speaker, page: typeof p.page === 'number' ? p.page : null };
+      const a = p.attach || { to: 'session' };
+      let target = null;
+      if (a.to === 'entity') target = entityOf(a.occ);
+      else if (a.to === 'combat') target = { array: 'combat_encounters', id: a.combat };
+      else if (a.to === 'session') target = { array: 'session_logs', id: sessionLegacyId };
+      if (a.to === 'round' || a.to === 'activity' || a.to === 'quest_progress') {
+        deferred.push({ passage: Object.assign({}, passage, { attach: a }), reason: `it belongs to a ${a.to.replace('_', ' ')}, written with the facts at publish (#106)` });
+        return;
+      }
+      if (!target || !target.id) { deferred.push({ passage, reason: 'what it describes is waiting for a split assignment' }); return; }
+      items.push({ id: 'passage_' + i, type: 'MOD', array: target.array || null, status: 'approved', targetId: target.id,
+        title: 'Passage: ' + passage.text.slice(0, 40), rawData: { id: target.id, _passage_append: [passage] } });
+    });
+    return { items, deferred };
+  }
+
+  /**
+   * testimonyUpdates(identityItems, passages, references) → identityItems
+   *
+   * A piece of lore created this session whose passage an NPC spoke is
+   * testimony, not fact: it gets reliability "rumoured" and source_type
+   * "npc_testimony", with the NPC as source, so a rumour never becomes a
+   * confirmed description (#102; lore already uses npc_testimony). Lore that
+   * already exists keeps its recorded reliability; its new passage carries
+   * the NPC as speaker. Returns new item objects; the input is not changed.
+   */
+  function testimonyUpdates(identityItems, passages, references) {
+    const byOcc = new Map(references.map(r => [r.occ, r]));
+    return identityItems.map(item => {
+      if (item.type !== 'NEW' || item.array !== 'world_lore') return item;
+      const told = passages.find(p => p.speaker !== 'dm' && p.attach?.to === 'entity' && byOcc.get(p.attach.occ)?.entityId === item.rawData.id);
+      if (!told) return item;
+      const copy = JSON.parse(JSON.stringify(item));
+      copy.rawData.mechanics = Object.assign({}, copy.rawData.mechanics, {
+        reliability: 'rumoured', source_type: 'npc_testimony', source: byOcc.get(told.speaker)?.entityId || null });
+      return copy;
+    });
+  }
+
+  const api = { ENUMS, pageReferences, combatChoices, factsPrompt, parseFacts, validateFacts, checkFacts, mergePages, passageItems, testimonyUpdates };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ChronicleFacts = api;

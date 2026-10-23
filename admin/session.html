@@ -163,6 +163,12 @@
   .fact-turn .who.enemy { color:var(--rust); }
   .fact-line { font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--muted); }
   .fact-event { font-style:italic; color:var(--muted); font-size:0.9rem; }
+  /* Passages (#102): narrative grouped by the object it attaches to. */
+  .passage { padding:4px 0 6px; border-top:1px solid var(--border); }
+  .passage:first-of-type { border-top:none; }
+  .passage .speaker { font-family:'Cinzel',serif; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+  .passage .speaker.npc { color:var(--c-npc); }
+  .passage-text { font-size:0.98rem; line-height:1.45; }
 
   @media (max-width: 640px) {
     .session-pick { grid-template-columns:1fr; }
@@ -358,6 +364,9 @@ const session = {
   // { page, label, image|text, status, error, facts, issues, selfCheck, reread }
   facts:       [],
   factsKey:    '',    // the step 3 answers the facts were read against; a change re-reads
+  // Passages (#102), built when every page's facts are in:
+  passageItems:     [], // ChronicleFacts.passageItems(...).items — MOD _passage_append
+  deferredPassages: [], // passages that belong to a round, activity or quest step (#106)
   // Context for extraction (#100), loaded now so it is ready by then. Both
   // stay null if their load fails; extraction must cope without them.
   entities:    null,  // { npcs, locations, monsters, combats } name lists
@@ -1251,6 +1260,21 @@ function renderFacts() {
   const byOcc = new Map(refs.map(r => [r.occ, r]));
   const merged = ChronicleFacts.mergePages(session.facts.map(fp => ({ page: fp.page, facts: fp.facts })), refs);
   session.mergedFacts = merged;
+  // Passages (#102): turned into publish items now; those that belong to a
+  // round, activity or quest step wait for the facts to be written (#106).
+  // New lore an NPC told the party becomes rumoured npc_testimony.
+  const passageOut = ChronicleFacts.passageItems(merged, refs, session.legacyId);
+  session.passageItems = passageOut.items;
+  session.deferredPassages = passageOut.deferred;
+  session.identityItems = ChronicleFacts.testimonyUpdates(
+    ChronicleEntities.toQueueItems(session.rows, session.index, session.legacyId), merged.passages, refs);
+  // The page summaries used to be discarded. They are saved as the session
+  // summary on the header publish reads, which fills it only if the session
+  // has none (a placeholder's recorded summary is kept).
+  if (session.header) {
+    const summary = merged.summaries.map(x => x.text).join(' ');
+    if (summary) session.header.rawData.summary = summary; else delete session.header.rawData.summary;
+  }
   const flags = merged.issues.map(x => x.detail)
     .concat(session.facts.flatMap(fp => fp.issues.map(x => x.detail)))
     .concat(session.facts.flatMap(fp => fp.selfCheck.map(t => 'AI self-check: ' + t)));
@@ -1263,7 +1287,14 @@ function renderFacts() {
     const made = ChronicleEntities.newEntities(session.rows).get(ref);
     return made ? made.name + ' (new)' : String(ref);
   };
-  const who = occ => { const r = byOcc.get(occ); return r ? `${r.asWritten} → ${r.label.replace(/ \((player character|bestiary|npc_directory|enemies_roster)\)$/, '')}` : occ; };
+  // who(occ) → "Bel → Belfar": the words as written and what they were
+  // settled as, without the trailing "(array)" the AI prompt label carries.
+  // A fact with no occurrence (an unnamed quest) says so instead of "undefined".
+  const who = occ => {
+    if (occ == null) return '(not named in the notes)';
+    const r = byOcc.get(occ);
+    return r ? `${r.asWritten} → ${r.label.replace(/ \([^)]*\)$/, '')}` : String(occ);
+  };
   const turnHtml = (t, enemy) => `<div class="fact-turn"><span class="who${enemy ? ' enemy' : ''}">${escapeHtml(who(t.actor))}</span>
     <span>${t.activities.map(a => escapeHtml(activityText(a, byOcc))).join('<br>') || '<em>nothing recorded</em>'}${(t.special_events || []).map(ev => `<div class="fact-event">${escapeHtml(ev.type + (ev.description ? ': ' + ev.description : ''))}</div>`).join('')}
     <div class="fact-line">p.${escapeHtml(String(t.page))}: ${escapeHtml(t.source_line || '')}</div></span></div>`;
@@ -1272,7 +1303,39 @@ function renderFacts() {
       ${r.turns.map(t => turnHtml(t, false)).join('')}${r.enemy_turns.map(t => turnHtml(t, true)).join('')}
       ${r.events.map(ev => `<div class="fact-event">${escapeHtml(ev)}</div>`).join('')}</div>`).join('')}</div>`).join('')
     + (merged.quest_progress.length ? `<div class="fact-combat"><h3>Quest progress</h3>${merged.quest_progress.map(q => `<div class="fact-turn"><span class="who">${escapeHtml(who(q.quest))}</span><span>${escapeHtml(q.entry || '')}<div class="fact-line">p.${escapeHtml(String(q.page))}: ${escapeHtml(q.source_line || '')}</div></span></div>`).join('')}</div>` : '')
-    + (merged.loot.length ? `<div class="fact-combat"><h3>Loot</h3>${merged.loot.map(l => `<div class="fact-turn"><span class="who">${escapeHtml(l.item ? who(l.item) : l.item_text || '')}</span><span>${escapeHtml(l.change || '')}${l.holder ? ' — ' + escapeHtml(who(l.holder)) : ''}<div class="fact-line">p.${escapeHtml(String(l.page))}: ${escapeHtml(l.source_line || '')}</div></span></div>`).join('')}</div>` : '');
+    + renderPassages(merged, byOcc, combatName, who)
+    + (merged.loot.length ? `<div class="fact-combat"><h3>Loot</h3>${merged.loot.map(l => `<div class="fact-turn"><span class="who">${escapeHtml(l.item ? who(l.item) : l.item_text || '(item not named)')}</span><span>${escapeHtml(l.change || '')}${l.holder ? ' — ' + escapeHtml(who(l.holder)) : ''}<div class="fact-line">p.${escapeHtml(String(l.page))}: ${escapeHtml(l.source_line || '')}</div></span></div>`).join('')}</div>` : '');
+}
+
+/**
+ * renderPassages(merged, byOcc, combatName, who) → HTML for the passages,
+ * grouped by what each attaches to, each with its speaker (DM exposition is
+ * fact, an NPC's words are testimony), then the page summaries. Read-only;
+ * re-attaching a passage is part of the review grid and entity pages (#103).
+ */
+function renderPassages(merged, byOcc, combatName, who) {
+  if (!merged.passages.length && !merged.summaries.length) return '';
+  const targetOf = a => a.to === 'entity' ? who(a.occ)
+    : a.to === 'combat' ? combatName(a.combat)
+    : a.to === 'round' ? `${combatName(a.combat)}, round ${a.n}`
+    : a.to === 'activity' ? `${combatName(a.combat)}, round ${a.n}, ${byOcc.get(a.actor)?.asWritten || a.actor}'s activity ${Number(a.index) + 1}`
+    : a.to === 'quest_progress' ? `quest step ${Number(a.index) + 1}: ${who(merged.quest_progress[a.index]?.quest)}`
+    : 'The session';
+  const groups = new Map();
+  for (const p of merged.passages) {
+    const t = targetOf(p.attach);
+    if (!groups.has(t)) groups.set(t, []);
+    groups.get(t).push(p);
+  }
+  const deferred = (session.deferredPassages || []).length;
+  return `<div class="fact-combat"><h3>Passages</h3>
+    ${deferred ? `<p class="fact-event">${deferred} passage${deferred === 1 ? '' : 's'} attach to a round, activity or quest step and are written with the facts at publish (#106).</p>` : ''}
+    ${[...groups].map(([t, list]) => `<div class="fact-round"><h4>${escapeHtml(t)}</h4>${list.map(p => `
+      <div class="passage"><span class="speaker${p.speaker === 'dm' ? '' : ' npc'}">${p.speaker === 'dm' ? 'DM' : escapeHtml(who(p.speaker)) + ' — testimony'}</span>
+        <div class="passage-text">${escapeHtml(p.text)}</div>
+        <div class="fact-line">p.${escapeHtml(String(p.page))}: ${escapeHtml((p.source_lines || []).join(' / '))}</div></div>`).join('')}</div>`).join('')}
+    ${merged.summaries.length ? `<div class="fact-round"><h4>Page summaries — saved as the session summary</h4>${merged.summaries.map(x => `<div class="passage-text">${escapeHtml(x.text)}</div>`).join('')}</div>` : ''}
+  </div>`;
 }
 
 // countTurns(facts) → party and enemy turns on one page, for the status line.

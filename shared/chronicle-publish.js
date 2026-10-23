@@ -25,8 +25,9 @@
  *     approved — the DM's approved queue items (NEW, MOD, ROUND, RELATIONSHIP;
  *                RAW and anything else is ignored). Never mutated. A MOD may
  *                carry _alias_append, _note_append or _roster_group_append
- *                from the session page's entity identification (#100); those
- *                add to the entity instead of replacing fields.
+ *                from the session page's entity identification (#100), or
+ *                _passage_append from its narrative passages (#102); those
+ *                add to the object instead of replacing fields.
  *     options  — { deferredGaps, promptLog, spellNames, now }, all optional:
  *                deferredGaps — integrity gaps the DM deferred (gap_NNN records)
  *                promptLog    — prompt-improvement entries captured at intake
@@ -1056,6 +1057,18 @@
       target.mechanics = target.mechanics || {};
       if (!Array.isArray(target.mechanics.associated_sessions)) target.mechanics.associated_sessions = [];
       pushUnique(target.mechanics.associated_sessions, sid);
+    } else if (Array.isArray(rawData._passage_append)) {
+      // Narrative passages from the session page (#102). Each is
+      // { text, session_id, speaker, page } and goes on exactly one object,
+      // the most specific thing it describes. A passage already there (same
+      // text from the same session) is not added again, so a repeat publish
+      // after a failure does not double it.
+      if (!Array.isArray(target.passages)) target.passages = [];
+      for (const p of rawData._passage_append) {
+        if (!p || !p.text) continue;
+        if (target.passages.some(x => x.text === p.text && x.session_id === p.session_id)) continue;
+        target.passages.push(clone(p));
+      }
     } else if (rawData._alias_append || rawData._note_append || rawData._roster_group_append) {
       // Entity identification (#100) adds to an entity without replacing it:
       // a Link to existing saves the words as an alias, Separate as new notes
