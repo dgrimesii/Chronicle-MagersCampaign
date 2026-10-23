@@ -18,6 +18,7 @@ Chronicle-MagersCampaign/
 ├── admin/
 │   ├── index.html              # Redirect to log-viewer.html
 │   ├── log-viewer.html         # Campaign log (admin view) — fetches ../data/magers-campaign.json at init
+│   ├── session.html            # Session page (#99) — the rebuilt intake; step 1 (upload with session ID and date) so far
 │   ├── intake.html             # Session intake / photo OCR pipeline — uses ChronicleAI
 │   ├── glossary.html           # OCR hints glossary — hardcoded glossary data, no JSON fetch
 │   ├── delta-review.html       # Post-session delta review and publish (writes the local campaign file) — uses ChronicleAI
@@ -57,6 +58,7 @@ Chronicle-MagersCampaign/
 │   ├── turn-schema.test.js           # Tests for the 5.0.0 turn schema: migration rules, converted data, both viewers' normalisers
 │   ├── bestiary-fold.test.js         # Tests for the Goblin Slinger fold (#94): no mon_006, roster roles, both viewers' bestiary
 │   ├── opaque-ids.test.js            # Tests for opaque ids (#95): chronicle-ids.js, the reference check (gate), migrated data, both viewers
+│   ├── session-header.test.js        # Tests for the session page's upload step (#99): session choices, the header through applySession, nav bar
 │   ├── fixtures/
 │   │   └── test-campaign.json        # Minimal v5.0.0 synthetic campaign for automated tests
 │   ├── output/                       # GITIGNORED — test-campaign.published.json, written by a Safe Test Mode publish (#97)
@@ -140,6 +142,8 @@ The post-session workflow via the admin tools:
 1. **Session Intake** (`admin/intake.html`) — upload session photos; AI extracts combat round data
 2. **Delta Review** (`admin/delta-review.html`, opened through Live Server in Chrome or Edge) — review AI-proposed changes, approve, then Publish. Publish writes `data/magers-campaign.json` in the local clone (#97). The first time, pick the repository folder; each new browser session, allow editing it once
 3. **Commit and push in VS Code.** The status line suggests the message `Publish session_NNN: <title>`. GitHub Pages redeploys on push
+
+The rebuilt intake, `admin/session.html`, replaces steps 1 and 2 with one page as issues #99–#106 land. So far it has only its upload step and cannot publish, so sessions still go through the two pages above.
 
 If the file changed on disk after Delta Review read it (a `git pull`, a hand edit), Publish stops with nothing written; reload Delta Review and publish again. Until you commit, `data/magers-campaign.prev.json` holds the file as it was before the publish. To try the workflow without touching the campaign file, turn on Safe Test Mode (below): publish then writes `tests/output/test-campaign.published.json`.
 
@@ -376,8 +380,21 @@ Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `def
 - Loads the campaign at init with `ChronicleStore.loadCampaign()` (`../data/magers-campaign.json`)
 - Loads D3.js (v7.9, cdnjs CDN), `../shared/config.js` and `../shared/chronicle-store.js`
 - Identical UI structure to player view: Browse + Graph views, sidebar, entity detail cards
-- 6-item admin nav bar; "⇄ Player View" button to `../player/`
+- 7-item admin nav bar; "⇄ Player View" button to `../player/`
 - On load failure, shows an error panel with message and copy-to-clipboard option
+
+---
+
+### `admin/session.html` — Session (intake rebuild, step 1 of 5)
+
+- **Audience:** DM only. First item in the admin nav bar
+- The single page that replaces `intake.html` and `delta-review.html` (docs/intake-redesign.md, "The new flow"). Built in steps: #99 is the page and step 1, upload; extraction, identification, review and publish follow in #100–#106. The old pages stay until phase 5 passes
+- Loads `../shared/config.js`, `../shared/chronicle-store.js`, `../shared/chronicle-ids.js` and `../shared/chronicle-publish.js`. The campaign comes through `ChronicleStore.loadCampaign()` (the fixture in Safe Test Mode); if it fails, the page shows the error and no session can be started
+- **Session ID and date:** the picker lists `ChroniclePublish.sessionChoices()`: placeholder sessions first ("Fill placeholder session_006 — The Larkspur Dragons"), then the next new ID (`session_008`). Nothing is preselected. Picking a placeholder fills in its recorded date; a new session starts with no date, so the DM types the day it was played. Changing a placeholder's recorded date shows a warning, because publish keeps the recorded date and only reports the difference
+- **Pages:** one drop zone takes photos (one per page) and at most one `.txt`/`.md` notes file; other types are refused with a message. Each photo is compressed when added (longest side 1800 px, JPEG, retried at 1400 px; too large still is shown on the row), so a bad photo is caught at upload. Rows are reordered by dragging the ≡ handle or with the ↑/↓ buttons (#71); the order is the reading order for extraction
+- Also loads the campaign's NPC, location, monster and combat names and `../data/pc-abilities.json`, kept from intake for extraction (#100). A failure of either is only logged
+- **Continue** needs a session, a date, at least one page or notes file, and every photo compressed. It builds the session header with `ChroniclePublish.sessionHeader()`, the item publish reads the session ID and date from, and shows it. Extraction is not built yet, so the page stops there; "← Back to Upload" keeps everything
+- **No saved state:** everything lives in the open tab (no sessionStorage or localStorage; saved drafts wait for Postgres). Once a page or notes file is added, leaving or reloading the page asks first (`beforeunload`)
 
 ---
 
@@ -456,13 +473,15 @@ Load order when a page needs several: `config.js` → `chronicle-store.js` → `
 
 ### `shared/chronicle-publish.js`
 
-Loaded by `delta-review.html`; required directly by `tests/delta-apply.test.js` and `tests/delta-schema.test.js`. Exports `window.ChroniclePublish` in the browser and `module.exports` under Node. Depends on `chronicle-ids.js` (looked up when called, so it must be loaded first in the page). No DOM, sessionStorage or network access. Added by issue #92.
+Loaded by `delta-review.html` and `session.html`; required directly by `tests/delta-apply.test.js`, `tests/delta-schema.test.js` and `tests/session-header.test.js`. Exports `window.ChroniclePublish` in the browser and `module.exports` under Node. Depends on `chronicle-ids.js` (looked up when called, so it must be loaded first in the page). No DOM, sessionStorage or network access. Added by issue #92.
 
 | Export | What it does |
 |---|---|
 | `applySession(campaign, approved, options)` | Applies one session's approved queue items and returns `{ campaign, notes }`; neither input is modified. `options = { deferredGaps, promptLog, spellNames, now }`, all optional. Order: give every NEW entity its UUID; apply NEW items (sessions filled or created, combats created with full shape); apply ROUND, MOD and RELATIONSHIP items; recompute derived fields; append deferred gaps and prompt-log entries (`pil_NNN`); set `meta.last_updated`, `_last_published` and `_delta_count` |
 | `deriveFields(campaign)` | Recomputes the derived fields in place (listed under Data architecture, "Publish"). Adds values, never removes them. Idempotent. On the current campaign file it changes one thing: Lake Town's `sessions_visited` gains `session_006`, which the session already listed |
 | `STANDARD_ACTIONS` | The twelve standard action names an action-economy activity may have |
+| `sessionChoices(campaign)` | The sessions the session page offers at upload (#99): every session whose `notes` start with "PLACEHOLDER", in data order, as `{ legacyId, title, date, placeholder: true }`; then the next new ID, one past the highest `session_NNN` legacy ID. Complete sessions are not offered |
+| `sessionHeader(legacyId, date)` | The NEW `session_logs` item that carries the chosen session ID and date to `applySession` (#99): `rawData: { session_id, date }`. A placeholder is filled in place (its recorded date kept); a new ID is added with that date and `legacy_id`. Throws if the ID is not `session_NNN` or the date is not `YYYY-MM-DD` |
 
 **Round conversion rules** (an AI proposal entry is `{s, a, act, res, val, notes, action_type, target, target_effects, val_type}`, one per roll):
 - **Grouping:** entries with the same slot and actor make one slot; consecutive entries with the same economy and action text make one activity, one outcome per roll. A slot already in 5.0.0 shape is kept as it is; any other shape is left out and noted.
@@ -557,6 +576,8 @@ Public API (`window.ChronicleAI`):
 | Placeholder fill never overwrites | `shared/chronicle-publish.js` | Filling `session_006`/`session_007` writes only empty fields, because intake's stub dates itself to the day of intake. A deliberate change to a recorded title, date or summary is reported in the publish notes but not applied; make it with a MOD item or by hand. |
 | Publishing needs Chrome or Edge on a local clone | `shared/chronicle-store.js` | The File System Access API is Chromium-only, and publish writes the clone on the DM's machine (#97). Firefox and Safari get a clear error. Phase 7's server-side API removes this. |
 | A publish is not saved until committed | `data/magers-campaign.json`, `data/magers-campaign.prev.json` | Publish writes only the working copy; nothing reaches git or GitHub Pages until the DM commits and pushes. `.prev.json` holds one step back: a second publish before committing replaces it. |
+| Session page stops after upload | `admin/session.html` | The page has step 1 only (#99). Extraction, identification, review and publish are #100–#106, so the session header it builds is shown but not yet published; sessions still go through Session Intake and Delta Review. |
+| Intake files every session as `session_006` | `admin/intake.html` | Intake reads a session ID field that is not on the page, so it falls back to `session_006` and dates the stub to the day of intake. The session page picks both at upload (#99); intake is retired with phase 5 rather than fixed. |
 | Session stub field names | `admin/intake.html`, `admin/delta-review.html` | Intake still writes the stub as `session_id`, `session_date` and a root `summary`, and the review card reads those names. Publish translates them (#92). The session page of the intake rebuild replaces the stub. |
 | Turn-schema migration inconsistencies | `data/magers-campaign.json` | Reported by the migration and listed on issue #93, not fixed (scope). Examples: `cbt_002` r4 Goli's "3 Melee Attacks" has 2 results; Move/Dash logged as both the action and the movement in 5 turns; 3 spells with no result. |
 | `cbt_002` r6 IDs disagree with names | `data/magers-campaign.json` | The event "pc_001 (Goli) downed" and "pc_005 (Del) at 1HP" name the wrong IDs (pc_001 is Goldie, pc_005 is Goli). `mechanics.pcs_downed` records Del's round 7 down twice (under pc_005 and pc_004) and has pc_001 "Goli DOWNED Round 6". The round 6 hit targets pc_001 and pc_005. Slot data supports the names. Left unchanged for the DM to check against the notes as a separate data fix. |
@@ -595,6 +616,7 @@ tests/
 ├── turn-schema.test.js             # 5.0.0 turn schema — migration rules, converted data, both normalisers
 ├── bestiary-fold.test.js           # Goblin Slinger fold (#94) — no mon_006, roster roles, both normalisers
 ├── opaque-ids.test.js              # Opaque ids (#95) — helpers, reference check, migrated data, both normalisers
+├── session-header.test.js          # Session page upload step (#99) — session choices, header through applySession, nav bar
 ├── fixtures/
 │   └── test-campaign.json          # Minimal v5.0.0 synthetic campaign — no real data
 ├── output/                         # GITIGNORED — test-campaign.published.json from a Safe Test Mode publish (#97)

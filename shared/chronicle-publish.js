@@ -34,6 +34,11 @@
  *     anything publish had to decide or could not place, for the DM to read.
  *   deriveFields(campaign)          — recomputes the derived fields in place
  *   STANDARD_ACTIONS                — the twelve standard action names
+ *   sessionChoices(campaign)        — the sessions the session page offers at
+ *                                     upload: placeholders first, then the next
+ *                                     new session ID (issue #99)
+ *   sessionHeader(legacyId, date)   — the queue item that carries the chosen
+ *                                     session ID and date to applySession (#99)
  *
  * It depends on shared/chronicle-ids.js (window.ChronicleIds, or require under
  * Node) and nothing else: no DOM, no sessionStorage, no network. Load it after
@@ -1093,7 +1098,70 @@
     }
   }
 
-  const api = { applySession, deriveFields, STANDARD_ACTIONS };
+  // ── Session header (issue #99) ─────────────────────────────────────────────
+  // The session page picks the session ID and date at upload. These two
+  // helpers live here, beside applySession, because they are its contract:
+  // sessionChoices offers exactly the sessions applySession fills in place
+  // (the placeholders) or creates (the next ID), and sessionHeader builds the
+  // item applySession reads the ID and date from. Kept out of the page so
+  // tests/session-header.test.js runs the same code the page runs.
+
+  // A placeholder session's notes start with this word; the DM wrote it on
+  // session_006 and session_007 when entering them by hand.
+  const PLACEHOLDER_NOTE = /^\s*PLACEHOLDER\b/i;
+
+  /**
+   * sessionChoices(campaign) → [{ legacyId, title, date, placeholder }]
+   *
+   * The placeholder sessions, in the data's order, then one entry for the
+   * next new session (placeholder false, title and date null). The next ID is
+   * one past the highest session_NNN legacy ID, padded to three digits.
+   *
+   * Why: before #99 intake read a session ID field that did not exist on the
+   * page, so every session was filed as session_006. Offering the placeholders
+   * first means a backlog session fills its placeholder instead of being added
+   * a second time. Recorded sessions that are not placeholders are not offered;
+   * picking one would only add to a session that is already complete.
+   */
+  function sessionChoices(campaign) {
+    const sessions = (campaign && campaign.session_logs) || [];
+    const choices = sessions
+      .filter(s => typeof s.notes === 'string' && PLACEHOLDER_NOTE.test(s.notes))
+      .map(s => ({ legacyId: s.legacy_id || s.id, title: s.title ?? null, date: s.date ?? null, placeholder: true }));
+    // Legacy IDs are frozen (#95), so the next session number comes only from
+    // legacy_id; a session added since without one does not move the count.
+    let max = 0;
+    for (const s of sessions) {
+      const m = /^session_(\d+)$/.exec(s.legacy_id || '');
+      if (m) max = Math.max(max, Number(m[1]));
+    }
+    choices.push({ legacyId: 'session_' + String(max + 1).padStart(3, '0'), title: null, date: null, placeholder: false });
+    return choices;
+  }
+
+  /**
+   * sessionHeader(legacyId, date) → a NEW session_logs queue item
+   *
+   * Carries the session ID and date chosen at upload to applySession. It uses
+   * session_id (which applySession reads as the given id, so a placeholder is
+   * found and filled, and a new session keeps session_NNN as legacy_id) and
+   * date (the schema's own name; sessionFields still reads intake's old
+   * session_date). Later steps add the title and summary to rawData.
+   *
+   * A placeholder's recorded date is never overwritten (fillSession); a
+   * different date here is reported in publish's notes instead.
+   *
+   * Throws on an ID that is not session_NNN or a date that is not YYYY-MM-DD,
+   * so a missing pick fails here, not as a session dated the day of intake.
+   */
+  function sessionHeader(legacyId, date) {
+    if (!/^session_\d+$/.test(legacyId || '')) throw new Error('Pick a session ID (session_NNN) before continuing.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) throw new Error('Pick the date the session was played before continuing.');
+    return { id: 'session_header', type: 'NEW', array: 'session_logs', status: 'approved',
+      rawData: { session_id: legacyId, date } };
+  }
+
+  const api = { applySession, deriveFields, STANDARD_ACTIONS, sessionChoices, sessionHeader };
 
   // Browser pages read window.ChroniclePublish; Node (tests) requires the
   // file. One source serves both, so the tests run the code the page runs.

@@ -120,9 +120,11 @@ Never revert to old Parchment theme values. Never introduce a new colour scheme.
 
 ## Navigation
 
-All admin pages share a 6-item nav bar in this exact order:
+All admin pages share a 7-item nav bar in this exact order:
 
-`Session Intake → OCR Glossary → Delta Review → Integrity → Campaign Log → Log Editor`
+`Session → Session Intake → OCR Glossary → Delta Review → Integrity → Campaign Log → Log Editor`
+
+Session (`session.html`) is the rebuilt intake (#99–#106). When phase 5 retires Session Intake and Delta Review, remove their links from every page and from this list.
 
 The Versions page was deleted with Google Drive (#98); git history is the backup.
 
@@ -190,7 +192,7 @@ When a page needs all seven shared modules, load them in this order:
 
 `chronicle-ids.js` exports `window.ChronicleIds` (and `module.exports` under Node): UUID allocation and legacy-ID translation (issue #95). No dependencies. Load it on any page that accepts IDs from outside the data (intake output, AI output, links) and must turn a legacy ID into a UUID, or that creates entities. The two viewers do not load it, because `normaliseCampaignJson` must stay self-contained.
 
-`chronicle-publish.js` exports `window.ChroniclePublish` (and `module.exports` under Node): `applySession()`, the one function that turns approved review items into campaign data (issue #92). It needs `chronicle-ids.js` loaded first and touches no DOM, sessionStorage or network; pages pass their state in as options. Any change to what publish writes goes in this module, not in a page, so `tests/delta-apply.test.js` keeps testing the real code. README "Shared modules" lists its round-conversion rules.
+`chronicle-publish.js` exports `window.ChroniclePublish` (and `module.exports` under Node): `applySession()`, the one function that turns approved review items into campaign data (issue #92), plus `sessionChoices()` and `sessionHeader()`, which the session page uses to pick the session ID and date and hand them to `applySession()` (#99). Session choices and the header rule belong here, not in the page, so `tests/session-header.test.js` runs them through the real publish. It needs `chronicle-ids.js` loaded first and touches no DOM, sessionStorage or network; pages pass their state in as options. Any change to what publish writes goes in this module, not in a page, so `tests/delta-apply.test.js` keeps testing the real code. README "Shared modules" lists its round-conversion rules.
 
 `chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 
@@ -458,7 +460,7 @@ After any code change, open the affected page in a browser and check:
 - [ ] No game state fields (HP, spell slots, conditions) were added
 
 **For admin tool changes:**
-- [ ] Nav bar order matches the 6-item canonical order
+- [ ] Nav bar order matches the 7-item canonical order
 - [ ] Active page nav link has `class="nav-link active"`
 - [ ] "⇄ Player View" button is present in the header right
 

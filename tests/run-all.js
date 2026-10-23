@@ -33,6 +33,7 @@ const TEST_FILES = [
   'tests/turn-schema.test.js',
   'tests/bestiary-fold.test.js',
   'tests/opaque-ids.test.js',
+  'tests/session-header.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────
