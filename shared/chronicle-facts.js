@@ -195,7 +195,15 @@ RULES:
       A description of a place goes on the place. The party arriving at a place is an event: attach it to the round or combat if it happens in one, otherwise the session.
     - "source_lines": the lines of the notes it came from, copied exactly.
 12. "page_summary": one or two sentences saying what happens on this page, for the DM's reference.
-10. Before answering, check your own rounds. Imbalance: one character with two action-economy actions in a round while another listed character has none usually means a line was misread. Action economy: more than one action or more than one bonus action in a turn needs a feature that allows it (Action Surge). Re-read those lines and fix them. List anything you still cannot resolve in "self_check".
+10. Before answering, check your own rounds against these sanity checks (issue #104) and re-read the lines behind any that fail:
+    - Imbalance: one character with two actions in a round while another listed character has none usually means a line was misread.
+    - Source line: every turn's actor is the character its source line names.
+    - Ability ownership: a spell or feature should be one that character has (see the action economy reference and what they used earlier).
+    - Action economy: more than one action or bonus action in a turn needs a feature that allows it (Action Surge); a feature recorded under the wrong economy (Healing Word as an action) is a misread.
+    - Outcome count: "3 attacks" or "x2" means that many outcomes; Flurry of Blows is two strikes.
+    - State: a character downed or killed earlier does nothing but Death Save or No Action until healed.
+    - Duplicates: the same action with the same result and number in two turns of one round is usually a line read twice.
+    List anything you still cannot resolve in "self_check". These are sanity checks: when the notes really say something unusual, record what they say.
 ${reread && reread.length ? `\nA FIRST READ OF THIS PAGE HAD THESE PROBLEMS. Re-read the page and fix them:\n- ${reread.join('\n- ')}\n` : ''}
 Respond with JSON only, no prose:
 {"combats":[{"combat":"<combat id>","rounds":[{"n":4,"turns":[{"actor":"occ_1_1","source_line":"Asp - Healing Hands","activities":[{"economy":"action","name":"Magic","detail":"Healing Hands","val_type":null,"outcomes":[{"res":"unclear","val":null,"target":null,"target_text":null,"detail":null,"effect":null}],"notes":null}]}],"enemy_turns":[{"actor":"occ_1_4","source_line":"Goblins - Hit Mal (opportunity)","activities":[{"economy":"reaction","name":"Opportunity Attack","outcomes":[{"res":"hit","val":null,"target":"occ_1_5"}]}],"special_events":[]}],"events":[]}]}],"quest_progress":[],"loot":[],"passages":[{"text":"Two Larkspur dragons swooped down on the cart from the ridges and killed everyone at the cart.","speaker":"dm","attach":{"to":"round","combat":"<combat id>","n":4},"source_lines":["Larkspur dragons descend on cart from ridges. Kill all at the cart."]}],"page_summary":"The Goblin Ambush continues through rounds 4 and 5 as Larkspur dragons join the fight.","self_check":[]}`;

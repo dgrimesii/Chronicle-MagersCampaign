@@ -36,6 +36,7 @@ const TEST_FILES = [
   'tests/session-header.test.js',
   'tests/entity-identification.test.js',
   'tests/fact-extraction.test.js',
+  'tests/sanity-checks.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

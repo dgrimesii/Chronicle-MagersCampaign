@@ -202,7 +202,7 @@ When a page needs all nine shared modules, load them in this order:
 
 Passages (#102) come from the same call. Each is `{ text, session_id, speaker, page }` and lives on exactly one object, the most specific thing it describes; never copy one to a second place. `speaker` is `"dm"` (exposition, fact) or the NPC's entity id (testimony), and an NPC's words keep the NPC as speaker whether quoted or reported. New lore an NPC told the party is `reliability: "rumoured"`, `source_type: "npc_testimony"`. A passage is cleaned into sentences but adds no fact the notes do not contain. Gemini reads confirmed entity text and passages, never raw notes.
 
-`chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
+`chronicle-integrity.js` exports `window.ChronicleIntegrity`: gap detection (`checks()`) and, since #104, the nine round sanity checks (`roundChecks()` and one function per check). The sanity checks are advisory: never give a flag a blocking field, and never make publish depend on them. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 
 `chronicle-narrative.js` exports `window.ChronicleNarrative`. It is completely independent of `chronicle-ai.js` — the two modules never import each other. Load `chronicle-narrative.js` only on pages that use Gemini narrative generation.
 

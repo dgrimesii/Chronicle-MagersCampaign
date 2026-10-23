@@ -32,7 +32,7 @@ Chronicle-MagersCampaign/
 │   ├── chronicle-facts.js      # Per-page facts (#101) and narrative passages (#102) — facts prompt against step 3's occurrences, reply check, imbalance/economy checks, merge across pages, passage publish items; exports window.ChronicleFacts; also require()-able in Node
 │   ├── chronicle-publish.js    # Publish logic (#92) — applies approved review items, writes the 5.0.0 shapes; exports window.ChroniclePublish; also require()-able in Node
 │   ├── chronicle-ai.js         # Shared Anthropic API module — exports window.ChronicleAI
-│   ├── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
+│   ├── chronicle-integrity.js  # Gap detection and the nine round sanity checks (#104) — exports window.ChronicleIntegrity
 │   └── chronicle-narrative.js  # Shared Gemini narrative module — exports window.ChronicleNarrative
 ├── data/
 │   ├── magers-campaign.json    # Campaign data — single source of truth, schema version 5.0.0
@@ -51,7 +51,8 @@ Chronicle-MagersCampaign/
 │   └── intake-redesign.md            # Design document for the intake rebuild: identity-first five-step flow, turn schema, decisions and build order
 ├── tests/
 │   ├── run-all.js                    # Test runner — runs all test files, reports pass/fail summary
-│   ├── integrity.test.js             # Tests for shared/chronicle-integrity.js
+│   ├── integrity.test.js             # Tests for shared/chronicle-integrity.js (gap detection)
+│   ├── sanity-checks.test.js         # Tests for the nine round sanity checks (#104): one per check on the fixture, plus the acceptance cases
 │   ├── intake-image.test.js          # Group A — OCR round-data shape validation
 │   ├── intake-preparation.test.js    # Group C — session data preparation checks
 │   ├── delta-schema.test.js          # Group E — delta item schema validation
@@ -570,11 +571,25 @@ Publishing throws a message ending "Nothing was written" for a browser without t
 
 ### `shared/chronicle-integrity.js`
 
-Loaded by `delta-review.html` and `integrity.html`. Exports `window.ChronicleIntegrity` with a single method:
+Loaded by `delta-review.html` and `integrity.html`; required (with a stubbed `window`) by `tests/integrity.test.js` and `tests/sanity-checks.test.js`. Exports `window.ChronicleIntegrity`. No DOM access, no API calls. Load order: see the top of this section.
 
-- `.checks(campaignData, incomingData)` — pure gap-detection function. Takes a campaign object and an array of incoming delta items; returns a flat array of gap objects. No DOM access, no API calls. Load order: see the top of this section.
+- `.checks(campaignData, incomingData)` — pure gap-detection function. Takes a campaign object and an array of incoming delta items; returns a flat array of gap objects. Gap object shape: `{ id, group, sev, block, isNew, cbtId, cbtName, sessHint, miss, have, rmin, rmax, title, detail, ctx }`. Delta Review's Accept/Defer gate and `deferred_gaps[]` still use it, unchanged until phase 5 retires that page (the DM's choice on #104)
 
-Gap object shape: `{ id, group, sev, block, isNew, cbtId, cbtName, sessHint, miss, have, rmin, rmax, title, detail, ctx }`
+**Round sanity checks (issue #104).** Nine pure functions over one combat in the 5.0.0 turn schema, each returning flags `{ check, cell: { combat, round, s?, actor_id?, activity? }, message, suggestedMove?: { to, label } }`. They are sanity checks, not controls: a flag has no blocking field and publish never runs them. `ctx` is `{ abilities: abilityContext(campaign, pcAbilities), names: partyNames(campaign), order? }`, where `order` is the confirmed initiative order `[{ s, a, from?, to? }]` from the round grid (#103). Two optional working fields on a slot feed two checks and are never written to the data: `source_line` (from #101) and `note_order` (where the notes listed the turn).
+
+| Check | Flags |
+|---|---|
+| `imbalance` | In one round, one PC with two or more actions while another active PC has none; suggests moving it when only one is missing |
+| `sourceLine` | A turn whose source line starts with a different PC's name or short form (Att, Asp, Gold) than its row; suggests "Move to <name as written>" |
+| `abilityOwnership` | A spell (Magic · detail) or a bonus action, reaction or other feature not on that PC's list; suggests the one other PC who has it |
+| `actionEconomy` | More than one action without Action Surge, or more than one bonus action, in a round; an enemy group with more actions than its starting `count`; a feature under the wrong economy (pc-abilities `action_economy`, plus Flurry of Blows, Cunning Action, Healing Word, Misty Step, Shield, Opportunity Attack, Absorb Elements) |
+| `outcomeCount` | An activity whose detail or notes state a count ("3 Melee Attacks", "(x2)") that differs from its outcomes; a Flurry of Blows without two strikes |
+| `state` | Acting after being downed (anything but Death Save or No Action) or killed, before joining (by `order.from`), or releasing a readied action with no Ready. A party blow counts at once; an enemy's effects count from the next round, and an enemy is judged by its state at the start of the round. A heal clears a downing, including one still pending from an enemy that round; a heal with no target heals the PCs its notes name; a downed PC whose own turn is a heal (a Goodberry) is back up. Enemy groups are not tracked |
+| `roundOrder` | A round whose `note_order` does not follow the slot order |
+| `duplicates` | The same activity, result and value (not null) in two cells of one round |
+| `gaps` | An active PC (by `order`, or everyone seen in the combat) with no turn in a round; worded as often fine |
+
+`roundChecks(combat, ctx)` runs all nine; `SANITY_CHECKS` lists their names. `abilityContext` merges each PC's harvested sheet (actions, spells, feats, action economy from `data/pc-abilities.json`) with every spell or feature the campaign already records them using, because the harvested lists are incomplete. `partyNames` gives each PC's name, nickname and aliases. The facts prompt (#101) asks the AI to run the checks that apply before initiative order exists on its own reply. No page shows the flags yet; the round grid (#103) will run `roundChecks` on every change. On the recorded campaign they raise six flags, each a real question about the data: Healing Word recorded as an action (`cbt_001` r3), Goli's "3 Melee Attacks" with two recorded (`cbt_002` r4), Del acting in `cbt_003` r9–11 after a heal that names no target, and three PCs without a turn in a round
 
 ---
 
@@ -624,6 +639,8 @@ Public API (`window.ChronicleAI`):
 | Passages on rounds, activities and quest steps wait | `shared/chronicle-facts.js` | Those objects are written with the facts at publish (#106), so their passages are held until then; passages on entities, combats and the session are publish items already. |
 | Passages are not shown in the viewers | `admin/log-viewer.html`, `player/index.html` | Neither viewer reads `passages` yet. Showing them, with testimony marked, is part of the player-view rollout in phase 7 of the build order. |
 | Passage placement follows the AI | `shared/chronicle-facts.js` | The AI chooses each passage's attachment and speaker; until the review grid and entity pages (#103) can move one, a misplaced passage stays where it landed. In testing an NPC's remark about a pact went on the session because step 2 had not listed the pact as an entity, and a place description began with the party's arrival. |
+| Sanity checks are not shown on any page yet | `shared/chronicle-integrity.js` | The nine checks (#104) work on turn-schema rounds; the session page's facts become those rounds in the round grid (#103), which will show the flags. Until then they run only in the tests. |
+| Ability lists are from June | `data/pc-abilities.json` | The ability-ownership and action-economy checks read the sheets harvested on 26 June 2026. Run `node scripts/harvest-characters.js` before the backlog (the DM's step, #104). The sheets show current abilities, so an early session may pass one learned later. |
 | Facts are not yet corrected or published | `shared/chronicle-facts.js` | The facts list is read-only. Misreadings stay until the round grid (#103) can fix them: on the real session 6 pages the AI read "Healing Hands" as "Iteraling Hinds", "Nat 1" as "Not 1", and recorded the goblins' "Hit - Dragon, Dragon, Oregon" line as an event rather than attacks. The AI's self-check notes list most of these. |
 | Integrity's round fill keeps the fixed slot roster | `shared/chronicle-ai.js` (`fillRoundsFromText`) | Its prompt still says slot 1 = Goldie … slot 6 = Att, the cause of misplaced turns. The session page does not use it; left until phase 5 retires the old pages (the DM's choice on #101). |
 | A player's absence is not recorded from the notes | `shared/chronicle-facts.js` | A line such as "Lance out work, played by David" is not a turn; the facts call records it as an event at best. Recording it as a session `player_absence` note is not in #101's scope. |
@@ -661,7 +678,8 @@ Public API (`window.ChronicleAI`):
 ```
 tests/
 ├── run-all.js                      # Runs every test file; exits 1 if any fail
-├── integrity.test.js               # Tests for shared/chronicle-integrity.js
+├── integrity.test.js               # Tests for shared/chronicle-integrity.js (gap detection)
+├── sanity-checks.test.js           # Round sanity checks (#104) — one per check on the fixture; Cure Wounds in Goli's row; cbt_002 round 4; never blocks
 ├── intake-image.test.js            # Group A — OCR round-data shape validation
 ├── intake-preparation.test.js      # Group C — session data preparation checks
 ├── delta-schema.test.js            # Group E — delta item schema validation
