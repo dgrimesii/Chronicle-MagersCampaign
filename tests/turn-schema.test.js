@@ -365,26 +365,27 @@ console.log('\nTest T-6 — log-viewer and player normalisers on the real data')
     JSON.stringify(adminView.combats) === JSON.stringify(playerView.combats));
 }
 
-// ── Test T-7 — viewers still read 4.x rounds (compatibility shim) ────────────
-// Until #92 rebuilds publish, delta-review writes 4.x slots into the 5.0.0
-// file. Both normalisers must keep showing those rounds as they did before.
-// Delete this test together with the shim once #92 has shipped.
-console.log('\nTest T-7 — both normalisers still read a 4.x round');
+// ── Test T-7 — the 4.x shim is gone, and a turn with no list still renders ───
+// Until #92 this test proved the viewers still read 4.x slots, because publish
+// wrote them. #92 rebuilt publish to write activities[] and removed the shim
+// from both normalisers, as this test's old note asked. What remains to check
+// is that a slot or enemy turn with no activities list (hand-edited data) shows
+// as an empty turn instead of breaking the combat viewer.
+console.log('\nTest T-7 — a turn with no activities list renders as empty (4.x shim removed, #92)');
 {
-  const legacy = {
+  const bare = {
     party: [], session_logs: [],
-    combat_encounters: [{ id: 'cbt_t', name: 'T', mechanics: {}, narrative: {}, rounds: [{ n: 1, slots: [
-      { s: 1, a: 'pc_001', action: { name: 'Firebolt', res: 'hit', val: 7, notes: 'n1' }, bonus_action: null, notes: null },
-    ], enemy_turns: [
-      { actor_id: 'Goblins', action: { name: 'Scimitar', res: 'miss', val: null }, special_events: [{ description: 'pc_004 downed' }] },
-    ] }] }],
+    combat_encounters: [{ id: 'cbt_t', name: 'T', mechanics: {}, narrative: {}, rounds: [{ n: 1,
+      slots: [{ s: 1, a: 'x', notes: null }], enemy_turns: [{ actor_id: 'Goblins', special_events: [] }] }] }],
   };
   for (const file of ['admin/log-viewer.html', 'player/index.html']) {
-    const r = loadNormaliser(file)(legacy).combats[0].rounds[0];
-    assert(file + ': 4.x slot shows action name, res, val, notes',
-      r.slots[0].act === 'Firebolt' && r.slots[0].res === 'hit' && r.slots[0].val === 7 && r.slots[0].notes === 'n1');
-    assert(file + ': 4.x enemy turn shows desc and impact',
-      r.enemy[0].desc === 'Goblins: Scimitar (miss)' && r.enemy[0].impact === 'pc_004 downed');
+    const r = loadNormaliser(file)(bare).combats[0].rounds[0];
+    assert(file + ': slot with no activities shows "—" and no result', r.slots[0].act === '—' && r.slots[0].res === null);
+    assert(file + ': enemy turn with no activities shows its group only', r.enemy[0].desc === 'Goblins' && r.enemy[0].impact === null);
+    // Code only: the comments that record the shim's removal mention the old
+    // field names, so line comments are dropped before searching.
+    const code = fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\/\/[^\n]*/g, '');
+    assert(file + ': no 4.x slot.action / et.action read left in the normaliser', !/slot\.action\b|et\.action\b/.test(code));
   }
 }
 

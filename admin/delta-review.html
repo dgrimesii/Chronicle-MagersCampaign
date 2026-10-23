@@ -660,6 +660,9 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
      It must load before the page script, which calls it at init and on publish. -->
 <script src="../shared/chronicle-store.js"></script>
 <script src="../shared/chronicle-ids.js"></script>
+<!-- Publish logic (issue #92): applies the approved queue to the campaign and
+     writes the 5.0.0 shapes the viewers read. Needs chronicle-ids.js first. -->
+<script src="../shared/chronicle-publish.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <!-- chronicle-narrative.js loaded here for detectCascadeCandidates (issue #44).
@@ -3168,10 +3171,10 @@ function interpretRawItem(itemId) {
         return;
       }
 
-      // If the DM declared a new combat, queue a NEW combat cascade item BEFORE the
-      // ROUND items. applyDeltasToCampaign() processes approved items in array order —
-      // the ROUND branch finds the combat by ID, so it must already exist when rounds
-      // are inserted. Pushing the combat item first guarantees this ordering.
+      // If the DM declared a new combat, queue a NEW combat cascade item with the
+      // ROUND items. Publish applies NEW items before ROUND items whatever their
+      // queue order (since #95), so the rounds find the combat; queuing it first
+      // also keeps it at the top of the group in the review list.
       //
       // The combat stub leaves narrative fields null. Issue #74 will add AI generation
       // of the combat name and narrative (setup/finale/aftermath) from session content.
@@ -3248,9 +3251,10 @@ function interpretRawItem(itemId) {
           title:       `Round ${proposal.n} (OCR interpret)`,
           sourceRef:   `Interpret — ${item.title || 'OCR page'}`,
           sourceQuote: proposal.summary || '',
-          // rawData written to the campaign JSON on publish.
-          // slots and enemy_turns use the flat proposal shape — identical to what
-          // approveGapProposal() writes, so the normaliser handles it correctly.
+          // rawData is what publish converts and writes. slots and enemy_turns
+          // stay in the AI's flat proposal shape while queued, because the
+          // review card and inline edits work on it; ChroniclePublish turns
+          // them into the 5.0.0 turn schema at publish (issue #92).
           rawData: {
             n:           proposal.n,
             session_id:  sessionId,
@@ -3876,12 +3880,22 @@ async function confirmPublish() {
     );
 
     // Step 4 — done. The test-mode wording tells the DM what to do with the download.
+    // Publish's notes (issue #92) are decisions it made for the DM, such as a
+    // weapon recorded as Attack or a placeholder's date kept. They are listed
+    // in the console and counted here, so they are seen without blocking.
     const n = approved.length;
+    const noteCount = lastPublishNotes.length;
+    const noteSuffix = noteCount ? ` · ${noteCount} note${noteCount!==1?'s':''} (see console)` : '';
+    if (noteCount) console.info('[delta-review] Publish notes:\n- ' + lastPublishNotes.join('\n- '));
     if (result.mode === 'test-download') {
-      setPublishStatus(`✓ [TEST MODE] ${n} delta${n!==1?'s':''} applied — download started. Replace tests/fixtures/test-campaign.json with the downloaded file.`, 'ok');
+      setPublishStatus(`✓ [TEST MODE] ${n} delta${n!==1?'s':''} applied — download started. Replace tests/fixtures/test-campaign.json with the downloaded file.${noteSuffix}`, 'ok');
     } else {
-      setPublishStatus(`✓ Published ${n} delta${n!==1?'s':''} · backup created`, 'ok');
+      setPublishStatus(`✓ Published ${n} delta${n!==1?'s':''} · backup created${noteSuffix}`, 'ok');
     }
+    // The prompt-improvement entries are now in the published campaign with
+    // pil_NNN ids. Cleared only here, after the write succeeded: publish used
+    // to clear them while applying, so a failed write lost them.
+    sessionStorage.removeItem('chronicle_prompt_improvement_log');
     approved.forEach(i => { i.status = 'published'; });
     renderQueue();
     updateProgress();
@@ -4018,294 +4032,68 @@ function triggerNarrativeGeneration() {
   window.location = 'narrative.html';
 }
 
+// Party spell names from data/pc-abilities.json, loaded at page start by
+// loadPartySpellNames(). Publish uses them to record "Fire Bolt" as
+// Magic · Fire Bolt rather than assuming an attack (issue #92). Empty until
+// the file loads, or for good if it fails: publish then treats every
+// non-standard action as an Attack and says so in its notes.
+let partySpellNames = [];
+
 /**
- * withOpaqueId(rawData, assigned) → a copy of rawData whose id is the
- * assigned UUID, with legacy_id next to it when one is kept.
+ * loadPartySpellNames() — fetches data/pc-abilities.json once and keeps every
+ * spell any PC knows.
  *
- * Why: a new entity arrives with no id or a placeholder (cbt_007,
- * session_008) and must be written with a UUID (issue #95). id and
- * legacy_id go first, after _object_type, matching the migrated data so a
- * reader sees them together.
+ * Why: the AI returns an action as literal text with no spell/attack type,
+ * and the turn schema needs that split (Magic · Fire Bolt, Attack · Shortbow).
+ * intake.html already loads this file the same way for its OCR prompt; it is
+ * reference data generated by scripts/harvest-characters.js, not campaign
+ * data, so it is not read through ChronicleStore. On failure the page carries
+ * on without it (logged, not shown as an error): publish still works.
  */
-function withOpaqueId(rawData, assigned) {
-  const { _object_type, id, legacy_id, ...rest } = rawData;
-  const out = {};
-  if (_object_type !== undefined) out._object_type = _object_type;
-  out.id = assigned.id;
-  if (assigned.legacy) out.legacy_id = assigned.legacy;
-  return Object.assign(out, rest);
+async function loadPartySpellNames() {
+  try {
+    const res = await fetch('../data/pc-abilities.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    partySpellNames = (json.characters || []).flatMap(c => c.spells || []);
+  } catch (e) {
+    console.warn('[delta-review] pc-abilities.json not loaded; publish will not recognise spells by name:', e);
+  }
 }
 
-// Apply the approved review-queue deltas to a campaign JSON object.
-// Returns a new object — does not mutate the input or the deltas.
+// Notes from the last applyDeltasToCampaign() call: decisions publish made on
+// the DM's behalf (an assumed Attack, a kept placeholder date). Shown after
+// a successful publish; kept on window so they can be read in the console.
+let lastPublishNotes = [];
+
+/**
+ * applyDeltasToCampaign(campaign, approved) → the updated campaign.
+ *
+ * A thin wrapper: the publish logic lives in shared/chronicle-publish.js
+ * (ChroniclePublish.applySession, issue #92) so the tests run the same code
+ * as this page. The wrapper supplies the page state the shared function
+ * takes as arguments instead of reading globals: the deferred integrity
+ * gaps, the prompt-improvement entries intake left in sessionStorage, and
+ * the party's spell names. It no longer clears sessionStorage itself;
+ * confirmPublish() does that once the write has succeeded, so a failed
+ * publish keeps the entries. Removing it leaves confirmPublish() with
+ * nothing to apply.
+ */
 function applyDeltasToCampaign(campaign, approved) {
-  const out = JSON.parse(JSON.stringify(campaign)); // deep clone
-
-  // ── Opaque IDs (issue #95) ──
-  // The data uses UUIDs, but intake and the AI name entities by legacy ID
-  // (pc_001, cbt_005), and give entities created this session a placeholder
-  // (cbt_007, session_008). Pass 1 gives every NEW entity its UUID up front
-  // and records placeholder → UUID, so a ROUND for a combat created in the
-  // same publish finds it whatever order the deltas arrive in. Every delta is
-  // then translated (tr) against the legacy IDs plus those placeholders.
-  // Without this, publish would write references that resolve to nothing.
-  const idIndex  = ChronicleIds.buildLegacyIndex(out);
-  const assigned = new Map(); // NEW delta → { id, legacy }
-  for (const delta of approved) {
-    if (delta.type !== 'NEW' || !delta.rawData || !out[delta.array]) continue;
-    const given = delta.rawData.id;
-    // An id that already names an entity, or a placeholder an earlier NEW
-    // delta already claimed, is a duplicate: the dedup check below skips it.
-    if (given && (idIndex.has(given) || out[delta.array].some(e => e.id === given))) continue;
-    const fresh = ChronicleIds.newId();
-    if (given) idIndex.set(given, fresh);
-    // Only a session keeps its placeholder as legacy_id: session_NNN is the
-    // session number the DM typed at intake, and Versions labels backups by it.
-    // Any other placeholder was counted up by this page, which #95 retires.
-    const legacy = delta.array === 'session_logs' && ChronicleIds.isLegacyId(given) ? given : null;
-    assigned.set(delta, { id: fresh, legacy });
+  let promptLog = [];
+  try {
+    promptLog = JSON.parse(sessionStorage.getItem('chronicle_prompt_improvement_log') || '[]');
+  } catch (e) {
+    console.warn('[delta-review] prompt improvement log in sessionStorage is not valid JSON; skipped:', e);
   }
-  const tr = v => ChronicleIds.translateRefs(v, idIndex);
-
-  // New entities are written first, so a ROUND or MOD queued ahead of the
-  // combat or session it belongs to still finds it. Order within each group
-  // is kept.
-  const ordered = [...approved.filter(d => d.type === 'NEW'), ...approved.filter(d => d.type !== 'NEW')];
-
-  for (const delta of ordered) {
-    const arr = delta.array;
-    if (!arr || !out[arr]) continue;
-    // Translated copies; the queue items themselves are left untouched.
-    const rawData  = delta.rawData ? tr(delta.rawData) : delta.rawData;
-    const targetId = tr(delta.targetId);
-    const combatId = tr(delta.combatId);
-
-    if (delta.type === 'NEW') {
-      // Append new entity (avoid duplicates by id). A NEW delta that pass 1
-      // gave a UUID is written with it; any other already names an existing
-      // entity (its id was translated to that entity's UUID) and is skipped.
-      if (!rawData) continue;
-      const a = assigned.get(delta);
-      const entity = a ? withOpaqueId(rawData, a) : rawData;
-      if (entity.id && out[arr].some(e => e.id === entity.id)) continue;
-      out[arr].push(entity);
-
-    } else if (delta.type === 'MOD') {
-      // Patch fields on an existing entity.
-      // Two paths depending on whether the MOD item carries a _progress_append payload:
-      //
-      // Standard MOD (id-matched): find by rawData.id or targetId, Object.assign.
-      //   Used for corrections and AI-proposed field patches.
-      //
-      // Quest progress-log append (_progress_append): find by quest title (case-insensitive
-      //   match on rawData.quest_hint). Push to mechanics.progress_log[] rather than
-      //   Object.assign — so only the progress entry is added, not the whole quest overwritten.
-      //   Used for quest update cascade items generated by extractNarrativeEntities() (issue #90).
-      const id = rawData?.id || targetId;
-      let idx  = out[arr].findIndex(e => e.id === id);
-
-      // Quest progress-log path: no id on the delta, but _progress_append is present.
-      // Try to find the quest by exact title, then partial title, using quest_hint.
-      // Guard: only applies to quest_ledger — other array MODs always have an id.
-      if (idx === -1 && arr === 'quest_ledger' && rawData?._progress_append) {
-        const hint = (rawData.quest_hint || '').toLowerCase().trim();
-        if (hint) {
-          // Exact title match first (preferred — avoids ambiguous partial matches).
-          idx = out[arr].findIndex(q => (q.title || '').toLowerCase() === hint);
-          // Partial match fallback: quest_hint appears anywhere in the quest title.
-          if (idx === -1) {
-            idx = out[arr].findIndex(q => (q.title || '').toLowerCase().includes(hint));
-          }
-          if (idx === -1) {
-            // Name-match failed — log a warning so the DM knows to correct manually.
-            // We do not error out — other approved items should still publish.
-            console.warn('[applyDeltasToCampaign] Quest progress-log: no title match for hint "' +
-              rawData.quest_hint + '" — entry skipped. DM must add manually.');
-          }
-        }
-      }
-
-      if (idx > -1 && rawData) {
-        if (rawData._progress_append) {
-          // Push the progress_log entry rather than overwriting the quest object.
-          // Object.assign would replace the entire quest, destroying its existing fields.
-          // _progress_append is detected only on quest MOD items from issue #90 —
-          // existing MOD items never have this field, so the Object.assign path below
-          // is unchanged for all current (non-issue-#90) MOD items.
-          if (!out[arr][idx].mechanics) out[arr][idx].mechanics = {};
-          if (!Array.isArray(out[arr][idx].mechanics.progress_log)) {
-            out[arr][idx].mechanics.progress_log = [];
-          }
-          out[arr][idx].mechanics.progress_log.push(rawData._progress_append);
-        } else if (rawData._cohort_session_append) {
-          // Cohort session-append path: push the session id to associated_sessions[]
-          // rather than Object.assign-ing the whole cohort record.
-          // This preserves all existing cohort fields (description, home_location, etc.)
-          // and only appends the new session association.
-          const sessionToAdd = rawData._cohort_session_append.sessionId;
-          if (sessionToAdd) {
-            if (!out[arr][idx].mechanics) out[arr][idx].mechanics = {};
-            if (!Array.isArray(out[arr][idx].mechanics.associated_sessions)) {
-              out[arr][idx].mechanics.associated_sessions = [];
-            }
-            // Guard against duplicate appends if DM approves the same match twice.
-            if (!out[arr][idx].mechanics.associated_sessions.includes(sessionToAdd)) {
-              out[arr][idx].mechanics.associated_sessions.push(sessionToAdd);
-            }
-          }
-        } else {
-          Object.assign(out[arr][idx], rawData);
-        }
-      }
-
-    } else if (delta.type === 'ROUND') {
-      // Insert a round into combat_encounters
-      const cbtIdx = out.combat_encounters?.findIndex(c => c.id === combatId);
-      if (cbtIdx > -1 && rawData) {
-        const rounds = out.combat_encounters[cbtIdx].rounds || [];
-        const exists = rounds.findIndex(r => r.n === rawData.n);
-        if (exists > -1) {
-          rounds[exists] = rawData;
-        } else {
-          rounds.push(rawData);
-          rounds.sort((a, b) => a.n - b.n);
-        }
-        out.combat_encounters[cbtIdx].rounds = rounds;
-      }
-
-    } else if (delta.type === 'RELATIONSHIP') {
-      // Write approved relationship to entity_relationships[] (issue #43, reworked).
-      //
-      // Two-tier dedup model based on rawData.significance:
-      //
-      // Tier 2 "significant_event" — ALWAYS append a new entry.
-      //   Each significant event (PC death, NPC kills PC, item changes hands, etc.)
-      //   is a distinct story beat even when from_id+to_id already exists. No dedup.
-      //
-      // Tier 1 "participation" — update existing, never duplicate.
-      //   A party → NPC combat edge is a standing relationship updated each session.
-      //   Match on from_id + to_id + significance='participation' to avoid confusing
-      //   a participation edge with a significant_event edge between the same pair.
-      //
-      // Both tiers get a fresh UUID as their id (issue #95).
-      if (!Array.isArray(out.entity_relationships)) out.entity_relationships = [];
-      const rd  = rawData || {};
-      const sig = rd.significance || 'participation';
-
-      // Helper to build a complete entity_relationships[] entry from rawData.
-      // Extracted to avoid duplicating the shape between the two branches below.
-      function buildRelEntry(id, significance) {
-        return {
-          id,
-          from_id:              rd.from_id             || '',
-          from_type:            rd.from_type           || 'unknown',
-          to_id:                rd.to_id               || '',
-          to_type:              rd.to_type             || 'unknown',
-          relationship_type:    rd.relationship_type   || 'unknown',
-          significance,
-          established_session:  rd.established_session || '',
-          last_updated_session: rd.established_session || '',
-          status:               'active',
-          narrative: {
-            ground_truth_notes:   rd.ground_truth_notes || '',
-            edge_prose:           null,
-            regeneration_flagged: false,
-          },
-        };
-      }
-
-      if (sig === 'significant_event') {
-        // Tier 2: always a new entry — no dedup check.
-        // UUID, not rel_NNN (issue #95).
-        out.entity_relationships.push(buildRelEntry(ChronicleIds.newId(), 'significant_event'));
-
-      } else {
-        // Tier 1 participation: find existing by from_id + to_id + significance.
-        // Matching on significance prevents a participation edge from accidentally
-        // updating a significant_event edge between the same entity pair.
-        const existIdx = out.entity_relationships.findIndex(
-          r => r.from_id === rd.from_id && r.to_id === rd.to_id && r.significance === 'participation'
-        );
-        if (existIdx > -1) {
-          // Update volatile fields only — preserve established_session and prior prose
-          out.entity_relationships[existIdx].last_updated_session = rd.established_session || '';
-          if (out.entity_relationships[existIdx].narrative) {
-            out.entity_relationships[existIdx].narrative.regeneration_flagged = true;
-          }
-        } else {
-          // No prior participation edge for this pair — append
-          // UUID, not rel_NNN (issue #95).
-          out.entity_relationships.push(buildRelEntry(ChronicleIds.newId(), 'participation'));
-        }
-      }
-    }
-  }
-
-  // Resolve promoted_to placeholders: when a cohort was promoted during this publish run,
-  // its mechanics.promoted_to was set to 'fac_TBD' at queue time (because the faction
-  // hadn't received its fac_NNN id yet). Now that all NEW deltas have been processed
-  // and faction ids are assigned, replace 'fac_TBD' with the real id.
-  //
-  // Match by name: the faction cascade created by promoteCohortToFaction() copies
-  // the cohort's name into the faction rawData, so the names will be identical.
-  if (Array.isArray(out.cohorts) && Array.isArray(out.factions)) {
-    out.cohorts.forEach(coh => {
-      if (coh.mechanics?.promoted_to === 'fac_TBD') {
-        const matchFaction = out.factions.find(f =>
-          (f.name || '').toLowerCase() === (coh.name || '').toLowerCase()
-        );
-        if (matchFaction?.id) {
-          coh.mechanics.promoted_to = matchFaction.id;
-        }
-      }
-    });
-  }
-
-  // Append any deferred integrity gaps to the published JSON.
-  // These persist version-controlled alongside the campaign data so the future
-  // campaign scanner can present them as a correction queue.
-  if (deferredGaps.length > 0) {
-    if (!Array.isArray(out.deferred_gaps)) out.deferred_gaps = [];
-    // Only append gaps that aren't already in the array (by id) — guard against
-    // re-publish after a partial publish failure.
-    for (const dg of deferredGaps) {
-      if (!out.deferred_gaps.some(existing => existing.id === dg.id)) {
-        // A gap names its session by the DM's session_NNN; translate it (#95).
-        out.deferred_gaps.push(tr(dg));
-      }
-    }
-  }
-
-  // Merge any prompt improvement log entries captured in sessionStorage during
-  // this intake session (issue #29). Entries are written there by logPromptImprovement()
-  // in intake.html when the DM clicks "Log as prompt improvement" after a steered re-run.
-  // They are ephemeral in sessionStorage — this publish call is the point where they
-  // become permanent in the campaign JSON with proper pil_NNN IDs.
-  const storedPilRaw = sessionStorage.getItem('chronicle_prompt_improvement_log');
-  const storedPilEntries = storedPilRaw ? JSON.parse(storedPilRaw) : [];
-  if (storedPilEntries.length > 0) {
-    if (!Array.isArray(out.prompt_improvement_log)) out.prompt_improvement_log = [];
-    // Assign sequential IDs starting from 1 beyond the current array length.
-    // pil_001, pil_002, etc. — left-padded to 3 digits to match the schema convention.
-    let nextPilIdx = out.prompt_improvement_log.length + 1;
-    for (const entry of storedPilEntries) {
-      const id = 'pil_' + String(nextPilIdx).padStart(3, '0');
-      // The entry's session_id may be a legacy ID; translate it (#95). The log
-      // keeps pil_NNN ids: it is a workflow record, never referenced by an entity.
-      out.prompt_improvement_log.push(Object.assign({ id }, tr(entry)));
-      nextPilIdx++;
-    }
-    // Clear the sessionStorage log now that entries are committed to the JSON.
-    // If publish fails (Drive write error), entries are already gone — the DM
-    // would need to re-log them. This is acceptable given the low cost of the action.
-    sessionStorage.removeItem('chronicle_prompt_improvement_log');
-  }
-
-  // Update schema metadata
-  out._last_published = new Date().toISOString();
-  out._delta_count    = (out._delta_count || 0) + approved.length;
-
-  return out;
+  const result = ChroniclePublish.applySession(campaign, approved, {
+    deferredGaps,
+    promptLog,
+    spellNames: partySpellNames,
+  });
+  lastPublishNotes = result.notes;
+  window.lastPublishNotes = result.notes;
+  return result.campaign;
 }
 
 // ══════════════════════════════════════════════════════
@@ -6063,6 +5851,9 @@ updateProgress();
 // and updateProgress() re-gates the Publish button. If the fetch fails,
 // initIntegrity() logs a warning and the review proceeds without integrity checking.
 initIntegrity();
+// The party's spell names, for publish to tell a spell from a weapon (#92).
+// Asynchronous and independent of the queue; publish works without it.
+loadPartySpellNames();
 // Wire panel resize (drag handle + sessionStorage restore) and textarea auto-grow.
 initAssistantResize();
 initTextareaAutoGrow();

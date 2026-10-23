@@ -532,21 +532,11 @@ function normaliseCampaignJson(json) {
     // act lists every activity; res/val come from the action activity's single
     // outcome (or the first activity when there is no action), as 4.x took them
     // from slot.action. Removing this breaks every round in the combat viewer.
+    // The 4.x branch (slot.action) was removed with #92: publish now writes
+    // activities[] and no 4.x slots remain in data/. "|| []" keeps a slot with
+    // no activities list from breaking the page; it shows as "—".
     function flattenSlot(slot) {
-      // Compatibility shim: 4.x slots ({action:{name,res,val}}) are still written
-      // by delta-review publish until #92 rebuilds it to write activities[].
-      // Remove this branch once #92 has shipped and no 4.x slots remain in data/.
-      if (!Array.isArray(slot.activities)) {
-        return {
-          s:     slot.s,
-          a:     slot.a,
-          act:   slot.action?.name  ?? '—',    // 4.x: slot.action.name
-          res:   slot.action?.res   ?? null,    // 4.x: slot.action.res
-          val:   slot.action?.val   ?? null,    // 4.x: slot.action.val
-          notes: slot.notes || slot.action?.notes || null,
-        };
-      }
-      const acts    = slot.activities;
+      const acts    = slot.activities || [];
       const primary = acts.find(a => a.economy === 'action') ?? acts[0] ?? null;
       const one     = singleOutcome(primary);
       // Effects a party member's roll caused (e.g. "Ogre killed") join the notes
@@ -571,18 +561,8 @@ function normaliseCampaignJson(json) {
       const impact = (et.special_events || []).map(ev => ev.description).filter(Boolean).join('; ') || null;
       let desc = et.actor_id || '?';
 
-      // Compatibility shim for 4.x enemy turns ({action:{name,res,val}}) written
-      // by delta-review until #92 ships. Remove with the flattenSlot shim above.
-      if (!Array.isArray(et.activities)) {
-        const act = et.action;
-        if (act?.name) {
-          desc += ': ' + act.name;
-          if (act.res) desc += ' (' + act.res + (act.val != null ? ', ' + act.val : '') + ')';
-        }
-        return { desc, impact };
-      }
-
-      const parts = et.activities.map(act => {
+      // The 4.x branch (et.action) was removed with #92, with flattenSlot's.
+      const parts = (et.activities || []).map(act => {
         const one = singleOutcome(act);
         let text = activityLabel(act);
         if (one?.res) text += ' (' + one.res + (one.val != null ? ', ' + one.val : '') + ')';

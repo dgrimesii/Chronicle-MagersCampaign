@@ -163,12 +163,13 @@ async function loadCampaignData() {
 
 ## Shared module load order
 
-When a page needs all six shared modules, load them in this order:
+When a page needs all seven shared modules, load them in this order:
 
 ```html
 <script src="../shared/config.js"></script>
 <script src="../shared/chronicle-store.js"></script>
 <script src="../shared/chronicle-ids.js"></script>
+<script src="../shared/chronicle-publish.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script src="../shared/chronicle-narrative.js"></script>
@@ -178,6 +179,8 @@ When a page needs all six shared modules, load them in this order:
 `chronicle-store.js` exports `window.ChronicleStore`. Load it on every page that reads or writes campaign data. It reads `config.js` at call time and works without it for reads (config.js is absent on GitHub Pages), so the player view loads it too.
 
 `chronicle-ids.js` exports `window.ChronicleIds` (and `module.exports` under Node): UUID allocation and legacy-ID translation (issue #95). No dependencies. Load it on any page that accepts IDs from outside the data (intake output, AI output, links) and must turn a legacy ID into a UUID, or that creates entities. The two viewers do not load it, because `normaliseCampaignJson` must stay self-contained.
+
+`chronicle-publish.js` exports `window.ChroniclePublish` (and `module.exports` under Node): `applySession()`, the one function that turns approved review items into campaign data (issue #92). It needs `chronicle-ids.js` loaded first and touches no DOM, sessionStorage or network; pages pass their state in as options. Any change to what publish writes goes in this module, not in a page, so `tests/delta-apply.test.js` keeps testing the real code. README "Shared modules" lists its round-conversion rules.
 
 `chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 
@@ -372,7 +375,7 @@ desc   = actor_id + ': ' + activities.map(a => activityLabel(a) + (single outcom
 impact = special_events.map(ev => ev.description).join('; ') || null;
 ```
 
-Both helpers keep a compatibility branch for 4.x slots (`slot.action`) and enemy turns (`et.action`), because delta-review publish writes 4.x rounds until #92. Remove that branch when #92 ships.
+The 4.x compatibility branch (`slot.action`, `et.action`) was removed from both helpers by #92. Publish now writes `activities[]` (see `shared/chronicle-publish.js`), so do not add a 4.x reader back. A turn with no `activities` list renders as an empty turn.
 
 `flattenSlot`, `flattenEnemyTurn`, `activityLabel` and `singleOutcome` are nested functions inside `normaliseCampaignJson`. They are not exported. `tests/turn-schema.test.js` cuts `normaliseCampaignJson` out of both pages and checks that the two produce identical combats.
 

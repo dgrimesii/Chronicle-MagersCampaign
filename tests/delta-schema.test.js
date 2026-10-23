@@ -110,19 +110,27 @@ console.log('\nTest E-2 — round delta combatId resolves to a known combat in f
   );
 }
 
-// ── Test E-3 — Slot in round delta has v4 action sub-object ──────────────────
-// v4 nests action fields inside slot.action. A flat slot (with top-level act,
-// res, val) is v3 format and must not be produced by the pipeline.
-console.log('\nTest E-3 — slot in round delta has v4 action sub-object (not flat v3)');
+// ── Test E-3 — A queued flat round slot is published in the 5.0.0 turn shape ──
+// The queue holds the AI's flat entries ({s, a, act, res, val}), one per roll,
+// because the review card edits them. What reaches the campaign must be the
+// 5.0.0 turn shape (issue #92). Until #92 this test built its own 4.x slot and
+// checked that slot, which tested nothing the pipeline does; it now runs the
+// shared publish function (shared/chronicle-publish.js) on a flat slot.
+console.log('\nTest E-3 — a flat queued slot is published as a 5.0.0 turn (activities, outcomes)');
 {
-  const slot = { s: 1, a: 'pc_001', action: { name: 'Longsword', res: 'hit', val: 8 }, notes: null };
-  const item = makeRoundDeltaItem('cbt_001', 4, [slot], []);
-  const s    = item.slots[0];
+  const ChroniclePublish = require('../shared/chronicle-publish.js');
+  const flat = { s: 1, a: 'pc_001', act: 'Longsword', res: 'hit', val: 8, notes: null, action_type: 'action', target: null, target_effects: [], val_type: 'damage' };
+  const { campaign } = ChroniclePublish.applySession(fixture, [
+    { type: 'ROUND', array: 'combat_encounters', combatId: 'cbt_001', rawData: { n: 4, session_id: 'session_001', slots: [flat], enemy_turns: [] } },
+  ]);
+  const cbt = campaign.combat_encounters.find(c => c.legacy_id === 'cbt_001');
+  const s   = cbt.rounds.find(r => r.n === 4).slots[0];
 
-  assert('slot has action sub-object',     typeof s.action === 'object' && s.action !== null);
-  assert('slot action.name is a string',   typeof s.action.name === 'string');
-  assert('slot action.res is a string',    typeof s.action.res  === 'string');
-  assert('slot does NOT have flat .act',   !Object.prototype.hasOwnProperty.call(s, 'act'));
+  assert('slot has an activities array',            Array.isArray(s.activities));
+  assert('activity is Attack · Longsword (action)', s.activities[0].economy === 'action' && s.activities[0].name === 'Attack' && s.activities[0].detail === 'Longsword');
+  assert('one outcome with res and val',            s.activities[0].outcomes.length === 1 && s.activities[0].outcomes[0].res === 'hit' && s.activities[0].outcomes[0].val === 8);
+  assert('slot has neither flat .act nor 4.x .action',
+    !Object.prototype.hasOwnProperty.call(s, 'act') && !Object.prototype.hasOwnProperty.call(s, 'action'));
 }
 
 // ── Test E-4 — NPC delta item has required fields ─────────────────────────────
