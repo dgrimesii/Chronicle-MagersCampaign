@@ -2,7 +2,7 @@
 
 ## What this is
 
-Chronicle is a DM tool and campaign log manager for the Magers D&D 5e campaign, run by John Magers. It provides an admin interface for the DM to record sessions, fill combat round data using AI, review deltas before publishing, and manage Drive backups — and a separate read-only player view for sharing progress with the party. It is a vanilla HTML/CSS/JS web app hosted on GitHub Pages with no framework and no build step. Campaign data is served from the repo as a plain JSON file. The Google Drive proxy is used only for writes (publish and backup).
+Chronicle is a DM tool and campaign log manager for the Magers D&D 5e campaign, run by John Magers. It provides an admin interface for the DM to record sessions, fill combat round data using AI, review deltas before publishing them to the campaign file, and manage Drive backups — and a separate read-only player view for sharing progress with the party. It is a vanilla HTML/CSS/JS web app with no framework and no build step. The DM runs it locally from VS Code with Live Server, and GitHub Pages serves the pushed copy. Campaign data is a plain JSON file in the repo: publishing writes it in the DM's local clone, and the DM commits and pushes it from VS Code. The Google Drive proxy is used only for the Versions page's backups.
 
 ---
 
@@ -20,13 +20,13 @@ Chronicle-MagersCampaign/
 │   ├── log-viewer.html         # Campaign log (admin view) — fetches ../data/magers-campaign.json at init
 │   ├── intake.html             # Session intake / photo OCR pipeline — uses ChronicleAI
 │   ├── glossary.html           # OCR hints glossary — hardcoded glossary data, no JSON fetch
-│   ├── delta-review.html       # Post-session delta review and Drive publish — uses ChronicleAI
+│   ├── delta-review.html       # Post-session delta review and publish (writes the local campaign file) — uses ChronicleAI
 │   ├── integrity.html          # Combat round integrity checker / gap filler — uses ChronicleAI
 │   ├── log-editor.html         # In-browser campaign data editor — edits in memory only
 │   ├── versions.html           # Version manager / Drive backup ledger
 │   └── drive-test.html         # Drive proxy diagnostics (write path only) — no nav bar
 ├── shared/
-│   ├── config.js               # GITIGNORED — Drive proxy URL, campaign file ID, Anthropic and Gemini API keys
+│   ├── config.js               # GITIGNORED — Safe Test Mode switch, Drive proxy URL, campaign file IDs, Anthropic and Gemini API keys
 │   ├── chronicle-store.js      # Storage module — every campaign read and write goes through window.ChronicleStore
 │   ├── chronicle-ids.js        # Opaque UUID ids and legacy-ID translation (#95) — exports window.ChronicleIds; also require()-able in Node
 │   ├── chronicle-publish.js    # Publish logic (#92) — applies approved review items, writes the 5.0.0 shapes; exports window.ChroniclePublish; also require()-able in Node
@@ -35,6 +35,7 @@ Chronicle-MagersCampaign/
 │   └── chronicle-narrative.js  # Shared Gemini narrative module — exports window.ChronicleNarrative
 ├── data/
 │   ├── magers-campaign.json    # Campaign data — single source of truth, schema version 5.0.0
+│   ├── magers-campaign.prev.json # GITIGNORED — the campaign file as it was before the last publish (#97); appears after a first publish
 │   └── pc-abilities.json       # Per-PC ability/spell/action lists harvested from D&D Beyond; used by intake.html OCR prompt enrichment (issue #80). Regenerate with: node scripts/harvest-characters.js
 ├── scripts/
 │   ├── build.js                # STALE — injected EMBEDDED_DATA into HTML files; markers removed in Phase 1, script is now dead code
@@ -54,15 +55,18 @@ Chronicle-MagersCampaign/
 │   ├── intake-preparation.test.js    # Group C — session data preparation checks
 │   ├── delta-schema.test.js          # Group E — delta item schema validation
 │   ├── delta-apply.test.js           # Tests for shared/chronicle-publish.js (publish), incl. the #92 gate run through both viewers
-│   ├── store.test.js                 # Tests for shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
+│   ├── store.test.js                 # Tests for shared/chronicle-store.js — paths, local-file publishing against a fake folder, Drive backups, Safe Test Mode
 │   ├── turn-schema.test.js           # Tests for the 5.0.0 turn schema: migration rules, converted data, both viewers' normalisers
 │   ├── bestiary-fold.test.js         # Tests for the Goblin Slinger fold (#94): no mon_006, roster roles, both viewers' bestiary
 │   ├── opaque-ids.test.js            # Tests for opaque ids (#95): chronicle-ids.js, the reference check (gate), migrated data, both viewers
 │   ├── fixtures/
 │   │   └── test-campaign.json        # Minimal v5.0.0 synthetic campaign for automated tests
+│   ├── output/                       # GITIGNORED — test-campaign.published.json, written by a Safe Test Mode publish (#97)
 │   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
 │   └── ai-input-fixtures/            # Captured AI response fixtures for offline test runs
-├── .gitignore                  # Ignores shared/config.js
+├── .vscode/
+│   └── settings.json           # Live Server ignores data/** and tests/**, so a publish never reloads the page (#97)
+├── .gitignore                  # Ignores shared/config.js, data/magers-campaign.prev.json, tests/output/
 ├── CLAUDE.md                   # Behavioural instructions for Claude Code
 └── README.md                   # This file
 ```
@@ -73,9 +77,11 @@ Chronicle-MagersCampaign/
 
 ```
 STORAGE     → shared/chronicle-store.js  (window.ChronicleStore — the only code that reads or writes campaign data)
-DATA READS  → /data/magers-campaign.json  (same-origin fetch, served by GitHub Pages)
-DATA WRITES → Google Drive via Apps Script proxy  (delta-review publish, backups)
-APP HOSTING → GitHub Pages  (Chronicle-MagersCampaign repo)
+DATA READS  → /data/magers-campaign.json  (same-origin fetch, served by Live Server locally or GitHub Pages)
+DATA WRITES → data/magers-campaign.json in the local clone  (delta-review publish, File System Access API, #97)
+              then commit and push from VS Code
+BACKUPS     → Google Drive via Apps Script proxy  (Versions page only)
+APP HOSTING → Live Server from VS Code (DM, admin); GitHub Pages serves what is pushed
 ```
 
 Campaign data lives in `data/magers-campaign.json`. Every page that needs it calls `ChronicleStore.loadCampaign()`, which fetches this file same-origin (no proxy, no CORS) or, in Safe Test Mode, the test fixture. No page calls `fetch()` on the campaign file or talks to the Drive proxy itself; the one exception is `admin/drive-test.html`, which exists to test the proxy directly. Updating the JSON and pushing to GitHub triggers an automatic Pages redeploy; every page picks up the new data on next load.
@@ -84,15 +90,25 @@ Campaign data lives in `data/magers-campaign.json`. Every page that needs it cal
 
 **Publish (issue #92).** What a publish writes is decided by `ChroniclePublish.applySession()` in `shared/chronicle-publish.js`; Delta Review's `applyDeltasToCampaign()` is a thin wrapper that passes it the page's state, and the tests require the same file. It writes combat rounds in the 5.0.0 turn schema (turning the AI's one-entry-per-roll proposals into activities and outcomes, with targets resolved to ids and the round's session as `sid`), fills a placeholder session such as `session_006` instead of appending a second one, merges a round that continues across two pages, and recomputes the derived fields: each combat's `sessions` and `total_rounds_logged`, each session's `combats`, `locations_visited` and `npcs_met`, each location's `sessions_visited` and `combat_history`, and each bestiary entry's `combat_appearances`. Derived values are added, never removed, because some of today's hand-entered values (an NPC met outside combat) are not yet recorded anywhere the computation can see. Each publish returns notes on decisions it made for the DM (a weapon recorded as Attack, a placeholder's recorded date kept); the page logs them to the console and counts them in the status line.
 
-The store module exists so the planned storage moves change only one file: rebuild phase 2 makes publish commit to the repo instead of Drive (#97), and phase 7 replaces the repo and Drive with an API backed by Postgres (see `docs/intake-redesign.md`, "Build order").
+**Local-file publishing (issue #97).** Publish writes `data/magers-campaign.json` in the DM's local clone through the browser's File System Access API (Chrome or Edge, with the page served by Live Server on `127.0.0.1`). The page never talks to GitHub and needs no token; the DM commits and pushes from VS Code, separately and on their own schedule, and git history is the backup once committed.
 
-Drive proxy is used (through `ChronicleStore`) for:
-- Writing updated JSON to Drive after a Delta Review publish
+- **The folder.** On the first publish the DM picks the repository folder (`showDirectoryPicker`). A folder without `data/magers-campaign.json` is refused. The handle is kept in IndexedDB (database `chronicle-store`), so later publishes reuse it; each new browser session the browser asks once, on the Confirm Publish click, for permission to edit it again.
+- **Stale-file check.** `ChronicleStore.loadPublishBase()` reads the file from disk and remembers its exact text. `ChronicleStore.publishSession()` reads it again before writing. If the text differs at all (a `git pull`, a hand edit, a publish from another tab), the publish stops and nothing is written.
+- **Safety net.** Before overwriting, the current file is copied to `data/magers-campaign.prev.json` (git-ignored), so the previous version can be put back until the session is committed.
+- **Format.** The file is written as `JSON.stringify(campaign, null, 2)` plus a final newline, the format the repo stores, so VS Code's diff shows only what the publish changed. The browser writes to a temporary file and swaps it in when complete, so a failed write leaves the old file in place.
+- **Errors.** Every failure (no folder chosen, permission refused, wrong folder, file missing, file changed) is shown as an error that ends "Nothing was written".
+- **Live Server.** `.vscode/settings.json` sets `liveServer.settings.ignoreFiles` to Live Server's defaults plus `data/**` and `tests/**`, so a publish does not reload the page and lose the review. Restart Live Server after changing it.
+
+The store module exists so the planned storage moves change only one file: #97 moved publish from Drive to the local file, and phase 7 replaces the repo and Drive with an API backed by Postgres (see `docs/intake-redesign.md`, "Build order").
+
+Drive proxy is used (through `ChronicleStore`) only by the Versions page:
 - Creating named Drive backups before sessions
-- Listing Drive backups in the Versions page
+- Listing and downloading Drive backups
+
+Publish no longer writes the Drive campaign file, so those backups copy a file that stopped changing at #97 (see Known issues).
 
 **Intake → Delta Review hand-off via sessionStorage:**  
-When the DM clicks "Send to Delta Review" in `intake.html`, the page writes a `chronicle_intake_delta` envelope to `sessionStorage` and navigates to `delta-review.html`. Delta Review reads but does **not** clear this key on load (`loadIntakeDelta()`). The key persists in sessionStorage until `publish()` removes it after a successful Drive write, so the DM can navigate away from Delta Review and return without losing the queue. A companion flag (`chronicle_intake_delta_loaded`) is set after the first successful parse; on return visits it triggers a "Queue restored from previous session" banner that auto-dismisses after 5 seconds. If no key is present (direct navigation or post-publish reload), Delta Review starts with an empty queue as before.
+When the DM clicks "Send to Delta Review" in `intake.html`, the page writes a `chronicle_intake_delta` envelope to `sessionStorage` and navigates to `delta-review.html`. Delta Review reads but does **not** clear this key on load (`loadIntakeDelta()`). The key persists in sessionStorage until `publish()` removes it after a successful write, so the DM can navigate away from Delta Review and return without losing the queue. A companion flag (`chronicle_intake_delta_loaded`) is set after the first successful parse; on return visits it triggers a "Queue restored from previous session" banner that auto-dismisses after 5 seconds. If no key is present (direct navigation or post-publish reload), Delta Review starts with an empty queue as before.
 
 `chronicle_intake_delta` envelope shape:
 ```json
@@ -128,12 +144,10 @@ No build script is required. Both the player view and admin log-viewer read the 
 
 The post-session workflow via the admin tools:
 1. **Session Intake** (`admin/intake.html`) — upload session photos; AI extracts combat round data
-2. **Delta Review** (`admin/delta-review.html`) — review AI-proposed changes, approve, then Publish to Drive
-3. Download the updated JSON from Drive
-4. Replace `data/magers-campaign.json` in the repo
-5. Commit and push
+2. **Delta Review** (`admin/delta-review.html`, opened through Live Server in Chrome or Edge) — review AI-proposed changes, approve, then Publish. Publish writes `data/magers-campaign.json` in the local clone (#97). The first time, pick the repository folder; each new browser session, allow editing it once
+3. **Commit and push in VS Code.** The status line suggests the message `Publish session_NNN: <title>`. GitHub Pages redeploys on push
 
-Phase 2 goal (not yet implemented): Publish commits directly to the repo via the GitHub Contents API, eliminating the manual download-and-replace step.
+If the file changed on disk after Delta Review read it (a `git pull`, a hand edit), Publish stops with nothing written; reload Delta Review and publish again. Until you commit, `data/magers-campaign.prev.json` holds the file as it was before the publish. To try the workflow without touching the campaign file, turn on Safe Test Mode (below): publish then writes `tests/output/test-campaign.published.json`.
 
 ---
 
@@ -403,18 +417,18 @@ Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `def
 
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/delta-review.html`
 - **Audience:** DM only
-- Reviews AI-proposed session deltas (new entities, round data, quest updates) before committing them to the campaign JSON
+- Reviews AI-proposed session deltas (new entities, round data, quest updates) before writing them to the campaign JSON
 - Loads `../shared/config.js`, `../shared/chronicle-store.js`, `../shared/chronicle-ids.js`, `../shared/chronicle-publish.js`, `../shared/chronicle-integrity.js`, `../shared/chronicle-ai.js` and `../shared/chronicle-narrative.js`
 - Fetches `../data/pc-abilities.json` once at start-up (`loadPartySpellNames()`, as intake does) for the party's spell names, which publish uses to tell a spell from a weapon. If the fetch fails the page carries on and publish records non-standard actions as Attack, saying so in its notes
 - **IDs (issue #95):** the staged queue names entities by legacy ID. When the campaign loads, `translateQueueIds()` rewrites every legacy ID in the queue to its UUID, before gap detection. At publish, `ChroniclePublish.applySession()` translates every delta again and gives each NEW entity a UUID. A placeholder the page or intake made up for a new entity (`cbt_007`, `session_008`) maps to that UUID for the rest of the publish, and NEW deltas are applied first, so a round queued before its new combat still finds it. Only a new session keeps its placeholder, as `legacy_id`. Relationship ids are UUIDs too. The New-combat placeholder number is counted from the frozen legacy IDs, so it never names an existing combat
 - Uses `ChronicleAI.sendCorrectionToAI()` to refine individual delta items via an AI assistant chat panel
 - On load, calls `loadIntakeDelta()` — if a `chronicle_intake_delta` key exists in sessionStorage (written by `intake.html` "Send to Delta Review"), the envelope items replace the default empty queue and a banner identifies the session source. The key is **not cleared on load** — it persists until `publish()` succeeds, so the DM can navigate away and return without losing the queue (restoration banner auto-dismisses after 5 seconds). If no key exists, the queue is empty as usual.
 - **Integrity pre-flight panel**: on load, calls `ChronicleStore.loadCampaign()` (`../data/magers-campaign.json`) and runs `ChronicleIntegrity.checks()` against the staged session data. If gaps are found, an integrity panel appears in the center area before the review queue. Each gap presents three options: **Accept** (acknowledged, no record written), **Defer** (flagged for future correction — written to `deferred_gaps[]` in the published JSON), or **Edit** (AI-assisted fill via image or typed description; approved proposals join the approval queue). The Publish button is blocked until every gap has an explicit Accept or Defer decision. The **Reprocess** sub-option under Edit is a disabled placeholder — see code comments for design decisions required before building
-- **Publish** action: `ChronicleStore.loadPublishBase()` fetches the current campaign JSON from Drive (not from `/data/`); `applyDeltasToCampaign()` hands the approved items, the deferred gaps, the prompt-improvement entries from sessionStorage and the spell names to `ChroniclePublish.applySession()` (see Data architecture, "Publish"); then `ChronicleStore.publishSession()` makes a Drive backup labelled with the session stub's item id and writes the result back to Drive. In Safe Test Mode the base is the local fixture and the result is downloaded as `test-campaign.json` instead of written. On success the status line counts publish's notes (listed in the console) and the prompt-improvement entries are cleared from sessionStorage; on failure they are kept
+- **Publish** action: `ChronicleStore.loadPublishBase()` reads `data/magers-campaign.json` from disk in the local clone (asking for the repository folder the first time, and for permission once per browser session); `applyDeltasToCampaign()` hands the approved items, the deferred gaps, the prompt-improvement entries from sessionStorage and the spell names to `ChroniclePublish.applySession()` (see Data architecture, "Publish"); then `ChronicleStore.publishSession()` writes the result back to the file, keeping the previous one as `data/magers-campaign.prev.json` (see Data architecture, "Local-file publishing"). In Safe Test Mode the base is `tests/fixtures/test-campaign.json` and the result goes to `tests/output/test-campaign.published.json`. The status line names the file written, suggests the commit message `Publish session_NNN: <title>` (adding "real campaign file untouched" in test mode) and counts publish's notes (listed in the console). On success the prompt-improvement entries are cleared from sessionStorage; on failure (including "changed on disk") the error is shown, nothing is written and the queue is kept. Needs Chrome or Edge
 - **What publish writes (issue #92):** queued ROUND items keep the AI's flat proposal shape (one entry per roll) so the review card and inline edits work as before; publish converts them to the 5.0.0 turn schema. The intake session stub (`session_id`, `session_date`, root `summary`) is written under the schema's names (`id`/`legacy_id`, `date`, `narrative.summary`) with every session field present; when the session already exists (the `session_006`/`session_007` placeholders) its empty fields are filled and nothing recorded is overwritten. The "Narrative notes" item is not written (it used to be pushed as a session with no id). A new combat gets every combat field, including an empty `enemies_roster`
 - **RAW item Interpret button** (issue #70): RAW OCR-page items are not written on publish. Each RAW item card has an **Interpret** button that sends the OCR text to the AI and converts it to ROUND delta items for normal review and approval. The source RAW item is marked `'interpreted'` once complete.
 - Approval workflow: each queue item can be Approved, Rejected, or sent for AI correction. Items include session metadata, NPC entries, location entries, combat rounds, and quest updates
-- Does not read campaign data from Drive for the integrity check — uses `../data/magers-campaign.json` (same-origin repo copy). The Drive copy and repo copy can diverge; integrity checks against whichever is currently in the repo
+- The integrity check uses `ChronicleStore.loadCampaign()`, the same file publish writes, as it was when the page loaded
 
 ---
 
@@ -449,7 +463,7 @@ Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `def
 - Manages a local backup ledger (stored in `localStorage`) and syncs with Drive backups
 - Loads `../shared/config.js` and `../shared/chronicle-store.js`
 - Fetches the backup list from Drive with `ChronicleStore.listBackups()`; can download any Drive backup as a JSON file via `ChronicleStore.loadBackup()`
-- "Pre-session backup" action: `ChronicleStore.createBackup()` makes a Drive backup copy, then `ChronicleStore.loadPublishBase()` reads the Drive file (not `/data/`; the local fixture in Safe Test Mode) to compute stats
+- "Pre-session backup" action: `ChronicleStore.createBackup()` makes a Drive backup copy, then `ChronicleStore.loadCampaign()` reads the repo copy (the fixture in Safe Test Mode) to compute stats. Until #97 the stats came from the Drive file; that call now reads GitHub and needs a token
 - Backup ledger stored in browser `localStorage` — cleared if the user clears site data
 
 ---
@@ -530,16 +544,16 @@ Loaded by every page that reads or writes campaign data: `player/index.html` and
 
 | Method | What it does today | Planned change |
 |---|---|---|
-| `.loadCampaign()` | Same-origin fetch of `../data/magers-campaign.json` (the test fixture in Safe Test Mode). Returns the raw v4 JSON; throws on HTTP error | Phase 7: API call |
-| `.loadPublishBase()` | Reads the Drive campaign file through the proxy (`?action=read`), which publish builds on (the fixture in Safe Test Mode) | #97: same as `loadCampaign()` |
-| `.publishSession(campaign, summary, options)` | `summary = { sessionId, label }`, `options = { onProgress }`. Makes a Drive backup labelled `summary.label`, then POSTs the campaign to Drive. Returns `{ mode: 'drive', backup }`. In Safe Test Mode downloads `test-campaign.json` instead and returns `{ mode: 'test-download', filename }` | #97: commit to the repo |
+| `.loadCampaign()` | Same-origin fetch of `../data/magers-campaign.json`. In Safe Test Mode: `../tests/output/test-campaign.published.json` (no cache) when it exists, else the fixture; any status other than 404 on the output file throws. Returns the raw v4 JSON; throws on HTTP error | Phase 7: API call |
+| `.loadPublishBase()` | Gets the repository folder (from IndexedDB, or `showDirectoryPicker` the first time, refusing a folder without `data/magers-campaign.json`), asks for read/write permission when the browser needs it, then reads `data/magers-campaign.json` from disk (`tests/fixtures/test-campaign.json` in Safe Test Mode) and remembers the exact text (#97). Must be called straight from a click | Phase 7: API call |
+| `.publishSession(campaign, summary, options)` | `summary = { sessionId, sessionRef, title, label }`, `options = { onProgress }`. Needs `loadPublishBase()` first, in the same mode. Re-reads the file and throws, writing nothing, if its text changed; otherwise writes the current text to `data/magers-campaign.prev.json`, then the campaign to `data/magers-campaign.json`. Safe Test Mode writes only `tests/output/test-campaign.published.json`. Returns `{ mode: 'local-file', path, previousPath, testMode, commitMessage }`, where `commitMessage` is `Publish <sessionRef>: <title>` (#97) | Phase 7: API call |
 | `.createBackup(label)` | Drive `?action=backup` on the campaign file | Phase 7 |
 | `.listBackups()` | Drive `?action=listBackups` | Phase 7 |
 | `.loadBackup(backupId)` | Drive `?id=<backupId>`; returns the backup's JSON | Phase 7 |
 | `.saveDraft()` / `.loadDraft()` | Stubs — always reject with "not available until … Postgres" | Phase 7: saved review drafts |
 | `.isSafeTestMode()` | `true` when `CHRONICLE_CONFIG.safeTestMode === true` | — |
 
-Drive calls use the test Drive file (`testCampaignFileId`) in Safe Test Mode and throw "Drive is not configured" when `config.js` or its `proxyUrl` is missing.
+Drive calls use the test Drive file (`testCampaignFileId`) in Safe Test Mode and throw "Drive is not configured" when `config.js` or its `proxyUrl` is missing. Publishing throws a message ending "Nothing was written" for a browser without the File System Access API, a closed folder picker, refused permission, a folder that is not the repository, a missing file or a file changed on disk. The store makes no network request to publish, and contains no GitHub URL or token.
 
 ---
 
@@ -576,7 +590,8 @@ Public API (`window.ChronicleAI`):
 - **Host:** GitHub Pages, serving from the `main` branch root
 - **Player URL:** `https://<username>.github.io/Chronicle-MagersCampaign/player/`
 - **Admin URL:** `https://<username>.github.io/Chronicle-MagersCampaign/admin/log-viewer.html`
-- **Deploy trigger:** Automatic on push to `main`
+- **Deploy trigger:** Automatic on push to `main`. A Delta Review publish writes only the local file (#97), so Pages shows it once the DM commits and pushes from VS Code
+- **Local:** the DM runs the admin pages from VS Code with Live Server (`http://127.0.0.1:5500/admin/…`). Publishing needs this, in Chrome or Edge
 - `shared/config.js` is gitignored and must be present locally on each admin machine — it is never deployed to Pages. Admin pages that require it (all admin pages except `drive-test.html` for basic display) will fail to call Drive or the Anthropic API without it.
 
 ---
@@ -590,6 +605,9 @@ Public API (`window.ChronicleAI`):
 | Narrative notes item is not saved | `shared/chronicle-publish.js` | Intake's "Narrative notes" queue item (`narrative_text`) is reference text for the review. Publish used to push it as a session with no id; since #92 it writes nothing and says so in its notes. The intake rebuild keeps narrative as passages (#100–#102). |
 | Derived fields only add | `shared/chronicle-publish.js` | `deriveFields()` adds computed values and never removes stored ones, because some hand-entered values (an NPC met outside combat, a place passed through) are not yet recorded anywhere it can see. A wrong stored value therefore survives a publish. Full recomputation becomes possible once passages and mentions are recorded (#100–#102). |
 | Placeholder fill never overwrites | `shared/chronicle-publish.js` | Filling `session_006`/`session_007` writes only empty fields, because intake's stub dates itself to the day of intake. A deliberate change to a recorded title, date or summary is reported in the publish notes but not applied; make it with a MOD item or by hand. |
+| Drive backups copy a file publish no longer writes | `admin/versions.html`, `shared/chronicle-store.js` | Since #97 publish writes the local campaign file and never the Drive one, so the Versions page's pre-session backup copies the Drive file as it was at #97. The design retires Drive, the Versions page's Drive backups and `drive-test.html`; #97's scope was publish only, so they remain until that follow-up. Git history is now the real backup. |
+| Publishing needs Chrome or Edge on a local clone | `shared/chronicle-store.js` | The File System Access API is Chromium-only, and publish writes the clone on the DM's machine (#97). Firefox and Safari get a clear error. Phase 7's server-side API removes this. |
+| A publish is not saved until committed | `data/magers-campaign.json`, `data/magers-campaign.prev.json` | Publish writes only the working copy; nothing reaches git or GitHub Pages until the DM commits and pushes. `.prev.json` holds one step back: a second publish before committing replaces it. |
 | Session stub field names | `admin/intake.html`, `admin/delta-review.html` | Intake still writes the stub as `session_id`, `session_date` and a root `summary`, and the review card reads those names. Publish translates them (#92). The session page of the intake rebuild replaces the stub. |
 | Turn-schema migration inconsistencies | `data/magers-campaign.json` | Reported by the migration and listed on issue #93, not fixed (scope). Examples: `cbt_002` r4 Goli's "3 Melee Attacks" has 2 results; Move/Dash logged as both the action and the movement in 5 turns; 3 spells with no result. |
 | `cbt_002` r6 IDs disagree with names | `data/magers-campaign.json` | The event "pc_001 (Goli) downed" and "pc_005 (Del) at 1HP" name the wrong IDs (pc_001 is Goldie, pc_005 is Goli). `mechanics.pcs_downed` records Del's round 7 down twice (under pc_005 and pc_004) and has pc_001 "Goli DOWNED Round 6". The round 6 hit targets pc_001 and pc_005. Slot data supports the names. Left unchanged for the DM to check against the notes as a separate data fix. |
@@ -625,12 +643,13 @@ tests/
 ├── intake-preparation.test.js      # Group C — session data preparation checks
 ├── delta-schema.test.js            # Group E — delta item schema validation
 ├── delta-apply.test.js             # shared/chronicle-publish.js (#92): turn schema, enemy turns, sessions, derived fields, merges, IDs; gate through both viewers
-├── store.test.js                   # shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
+├── store.test.js                   # shared/chronicle-store.js — paths, local-file publishing (fake folder), Drive backups, Safe Test Mode
 ├── turn-schema.test.js             # 5.0.0 turn schema — migration rules, converted data, both normalisers
 ├── bestiary-fold.test.js           # Goblin Slinger fold (#94) — no mon_006, roster roles, both normalisers
 ├── opaque-ids.test.js              # Opaque ids (#95) — helpers, reference check, migrated data, both normalisers
 ├── fixtures/
 │   └── test-campaign.json          # Minimal v5.0.0 synthetic campaign — no real data
+├── output/                         # GITIGNORED — test-campaign.published.json from a Safe Test Mode publish (#97)
 ├── ocr-ground-truth/
 │   └── README.md                   # Ground-truth pair format (image + expected JSON)
 └── ai-input-fixtures/
@@ -648,16 +667,16 @@ All tests are plain Node.js — no install required.
 
 ### Safe Test Mode
 
-`shared/config.js` (gitignored) contains two fields that redirect data reads and Drive writes to test targets. `shared/chronicle-store.js` applies them; no page checks them itself:
+`shared/config.js` (gitignored) holds the settings below. `shared/chronicle-store.js` applies them; no page checks them itself:
 
 | Field | Default | Purpose |
 |---|---|---|
-| `safeTestMode` | `false` | When `true`, all reads and Drive writes target test data |
+| `safeTestMode` | `false` | When `true`, all reads, publishes and Drive backups target test data |
 | `testCampaignFileId` | `''` | Drive file ID of the test campaign copy |
 
 When `safeTestMode: true`:
-- `ChronicleStore.loadCampaign()` and `.loadPublishBase()` read `../tests/fixtures/test-campaign.json` instead of the repo file or Drive
-- `ChronicleStore.publishSession()` downloads the result as `test-campaign.json` instead of writing to Drive, and makes no backup
+- `ChronicleStore.loadCampaign()` reads `../tests/output/test-campaign.published.json` when a test publish has written it, and `../tests/fixtures/test-campaign.json` otherwise, instead of the repo file. The admin log viewer therefore shows a test publish; delete `tests/output/` to go back to the fixture
+- `ChronicleStore.loadPublishBase()` builds on `tests/fixtures/test-campaign.json`, and `.publishSession()` writes only `tests/output/test-campaign.published.json` (git-ignored). It never writes the fixture, which the automated tests depend on, or `data/magers-campaign.json`, and makes no `.prev` copy (#97)
 - `ChronicleStore.createBackup()` and `.listBackups()` target `testCampaignFileId` instead of `campaignFileId`
 
 Switching test mode on or off requires changing only `config.js`. Older copies of `config.js` also define `getCampaignPath()` and `getCampaignFileId()` resolvers; only `drive-test.html` still calls `getCampaignFileId()`, and nothing calls `getCampaignPath()`.

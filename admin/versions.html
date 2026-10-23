@@ -243,13 +243,14 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 <div class="toast" id="toast"></div>
 
 <script src="../shared/config.js"></script>
-<!-- chronicle-store.js owns every Drive call this page makes: backup, backup
-     list, backup download and the campaign read for stats (issue #96). -->
+<!-- chronicle-store.js owns every storage call this page makes: the Drive
+     backup, backup list and backup download, and the repo read for stats
+     (issues #96, #97). -->
 <script src="../shared/chronicle-store.js"></script>
 <script>
 // Drive access now lives in shared/chronicle-store.js. This page calls
-// ChronicleStore.createBackup / listBackups / loadBackup / loadPublishBase
-// instead of keeping its own copy of the proxy code (issue #96).
+// ChronicleStore.createBackup / listBackups / loadBackup, and loadCampaign
+// for stats, instead of keeping its own copy of the proxy code (issue #96).
 
 // ══════════════════════════════════════════════════════
 // VERSION LEDGER — persisted to localStorage
@@ -666,10 +667,15 @@ async function startPreSessionBackup() {
     const driveBackupName = result.name;
 
     // Step 2 — fetch current campaign data to store stats locally.
-    // loadPublishBase() is the Drive file that was just backed up, so the
-    // stats describe the backup (in Safe Test Mode: the local test fixture).
+    // loadCampaign() is the repo copy (the test fixture in Safe Test Mode).
+    // Until #97 this read loadPublishBase(), the Drive file just backed up.
+    // Since #97 that call opens the local repository folder for publishing
+    // (a folder picker or a permission prompt), which a backup should not;
+    // and publish no longer writes to Drive, so the repo copy is the current
+    // campaign. The stats now describe the repo copy rather than the
+    // (possibly older) Drive file backed up.
     setVersionStatus('Reading campaign data…', 'loading');
-    const data  = await ChronicleStore.loadPublishBase();
+    const data  = await ChronicleStore.loadCampaign();
     const stats = statsFromData(data);
 
     // Step 3 — record in local ledger

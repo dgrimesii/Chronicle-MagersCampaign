@@ -295,7 +295,7 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 /* Pre-publish confirmation panel (issue #37) —
    Sits between the narrative prompt and the publish bar. Hidden until
    showPublishConfirm() populates and reveals it. Intercepts the Publish
-   button so no Drive write occurs until the DM clicks Confirm Publish. */
+   button so nothing is written until the DM clicks Confirm Publish. */
 .publish-confirm-panel{border-top:2px solid var(--amber);background:var(--parchment-mid);
   padding:1rem 1.25rem;display:flex;flex-direction:column;gap:0.75rem;}
 .publish-confirm-panel h3{font-family:'Cinzel',serif;font-size:0.82rem;letter-spacing:0.1em;
@@ -620,14 +620,14 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
     </div>
   </div>
   <!-- Pre-publish confirmation panel (issue #37) — hidden until showPublishConfirm() reveals it.
-       Intercepts the Publish button so no Drive write occurs until DM clicks Confirm Publish.
+       Intercepts the Publish button so nothing is written until DM clicks Confirm Publish.
        cancelPublish() hides it without touching items[] or approval state. -->
   <div id="publish-confirm-panel" class="publish-confirm-panel" style="display:none;">
     <h3>Review before publishing</h3>
     <!-- SafeTestMode banner — shown only when window.CHRONICLE_CONFIG.safeTestMode is true.
          Makes it unmistakable that the write target is the test fixture, not the live campaign. -->
     <div id="confirm-safetest-banner" class="confirm-safetest-banner" style="display:none;">
-      ⚠ SAFE TEST MODE — this publish will write to the test fixture, not the live campaign
+      ⚠ SAFE TEST MODE — this publish builds on the test fixture and writes tests/output/test-campaign.published.json, not the live campaign file
     </div>
     <div id="confirm-session-ctx" class="confirm-session-ctx"></div>
     <!-- Scrollable list of all approved items, grouped by array (populated by showPublishConfirm) -->
@@ -669,9 +669,11 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
      Per CLAUDE.md load order: config → store → ids → integrity → ai → narrative → page script. -->
 <script src="../shared/chronicle-narrative.js"></script>
 <script>
-// Drive access (read, backup, write) now lives in shared/chronicle-store.js
-// as ChronicleStore.loadPublishBase() and ChronicleStore.publishSession().
-// This page no longer talks to the Drive proxy directly (issue #96).
+// Every campaign read and write lives in shared/chronicle-store.js (issue #96).
+// Publish reads with ChronicleStore.loadPublishBase() and writes with
+// ChronicleStore.publishSession(): the campaign file in the DM's local clone,
+// which the DM then commits and pushes from VS Code (issue #97). This page
+// never touches files, Drive or GitHub itself.
 
 // ══════════════════════════════════════════════════════
 // PARTY LOOKUP
@@ -3723,10 +3725,10 @@ document.getElementById('correction-input').addEventListener('keydown', e => {
  *
  * Intercepts the Publish button click. Populates and reveals the pre-publish
  * confirmation panel (#publish-confirm-panel) so the DM can review what will
- * be written before any Drive I/O begins.
+ * be written before anything is written.
  *
- * Why an intercept step: the Drive write is irreversible — a wrong publish
- * corrupts the campaign JSON and requires a backup restore. The confirmation
+ * Why an intercept step: publish overwrites the campaign file straight away — a wrong
+ * publish has to be undone from the .prev copy or git. The confirmation
  * panel gives the DM one final review with zero cost to cancel.
  *
  * What breaks if removed: the Publish button would call nothing (onclick points
@@ -3807,7 +3809,7 @@ function showPublishConfirm() {
       `${approved.length} total · ${nNew} new · ${nMod} modified · ${nRounds} combat round${nRounds !== 1 ? 's' : ''}`;
   }
 
-  // Reveal the panel — Drive write does not begin until DM clicks Confirm Publish.
+  // Reveal the panel — nothing is written until the DM clicks Confirm Publish.
   const panel = document.getElementById('publish-confirm-panel');
   if (panel) panel.style.display = 'flex';
 }
@@ -3831,11 +3833,12 @@ function cancelPublish() {
  *
  * Called by the "Confirm Publish" button in the pre-publish panel. Hides the
  * panel and executes the publish sequence — load base → apply → publish, with
- * the storage steps delegated to ChronicleStore (backup + Drive write today).
+ * the storage steps delegated to ChronicleStore: read the local campaign file,
+ * then write the result back to it (issue #97). The DM commits it in VS Code.
  *
  * Why renamed from publish(): the old publish() fired on every Publish button
  * click. With the confirmation panel, the button calls showPublishConfirm()
- * instead; confirmPublish() is the second-click that actually commits.
+ * instead; confirmPublish() is the second-click that actually writes.
  * This makes the call chain explicit: show → (DM reviews) → confirm.
  *
  * What breaks if removed: the Confirm Publish button in the panel has no action.
@@ -3851,35 +3854,43 @@ async function confirmPublish() {
   const orig = btn ? btn.textContent : '';
   if (btn) { btn.textContent = 'Publishing…'; btn.disabled = true; }
 
-  // Derive session ID for the backup label and post-publish narrative trigger (issue #44).
+  // Derive session ID for the suggested commit message and post-publish narrative trigger (issue #44).
   // Reads from the session stub item rawData — may be 'unknown_session' if no intake stub exists.
   const sessionId = items.find(i => i.array === 'session_logs')?.rawData?.session_id
     || 'unknown_session';
 
   try {
-    // Every storage step goes through ChronicleStore (issue #96), so moving
-    // publish from Drive to the repo (#97) and later to Postgres changes only
-    // shared/chronicle-store.js. The store also handles Safe Test Mode: the base
-    // comes from the local fixture and the result is downloaded, not written.
+    // Every storage step goes through ChronicleStore (issue #96), so the move
+    // to Postgres (phase 7) changes only shared/chronicle-store.js. The store
+    // also handles Safe Test Mode: it builds on the test fixture and writes a
+    // separate test output file, never the fixture or the campaign file.
 
-    // Step 1 — fetch the copy this publish builds on (the Drive file today).
-    setPublishStatus('Fetching current log…', 'loading');
+    // Step 1 — read the copy this publish builds on: the campaign file on disk
+    // (#97). This must stay the first await in this click handler: the first
+    // publish opens a folder picker and each new browser session asks for
+    // permission, and the browser allows both only straight after a click.
+    // The store remembers the exact text so step 3 can refuse if it changes.
+    setPublishStatus('Reading the campaign file…', 'loading');
     const campaign = await ChronicleStore.loadPublishBase();
 
     // Step 2 — apply approved deltas to the campaign object
     setPublishStatus('Applying deltas…', 'loading');
     const updated = applyDeltasToCampaign(campaign, approved);
 
-    // Step 3 — store it. Today: Drive backup, then Drive write. The backup label
-    // is the session stub's item id, as before; 'pre-publish' when there is none.
+    // Step 3 — write it (#97). The suggested commit message names the session
+    // the DM knows (session_NNN, its legacy_id) and its title, read from the
+    // published session; sessionId may be its UUID after translateQueueIds().
     const sessionLabel = items.find(i=>i.array==='session_logs')?.id || 'pre-publish';
+    const published = (updated.session_logs || []).find(s => s.id === sessionId || s.legacy_id === sessionId);
     const result = await ChronicleStore.publishSession(
       updated,
-      { sessionId: sessionId, label: sessionLabel },
+      { sessionId: sessionId, sessionRef: published?.legacy_id || sessionId, title: published?.title || '', label: sessionLabel },
       { onProgress: msg => setPublishStatus(msg, 'loading') }
     );
 
-    // Step 4 — done. The test-mode wording tells the DM what to do with the download.
+    // Step 4 — done. The status names the file written and suggests the
+    // commit message, because committing is now the DM's step in VS Code. In
+    // test mode it also confirms the real campaign file was not touched.
     // Publish's notes (issue #92) are decisions it made for the DM, such as a
     // weapon recorded as Attack or a placeholder's date kept. They are listed
     // in the console and counted here, so they are seen without blocking.
@@ -3887,10 +3898,10 @@ async function confirmPublish() {
     const noteCount = lastPublishNotes.length;
     const noteSuffix = noteCount ? ` · ${noteCount} note${noteCount!==1?'s':''} (see console)` : '';
     if (noteCount) console.info('[delta-review] Publish notes:\n- ' + lastPublishNotes.join('\n- '));
-    if (result.mode === 'test-download') {
-      setPublishStatus(`✓ [TEST MODE] ${n} delta${n!==1?'s':''} applied — download started. Replace tests/fixtures/test-campaign.json with the downloaded file.${noteSuffix}`, 'ok');
+    if (result.testMode) {
+      setPublishStatus(`✓ [TEST MODE] ${n} delta${n!==1?'s':''} written to ${result.path} · real campaign file untouched · commit message would be "${result.commitMessage}"${noteSuffix}`, 'ok');
     } else {
-      setPublishStatus(`✓ Published ${n} delta${n!==1?'s':''} · backup created${noteSuffix}`, 'ok');
+      setPublishStatus(`✓ Published ${n} delta${n!==1?'s':''} to ${result.path} (previous file kept as ${result.previousPath}) · commit in VS Code as "${result.commitMessage}"${noteSuffix}`, 'ok');
     }
     // The prompt-improvement entries are now in the published campaign with
     // pil_NNN ids. Cleared only here, after the write succeeded: publish used
@@ -3929,9 +3940,9 @@ function setPublishStatus(msg, state) {
  * afterPublishSuccess(updated, publishedSessionId)
  *
  * Why it exists: decouples the post-publish narrative hook from the publish()
- * function body so that publish() stays focused on Drive I/O and error handling.
+ * function body so that publish() stays focused on storage and error handling.
  * Only called from the publish() success path — never from catch() — so the
- * narrative prompt is guaranteed to appear only after a clean write to Drive.
+ * narrative prompt is guaranteed to appear only after a successful write.
  *
  * What it does:
  *   1. Runs detectCascadeCandidates() to find entities needing narrative generation
@@ -4110,8 +4121,8 @@ function applyDeltasToCampaign(campaign, approved) {
 // DATA FLOW
 // ---------
 // 1. initIntegrity() loads the campaign via ChronicleStore.loadCampaign() at page load.
-//    This is the same-origin repo copy — NOT the Drive copy that publish()
-//    writes to. The two can diverge; integrity checks against the repo copy.
+//    This is the same file publish writes, served by Live Server (#97), so
+//    the check sees the campaign as it was when the page loaded.
 // 2. buildIncomingFromItems() extracts combatId+roundNumber from items[]
 //    to form the INCOMING data that ChronicleIntegrity.checks() needs.
 // 3. Each gap gets a state object in gapStates{} tracking its decision.
@@ -5128,7 +5139,7 @@ function gapAccept(gapId) {
 }
 
 // Defer: DM flags the gap for future correction after this publish cycle.
-// Creates a deferred_gaps entry that travels to Drive with the publish payload.
+// Creates a deferred_gaps entry that is written with the publish payload.
 function gapDefer(gapId) {
   const g = gapResults.find(x => x.id === gapId);
   if (!g) return;
@@ -5373,7 +5384,7 @@ function escapeHtmlDR(s) {
  * cannot survive JSON serialisation), and replaces the hardcoded items[] array.
  *
  * Persistence model (issue #83): the key is NOT cleared here. It persists in
- * sessionStorage until publish() removes it after a successful Drive write.
+ * sessionStorage until publish() removes it after a successful write.
  * This means the DM can navigate away from delta-review and return without
  * losing the queue — the items are rehydrated from the same envelope on reload.
  *
@@ -5405,7 +5416,7 @@ function loadIntakeDelta() {
   }
 
   // Do NOT clear chronicle_intake_delta here (issue #83). The key persists
-  // until publish() removes it after a successful Drive write, so the DM can
+  // until publish() removes it after a successful write, so the DM can
   // navigate away and return without losing the queue.
 
   // Detect whether this is a return visit (DM navigated away and came back).

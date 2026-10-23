@@ -3,3 +3,9 @@ shared/config.js
 
 # Claude Code personal permission settings — per machine, never commit
 .claude/settings.local.json
+
+# Publish safety net: the campaign file as it was before the last publish (#97)
+data/magers-campaign.prev.json
+
+# Safe Test Mode publish output (#97); the fixture itself stays tracked
+tests/output/

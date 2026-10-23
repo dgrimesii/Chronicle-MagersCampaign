@@ -100,6 +100,7 @@ If you are unsure whether a change warrants a README update, update it. Over-doc
 - Script tags for shared modules appear at the bottom of `<body>`, before the page's own `<script>` block
 - D3.js is locked to v7.9 from cdnjs. Do not upgrade the version without explicit instruction and thorough graph testing — the force simulation parameters in both viewers are tuned to v7 behaviour.
 - `localStorage` is used only by `admin/versions.html` for its backup ledger. Do not introduce `localStorage` in any other page. Warn in comments wherever `localStorage` is read that the data is volatile — cleared if the user clears site data or opens the app in a different browser.
+- **IndexedDB exception (issue #97):** `shared/chronicle-store.js` keeps exactly one thing in IndexedDB: the repository folder handle publish writes through (database `chronicle-store`, store `handles`, key `repo-folder`). A directory handle cannot go in localStorage. Losing it only means the DM picks the folder again. Do not store anything else in IndexedDB, and never use it from a page.
 
 ---
 
@@ -133,8 +134,8 @@ The player view (`player/index.html`) has a "⇄ Admin" button linking to `../ad
 
 ## Data loading rules
 
-- Every campaign read and write goes through `shared/chronicle-store.js` (`window.ChronicleStore`). Never `fetch()` the campaign JSON, call the Drive proxy, or check `safeTestMode` in a page — add a method to the store module instead. The store is the seam for the planned moves to repo publishing (#97) and Postgres (rebuild phase 7); a page that bypasses it breaks those moves.
-- `ChronicleStore.loadCampaign()` fetches `../data/magers-campaign.json` same-origin (the test fixture in Safe Test Mode) and returns the raw JSON; pages normalise it themselves
+- Every campaign read and write goes through `shared/chronicle-store.js` (`window.ChronicleStore`). Never `fetch()` the campaign JSON, touch the file system (`showDirectoryPicker`, file handles), call the Drive proxy, or check `safeTestMode` in a page — add a method to the store module instead. The store is the seam for the move to Postgres (rebuild phase 7), as it was for local-file publishing (#97); a page that bypasses it breaks that move.
+- `ChronicleStore.loadCampaign()` fetches `../data/magers-campaign.json` same-origin and returns the raw JSON; pages normalise it themselves. In Safe Test Mode it fetches `../tests/output/test-campaign.published.json` when a test publish has written it, else the test fixture
 - `admin/drive-test.html` is the one exception: it tests the Drive proxy directly
 - There is no EMBEDDED_DATA block in any HTML file — do not add one
 - There is no sync indicator bar — do not add one
@@ -150,14 +151,25 @@ async function loadCampaignData() {
 
 ---
 
+## Local-file publishing rules (issue #97)
+
+- The DM runs Chronicle locally from VS Code with Live Server. Publish writes `data/magers-campaign.json` in the local clone through the File System Access API (Chrome or Edge). Committing and pushing are the DM's, in VS Code, on their own schedule: the tool never commits, pushes or talks to GitHub, and needs no token. Do not add a GitHub API call, a token setting or a git step to it
+- All file access lives in `shared/chronicle-store.js` (`loadPublishBase()` / `publishSession()`). The DM picks the repository folder on the first publish; the handle is kept in IndexedDB (the one allowed use, see File conventions) and permission is re-granted with one click each browser session. `loadPublishBase()` must stay the first await in the Confirm Publish click handler, because the picker and the permission prompt need a fresh user gesture
+- `loadPublishBase()` remembers the exact text it read; `publishSession()` re-reads the file and refuses, writing nothing, if the text differs at all. Never add a retry, a force or a fallback that writes over a file publish did not read
+- Before overwriting, publish copies the current file to `data/magers-campaign.prev.json` (git-ignored). If that copy fails, the campaign file is not written
+- Safe Test Mode builds on `tests/fixtures/test-campaign.json` and writes only `tests/output/test-campaign.published.json` (git-ignored). It must never write the fixture (the automated tests depend on it) or the real campaign file
+- The file is written as `JSON.stringify(campaign, null, 2) + "\n"`, the format the repo stores, so the VS Code diff shows only what changed
+- Every failure is an error ending "Nothing was written" (or saying the old file is unchanged), never a silent skip
+- `.vscode/settings.json` makes Live Server ignore `data/**` and `tests/**` so a publish does not reload the page and lose the review. Keep those entries, and keep Live Server's defaults in the list, because the setting replaces them
+
 ## Drive integration rules
 
 - Proxy URL and campaign file ID live ONLY in `shared/config.js` as `window.CHRONICLE_CONFIG`
 - Never hardcode the proxy URL or file ID in an individual HTML file
 - All Drive calls live in `shared/chronicle-store.js`. Pages that need Drive load `../shared/config.js` then `../shared/chronicle-store.js` before the page script and call `ChronicleStore` methods
 - GET for all Drive reads (avoids CORS preflight); POST with `Content-Type: text/plain` for writes
-- Drive is used for: the publish base and write-back in Delta Review (`loadPublishBase()` / `publishSession()`), backup copies, listing and downloading backups
-- Drive is NOT used for the campaign data pages display — `loadCampaign()` reads the repo copy
+- Drive is used only for the Versions page's backups: backup copies, listing and downloading backups. Publish no longer reads or writes Drive (#97), so the Drive campaign file is no longer updated; the design retires these backups separately
+- Drive is NOT used for the campaign data pages display — `loadCampaign()` reads the repo file
 
 ---
 
@@ -410,7 +422,9 @@ Do not change `_schema_version` without explicit instruction. It lives at the ro
 - Do not remove data from existing campaign objects without explicit instruction
 - Do not commit or reference `shared/config.js` — it is gitignored and must stay that way
 - Do not run `node scripts/build.js` — it is dead code
-- **Never commit `safeTestMode: true`** in `shared/config.js` — it redirects all campaign data reads to the test fixture and all Drive writes to the test file ID, which would affect any admin working locally from the same config
+- **Never commit `safeTestMode: true`** in `shared/config.js` — it redirects all campaign data reads to the test files, publishes to the test output file and Drive backups to the test file ID, which would affect any admin working locally from the same config
+- Do not make publish commit, push or call GitHub, and never make it write the campaign file without the stale-file check and the `.prev` copy (#97)
+- Do not commit `data/magers-campaign.prev.json` or `tests/output/` — both are git-ignored
 
 ---
 
@@ -479,17 +493,18 @@ The DM manages the post-session workflow through the admin tools, then manually 
 
 ## Workflow: delta-review publish cycle
 
-Delta Review reads the campaign JSON from Drive (not from `/data/`). After a v4 migration or any direct edit to `data/magers-campaign.json`, the Drive copy will be stale until manually synced.
+Since #97, Delta Review publishes to the local campaign file, and the DM commits and pushes it in VS Code. There is no Drive copy to keep in sync.
 
-The full post-session workflow:
+The full post-session workflow, run from VS Code with Live Server in Chrome or Edge:
 1. Session Intake (`intake.html`) — upload photos, AI extracts round data
-2. Delta Review (`delta-review.html`) — approve/reject/correct AI proposals, then Publish. This writes the updated JSON to Drive.
-3. Download the updated JSON from Drive (via Versions page or direct Drive)
-4. Replace `data/magers-campaign.json` in the repo with the downloaded file
-5. Commit and push to `main` — GitHub Pages redeploys automatically
+2. Delta Review (`delta-review.html`) — approve/reject/correct AI proposals, then Publish. This writes the updated `data/magers-campaign.json` in the local clone and keeps the previous file as `data/magers-campaign.prev.json`. The first publish asks for the repository folder; each new browser session asks once to allow editing it
+3. Commit and push in VS Code, using the message the status line suggests: `Publish session_NNN: <title>`. GitHub Pages redeploys on push
 
-After a direct edit to `data/magers-campaign.json` (bypassing the workflow):
-- The Drive copy is now stale. Before using Delta Review, manually upload the current JSON to Drive or use the Versions page to create a backup that will become the new Drive source.
+If the file changed on disk after Delta Review read it (a `git pull`, a hand edit, another tab), publish stops with nothing written. Reload Delta Review and publish again. To undo a publish before committing, discard the change in VS Code or copy `.prev.json` back.
+
+After a direct edit to `data/magers-campaign.json` (bypassing the workflow): commit and push it as usual. The next publish reads the file from disk.
+
+To test the workflow: set `safeTestMode: true` locally (never commit it). Publish then writes `tests/output/test-campaign.published.json`, which the admin log viewer shows, and leaves the real campaign file and the fixture untouched. Delete `tests/output/` to go back to the fixture.
 
 ---
 

@@ -6,8 +6,8 @@
  * WHY THIS MODULE EXISTS
  * ----------------------
  * Where campaign data is stored is going to change twice: phase 2 of the
- * rebuild moves publish from Google Drive to a commit in the repo (#97), and
- * phase 7 moves everything to an API backed by Postgres
+ * rebuild moves publish from Google Drive to the local campaign file in the
+ * DM's clone (#97), and phase 7 moves everything to an API backed by Postgres
  * (docs/intake-redesign.md, "Build order"). Before this module, every page
  * had its own fetch() of the campaign JSON and two pages carried their own
  * copy of the Drive proxy code. With every read and write routed through
@@ -17,24 +17,27 @@
  * ---------------------
  * Exports window.ChronicleStore:
  *   loadCampaign()            — the repo copy every page displays
- *   loadPublishBase()         — the copy a publish builds on (Drive today)
- *   publishSession(c, s, o)   — writes a published campaign (Drive today)
- *   createBackup(label)       — Drive backup copy of the live campaign file
- *   listBackups()             — Drive backups of the live campaign file
+ *   loadPublishBase()         — the copy a publish builds on: the campaign
+ *                               file read from disk in the DM's clone (#97)
+ *   publishSession(c, s, o)   — writes the published campaign to that file;
+ *                               the DM commits it in VS Code (#97)
+ *   createBackup(label)       — Drive backup copy of the Drive campaign file
+ *   listBackups()             — Drive backups of that file
  *   loadBackup(backupId)      — reads one Drive backup
  *   saveDraft() / loadDraft() — stubs; saved review drafts arrive in phase 7
  *   isSafeTestMode()          — whether Safe Test Mode is on
  *
  * Safe Test Mode is resolved here and nowhere else. When
- * CHRONICLE_CONFIG.safeTestMode is true, reads come from the test fixture,
- * publish downloads the result instead of writing it, and backups target
- * testCampaignFileId.
+ * CHRONICLE_CONFIG.safeTestMode is true, publish builds on the test fixture
+ * and writes tests/output/test-campaign.published.json (never the fixture or
+ * the campaign file), page reads show that output once it exists and the
+ * fixture until then, and backups target testCampaignFileId.
  *
  * WHAT WOULD BREAK IF REMOVED
  * ----------------------------
  * Every admin page except glossary.html and drive-test.html, and the player
  * view, load their campaign data through this module. Without it none of
- * them can load, and Delta Review and Versions cannot reach Drive.
+ * them can load, Delta Review cannot publish, and Versions cannot reach Drive.
  *
  * LOAD ORDER
  * ----------
@@ -42,7 +45,8 @@
  *   config.js → chronicle-store.js → chronicle-integrity.js → chronicle-ai.js
  *   → chronicle-narrative.js → page script
  * config.js is optional. It is gitignored and absent on GitHub Pages, so
- * loadCampaign() must work without it; only the Drive calls need it.
+ * loadCampaign() must work without it. Publishing needs no settings from it
+ * (only safeTestMode); the Drive backups need proxyUrl.
  */
 
 window.ChronicleStore = (function() {
@@ -52,6 +56,8 @@ window.ChronicleStore = (function() {
   // same relative path works from all of them.
   const CAMPAIGN_PATH = '../data/magers-campaign.json';
   const FIXTURE_PATH  = '../tests/fixtures/test-campaign.json';
+  // Written by a Safe Test Mode publish (#97); absent until the first one.
+  const TEST_OUTPUT_PATH = '../tests/output/test-campaign.published.json';
 
   /**
    * config() — the CHRONICLE_CONFIG object, or {} when config.js is absent.
@@ -93,22 +99,33 @@ window.ChronicleStore = (function() {
   /**
    * loadCampaign() → raw campaign JSON (not normalised).
    *
-   * What: fetches data/magers-campaign.json from the repo, or the test
-   * fixture in Safe Test Mode.
+   * What: fetches data/magers-campaign.json from the repo. In Safe Test Mode
+   * it fetches the last test publish (tests/output/test-campaign.published.json)
+   * when there is one, and the test fixture otherwise.
    * Why: the copy every page displays and checks against. Pages normalise the
-   * result themselves because each page needs a different shape.
+   * result themselves because each page needs a different shape. The test
+   * output comes first so the admin log viewer shows what a test publish
+   * wrote (the phase 5 gate, #17 test E-08, needs this).
    * What breaks if changed: every page's initial load. Phase 7 replaces the
    * fetch with an API call; the return value must stay the raw v4 JSON.
    */
   async function loadCampaign() {
-    return fetchJson(isSafeTestMode() ? FIXTURE_PATH : CAMPAIGN_PATH);
+    if (!isSafeTestMode()) return fetchJson(CAMPAIGN_PATH);
+    // no-store: the output file is rewritten by every test publish, and a
+    // cached copy would show the previous one.
+    const res = await fetch(TEST_OUTPUT_PATH, { cache: 'no-store' });
+    if (res.ok) return res.json();
+    // 404 only means no test publish has happened yet; anything else is a
+    // real failure and must show as one, not as the fixture.
+    if (res.status !== 404) throw new Error('HTTP ' + res.status + ' loading ' + TEST_OUTPUT_PATH);
+    return fetchJson(FIXTURE_PATH);
   }
 
   // ── Drive proxy plumbing ──────────────────────────────────────────────────
-  // Moved here from identical copies in delta-review.html and versions.html.
-  // Drive is a temporary store: #97 replaces the publish write with a repo
-  // commit, and phase 7 replaces the backups. Remove these helpers when the
-  // last Drive call below is gone.
+  // Drive no longer receives publishes (#97 writes them to the local file). It is
+  // still used by the Versions page's backups (createBackup, listBackups,
+  // loadBackup), which the design retires separately. Remove these helpers
+  // when the last of those calls is gone.
 
   /**
    * driveSetup() → { proxy, fileId } for the Drive proxy calls.
@@ -147,94 +164,287 @@ window.ChronicleStore = (function() {
     return data;
   }
 
+  // ── Publishing to the local campaign file (issue #97) ─────────────────────
+  // Chronicle runs locally from VS Code with Live Server, so publish writes
+  // data/magers-campaign.json in the DM's own clone through the browser's
+  // File System Access API (Chrome or Edge). The DM then commits and pushes
+  // from VS Code on their own schedule; this module never talks to GitHub
+  // and needs no token. Phase 7 replaces this section with calls to the
+  // Postgres-backed API.
+
+  // Paths inside the repository folder the DM picks. Unlike CAMPAIGN_PATH
+  // and FIXTURE_PATH above, these are relative to the repo root, because the
+  // folder handle points at the root, not at the calling page.
+  const FILE_CAMPAIGN  = ['data', 'magers-campaign.json'];
+  // The previous campaign file, kept before each overwrite as a one-step
+  // safety net until the DM commits. Git-ignored.
+  const FILE_PREVIOUS  = ['data', 'magers-campaign.prev.json'];
+  const FILE_FIXTURE   = ['tests', 'fixtures', 'test-campaign.json'];
+  // Where a Safe Test Mode publish lands. Git-ignored. The fixture itself is
+  // never written: the automated tests depend on its exact content.
+  const FILE_TEST_OUTPUT = ['tests', 'output', 'test-campaign.published.json'];
+
+  // IndexedDB names for the remembered folder handle. A directory handle
+  // cannot be put in localStorage (it is not a string), and IndexedDB is the
+  // only browser store that can hold one. CLAUDE.md allows this one use.
+  const HANDLE_DB    = 'chronicle-store';
+  const HANDLE_STORE = 'handles';
+  const HANDLE_KEY   = 'repo-folder';
+
+  // What loadPublishBase() last read: whether it was in Safe Test Mode, the
+  // folder handle, the path read and the exact text found there.
+  // publishSession() compares the file against that text before writing.
+  // Cleared after every publish attempt, so each publish starts from a fresh read.
+  let publishBase = null;
+
   /**
-   * driveWrite(campaign) — overwrites the Drive campaign file.
+   * openHandleDb() → an open IndexedDB database holding the folder handle.
    *
-   * Why POST with text/plain: the body is too large for a URL, and text/plain
-   * is a CORS "simple" content type, so this still avoids a preflight.
+   * Why: the DM should pick the repository folder once, not on every
+   * publish. Browsers let a directory handle be stored in IndexedDB and
+   * reused across visits (permission still has to be re-granted each new
+   * browser session). Returns null when IndexedDB is unavailable, and the
+   * DM is then asked for the folder on each publish.
    */
-  async function driveWrite(campaign) {
-    const { proxy, fileId } = driveSetup();
-    const res = await fetch(proxy, {
-      method:  'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body:    JSON.stringify({ action: 'write', fileId: fileId, data: campaign }),
+  function openHandleDb() {
+    const idb = window.indexedDB;
+    if (!idb) return Promise.resolve(null);
+    return new Promise((resolve, reject) => {
+      const req = idb.open(HANDLE_DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(HANDLE_STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Drive write error');
-    return data;
   }
 
   /**
-   * loadPublishBase() → raw campaign JSON that a publish should build on.
+   * savedFolder() / saveFolder(handle) — read and write the remembered
+   * repository folder handle. A failure to remember is not an error for
+   * the publish itself: it only means the folder is asked for again later.
+   */
+  async function savedFolder() {
+    try {
+      const db = await openHandleDb();
+      if (!db) return null;
+      return await new Promise((resolve, reject) => {
+        const req = db.transaction(HANDLE_STORE, 'readonly').objectStore(HANDLE_STORE).get(HANDLE_KEY);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+  async function saveFolder(handle) {
+    try {
+      const db = await openHandleDb();
+      if (!db) return;
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(HANDLE_STORE, 'readwrite');
+        tx.objectStore(HANDLE_STORE).put(handle, HANDLE_KEY);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) { /* asked for again next time; nothing else depends on it */ }
+  }
+
+  /**
+   * fileHandle(folder, parts, create) → the file handle at parts under folder.
    *
-   * What: today, the Drive campaign file; in Safe Test Mode, the test fixture.
-   * Why separate from loadCampaign(): publish has always applied deltas to
-   * the Drive copy, which can differ from the repo copy until the DM syncs
-   * them by hand. Keeping that behaviour here means publish works exactly as
-   * before. #97 makes publish commit to the repo; this then becomes the same
-   * as loadCampaign() and can be folded into it.
+   * Why: the API walks one folder at a time. create makes missing folders
+   * and the file itself, which only the two output files (the .prev copy
+   * and the test output) ever need; the campaign file and fixture must
+   * already exist, so a wrong folder is caught instead of filled.
+   */
+  async function fileHandle(folder, parts, create) {
+    let dir = folder;
+    for (let i = 0; i < parts.length - 1; i++) {
+      dir = await dir.getDirectoryHandle(parts[i], { create: !!create });
+    }
+    return dir.getFileHandle(parts[parts.length - 1], { create: !!create });
+  }
+
+  /** readText(folder, parts) → the file's exact text. */
+  async function readText(folder, parts) {
+    const file = await (await fileHandle(folder, parts, false)).getFile();
+    return file.text();
+  }
+
+  /**
+   * writeText(folder, parts, text) — replaces the file's content with text.
+   *
+   * Why createWritable: the browser writes to a temporary file and swaps it
+   * in on close(), so an interrupted write leaves the old file intact rather
+   * than half a campaign.
+   */
+  async function writeText(folder, parts, text) {
+    const writable = await (await fileHandle(folder, parts, true)).createWritable();
+    await writable.write(text);
+    await writable.close();
+  }
+
+  /**
+   * repoFolder() → a directory handle for the repository, with read and
+   * write permission granted.
+   *
+   * What: reuses the folder remembered in IndexedDB, or asks the DM to pick
+   * it (showDirectoryPicker) the first time. Each new browser session the
+   * browser asks the DM once to allow editing it again.
+   * Why it must run straight from a click: both the picker and the
+   * permission prompt need a recent user gesture. Delta Review calls
+   * loadPublishBase() first thing in its Confirm Publish handler.
+   * Every way this can fail throws a message ending "Nothing was written",
+   * and nothing has been written at that point.
+   * A picked folder is checked for data/magers-campaign.json before it is
+   * remembered, so picking the wrong folder cannot make publish write into it.
+   */
+  async function repoFolder() {
+    if (typeof window.showDirectoryPicker !== 'function') {
+      throw new Error('This browser cannot write local files. Publish needs Chrome or Edge, with the page served by Live Server. Nothing was written.');
+    }
+    let folder = await savedFolder();
+    const picked = !folder;
+    if (picked) {
+      try {
+        folder = await window.showDirectoryPicker({ id: 'chronicle-repo', mode: 'readwrite' });
+      } catch (e) {
+        if (e && e.name === 'AbortError') {
+          throw new Error('No folder chosen. Publish needs the Chronicle repository folder. Nothing was written.');
+        }
+        throw new Error('Could not open the folder picker (' + (e && e.message) + '). Nothing was written.');
+      }
+    }
+    // A handle remembered from an earlier session starts as 'prompt'; asking
+    // here is the one click per browser session.
+    let state = await folder.queryPermission({ mode: 'readwrite' });
+    if (state !== 'granted') state = await folder.requestPermission({ mode: 'readwrite' });
+    if (state !== 'granted') {
+      throw new Error('Permission to edit the folder "' + folder.name + '" was refused. Nothing was written.');
+    }
+    if (picked) {
+      try {
+        await fileHandle(folder, FILE_CAMPAIGN, false);
+      } catch (e) {
+        throw new Error('The folder "' + folder.name + '" is not the Chronicle repository (no data/magers-campaign.json in it). Pick the repository folder. Nothing was written.');
+      }
+      await saveFolder(folder);
+    }
+    return folder;
+  }
+
+  /**
+   * loadPublishBase() → raw campaign JSON that a publish builds on.
+   *
+   * What: reads data/magers-campaign.json from disk through the repository
+   * folder handle (the test fixture in Safe Test Mode) and remembers the
+   * exact text for publishSession().
+   * Why from disk and not from the page's fetch: publish must build on the
+   * same bytes it later checks against. Until #97 this read the Drive copy,
+   * which drifted from the repo until the DM synced it by hand.
    */
   async function loadPublishBase() {
-    if (isSafeTestMode()) return loadCampaign();
-    const { fileId } = driveSetup();
-    const data = await driveGet({ action: 'read', id: fileId });
-    // The proxy returns the file as a string: { ok: true, raw: "<json>" }.
-    return JSON.parse(data.raw);
+    publishBase = null;
+    const testMode = isSafeTestMode();
+    const folder = await repoFolder();
+    const readPath = testMode ? FILE_FIXTURE : FILE_CAMPAIGN;
+    let text;
+    try {
+      text = await readText(folder, readPath);
+    } catch (e) {
+      throw new Error(readPath.join('/') + ' could not be read from "' + folder.name + '" (' + (e && e.message) + '). Nothing was written.');
+    }
+    const json = JSON.parse(text);
+    publishBase = { testMode, folder, readPath, text };
+    return json;
   }
 
   /**
    * publishSession(campaign, summary, options) → result
    *
-   * What: stores a campaign that already has the session's approved deltas
-   * applied. Today: backs up the Drive file, then overwrites it. In Safe Test
-   * Mode: downloads the result as test-campaign.json, because a browser
-   * cannot write to the local fixture.
+   * What: writes a campaign that already has the session's approved deltas
+   * applied to the local campaign file. The DM commits it from VS Code.
    *
    * campaign — the full updated campaign JSON
-   * summary  — { sessionId, label } describing the publish; label names the
-   *            Drive backup. #97 will use the same fields for the commit message.
+   * summary  — { sessionId, sessionRef, title, label }: sessionRef (the
+   *            session_NNN the DM knows) and title make the suggested
+   *            commit message
    * options  — { onProgress(message) } for the page's status line (optional)
    *
-   * Returns { mode: 'drive', backup } or { mode: 'test-download', filename }
-   * so the page can word its success message.
+   * Returns { mode: 'local-file', path, previousPath, testMode, commitMessage }.
+   * previousPath is null in Safe Test Mode, which writes nothing else.
    *
-   * Why the backup comes just before the write: the Drive file is unchanged
-   * until the write, so the backup captures the same pre-publish state it did
-   * when it ran before the read. Doing both here keeps the page free of
-   * storage steps. #97 reimplements this function to commit to the repo.
+   * Safety, in order:
+   *   1. loadPublishBase() must have run first, in the same mode.
+   *   2. The file it read is read again. If the text differs at all (a git
+   *      pull, a hand edit, a publish from another tab), publish stops with
+   *      nothing written, so it never replaces changes it did not see.
+   *   3. Production only: the current file is copied to
+   *      data/magers-campaign.prev.json before it is overwritten.
+   *   4. The campaign is written exactly as the repo stores it (2-space
+   *      indent, final newline), so VS Code's diff shows only what changed.
+   * Safe Test Mode reads the fixture and writes only
+   * tests/output/test-campaign.published.json.
    */
   async function publishSession(campaign, summary, options) {
     const progress = (options && options.onProgress) || function() {};
-    const label    = (summary && summary.label) || 'pre-publish';
+    const base = publishBase;
+    // One base, one publish: whatever happens below, the next publish reads again.
+    publishBase = null;
+    if (!base || base.testMode !== isSafeTestMode()) {
+      throw new Error('Publish base not loaded — read the campaign with loadPublishBase() first. Nothing was written.');
+    }
+    const readName = base.readPath.join('/');
 
-    if (isSafeTestMode()) {
-      const filename = 'test-campaign.json';
-      const blob = new Blob([JSON.stringify(campaign, null, 2)], { type: 'application/json' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      return { mode: 'test-download', filename: filename };
+    progress('Checking ' + readName + ' has not changed on disk…');
+    let current;
+    try {
+      current = await readText(base.folder, base.readPath);
+    } catch (e) {
+      throw new Error(readName + ' could not be read again (' + (e && e.message) + '). Nothing was written.');
+    }
+    if (current !== base.text) {
+      throw new Error(readName + ' changed on disk since the campaign was loaded (a git pull, an edit or another tab). ' +
+        'Nothing was written. Reload the page and publish again.');
     }
 
-    progress('Creating backup…');
-    const backup = await createBackup(label);
+    const s = summary || {};
+    const ref = s.sessionRef || s.sessionId || 'session';
+    const commitMessage = 'Publish ' + ref + (s.title ? ': ' + s.title : '');
+    const text = JSON.stringify(campaign, null, 2) + '\n';
 
-    progress('Writing to Drive…');
-    await driveWrite(campaign);
+    if (base.testMode) {
+      progress('Writing ' + FILE_TEST_OUTPUT.join('/') + '…');
+      try {
+        await writeText(base.folder, FILE_TEST_OUTPUT, text);
+      } catch (e) {
+        throw new Error('Could not write ' + FILE_TEST_OUTPUT.join('/') + ' (' + (e && e.message) + '). Nothing else was written.');
+      }
+      return { mode: 'local-file', path: FILE_TEST_OUTPUT.join('/'), previousPath: null, testMode: true, commitMessage };
+    }
 
-    return { mode: 'drive', backup: backup };
+    progress('Keeping the previous file as ' + FILE_PREVIOUS.join('/') + '…');
+    try {
+      await writeText(base.folder, FILE_PREVIOUS, current);
+    } catch (e) {
+      throw new Error('Could not write ' + FILE_PREVIOUS.join('/') + ' (' + (e && e.message) + '). The campaign file was not written.');
+    }
+    progress('Writing ' + readName + '…');
+    try {
+      await writeText(base.folder, FILE_CAMPAIGN, text);
+    } catch (e) {
+      // writeText only swaps the new file in on close(), so a failure here
+      // leaves the old campaign file as it was.
+      throw new Error('Could not write ' + readName + ' (' + (e && e.message) + '). The old file is unchanged.');
+    }
+    return { mode: 'local-file', path: readName, previousPath: FILE_PREVIOUS.join('/'), testMode: false, commitMessage };
   }
 
   /**
    * createBackup(label) → { ok, backupId, name }
    *
    * What: asks the proxy to copy the Drive campaign file into the backup set.
-   * Why: used before every publish and by the Versions pre-session backup.
+   * Why: used by the Versions pre-session backup. Publish no longer makes one
+   * (#97); git history and data/magers-campaign.prev.json replace it.
    */
   async function createBackup(label) {
     const { fileId } = driveSetup();
