@@ -21,9 +21,9 @@ The current flow has about 25 actions and decisions per session, and most of the
 
 ```mermaid
 flowchart TD
-  U["1 · Upload the session<br/>pick the session ID and date, drop in the pages"] --> X["2 · Extract (AI)<br/>one structured call per page:<br/>mentions, facts, narrative passages"]
+  U["1 · Upload the session<br/>pick the session ID and date, drop in the pages"] --> X["2 · Extract (AI)<br/>each page read for names:<br/>every mention, with its context"]
   X --> E["3 · Entity identification<br/>every entity found, matched or new, in context<br/>you acknowledge or correct each one"]
-  E --> R["4 · Review facts and text<br/>initiative order, round grid, entity pages<br/>drag or edit; AI re-reads a round if asked"]
+  E --> R["4 · Review facts and text<br/>AI reads each page again for facts and passages,<br/>against the settled names; then initiative order,<br/>round grid, entity pages; drag or edit"]
   R --> P["5 · Publish to the local file<br/>entity text, relationships and summaries built<br/>then written to data/; you commit and push from VS Code"]
   R -. "a wrong match found in step 4<br/>is fixed in step 3; facts and passages follow" .-> E
   F["Sanity checks<br/>imbalance, ability ownership,<br/>action economy, acting while down"] -.-> R
@@ -92,12 +92,12 @@ Each row shows:
 | Context | The sentence or round where it appears, with the page number; every occurrence when there is more than one |
 | Status | Acknowledged or corrected |
 
-New entities and inexact matches come first, reviewed row by row. Exact matches come last: the words in the notes equal an entity's name or one of its recorded aliases. Those can be acknowledged together with Bulk acknowledge. The AI's own confidence never decides this, and every Link to existing adds an alias, so the exact matches grow with each session.
+New entities and inexact matches come first, reviewed row by row. Exact matches come last: the words in the notes equal an entity's name or one of its recorded aliases. Those can be acknowledged together with Bulk acknowledge. The AI's own confidence never decides this, and a Link to existing adds an alias unless you untick "save as alias", so the exact matches grow with each session.
 
 | Action | Use it when | What it records |
 | --- | --- | --- |
 | Acknowledge | The match, or the new entity, is right | The confirmation |
-| Link to existing | A new entity is really one you already have: a typo, abbreviation or alias ("Bel" → Belfar) | The alias on the existing entity, so later sessions match it automatically |
+| Link to existing | A new entity is really one you already have: a typo, abbreviation or alias ("Bel" → Belfar). It can also link to an entity another row creates this session | The alias on the existing entity, so later sessions match it automatically. "Save as alias" is ticked by default; untick it for words that are right here but would mislead later, such as "#1" or "Combat Ended" |
 | Separate as new | A match is wrong because two names look alike, and every occurrence belongs to the new entity | A new entity, plus a note on the existing one so the two are not confused again |
 | Split | One identified entity is really two (or more) in this session | The new entities only; each occurrence is assigned to one of them in step 4 |
 | Mark as sub-type | The same creature playing a different role in one combat: goblins in melee versus goblins standing back with slings | A group in that combat's enemy roster with a role such as melee or slinger, pointing at the creature: rounds and narrative track "Goblin Slingers" separately, while the bestiary keeps one Goblins entry |
@@ -283,7 +283,7 @@ The separate OCR text review goes away. A misread word surfaces in the entity li
 | Current piece | Fate | Notes |
 | --- | --- | --- |
 | Upload zone, image compression, campaign and PC-ability context | Keep | Add session ID and date pickers, including "fill placeholder session\_006" |
-| OCR to text, per-page text review, re-run with steering | Replace | One vision call per page returns mentions, facts and narrative passages; the transcript is kept as a reference, not a review step |
+| OCR to text, per-page text review, re-run with steering | Replace | Two vision calls per page: names and mentions before step 3, then facts and passages against the settled names. No transcript review step; source lines are kept with each fact and passage |
 | OCR prompt in combat-round format | Replace | Prose, dialogue and exposition are first-class output, not dropped |
 | Consolidation, Step 4 summary, sessionStorage hand-off | Remove | One page; saved state waits for Postgres |
 | `detectRelationships()` | Remove | Relationships are computed at publish |
@@ -330,7 +330,7 @@ Fix publishing first; every later phase depends on data landing correctly. Each 
    - Gate: a Safe Test Mode publish writes the test output file, leaves the real campaign file and the fixture unchanged, and does not reload the page.
 3. **Entity identification.** Find every entity in the notes, match it against existing entities, cohorts and combats, and show each in context. Support acknowledge, link to existing, separate as new, and mark as sub-type.
    - Gate: on one real session every entity is settled, and a link to existing updates every reference and saves the alias.
-4. **Facts and passages against IDs.** One structured call per page, carrying the entity list and open combats forward. Narrative is split into passages tagged with their entities and speaker. Automatic flags run throughout.
+4. **Facts and passages against IDs.** A second structured call per page, made after step 3, carrying the settled entity list and open combats forward. Narrative is split into passages tagged with their entities and speaker. Automatic flags run throughout.
    - Gate: a combat that crosses a page break comes out as one combat, and an NPC conversation lands on that NPC's page.
 5. **Section review, entity text and computed relationships.** Initiative order and round grid for each combat, ability and action-economy checks, entity pages with proposed text changes, relationships computed at publish.
    - Gate: issue #17, the end-to-end run in Safe Test Mode, passes on one real session.
@@ -372,7 +372,7 @@ Decided on 20 October 2026:
 - **Items are not inventory:** an item's holder is an optional attribute, recorded when the notes state it (a specific PC, the party, or another entity) and otherwise left unknown. Intake does not track every transfer. Existing holders, such as Ched's Map with Goli, stay as recorded facts.
 - **Allegiance changes:** proposed when the notes state one, or directly imply one through a change in the NPC's role, such as a captive becoming a guide. They are treated as narrative: an event on the NPC with its passage, which the NPC's disposition then follows.
 - **Boss pools:** not tracked. Legendary actions and resistances are recorded when used, with no check against a boss's limits.
-- **Bulk acknowledge uses a strict rule:** only exact matches on an entity's name or a recorded alias qualify. Everything else is reviewed row by row, and the alias list grows from every Link to existing.
+- **Bulk acknowledge uses a strict rule:** only exact matches on an entity's name or a recorded alias qualify. Everything else is reviewed row by row, and the alias list grows from every Link to existing (unless "save as alias" is unticked for that link).
 - **Saved review state waits for Postgres:** until then, an unpublished review lives only in the open page, so each session is reviewed in one sitting and a reload loses unpublished work. Live Server must not reload the page during review: exclude `data/` and `tests/` from its watch, or turn its auto-reload off.
 - **The backlog waits for the rebuild:** no sessions are processed until phase 5 passes. Then every backlog session goes through the new flow, starting with the `session_006` and `session_007` placeholders.
 - **Postgres comes after the rebuild:** the rebuild keeps local-file publishing, with all storage behind one module. The move to Render and PostgreSQL is phase 7, after the backlog is in.
@@ -380,7 +380,13 @@ Decided on 20 October 2026:
 Decided on 23 October 2026:
 
 - **Scope of the rebuild is session capture:** phases 1–6 are done when a session's note images can be taken through intake with the review and checks ensuring quality, published to the local file, and viewed in the admin log viewer. Rollout to players (the player view and anything shown only to players) moves to phase 7, with web hosting.
+- **Two AI reads per page** (found in #100 and #101): names are read first, in step 2, and settled in step 3. Each page is then read again for facts and passages, which can point only at settled occurrences. This replaces the one call per page described earlier, and is what keeps every fact pointing at a confirmed entity.
+- **"Save as alias" on Link to existing** (#100): ticked by default. Untick it for words that are right in this session but would match the wrong thing later.
+- **A misread that lands as an event:** extraction sometimes records a line of attacks as an event (session 6: "Hit - Dragon, Dragon, Oregon"). The round grid (#103) can turn an event into attacks as well as move and edit them.
+- **The session page's Publish step** (step 5) is owned by #106, together with the relationships computed at publish. Passages on rounds, activities and quest steps are written there too.
 
 ## Open questions
 
-None. Every question raised during design was resolved on 20 October 2026; see Decisions. New questions that come up during the build belong here.
+- **Attendance:** whether a session records players who were absent and who played their character ("Lance out work, played by David"). Tracked in #112; needs a decision on the field before it is built.
+
+New questions that come up during the build belong here.
