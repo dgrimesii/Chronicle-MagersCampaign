@@ -4,7 +4,7 @@ Oct 20, 2026 · David Grimes
 
 *Design document for the intake rebuild. Exported from the working design doc on 20 October 2026.*
 
-A session goes from photos to published data in five steps: upload, extract, identify entities, review facts and text, publish to the repo. You confirm once which people, places, things and events the notes refer to. Combat facts and your narrative notes then attach to those entities, and relationships are computed from them, so a correction never has to be chased through the data.
+A session goes from photos to published data in five steps: upload, extract, identify entities, review facts and text, publish to the local campaign file. You confirm once which people, places, things and events the notes refer to. Combat facts and your narrative notes then attach to those entities, and relationships are computed from them, so a correction never has to be chased through the data.
 
 ## The problem
 
@@ -24,7 +24,7 @@ flowchart TD
   U["1 · Upload the session<br/>pick the session ID and date, drop in the pages"] --> X["2 · Extract (AI)<br/>one structured call per page:<br/>mentions, facts, narrative passages"]
   X --> E["3 · Entity identification<br/>every entity found, matched or new, in context<br/>you acknowledge or correct each one"]
   E --> R["4 · Review facts and text<br/>initiative order, round grid, entity pages<br/>drag or edit; AI re-reads a round if asked"]
-  R --> P["5 · Publish to the repo<br/>entity text, relationships and summaries built<br/>then one commit to main"]
+  R --> P["5 · Publish to the local file<br/>entity text, relationships and summaries built<br/>then written to data/; you commit and push from VS Code"]
   R -. "a wrong match found in step 4<br/>is fixed in step 3; facts and passages follow" .-> E
   F["Sanity checks<br/>imbalance, ability ownership,<br/>action economy, acting while down"] -.-> R
   classDef key stroke:#d4af37,stroke-width:3px
@@ -203,7 +203,7 @@ An activity with no roll, such as Dash or Dodge, has no outcomes. A spell cast w
 
 The action economy is then a count of activities by economy: Del spent her action and bonus action and kept her reaction. The checks below work from the same counts.
 
-Compared with today's slot: the five fixed fields (`action`, `bonus_action`, `reaction`, `movement`, `object_interaction`) become one `activities` list, and `attacks[]` becomes `outcomes`. A second reaction or several free actions need no new fields. Only four extras stay optional: `detail` (the spell or weapon), `val_type` (damage or healing), an `effect` such as downed or killed, and `notes`. The cost is one migration: the 42 recorded rounds convert mechanically, and `flattenSlot()` in both viewers reads the new list.
+Compared with today's slot: the five fixed fields (`action`, `bonus_action`, `reaction`, `movement`, `object_interaction`) become one `activities` list, and `attacks[]` becomes `outcomes`. A second reaction or several free actions need no new fields. Only four extras stay optional: `detail` (the spell or weapon), `val_type` (damage or healing), an `effect` such as downed or killed, and `notes`. The cost is one migration: the 42 recorded rounds convert mechanically, and `flattenSlot()` in both viewers reads the new list. Two outcome-level fields were added during the migration (#93): an outcome may carry its own `detail` (Claw, Bite) when one activity's attacks differ, and a target that is not an entity (a horse) goes in `target_text` with `target_id` null. One outcome per attack roll, even when the target repeats.
 
 ### Turns that don't go to plan
 
@@ -298,8 +298,8 @@ The separate OCR text review goes away. A misread word surfaces in the entity li
 | `chronicle-narrative.js` (Gemini) | Keep | Writes flavor text and chronicle entries from confirmed entity text only |
 | Publish confirmation panel (#37) | Fold in | Becomes the summary above the Publish button |
 | `applyDeltasToCampaign()` | Rebuild | Writes the v4 shapes the viewers read, fills placeholder sessions, merges accepted entity text, computes derived fields |
-| Drive backup, read and write | Replace | Commit to the repo through the GitHub API; git history is the backup. The Versions page's Drive backups and drive-test.html retire with it |
-| Safe Test Mode | Keep | Commits to a test branch instead of `main` |
+| Drive backup, read and write | Replace | Publish writes `data/magers-campaign.json` in the local clone (File System Access API, run from Live Server); you commit and push from VS Code, and git history is the backup. The Versions page's Drive backups and drive-test.html retire with it |
+| Safe Test Mode | Keep | Writes a separate git-ignored test output file; the real campaign file and the test fixture are never written |
 
 ## What this resolves
 
@@ -317,7 +317,7 @@ Every blocker in the October review is either removed by the design or becomes a
 | NPC conversations and exposition lost or reduced to stubs | Kept as passages on the entities they describe, with the speaker recorded |
 | Corrections sent without history; demo diffs shown on API error | Structural fixes are direct moves on the grid; API errors show as errors |
 | Fixed slot-to-PC roster in prompts | The AI attributes actions to named actors only; slots come from the confirmed initiative order |
-| Manual Drive-to-repo sync | Publish commits to the repo |
+| Manual Drive-to-repo sync | Publish writes the local file directly; committing it is an ordinary VS Code commit |
 | Silent truncation at 4,096 tokens | Higher output limit; a truncated response is flagged and retried |
 
 ## Build order
@@ -326,8 +326,8 @@ Fix publishing first; every later phase depends on data landing correctly. Each 
 
 1. **Publish that writes correct data.** Rebuild `applyDeltasToCampaign()` to write the v4 shapes, fill placeholder sessions and compute derived fields. Move the tests onto the real page code. Migrate the 42 recorded rounds to the new turn schema, and fold Goblin Slinger into Goblins. Give every entity, combat, session and moment an opaque ID in Storyteller's format, rewrite every reference to match, and keep each old typed ID as a legacy reference so existing links and notes still resolve. Update the ID rules in CLAUDE.md and the README. Put every read and write behind one storage module (load the campaign, publish a session, and later save a draft), so the Postgres move in phase 7 changes only that module.
    - Gate: a sample session publishes and renders correctly in both the log viewer and the player view, and every reference in the migrated JSON resolves to an existing opaque ID.
-2. **Repo publish.** Commit through the GitHub API; Safe Test Mode commits to a test branch.
-   - Gate: a test publish lands as one commit on the test branch.
+2. **Local publish.** Publish writes `data/magers-campaign.json` in the local clone through the File System Access API, from the page served by Live Server. It stops if the file changed on disk since it was loaded, and Live Server is set not to reload on data writes. Committing and pushing stay in VS Code, on your schedule. Retire Drive.
+   - Gate: a Safe Test Mode publish writes the test output file, leaves the real campaign file and the fixture unchanged, and does not reload the page.
 3. **Entity identification.** Find every entity in the notes, match it against existing entities, cohorts and combats, and show each in context. Support acknowledge, link to existing, separate as new, and mark as sub-type.
    - Gate: on one real session every entity is settled, and a link to existing updates every reference and saves the alias.
 4. **Facts and passages against IDs.** One structured call per page, carrying the entity list and open combats forward. Narrative is split into passages tagged with their entities and speaker. Automatic flags run throughout.
@@ -335,12 +335,12 @@ Fix publishing first; every later phase depends on data landing correctly. Each 
 5. **Section review, entity text and computed relationships.** Initiative order and round grid for each combat, ability and action-economy checks, entity pages with proposed text changes, relationships computed at publish.
    - Gate: issue #17, the end-to-end run in Safe Test Mode, passes on one real session.
 6. **Start the backlog,** beginning with the `session_006` and `session_007` placeholders.
-7. **Move to Postgres,** after the backlog is in. Set up Render and managed PostgreSQL per Hosting.md, with a local development database alongside it, and replace the storage module's repo calls with calls to an API backed by the database. Saved review drafts arrive here.
-   - Gate: the intake runs unchanged against the database, and the player view reads the same campaign it read from the repo.
+7. **Move to Postgres,** after the backlog is in. Set up Render and managed PostgreSQL per Hosting.md, with a local development database alongside it, and replace the storage module's local-file calls with calls to an API backed by the database. Saved review drafts arrive here, and so does the rollout to players: the player view, passages in the player view, and generated narrative display.
+   - Gate: the intake runs unchanged against the database, and players can read the campaign from the hosted site.
 
 ## Later: database and hosting
 
-The repo-committed JSON is a stepping stone, replaced in phase 7 of the build order. The long-term home is the platform already settled in the Malvasia-Plays-DCC delivery docs ([Hosting.md](https://github.com/dgrimesii/Malvasia-Plays-DCC/blob/main/_delivery/Hosting.md)): Render for the application and managed PostgreSQL, Cloudflare for DNS and backup storage, and `chronicle.warpandweft.ink` reserved for Chronicle. That document also notes that Chronicle's own v5 milestone chose PostgreSQL with JSONB independently.
+The local JSON file, versioned in git, is a stepping stone, replaced in phase 7 of the build order. The long-term home is the platform already settled in the Malvasia-Plays-DCC delivery docs ([Hosting.md](https://github.com/dgrimesii/Malvasia-Plays-DCC/blob/main/_delivery/Hosting.md)): Render for the application and managed PostgreSQL, Cloudflare for DNS and backup storage, and `chronicle.warpandweft.ink` reserved for Chronicle. That document also notes that Chronicle's own v5 milestone chose PostgreSQL with JSONB independently.
 
 This design is shaped to move there without rework:
 
@@ -366,7 +366,7 @@ Decided on 20 October 2026:
 - **Aliases:** every entity has a `name` and an optional `aliases` list.
 - **Enemy roles:** each `enemies_roster` group can carry a `role`, such as melee or slinger, to tell groups of the same creature apart.
 - **Goblin Slinger folds into Goblins:** during the migration, the Goblin Ambush roster's Goblin Slingers group points at Goblins (`mon_004`) with role slinger, the slinger's observed abilities move to Goblins tagged slinger, and `mon_006` is voided and never reused.
-- **Publish to the repo; retire Drive:** publish commits the campaign JSON to this repository through the GitHub API, using a token with write access in `shared/config.js`. Git history is the backup. The Drive proxy, the Versions page's Drive backups and `drive-test.html` are retired.
+- **Publish to the local file; retire Drive** (revised 23 October 2026): publish writes `data/magers-campaign.json` in the local clone. Chronicle runs locally from VS Code with Live Server for the near future, and committing and pushing are done in VS Code, separately from the tool, on your schedule. The page never talks to GitHub and needs no token. Git history is the backup once committed. The Drive proxy, the Versions page's Drive backups and `drive-test.html` are retired. (This replaces the 20 October decision to commit through the GitHub API.)
 - **Opaque identifiers:** Chronicle adopts the same opaque, non-sequential IDs as Storyteller, for consistency across the platform rather than because Chronicle requires them. They arrive in phase 1, before the backlog.
 - **Judgment events:** the AI proposes character moments and significant relationships freely. Deaths and revivals are never assumed; they are proposed only when the notes state them.
 - **Items are not inventory:** an item's holder is an optional attribute, recorded when the notes state it (a specific PC, the party, or another entity) and otherwise left unknown. Intake does not track every transfer. Existing holders, such as Ched's Map with Goli, stay as recorded facts.
@@ -375,7 +375,11 @@ Decided on 20 October 2026:
 - **Bulk acknowledge uses a strict rule:** only exact matches on an entity's name or a recorded alias qualify. Everything else is reviewed row by row, and the alias list grows from every Link to existing.
 - **Saved review state waits for Postgres:** until then, an unpublished review lives only in the open page, so each session is reviewed in one sitting and a reload loses unpublished work. Live Server must not reload the page during review: exclude `data/` and `tests/` from its watch, or turn its auto-reload off.
 - **The backlog waits for the rebuild:** no sessions are processed until phase 5 passes. Then every backlog session goes through the new flow, starting with the `session_006` and `session_007` placeholders.
-- **Postgres comes after the rebuild:** the rebuild keeps repo publishing, with all storage behind one module. The move to Render and PostgreSQL is phase 7, after the backlog is in.
+- **Postgres comes after the rebuild:** the rebuild keeps local-file publishing, with all storage behind one module. The move to Render and PostgreSQL is phase 7, after the backlog is in.
+
+Decided on 23 October 2026:
+
+- **Scope of the rebuild is session capture:** phases 1–6 are done when a session's note images can be taken through intake with the review and checks ensuring quality, published to the local file, and viewed in the admin log viewer. Rollout to players (the player view and anything shown only to players) moves to phase 7, with web hosting.
 
 ## Open questions
 
