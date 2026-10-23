@@ -18,7 +18,7 @@ Chronicle-MagersCampaign/
 ├── admin/
 │   ├── index.html              # Redirect to log-viewer.html
 │   ├── log-viewer.html         # Campaign log (admin view) — fetches ../data/magers-campaign.json at init
-│   ├── session.html            # Session page (#99, #100) — the rebuilt intake; steps 1–3 (upload, extract, identify) so far
+│   ├── session.html            # Session page (#99–#101) — the rebuilt intake; upload, extract, identify, and reading each page's facts so far
 │   ├── intake.html             # Session intake / photo OCR pipeline — uses ChronicleAI
 │   ├── glossary.html           # OCR hints glossary — hardcoded glossary data, no JSON fetch
 │   ├── delta-review.html       # Post-session delta review and publish (writes the local campaign file) — uses ChronicleAI
@@ -29,6 +29,7 @@ Chronicle-MagersCampaign/
 │   ├── chronicle-store.js      # Storage module — every campaign read and write goes through window.ChronicleStore
 │   ├── chronicle-ids.js        # Opaque UUID ids and legacy-ID translation (#95) — exports window.ChronicleIds; also require()-able in Node
 │   ├── chronicle-entities.js   # Entity identification (#100) — mention prompt, review rows, the DM's actions, publish items; exports window.ChronicleEntities; also require()-able in Node
+│   ├── chronicle-facts.js      # Per-page facts (#101) — facts prompt against step 3's occurrences, reply check, imbalance/economy checks, merge across pages; exports window.ChronicleFacts; also require()-able in Node
 │   ├── chronicle-publish.js    # Publish logic (#92) — applies approved review items, writes the 5.0.0 shapes; exports window.ChroniclePublish; also require()-able in Node
 │   ├── chronicle-ai.js         # Shared Anthropic API module — exports window.ChronicleAI
 │   ├── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
@@ -61,6 +62,7 @@ Chronicle-MagersCampaign/
 │   ├── opaque-ids.test.js            # Tests for opaque ids (#95): chronicle-ids.js, the reference check (gate), migrated data, both viewers
 │   ├── session-header.test.js        # Tests for the session page's upload step (#99): session choices, the header through applySession, nav bar
 │   ├── entity-identification.test.js # Tests for shared/chronicle-entities.js (#100): rows, matching, actions, flags, publish items through applySession
+│   ├── fact-extraction.test.js       # Tests for shared/chronicle-facts.js (#101): occurrences not names, self-checks, one combat across a page break
 │   ├── fixtures/
 │   │   └── test-campaign.json        # Minimal v5.0.0 synthetic campaign for automated tests
 │   ├── output/                       # GITIGNORED — test-campaign.published.json, written by a Safe Test Mode publish (#97)
@@ -145,7 +147,7 @@ The post-session workflow via the admin tools:
 2. **Delta Review** (`admin/delta-review.html`, opened through Live Server in Chrome or Edge) — review AI-proposed changes, approve, then Publish. Publish writes `data/magers-campaign.json` in the local clone (#97). The first time, pick the repository folder; each new browser session, allow editing it once
 3. **Commit and push in VS Code.** The status line suggests the message `Publish session_NNN: <title>`. GitHub Pages redeploys on push
 
-The rebuilt intake, `admin/session.html`, replaces steps 1 and 2 with one page as issues #99–#106 land. So far it has upload, extraction and entity identification, and cannot publish, so sessions still go through the two pages above.
+The rebuilt intake, `admin/session.html`, replaces steps 1 and 2 with one page as issues #99–#106 land. So far it has upload, extraction, entity identification and reading each page's facts, and cannot publish, so sessions still go through the two pages above.
 
 If the file changed on disk after Delta Review read it (a `git pull`, a hand edit), Publish stops with nothing written; reload Delta Review and publish again. Until you commit, `data/magers-campaign.prev.json` holds the file as it was before the publish. To try the workflow without touching the campaign file, turn on Safe Test Mode (below): publish then writes `tests/output/test-campaign.published.json`.
 
@@ -387,18 +389,19 @@ Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `def
 
 ---
 
-### `admin/session.html` — Session (intake rebuild, steps 1–3 of 5)
+### `admin/session.html` — Session (intake rebuild, steps 1–3 and the start of 4)
 
 - **Audience:** DM only. First item in the admin nav bar
-- The single page that replaces `intake.html` and `delta-review.html` (docs/intake-redesign.md, "The new flow"). Built in steps: #99 is the page and step 1, upload; #100 adds step 2, extract, and step 3, identify; review and publish follow in #101–#106. The old pages stay until phase 5 passes
-- Loads `../shared/config.js`, `../shared/chronicle-store.js`, `../shared/chronicle-ids.js`, `../shared/chronicle-publish.js`, `../shared/chronicle-entities.js` and `../shared/chronicle-ai.js`. The campaign comes through `ChronicleStore.loadCampaign()` (the fixture in Safe Test Mode); if it fails, the page shows the error and no session can be started
+- The single page that replaces `intake.html` and `delta-review.html` (docs/intake-redesign.md, "The new flow"). Built in steps: #99 is the page and step 1, upload; #100 adds step 2, extract, and step 3, identify; #101 reads each page's facts at the start of step 4; the review grid and publish follow in #102–#106. The old pages stay until phase 5 passes
+- Loads `../shared/config.js`, `../shared/chronicle-store.js`, `../shared/chronicle-ids.js`, `../shared/chronicle-publish.js`, `../shared/chronicle-entities.js`, `../shared/chronicle-facts.js` and `../shared/chronicle-ai.js`. The campaign comes through `ChronicleStore.loadCampaign()` (the fixture in Safe Test Mode); if it fails, the page shows the error and no session can be started
 - **Session ID and date:** the picker lists `ChroniclePublish.sessionChoices()`: placeholder sessions first ("Fill placeholder session_006 — The Larkspur Dragons"), then the next new ID (`session_008`). Nothing is preselected. Picking a placeholder fills in its recorded date; a new session starts with no date, so the DM types the day it was played. Changing a placeholder's recorded date shows a warning, because publish keeps the recorded date and only reports the difference
 - **Pages:** one drop zone takes photos (one per page) and at most one `.txt`/`.md` notes file; other types are refused with a message. Each photo is compressed when added (longest side 1800 px, JPEG, retried at 1400 px; too large still is shown on the row), so a bad photo is caught at upload. Rows are reordered by dragging the ≡ handle or with the ↑/↓ buttons (#71); the order is the reading order for extraction
 - Also loads the campaign's NPC, location, monster and combat names and `../data/pc-abilities.json`, kept from intake for extraction (#100). A failure of either is only logged
 - **Continue** needs a session, a date, at least one page or notes file, and every photo compressed. It builds the session header with `ChroniclePublish.sessionHeader()`, the item publish reads the session ID and date from, shows it, and starts step 2
 - **Step 2, Extract (#100):** each page (and the notes file) is sent to the AI once, in order, with `ChronicleEntities.mentionPrompt()` and `ChronicleAI.extractMentions()`. The reply is every mention of an entity: kind, the words exactly as written, the line, the round, and optionally a candidate entity id from the campaign list (which includes the open combats and their roster groups). Each page row shows waiting, reading, its mention count, or the error with a Retry button; a page with no list blocks step 3, and there is no demo fallback. A dense page takes one to two minutes. Pages already read are not re-read when the DM goes back, unless the pages or their order changed
 - **Step 3, Identify (#100):** the mentions become rows (`ChronicleEntities.buildRows()`), one per kind and spelling, each listing every occurrence with its page, round and line. New rows come first, then inexact matches (the AI's candidate), then exact matches (the words equal a name, PC nickname or alias), which **Bulk acknowledge** settles together. The AI's confidence never decides which rows are exact. Actions, each covering every occurrence of the row: **Acknowledge** (a New row asks for the entity's name; an inexact match saves the words as an alias), **Link to existing** (any entity of the kind, or one another row created this session; saves the words as an alias unless the box is unticked), **Separate as new** (new entity plus a "not to be confused with" note on the look-alike), **Split** (names the entities; occurrences are assigned in step 4), **Mark as sub-type** (creatures: a roster group with a role in a combat, pointing at the bestiary entry). **Change** reopens a row, and any rows linked to the entity it created. A flag box lists likely merges: one non-group entity taking two turns in one round, one entity in two places or on both sides in one scene
-- **Continue** after Identify needs every row settled. It builds the publish items with `ChronicleEntities.toQueueItems()` and says how many; step 4 (review) is not built, so the page stops there
+- **Continue** after Identify needs every row settled. It builds the publish items with `ChronicleEntities.toQueueItems()`, says how many, and opens step 4
+- **Step 4, facts (#101):** each page is read again with `ChronicleFacts.factsPrompt()` and `ChronicleAI.extractFacts()`, in order, for its rounds, turns, activities and outcomes in the turn schema's terms, plus quest progress and loot. Every actor and target is one of that page's occurrence ids from step 3, never a name, and nothing is placed by initiative slot; each turn keeps the line of the notes it came from. The prompt lists the combats the page may continue (open combats with their last recorded round, and combats created in step 3) and where the previous page stopped. A reply that names an entity or uses a value outside the schema is re-read once with the problems listed, then shown as an error with Retry; a reply that fails the imbalance or action-economy check is re-read once and any problem left is shown as a flag. The pages are then merged (`ChronicleFacts.mergePages()`): rounds of one combat across a page break stay one combat, a round split across pages is joined, and a round number going back down is flagged as a likely new combat. The result is shown read-only with every flag and the AI's own self-check notes; the round grid for correcting it is #103, so the page stops there. Changing a step 3 answer re-reads the facts
 - **No saved state:** everything lives in the open tab (no sessionStorage or localStorage; saved drafts wait for Postgres). Once a page or notes file is added, leaving or reloading the page asks first (`beforeunload`)
 
 ---
@@ -515,6 +518,21 @@ Loaded by `session.html`; required directly by `tests/entity-identification.test
 | `flags(rows, index)` | Likely merges: acting twice in a round (groups excluded), two places in one scene, ally and enemy in one scene |
 | `toQueueItems(rows, index, sessionLegacyId)` | The publish items: NEW entities (words linked to them become their aliases), `_alias_append` on existing entities (not roster groups), `_note_append` on a separated look-alike, `_roster_group_append` for a sub-type. Exact acknowledgements write nothing |
 
+### `shared/chronicle-facts.js`
+
+Loaded by `session.html`; required directly by `tests/fact-extraction.test.js`. Exports `window.ChronicleFacts` in the browser and `module.exports` under Node. Depends on `chronicle-entities.js`. No DOM, storage or network access. Added by issue #101.
+
+| Export | What it does |
+|---|---|
+| `ENUMS` | The turn schema's economy, result, val_type and special-event values, plus the loot changes |
+| `pageReferences(page, rows, index)` | This page's occurrences, each with what step 3 settled it as (entity, enemy group, or "to be assigned" for a split) and whether it is a group |
+| `combatChoices(campaign, rows, index)` | The combats a page may add rounds to: open combats, recorded combats a page mentions, and combats created in step 3, each with its last recorded round |
+| `factsPrompt({pageLabel, references, combats, carry, reread})` | The system prompt for one page. No fixed slot-to-PC roster; attribute by occurrence, never by slot |
+| `parseFacts(text)` | The reply's JSON with every list present; anything else throws |
+| `validateFacts(facts, references, combats)` | Errors that make a reply unusable: an actor or target that is not an occurrence id of the page, an unknown combat, an economy/result/val_type outside the schema |
+| `checkFacts(facts, references)` | The self-checks from #104: more than one action or bonus action for one character in a round (groups exempt; a reaction recorded separately does not count), and imbalance (two actions for one while another who acts in that combat has no turn) |
+| `mergePages(pages, references)` | The session's facts: rounds merged across pages in page order, each turn tagged with its page; round resets flagged |
+
 ### `shared/chronicle-ids.js`
 
 Loaded by `delta-review.html`; required directly by `scripts/migrate-opaque-ids.js`, `scripts/migrate-turn-schema.js` and the tests. Exports `window.ChronicleIds` in the browser and `module.exports` under Node. No dependencies. Added by issue #95.
@@ -565,6 +583,7 @@ Model: `claude-sonnet-4-6`
 
 Public API (`window.ChronicleAI`):
 - `.call({system, messages, onResult, onError, onLoading, maxTokens})` — raw API call; `onResult(text, stopReason)`, and `maxTokens` overrides the 4096 default
+- `.extractFacts({system, image, text})` — session page step 4 (#101): one page's facts, as a Promise of the raw reply. Adds the table's 2024 rules and the party's action-economy exceptions to the prompt; streamed, output limit 32,000 tokens, a cut-off reply retried once then rejected
 - `.extractMentions({system, image, text})` — session page step 2 (#100): one page's mention list, as a Promise of the raw reply. Streamed (a dense page takes minutes, and a non-streamed request that long was dropped with HTTP 503), output limit 16,000 tokens; a reply cut off at the limit is retried once, then rejected. No demo fallback
 - `.fillRoundsFromImage({images, combatName, combatId, sessionId, roundNumbers, ...})` — vision round extraction
 - `.fillRoundsFromText({text, combatName, combatId, sessionId, roundNumbers, ...})` — text round transcription
@@ -572,7 +591,7 @@ Public API (`window.ChronicleAI`):
 - `.PARTY_ROSTER` — party nicknames string for injecting into prompts
 - `.imageContent(source)` — builds an Anthropic image content block from a File, data-URL, or `{media_type, data}` object
 - `.demoRoundProposals(roundNumbers, sessionId, source)` — demo data for offline testing
-- `.demoCorrectionResponse(correctionText, itemContext)` — demo data for offline testing
+- `.demoCorrectionResponse(correctionText, itemContext)` — demo data for offline testing. No page shows it any more: Delta Review used it in place of a failed correction call, which made a failure look like a real answer; since #101 it shows the error instead
 
 ---
 
@@ -598,7 +617,10 @@ Public API (`window.ChronicleAI`):
 | Placeholder fill never overwrites | `shared/chronicle-publish.js` | Filling `session_006`/`session_007` writes only empty fields, because intake's stub dates itself to the day of intake. A deliberate change to a recorded title, date or summary is reported in the publish notes but not applied; make it with a MOD item or by hand. |
 | Publishing needs Chrome or Edge on a local clone | `shared/chronicle-store.js` | The File System Access API is Chromium-only, and publish writes the clone on the DM's machine (#97). Firefox and Safari get a clear error. Phase 7's server-side API removes this. |
 | A publish is not saved until committed | `data/magers-campaign.json`, `data/magers-campaign.prev.json` | Publish writes only the working copy; nothing reaches git or GitHub Pages until the DM commits and pushes. `.prev.json` holds one step back: a second publish before committing replaces it. |
-| Session page stops after Identify | `admin/session.html` | The page has steps 1–3 (#99, #100). Review and publish are #101–#106, so the session header and the identification items it builds are shown but not published; sessions still go through Session Intake and Delta Review. |
+| Session page stops after reading facts | `admin/session.html` | The page has steps 1–3 and reads each page's facts (#99–#101). The round grid, passages and publish are #102–#106, so what it builds is shown but not published; sessions still go through Session Intake and Delta Review. |
+| Facts are not yet corrected or published | `shared/chronicle-facts.js` | The facts list is read-only. Misreadings stay until the round grid (#103) can fix them: on the real session 6 pages the AI read "Healing Hands" as "Iteraling Hinds", "Nat 1" as "Not 1", and recorded the goblins' "Hit - Dragon, Dragon, Oregon" line as an event rather than attacks. The AI's self-check notes list most of these. |
+| Integrity's round fill keeps the fixed slot roster | `shared/chronicle-ai.js` (`fillRoundsFromText`) | Its prompt still says slot 1 = Goldie … slot 6 = Att, the cause of misplaced turns. The session page does not use it; left until phase 5 retires the old pages (the DM's choice on #101). |
+| A player's absence is not recorded from the notes | `shared/chronicle-facts.js` | A line such as "Lance out work, played by David" is not a turn; the facts call records it as an event at best. Recording it as a session `player_absence` note is not in #101's scope. |
 | Roster groups cannot hold aliases | `shared/chronicle-entities.js` | A spelling linked to a roster group ("Slinge" → Goblin Slingers) is used for this session but not saved, because `aliases` exists only on entities (#93). The same spelling is an inexact match again next session. |
 | Two copies of name matching | `admin/delta-review.html`, `shared/chronicle-entities.js` | Delta Review keeps its own name index and duplicate check (#56) and cohort matching (#62); the session page uses `chronicle-entities.js`. Left so today's workflow does not change mid-rebuild (the DM's choice on #100); Delta Review's copy goes with the page in phase 5. |
 | Identification flags read the AI's tags | `shared/chronicle-entities.js` | Acting twice, two places and ally-and-enemy are worked out from the turn, scene, location and allegiance the AI tags each mention with, because facts do not exist yet at step 3. A mistagged mention can raise or miss a flag; #101 and #104 add checks on the extracted facts. |
@@ -644,6 +666,7 @@ tests/
 ├── opaque-ids.test.js              # Opaque ids (#95) — helpers, reference check, migrated data, both normalisers
 ├── session-header.test.js          # Session page upload step (#99) — session choices, header through applySession, nav bar
 ├── entity-identification.test.js   # Entity identification (#100) — rows, exact/inexact/new, actions, flags, aliases/notes/roster groups through applySession
+├── fact-extraction.test.js         # Per-page facts (#101) — references, prompt, validation (occurrences only), imbalance/economy checks, merge across pages
 ├── fixtures/
 │   └── test-campaign.json          # Minimal v5.0.0 synthetic campaign — no real data
 ├── output/                         # GITIGNORED — test-campaign.published.json from a Safe Test Mode publish (#97)

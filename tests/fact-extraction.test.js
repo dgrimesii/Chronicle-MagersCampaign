@@ -1,0 +1,219 @@
+/**
+ * tests/fact-extraction.test.js — session page step 4 facts (issue #101)
+ *
+ * Tests shared/chronicle-facts.js: the per-page facts prompt, the reply
+ * check, the imbalance and action-economy self-checks, and the merge of
+ * rounds across page breaks.
+ *   F-1  pageReferences: each occurrence with what step 3 settled it as
+ *   F-2  combatChoices: open combats with their last recorded round
+ *   F-3  the prompt: occurrences, combats, carry-forward, no slot roster
+ *   F-4  parseFacts and validateFacts — the gate's "no fact refers to an
+ *        entity by name instead of by occurrence"
+ *   F-5  checkFacts: action economy and imbalance
+ *   F-6  mergePages: a combat across a page break is one combat (the gate),
+ *        a round split across pages merges, a round reset is flagged
+ *
+ * WHY THIS FILE EXISTS
+ * --------------------
+ * The phase 4 gate is that a combat crossing a page break comes out as one
+ * combat and no fact names an entity instead of an occurrence. Both rules
+ * are code here, so these tests pin them down without calling the AI. The
+ * replies are written by hand in the shape factsPrompt asks for, modelled on
+ * the DM's two session 6 pages (Goblin Ambush rounds 4–7).
+ *
+ * No test calls the AI or loads the page.
+ *
+ * RUN
+ * ---
+ * node tests/fact-extraction.test.js
+ */
+
+'use strict';
+
+const fs   = require('fs');
+const path = require('path');
+
+const ChronicleIds = require('../shared/chronicle-ids.js');
+const E            = require('../shared/chronicle-entities.js');
+const F            = require('../shared/chronicle-facts.js');
+
+let passed = 0;
+let failed = 0;
+
+/**
+ * assert(label, condition)
+ * Prints PASS or FAIL with the test label and increments counters.
+ * All tests run regardless of earlier failures.
+ */
+function assert(label, condition) {
+  if (condition) { console.log('  PASS  ' + label); passed++; }
+  else           { console.log('  FAIL  ' + label); failed++; }
+}
+const throws = fn => { try { fn(); return false; } catch (e) { return true; } };
+
+const campaign = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'magers-campaign.json'), 'utf8'));
+const C = ChronicleIds.buildLegacyIndex(campaign);
+const AMBUSH = C.get('cbt_005');
+const index = E.buildIndex(campaign);
+
+// Step 3 as the DM would leave it for two pages: Asp, Mal, Gold on both,
+// the Goblins group, and a new Larkspur Dragon.
+const m = (kind, as_written, extra) => Object.assign({ kind, as_written }, extra);
+const rows = E.buildRows([
+  { page: 1, mentions: [
+    m('pc', 'Asp', { candidate_id: C.get('pc_004') }),   // occ_1_1
+    m('pc', 'Mal'),                                       // occ_1_2
+    m('pc', 'Gold', { candidate_id: C.get('pc_001') }),  // occ_1_3
+    m('creature', 'Goblins'),                             // occ_1_4
+    m('pc', 'Mal'),                                       // occ_1_5 (target of the goblins)
+    m('creature', 'dragon'),                              // occ_1_6
+  ] },
+  { page: 2, mentions: [
+    m('pc', 'Asp', { candidate_id: C.get('pc_004') }),   // occ_2_1
+    m('pc', 'Mail', { candidate_id: C.get('pc_002') }),  // occ_2_2
+    m('creature', 'Dragons'),                             // occ_2_3
+  ] },
+], index);
+E.bulkAcknowledgeExact(rows);
+for (const r of rows) if (r.matchType === 'inexact') E.acknowledge(r);
+const dragonRow = rows.find(r => r.asWritten === 'dragon');
+E.acknowledge(dragonRow, 'Larkspur Dragon');
+E.linkToExisting(rows.find(r => r.asWritten === 'Dragons'), dragonRow.resolution.entityId, index, rows);
+
+const refs1 = F.pageReferences(1, rows, index);
+const refs2 = F.pageReferences(2, rows, index);
+const combats = F.combatChoices(campaign, rows, index);
+
+// Hand-written replies. page1: rounds 4 and 5; page2: round 5 continued, 6.
+const act = (economy, name, outcomes, extra) => Object.assign({ economy, name, outcomes: outcomes || [] }, extra);
+const out = (res, val, target, extra) => Object.assign({ res, val, target: target || null }, extra);
+function page1() {
+  return { combats: [{ combat: AMBUSH, rounds: [
+    { n: 4, turns: [
+        { actor: 'occ_1_1', source_line: 'Asp - Healing Hands', activities: [act('action', 'Magic', [out('unclear', null)], { detail: 'Healing Hands' })] },
+        { actor: 'occ_1_2', source_line: 'Mal - Hit (Dead)', activities: [act('action', 'Attack', [out('hit', null, 'occ_1_4', { effect: 'killed' })])] },
+        { actor: 'occ_1_3', source_line: 'Gold - TS Crit (9)', activities: [act('action', 'Magic', [out('crit', 9, 'occ_1_6')], { detail: 'True Strike' })] } ],
+      enemy_turns: [{ actor: 'occ_1_4', source_line: 'Goblins - Hit Mal (opportunity)', activities: [act('reaction', 'Opportunity Attack', [out('hit', null, 'occ_1_5')])], special_events: [] }],
+      events: ['Larkspur dragons descend on cart from ridges.'] },
+    { n: 5, turns: [
+        { actor: 'occ_1_1', source_line: 'Asp - Hit (7) Dead, Hit (5)', activities: [act('action', 'Attack', [out('hit', 7, 'occ_1_4', { effect: 'killed' }), out('hit', 5, 'occ_1_4')])] } ],
+      enemy_turns: [], events: [] },
+  ] }], quest_progress: [], loot: [], self_check: [] };
+}
+function page2() {
+  return { combats: [{ combat: AMBUSH, rounds: [
+    { n: 5, turns: [{ actor: 'occ_2_2', source_line: 'Mail - Sword Hit (13) dragon', activities: [act('action', 'Attack', [out('hit', 13, 'occ_2_3')], { detail: 'Sword' })] }], enemy_turns: [], events: [] },
+    { n: 6, turns: [{ actor: 'occ_2_1', source_line: 'Asp - Death ✓', activities: [act('action', 'Death Save', [out('success', null)])] }], enemy_turns: [], events: [] },
+  ] }], quest_progress: [], loot: [], self_check: [] };
+}
+
+// ── F-1 ─────────────────────────────────────────────────────────────────────
+console.log('\nTest F-1 — page references');
+{
+  assert('F-1: page 1 lists its six occurrences, page 2 its three', refs1.length === 6 && refs2.length === 3);
+  const asp = refs1.find(r => r.occ === 'occ_1_1');
+  assert('F-1: Asp is shown as Asphodel, a player character', asp.entityId === C.get('pc_004') && /Asphodel \(player character\)/.test(asp.label) && !asp.group);
+  const gob = refs1.find(r => r.occ === 'occ_1_4');
+  assert('F-1: Goblins is the ambush\'s enemy group, a group', /enemy group "Goblins"/.test(gob.label) && gob.group);
+  const drag = refs2.find(r => r.occ === 'occ_2_3');
+  assert('F-1: "Dragons" (linked) is the new Larkspur Dragon', drag.entityId === dragonRow.resolution.entityId && /Larkspur Dragon/.test(drag.label));
+  assert('F-1: "Mail" and "Mal" resolve to the same entity', refs2.find(r => r.occ === 'occ_2_2').entityId === refs1.find(r => r.occ === 'occ_1_2').entityId);
+}
+
+// ── F-2 ─────────────────────────────────────────────────────────────────────
+console.log('\nTest F-2 — combats a page may continue');
+{
+  const amb = combats.find(c => c.ref === AMBUSH);
+  assert('F-2: the paused Goblin Ambush is offered, open, recorded to round 3', amb && amb.open && amb.lastRound === 3);
+  assert('F-2: finished combats nobody mentioned are not offered', !combats.some(c => c.ref === C.get('cbt_002')));
+}
+
+// ── F-3 ─────────────────────────────────────────────────────────────────────
+console.log('\nTest F-3 — the prompt');
+{
+  const p = F.factsPrompt({ pageLabel: 'page 2 of 2', references: refs2, combats, carry: { combat: AMBUSH, round: 5 }, reread: null });
+  assert('F-3: lists each occurrence with what it was confirmed as', p.includes('occ_2_2 | "Mail" = Malachite (player character)'));
+  assert('F-3: lists the open combat with its last recorded round', p.includes(`${AMBUSH} | Goblin Ambush (open, recorded to round 3)`));
+  assert('F-3: carries forward where the previous page stopped', p.includes(`The previous page ended in combat ${AMBUSH}, round 5.`));
+  assert('F-3: forbids names in actor/target and slot assignment', /Never write a character's name in "actor" or "target"/.test(p) && /Do not assign initiative slots/.test(p));
+  assert('F-3: no fixed slot-to-PC roster', !/slot 1:|slot 1 =|pc_001 =/.test(p));
+  const again = F.factsPrompt({ pageLabel: 'page 1 of 2', references: refs1, combats, carry: null, reread: ['Gold has 2 actions in round 4'] });
+  assert('F-3: a re-read lists the problems to fix', again.includes('A FIRST READ OF THIS PAGE HAD THESE PROBLEMS') && again.includes('Gold has 2 actions in round 4'));
+}
+
+// ── F-4 ─────────────────────────────────────────────────────────────────────
+console.log('\nTest F-4 — parse and validate (gate: occurrences, never names)');
+{
+  const ok = F.parseFacts('```json\n' + JSON.stringify(page1()) + '\n```');
+  assert('F-4: a fenced reply parses', ok.combats[0].rounds.length === 2);
+  assert('F-4: a valid page has no errors', F.validateFacts(ok, refs1, combats).length === 0);
+  const named = page1();
+  named.combats[0].rounds[0].turns[2].actor = 'Gold';
+  named.combats[0].rounds[0].turns[1].activities[0].outcomes[0].target = 'Goblins';
+  const errs = F.validateFacts(named, refs1, combats);
+  assert('F-4: an actor named instead of an occurrence is an error', errs.some(e => /Actor "Gold"/.test(e)));
+  assert('F-4: a target named instead of an occurrence is an error', errs.some(e => /Target "Goblins"/.test(e)));
+  const otherPage = page1();
+  otherPage.combats[0].rounds[0].turns[0].actor = 'occ_2_1';
+  assert('F-4: an occurrence from another page is an error', F.validateFacts(otherPage, refs1, combats).some(e => /occ_2_1/.test(e)));
+  const textTarget = page1();
+  textTarget.combats[0].rounds[0].turns[1].activities[0].outcomes[0] = out('hit', 4, null, { target_text: 'horse' });
+  assert('F-4: a non-entity target in target_text is fine', F.validateFacts(textTarget, refs1, combats).length === 0);
+  const bad = page1();
+  bad.combats[0].combat = 'Goblin Ambush';
+  bad.combats[0].rounds[0].turns[0].activities[0].economy = 'main';
+  bad.combats[0].rounds[0].turns[1].activities[0].outcomes[0].res = 'dead';
+  const be = F.validateFacts(bad, refs1, combats);
+  assert('F-4: an unknown combat, economy or result is an error', be.some(e => /Combat "Goblin Ambush"/.test(e)) && be.some(e => /Economy "main"/.test(e)) && be.some(e => /Result "dead"/.test(e)));
+  const fresh = page1();
+  fresh.combats[0].combat = 'new: Dragon Fight';
+  assert('F-4: "new: <name>" is accepted for a new combat', !F.validateFacts(fresh, refs1, combats).some(e => /Combat/.test(e)));
+  assert('F-4: no JSON throws', throws(() => F.parseFacts('I could not read the page.')));
+  assert('F-4: no combats list throws', throws(() => F.parseFacts('{"rounds":[]}')));
+  assert('F-4: missing lists are filled in', F.parseFacts('{"combats":[{"combat":"x","rounds":[{"n":1}]}]}').combats[0].rounds[0].turns.length === 0);
+}
+
+// ── F-5 ─────────────────────────────────────────────────────────────────────
+console.log('\nTest F-5 — imbalance and action-economy checks');
+{
+  assert('F-5: a clean page has no issues', F.checkFacts(page1(), refs1).length === 0);
+  // Gold read twice in round 5 while Mal, who acts in round 4, has no turn.
+  const f = page1();
+  f.combats[0].rounds[1].turns.push(
+    { actor: 'occ_1_3', source_line: 'Gold - True Strike Dragon (12)', activities: [act('action', 'Magic', [out('hit', 12, 'occ_1_6')])] },
+    { actor: 'occ_1_3', source_line: 'Goli - 2 Att miss/Hit (9)', activities: [act('action', 'Attack', [out('miss', null), out('hit', 9)])] });
+  const issues = F.checkFacts(f, refs1);
+  assert('F-5: two actions in one round for one character is an economy issue', issues.some(x => x.type === 'economy' && /Gold has 2 actions in round 5/.test(x.detail)));
+  assert('F-5: …and with Mal missing that round, an imbalance', issues.some(x => x.type === 'imbalance' && /Gold has two actions while Mal has no turn/.test(x.detail)));
+  // A reaction recorded as a separate turn does not count as a second action.
+  const r = page1();
+  r.combats[0].rounds[0].turns.push({ actor: 'occ_1_3', source_line: 'Larkspur Drag - Attack Gold cast shield', activities: [act('reaction', 'Shield')] });
+  assert('F-5: a reaction in another turn is not an economy issue', F.checkFacts(r, refs1).length === 0);
+  // Groups take several actions.
+  const g = page1();
+  g.combats[0].rounds[0].enemy_turns[0].activities.push(act('action', 'Attack', [out('hit')]), act('action', 'Attack', [out('hit')]));
+  assert('F-5: an enemy group with several actions is not flagged', F.checkFacts(g, refs1).length === 0);
+}
+
+// ── F-6 ─────────────────────────────────────────────────────────────────────
+console.log('\nTest F-6 — merging pages (gate: one combat across a page break)');
+{
+  const merged = F.mergePages([{ page: 1, facts: page1() }, { page: 2, facts: page2() }], refs1.concat(refs2));
+  assert('F-6: the Goblin Ambush across both pages is one combat', merged.combats.length === 1 && merged.combats[0].combat === AMBUSH);
+  assert('F-6: rounds 4, 5 and 6, in order', merged.combats[0].rounds.map(r => r.n).join() === '4,5,6');
+  const r5 = merged.combats[0].rounds.find(r => r.n === 5);
+  assert('F-6: round 5, split across the page break, holds both pages\' turns in page order',
+    r5.turns.length === 2 && r5.turns[0].page === 1 && r5.turns[1].page === 2 && r5.pages.join() === '1,2');
+  assert('F-6: every turn keeps its source line', merged.combats[0].rounds.every(r => r.turns.every(t => t.source_line)));
+  assert('F-6: no round-reset flag for a continuing combat', merged.issues.length === 0);
+  // Round 1 after round 6 in the same combat: likely a new combat (#91).
+  const reset = page2();
+  reset.combats[0].rounds.push({ n: 1, turns: [], enemy_turns: [], events: [] });
+  const m2 = F.mergePages([{ page: 1, facts: page1() }, { page: 2, facts: reset }], refs1.concat(refs2));
+  assert('F-6: a round number going back down is flagged as a likely new combat', m2.issues.some(x => x.type === 'round-reset' && x.round === 1));
+  const across = F.mergePages([{ page: 1, facts: page1() }, { page: 2, facts: (() => { const p = page2(); p.combats[0].rounds = [{ n: 2, turns: [], enemy_turns: [], events: [] }]; return p; })() }], []);
+  assert('F-6: a lower round on a later page is flagged too', across.issues.some(x => /round 2 on page 2 comes after round 5/.test(x.detail)));
+}
+
+console.log(`\n${passed} passed, ${failed} failed`);
+process.exit(failed ? 1 : 0);

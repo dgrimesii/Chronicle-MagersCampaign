@@ -127,9 +127,9 @@ console.log('\nTest H-5 — the session page and the nav bar');
   // Scripts in the CLAUDE.md order; the page reads the campaign only
   // through the store and does not fetch the campaign JSON itself.
   const scripts = [...page.matchAll(/<script src="\.\.\/shared\/([a-z-]+\.js)"/g)].map(m => m[1]);
-  // chronicle-entities.js and chronicle-ai.js joined with step 2 and 3 (#100).
-  assert('H-5: loads config, store, ids, publish, entities, ai in that order',
-    JSON.stringify(scripts) === JSON.stringify(['config.js', 'chronicle-store.js', 'chronicle-ids.js', 'chronicle-publish.js', 'chronicle-entities.js', 'chronicle-ai.js']));
+  // chronicle-entities.js and chronicle-ai.js joined with step 2 and 3 (#100), chronicle-facts.js with step 4 (#101).
+  assert('H-5: loads config, store, ids, publish, entities, facts, ai in that order',
+    JSON.stringify(scripts) === JSON.stringify(['config.js', 'chronicle-store.js', 'chronicle-ids.js', 'chronicle-publish.js', 'chronicle-entities.js', 'chronicle-facts.js', 'chronicle-ai.js']));
   assert('H-5: no direct fetch of the campaign file', !/fetch\([^)]*magers-campaign/.test(page));
   assert('H-5: warns before leaving with unpublished work', /addEventListener\('beforeunload'/.test(page));
   assert('H-5: no sessionStorage or localStorage', !/sessionStorage|localStorage/.test(page.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '')));

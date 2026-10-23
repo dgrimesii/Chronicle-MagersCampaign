@@ -1375,16 +1375,52 @@ ${contextStr}${scopeNote}`,
    * message. There is no demo fallback: a failure is shown as a failure.
    */
   function extractMentions({ system, image, text }) {
+    return readPage({ system, image, text, ask: 'List every entity mention', maxTokens: MENTION_MAX_TOKENS });
+  }
+
+  /**
+   * readPage({ system, image, text, ask, maxTokens }) → Promise<string>
+   *
+   * The one way the session page sends a page to the AI (#100, #101):
+   * a photo (data URL) or typed notes, streamed, with the output limit given.
+   * A reply cut off at the limit is retried once, then rejected, because a
+   * truncated reply would silently drop the end of the page.
+   */
+  function readPage({ system, image, text, ask, maxTokens }) {
     const content = image
-      ? [imageContent(image), { type: 'text', text: 'List every entity mention on this page as JSON.' }]
-      : [{ type: 'text', text: 'Typed session notes:\n\n' + text + '\n\nList every entity mention in these notes as JSON.' }];
-    // Streamed (callStream), because a dense page's list takes minutes.
-    const once = () => callStream({ system, messages: [{ role: 'user', content }], maxTokens: MENTION_MAX_TOKENS })
+      ? [imageContent(image), { type: 'text', text: ask + ' on this page, as JSON.' }]
+      : [{ type: 'text', text: 'Typed session notes:\n\n' + text + '\n\n' + ask + ' in these notes, as JSON.' }];
+    // Streamed (callStream), because a dense page takes minutes.
+    const once = () => callStream({ system, messages: [{ role: 'user', content }], maxTokens })
       .then(r => ({ raw: r.text, stopReason: r.stopReason }));
     return once().then(r => r.stopReason === 'max_tokens' ? once() : r).then(r => {
-      if (r.stopReason === 'max_tokens') throw new Error('The AI reply was cut off at the output limit twice; the page is too dense to list in one reply.');
+      if (r.stopReason === 'max_tokens') throw new Error('The AI reply was cut off at the output limit twice; the page is too dense to read in one reply.');
       return r.raw;
     });
+  }
+
+  // Output limit for one page's facts (#101). Above the 4,096 default, which
+  // a page with several rounds of six party turns and enemy groups exceeds.
+  const FACTS_MAX_TOKENS = 32000;
+
+  /**
+   * extractFacts({ system, image, text }) → Promise<string>
+   *
+   * Session page step 4 (#101): one page's facts — rounds, turns,
+   * activities and outcomes, quest progress and loot — against the
+   * occurrence ids step 3 settled. system comes from
+   * ChronicleFacts.factsPrompt(); this adds the table's 2024 rules and each
+   * PC's action-economy exceptions from pc-abilities.json, as the round
+   * prompts do, so Healing Hands or Nick are given the right economy.
+   * Unlike those prompts it has no fixed slot-to-PC roster: the AI
+   * attributes by occurrence and never assigns slots.
+   */
+  async function extractFacts({ system, image, text }) {
+    const economy = _buildActionEconomySummary(await _pcAbilitiesPromise);
+    const full = TABLE_RULES + '\n\n' +
+      (economy ? '[ACTION ECONOMY REFERENCE — use these instead of 5e defaults for these abilities]\n' + economy + '\n[END ACTION ECONOMY REFERENCE]\n\n' : '') +
+      system;
+    return readPage({ system: full, image, text, ask: 'Record the facts', maxTokens: FACTS_MAX_TOKENS });
   }
 
   // ─────────────────────────────────────────────────────────
@@ -1409,8 +1445,9 @@ ${contextStr}${scopeNote}`,
     sendCorrectionToAI,
     demoCorrectionResponse,
 
-    // Session page (issue #100)
+    // Session page (issues #100, #101)
     extractMentions,
+    extractFacts,
   };
 
 })();

@@ -35,6 +35,7 @@ const TEST_FILES = [
   'tests/opaque-ids.test.js',
   'tests/session-header.test.js',
   'tests/entity-identification.test.js',
+  'tests/fact-extraction.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

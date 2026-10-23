@@ -2113,7 +2113,17 @@ function sendCorrection() {
     entityContext: entityRosterBlock,
     onLoading: () => {},
     onResult:  response => handleResponse(response),
-    onError:   ()       => handleResponse(ChronicleAI.demoCorrectionResponse(text, itemContext)),
+    // Issue #101: a failed call used to show demoCorrectionResponse() as if
+    // the AI had answered, so a missing key or an API error looked like a
+    // real (made-up) correction the DM could apply. Now the error itself is
+    // shown, with no diffs to apply, and the DM can resend.
+    onError:   err      => {
+      thread.pop(); // remove thinking
+      const msg = (err && err.message) || String(err || 'unknown error');
+      thread.push({ id: msgId + '_r', role: 'ai', time: now,
+        content: `<span style="color:var(--rust);">⚠ The AI correction failed: ${escapeHtmlDR(msg)}. Nothing was changed; send the correction again to retry.</span>` });
+      renderAssistant();
+    },
   });
 }
 

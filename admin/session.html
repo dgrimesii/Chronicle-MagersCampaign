@@ -153,6 +153,17 @@
   .ident-form textarea { width:100%; min-height:3.5em; }
   .ident-error { color:var(--rust); font-size:0.85rem; margin-top:0.3rem; }
 
+  /* ── Step 4: facts read from each page (#101); the round grid is #103 ── */
+  .fact-combat { margin:1.25rem 0; }
+  .fact-combat h3 { font-family:'Cinzel',serif; font-size:0.95rem; letter-spacing:0.06em; margin-bottom:0.5rem; }
+  .fact-round { background:var(--card-bg); border:1px solid var(--border); border-radius:3px; padding:0.6rem 0.9rem; margin-bottom:8px; }
+  .fact-round h4 { font-family:'Cinzel',serif; font-size:0.72rem; letter-spacing:0.1em; color:var(--muted); margin-bottom:0.3rem; }
+  .fact-turn { display:grid; grid-template-columns:150px 1fr; gap:8px; font-size:0.92rem; padding:2px 0; }
+  .fact-turn .who { color:var(--amber-light); }
+  .fact-turn .who.enemy { color:var(--rust); }
+  .fact-line { font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--muted); }
+  .fact-event { font-style:italic; color:var(--muted); font-size:0.9rem; }
+
   @media (max-width: 640px) {
     .session-pick { grid-template-columns:1fr; }
     .ident-head { grid-template-columns:1fr; gap:2px; }
@@ -274,8 +285,26 @@
       <button class="btn" onclick="backToExtract()">← Back to Extract</button>
       <button class="btn btn-primary" id="identify-done-btn" disabled onclick="finishIdentify()">Continue →</button>
     </div>
-    <!-- Shown by finishIdentify(). Step 4 (review) is not built yet. -->
-    <div class="notice" id="identify-done" style="display:none;"></div>
+  </div>
+
+  <!-- ═══════════════════════ STEP 4: REVIEW ═══════════════════════ -->
+  <!-- Shown by finishIdentify(). Each page is read again, this time for its
+       facts, against the names settled in step 3 (#101). Until the round
+       grid (#103) exists, the facts are shown as a read-only list, merged
+       across page breaks, with the checks' flags. -->
+  <div id="review-section" style="display:none;">
+    <h1 class="page-title">Review</h1>
+    <p class="page-subtitle">The AI reads each page for what happened, using the names you settled.</p>
+    <div class="notice" id="identity-summary"></div>
+    <div id="facts-list"></div>
+    <div id="facts-flags"></div>
+    <div id="facts-merged"></div>
+    <div class="notice" id="facts-next" style="display:none;">
+      <strong>The round grid for checking and correcting these facts is the next step and is not built yet</strong> (issue #103). Nothing has been saved.
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="backToIdentify()">← Back to Identify</button>
+    </div>
   </div>
 </main>
 
@@ -291,7 +320,10 @@
 <!-- chronicle-entities.js: the step 2 prompt and the step 3 rows and actions
      (issue #100). Needs chronicle-ids.js, loaded above. -->
 <script src="../shared/chronicle-entities.js"></script>
-<!-- chronicle-ai.js sends each page to the AI (extractMentions, #100). -->
+<!-- chronicle-facts.js: the step 4 facts prompt, reply check, self-checks
+     and the merge across page breaks (issue #101). Needs chronicle-entities.js. -->
+<script src="../shared/chronicle-facts.js"></script>
+<!-- chronicle-ai.js sends each page to the AI (extractMentions #100, extractFacts #101). -->
 <script src="../shared/chronicle-ai.js"></script>
 <script>
 // ══════════════════════════════════════════════════════
@@ -322,6 +354,10 @@ const session = {
   rows:        [],
   openForm:    null,  // { key, action } — the row whose inline form is open
   identityItems: [],  // ChronicleEntities.toQueueItems(...) once every row is settled
+  // Step 4 (#101): one entry per page read for facts, in reading order:
+  // { page, label, image|text, status, error, facts, issues, selfCheck, reread }
+  facts:       [],
+  factsKey:    '',    // the step 3 answers the facts were read against; a change re-reads
   // Context for extraction (#100), loaded now so it is ready by then. Both
   // stay null if their load fails; extraction must cope without them.
   entities:    null,  // { npcs, locations, monsters, combats } name lists
@@ -743,7 +779,7 @@ function continueFromUpload() {
 
 // show(id) — shows one step's section and hides the others.
 function show(id) {
-  for (const sec of ['upload-section', 'extract-section', 'identify-section']) {
+  for (const sec of ['upload-section', 'extract-section', 'identify-section', 'review-section']) {
     document.getElementById(sec).style.display = sec === id ? 'block' : 'none';
   }
   window.scrollTo(0, 0);
@@ -1084,9 +1120,176 @@ function bulkAcknowledge() {
 function finishIdentify() {
   session.identityItems = ChronicleEntities.toQueueItems(session.rows, session.index, session.legacyId);
   const count = t => session.identityItems.filter(i => i.type === t).length;
-  const box = document.getElementById('identify-done');
-  box.innerHTML = `<strong>Every name is settled.</strong> Publish will add ${count('NEW')} new entit${count('NEW') === 1 ? 'y' : 'ies'} and ${count('MOD')} alias, note or roster change${count('MOD') === 1 ? '' : 's'}. The next step, reviewing facts, is not built yet (issues #101–#105), and nothing has been saved.`;
-  box.style.display = 'block';
+  document.getElementById('identity-summary').innerHTML = `<strong>Every name is settled.</strong> Publish will add ${count('NEW')} new entit${count('NEW') === 1 ? 'y' : 'ies'} and ${count('MOD')} alias, note or roster change${count('MOD') === 1 ? '' : 's'}.`;
+  startFacts();
+}
+
+function backToIdentify() {
+  show('identify-section');
+  setStep(3);
+}
+
+// ══════════════════════════════════════════════════════
+// Step 4 — facts from each page (issue #101)
+// ══════════════════════════════════════════════════════
+
+/**
+ * identityKey() → a string of every row's answer. Facts name occurrences,
+ * and what an occurrence means comes from these answers, so facts read
+ * against one set of answers are re-read if the DM changes any of them.
+ */
+function identityKey() {
+  return JSON.stringify(session.rows.map(r => [r.key, r.resolution]));
+}
+
+/**
+ * startFacts() — shows step 4 and reads every page not yet read for facts.
+ * Each page gets the occurrences step 3 found on it and the combats it may
+ * continue (ChronicleFacts.pageReferences / combatChoices).
+ */
+function startFacts() {
+  if (session.factsKey !== identityKey() + session.extractKey) {
+    session.facts = session.extract.map(ex => ({ page: ex.page, label: ex.label, image: ex.image, text: ex.text,
+      status: 'waiting', error: '', facts: null, issues: [], selfCheck: [], reread: false }));
+    session.factsKey = identityKey() + session.extractKey;
+  }
+  show('review-section');
+  setStep(4);
+  renderFacts();
+  readFactsPages();
+}
+
+/**
+ * readFactsPages() — reads each waiting page for facts, in order, so the
+ * page after carries forward where this one stopped (combat and round).
+ *
+ * One page: build the prompt, send it (ChronicleAI.extractFacts), parse it,
+ * then validate it. A reply that names an entity instead of an occurrence,
+ * or has a value outside the schema, is re-read once with the problems
+ * listed; if it still fails the page shows the error with Retry. A reply
+ * that passes but fails the imbalance or action-economy check is also
+ * re-read once; problems that survive are kept as flags, not errors,
+ * because the notes themselves may be unusual (the issue: "re-reads the
+ * round once when one fails").
+ */
+let readingFacts = false;
+async function readFactsPages() {
+  if (readingFacts) return;
+  readingFacts = true;
+  const combats = ChronicleFacts.combatChoices(session.campaign, session.rows, session.index);
+  for (let i = 0; i < session.facts.length; i++) {
+    const fp = session.facts[i];
+    if (fp.status !== 'waiting') continue;
+    fp.status = 'reading';
+    renderFacts();
+    const references = ChronicleFacts.pageReferences(fp.page, session.rows, session.index);
+    const carry = carryFrom(i);
+    try {
+      let reread = null, facts, errors, issues;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const system = ChronicleFacts.factsPrompt({ pageLabel: fp.label, references, combats, carry, reread });
+        const raw = await ChronicleAI.extractFacts({ system, image: fp.image, text: fp.text });
+        facts = ChronicleFacts.parseFacts(raw);
+        errors = ChronicleFacts.validateFacts(facts, references, combats);
+        issues = errors.length ? [] : ChronicleFacts.checkFacts(facts, references);
+        if (!errors.length && !issues.length) break;
+        reread = errors.length ? errors : issues.map(x => x.detail);
+        fp.reread = true;
+      }
+      if (errors.length) throw new Error('The reply still named entities or values it should not, after a re-read: ' + errors.slice(0, 3).join(' ') + (errors.length > 3 ? ' (and ' + (errors.length - 3) + ' more)' : ''));
+      fp.facts = facts;
+      fp.issues = issues;
+      fp.selfCheck = facts.self_check.map(String);
+      fp.references = references;
+      fp.status = 'done';
+    } catch (err) {
+      fp.status = 'error';
+      fp.error = err.message || String(err);
+    }
+    renderFacts();
+  }
+  readingFacts = false;
+}
+
+// carryFrom(i) → { combat, round } where the page before page i stopped, or null.
+function carryFrom(i) {
+  for (let j = i - 1; j >= 0; j--) {
+    const f = session.facts[j].facts;
+    if (!f) return null;
+    const last = f.combats[f.combats.length - 1];
+    const lastRound = last?.rounds?.[last.rounds.length - 1];
+    if (last && lastRound) return { combat: last.combat, round: lastRound.n };
+  }
+  return null;
+}
+
+function retryFacts(i) {
+  session.facts[i].status = 'waiting';
+  session.facts[i].error = '';
+  renderFacts();
+  readFactsPages();
+}
+
+/**
+ * renderFacts() — the per-page status, then (when every page is done) the
+ * session's facts merged across page breaks, with every flag. Read-only
+ * until the round grid (#103).
+ */
+function renderFacts() {
+  document.getElementById('facts-list').innerHTML = session.facts.map((fp, i) => {
+    const state = fp.status === 'done'
+      ? `<span class="state done">${countTurns(fp.facts)} turns${fp.reread ? ' (re-read once)' : ''}</span>`
+      : fp.status === 'error' ? `<span class="state error">${escapeHtml(fp.error)}</span> <button class="btn" onclick="retryFacts(${i})">Retry</button>`
+      : fp.status === 'reading' ? '<span class="state">reading facts…</span>' : '<span class="state">waiting</span>';
+    return `<div class="extract-row"><span class="name">${escapeHtml(fp.label[0].toUpperCase() + fp.label.slice(1))}</span>${state}</div>`;
+  }).join('');
+  const done = session.facts.length && session.facts.every(fp => fp.status === 'done');
+  document.getElementById('facts-next').style.display = done ? 'block' : 'none';
+  if (!done) { document.getElementById('facts-merged').innerHTML = ''; document.getElementById('facts-flags').innerHTML = ''; return; }
+
+  const refs = session.facts.flatMap(fp => fp.references);
+  const byOcc = new Map(refs.map(r => [r.occ, r]));
+  const merged = ChronicleFacts.mergePages(session.facts.map(fp => ({ page: fp.page, facts: fp.facts })), refs);
+  session.mergedFacts = merged;
+  const flags = merged.issues.map(x => x.detail)
+    .concat(session.facts.flatMap(fp => fp.issues.map(x => x.detail)))
+    .concat(session.facts.flatMap(fp => fp.selfCheck.map(t => 'AI self-check: ' + t)));
+  document.getElementById('facts-flags').innerHTML = flags.length
+    ? `<div class="flag-box"><strong>Check these:</strong><ul>${flags.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>` : '';
+
+  const combatName = ref => {
+    const e = session.index.entities.get(ref);
+    if (e) return e.name + (e.legacyId ? ` (${e.legacyId})` : '');
+    const made = ChronicleEntities.newEntities(session.rows).get(ref);
+    return made ? made.name + ' (new)' : String(ref);
+  };
+  const who = occ => { const r = byOcc.get(occ); return r ? `${r.asWritten} → ${r.label.replace(/ \((player character|bestiary|npc_directory|enemies_roster)\)$/, '')}` : occ; };
+  const turnHtml = (t, enemy) => `<div class="fact-turn"><span class="who${enemy ? ' enemy' : ''}">${escapeHtml(who(t.actor))}</span>
+    <span>${t.activities.map(a => escapeHtml(activityText(a, byOcc))).join('<br>') || '<em>nothing recorded</em>'}${(t.special_events || []).map(ev => `<div class="fact-event">${escapeHtml(ev.type + (ev.description ? ': ' + ev.description : ''))}</div>`).join('')}
+    <div class="fact-line">p.${escapeHtml(String(t.page))}: ${escapeHtml(t.source_line || '')}</div></span></div>`;
+  document.getElementById('facts-merged').innerHTML = merged.combats.map(c => `<div class="fact-combat"><h3>${escapeHtml(combatName(c.combat))}</h3>${c.rounds.map(r => `
+    <div class="fact-round"><h4>Round ${r.n}${r.pages.length > 1 ? ' — across pages ' + r.pages.join(' and ') : ''}</h4>
+      ${r.turns.map(t => turnHtml(t, false)).join('')}${r.enemy_turns.map(t => turnHtml(t, true)).join('')}
+      ${r.events.map(ev => `<div class="fact-event">${escapeHtml(ev)}</div>`).join('')}</div>`).join('')}</div>`).join('')
+    + (merged.quest_progress.length ? `<div class="fact-combat"><h3>Quest progress</h3>${merged.quest_progress.map(q => `<div class="fact-turn"><span class="who">${escapeHtml(who(q.quest))}</span><span>${escapeHtml(q.entry || '')}<div class="fact-line">p.${escapeHtml(String(q.page))}: ${escapeHtml(q.source_line || '')}</div></span></div>`).join('')}</div>` : '')
+    + (merged.loot.length ? `<div class="fact-combat"><h3>Loot</h3>${merged.loot.map(l => `<div class="fact-turn"><span class="who">${escapeHtml(l.item ? who(l.item) : l.item_text || '')}</span><span>${escapeHtml(l.change || '')}${l.holder ? ' — ' + escapeHtml(who(l.holder)) : ''}<div class="fact-line">p.${escapeHtml(String(l.page))}: ${escapeHtml(l.source_line || '')}</div></span></div>`).join('')}</div>` : '');
+}
+
+// countTurns(facts) → party and enemy turns on one page, for the status line.
+function countTurns(facts) {
+  let n = 0;
+  for (const c of facts.combats) for (const r of c.rounds) n += r.turns.length + r.enemy_turns.length;
+  return n;
+}
+
+// activityText(a, byOcc) → "A: Attack · Shortbow — hit 10 → Ogre, miss".
+function activityText(a, byOcc) {
+  const econ = { action: 'A', bonus_action: 'BA', reaction: 'R', movement: 'Move', free: 'Free', legendary_action: 'LA', legendary_resistance: 'LR' }[a.economy] || a.economy;
+  const outs = a.outcomes.map(o => {
+    const target = o.target ? (byOcc.get(o.target)?.asWritten || o.target) : (o.target_text || '');
+    return [o.detail, o.res, o.val, target ? '→ ' + target : '', o.effect ? '(' + o.effect + ')' : ''].filter(x => x !== null && x !== undefined && x !== '').join(' ');
+  }).join(', ');
+  return `${econ}: ${a.name}${a.detail ? ' · ' + a.detail : ''}${outs ? ' — ' + outs : ''}${a.notes ? ' [' + a.notes + ']' : ''}`;
 }
 
 // setStep(n) — marks steps before n done and step n active in the progress bar.

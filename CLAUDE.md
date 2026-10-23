@@ -175,7 +175,7 @@ async function loadCampaignData() {
 
 ## Shared module load order
 
-When a page needs all eight shared modules, load them in this order:
+When a page needs all nine shared modules, load them in this order:
 
 ```html
 <script src="../shared/config.js"></script>
@@ -183,6 +183,7 @@ When a page needs all eight shared modules, load them in this order:
 <script src="../shared/chronicle-ids.js"></script>
 <script src="../shared/chronicle-publish.js"></script>
 <script src="../shared/chronicle-entities.js"></script>
+<script src="../shared/chronicle-facts.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script src="../shared/chronicle-narrative.js"></script>
@@ -196,6 +197,8 @@ When a page needs all eight shared modules, load them in this order:
 `chronicle-publish.js` exports `window.ChroniclePublish` (and `module.exports` under Node): `applySession()`, the one function that turns approved review items into campaign data (issue #92), plus `sessionChoices()` and `sessionHeader()`, which the session page uses to pick the session ID and date and hand them to `applySession()` (#99). Session choices and the header rule belong here, not in the page, so `tests/session-header.test.js` runs them through the real publish. It needs `chronicle-ids.js` loaded first and touches no DOM, sessionStorage or network; pages pass their state in as options. Any change to what publish writes goes in this module, not in a page, so `tests/delta-apply.test.js` keeps testing the real code. README "Shared modules" lists its round-conversion rules.
 
 `chronicle-entities.js` exports `window.ChronicleEntities` (and `module.exports` under Node): the session page's entity identification (#100), meaning the step 2 mention prompt and reply check, the step 3 rows and the DM's actions, and `toQueueItems()`, which turns the answers into publish items. It needs `chronicle-ids.js` loaded first and touches no DOM, storage or network. Matching rules belong here, not in the page, so `tests/entity-identification.test.js` tests the real code. Only an exact name, PC nickname or alias may be bulk-acknowledged; never let the AI's own confidence decide that.
+
+`chronicle-facts.js` exports `window.ChronicleFacts` (and `module.exports` under Node): the session page's per-page facts (#101), meaning the facts prompt, the reply check, the imbalance and action-economy checks, and the merge across page breaks. It needs `chronicle-entities.js` loaded first and touches no DOM, storage or network. A fact names actors and targets only by the occurrence ids step 3 settled, never by name, and never assigns an initiative slot: keep both rules in `validateFacts()` and the prompt.
 
 `chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 
@@ -266,6 +269,8 @@ When to use which method:
 - `.fillRoundsFromText()` — round fill from typed description (integrity)
 - `.sendCorrectionToAI()` — delta item correction chat (delta-review only)
 - `.extractMentions()` — one page's entity mentions for the session page (#100). It streams, because a dense page takes minutes; keep long calls streamed
+- `.extractFacts()` — one page's facts for the session page (#101), against the occurrence ids from step 3. Never add a fixed slot-to-PC roster to its prompt
+- Never show demo data (`demoRoundProposals`, `demoCorrectionResponse`) in place of a real reply. A failed call shows its error (#101)
 
 ---
 
