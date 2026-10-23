@@ -13,7 +13,7 @@
     "mechanical_block": "The mechanics object contains structured, queryable facts. Every field is a direct lookup — no parsing required. An LLM given a mechanics block can answer 'can this character do X' without inference or guesswork.",
     "narrative_block": "The narrative object contains prose for human readers and LLM voice context. It must not contradict the mechanics block. It may be generous and evocative but must not introduce new mechanical facts not found elsewhere in the schema.",
     "notes_fallback": "The top-level notes field on each object is a fallback for campaign-specific context that fits neither mechanics nor narrative. It should be 1-3 sentences maximum. If notes grows beyond that, a new structured field is probably warranted.",
-    "references": "Cross-references use ID strings only. Never embed a copy of another object's data inside a different object. Reference by ID and resolve at read time. Example: a quest references an NPC via 'npc_ref: npc_011', never by copying the NPC object.",
+    "references": "Cross-references use ID strings only. Never embed a copy of another object's data inside a different object. Reference by ID and resolve at read time. Example: a quest references an NPC via 'npc_ref: <the NPC's UUID id>' (legacy npc_011), never by copying the NPC object.",
     "item_vs_character_spells": "A spellbook item contains spells as a property of the item object. A wizard character has a separate spells_known list. These are never the same field. Having access to a spellbook (spellbooks_accessible) is distinct from knowing a spell (spells_known). A spell moves from the book to the character's list only when explicitly transcribed.",
     "ddb_integration": "Set ddb_id to the DnDBeyond character ID for any player character with a DnDBeyond sheet. The sync process fetches ability scores, spells, feats, proficiencies, and narrative traits from DnDBeyond and populates the mechanics and narrative blocks. ddb_synced records the date of last sync. Characters without DnDBeyond sheets set ddb_id to null and are populated manually.",
     "null_vs_absent": "Use null for fields that are known to be empty. Omit fields entirely only if they are genuinely not applicable to this object type. A null value signals 'we checked and there is nothing here'. An absent field signals 'this field does not apply to this object type'.",
@@ -23,17 +23,22 @@
   "_field_type_reference": {
     "_note": "Reference for every field name used across all object types. Shows allowed values where enumerated.",
     "id_formats": {
-      "player_character": "pc_001, pc_002 ... pc_NNN",
-      "npc": "npc_001, npc_002 ... npc_NNN",
-      "location": "loc_001, loc_002 ... loc_NNN",
-      "quest": "qst_001, qst_002 ... qst_NNN",
-      "item": "item_001, item_002 ... item_NNN",
-      "combat": "cbt_001, cbt_002 ... cbt_NNN",
-      "session": "session_001, session_002 ... session_NNN",
-      "monster": "mon_001, mon_002 ... mon_NNN",
-      "lore": "lore_001, lore_002 ... lore_NNN",
-      "moment": "moment_001, moment_002 ... moment_NNN",
-      "objective": "obj_001, obj_002 ... obj_NNN"
+      "_note": "Issue #95. Every entity id is a lowercase UUID v4 (8-4-4-4-12 hex). The type lives in the array, never in the id.",
+      "id": "UUID v4, e.g. 3f2b8c1e-9a4d-4c7e-b1f0-6d2a9e5c4b81",
+      "legacy_id": "STRING — the typed ID the entity had before #95 (pc_001, npc_014, cbt_005, session_005, obj_003…). Frozen; kept so old notes and links still resolve. Absent on entities created after #95, except sessions, which keep the session_NNN the DM gives them.",
+      "_legacy_formats": {
+        "player_character": "pc_001, pc_002 ... pc_NNN",
+        "npc": "npc_001, npc_002 ... npc_NNN",
+        "location": "loc_001, loc_002 ... loc_NNN",
+        "quest": "qst_001, qst_002 ... qst_NNN",
+        "item": "item_001, item_002 ... item_NNN",
+        "combat": "cbt_001, cbt_002 ... cbt_NNN",
+        "session": "session_001, session_002 ... session_NNN",
+        "monster": "mon_001, mon_002 ... mon_NNN",
+        "lore": "lore_001, lore_002 ... lore_NNN",
+        "moment": "moment_001, moment_002 ... moment_NNN",
+        "objective": "obj_001, obj_002 ... obj_NNN"
+      }
     },
     "shared_enums": {
       "pc_status": [
@@ -218,7 +223,7 @@
     "slot_fields": {
       "_note": "Schema 5.0.0 turn shape (issue #93). A party member's turn is one activities[] list, each activity tagged by the action economy it spends. Replaces the 4.x fixed fields action, bonus_action, reaction, movement, object_interaction and attacks[].",
       "s": "INTEGER — slot number (initiative order position, 1-N). Party members only; enemies have no slots.",
-      "a": "pc_NNN — actor ID",
+      "a": "UUID — the party member's id (issue #95; was pc_NNN)",
       "activities": "ARRAY of _activity — everything the turn spent, in the order it happened. Empty when nothing was recorded.",
       "notes": "STRING or null — slot-level annotation that does not fit any activity",
       "_activity": {
@@ -236,7 +241,7 @@
         "_note": "One result an activity produced. Each resolves on its own.",
         "res": "ENUM slot_result or null — hit, miss, crit, save; for Death Save, success or failure",
         "val": "INTEGER or null — stated numeric outcome. Null if not provided. Never inferred.",
-        "target_id": "ID or null — the entity affected: an entity ID (pc_NNN, mon_NNN…) or the actor_id of one of this combat's enemies_roster groups (until enemies get IDs, #95). Never free text; slash-joined targets are split into one outcome each.",
+        "target_id": "ID or null — the entity affected: an entity's UUID id, or the actor_id of one of this combat's enemies_roster groups (roster groups have no ids). Never free text; slash-joined targets are split into one outcome each.",
         "target_text": "STRING — OPTIONAL. The target exactly as written when it is not an entity (e.g. 'horse'). Only when target_id is null.",
         "effect": "STRING — OPTIONAL. 'downed' or 'killed' when this outcome dropped or killed the target. Down is an outcome, never an activity.",
         "detail": "STRING — OPTIONAL. The attack used for this roll (Bite, Claw), overriding the activity's detail, so one Multiattack can hold a claw and a bite with separate targets. Carried from each 4.x attacks[].name, except labels that are not attack names: Attack/attacks (restate the activity) and hit/hits (a result, held in res).",
@@ -245,10 +250,10 @@
     },
     "initiative_fields": {
       "_note": "The initiative object lives at the combat encounter level, not the round level. It is populated once per combat and applies to all rounds. Player initiative values are recorded from their dice roll. Enemy initiative may be exact (DM shared it), relative (noted as 'after Ashton'), or unknown. All positions are optional — partial initiative data is valid.",
-      "combat_id": "cbt_NNN — the combat this initiative order belongs to",
+      "combat_id": "UUID — the combat this initiative order belongs to (issue #95; was cbt_NNN)",
       "entries": [
         {
-          "actor_id": "pc_NNN | enemy actor label string — e.g. 'pc_001' or 'Ogre' or 'Goblins'",
+          "actor_id": "party member UUID | enemy actor label string — e.g. a pc UUID, 'Ogre' or 'Goblins'",
           "actor_type": "STRING — 'pc' | 'enemy_individual' | 'enemy_group'",
           "initiative_value": "INTEGER or null — the actual dice roll result if known",
           "position": "INTEGER or null — ordinal position in the initiative order (1 = goes first)",
@@ -262,7 +267,7 @@
       "_individual": {
         "actor_id": "STRING — short label used to reference this actor in round.enemy_turns[]. Use the bestiary name for groups, a descriptive label for individuals e.g. 'Ogre', 'Vespon Queen', 'Alpha Wolf'",
         "type": "ENUM enemy_actor_type — 'individual' | 'group'",
-        "mon_ref": "mon_NNN or null — bestiary reference if this creature type has been catalogued",
+        "mon_ref": "UUID or null — the bestiary entry's id, if this creature type has been catalogued (issue #95; was mon_NNN)",
         "count": "INTEGER or null — for groups: number of creatures at combat start if known. null if unknown.",
         "count_remaining": "INTEGER or null — for groups: number alive at end of logged rounds",
         "role": "STRING — OPTIONAL. Tells apart groups of the same creature, e.g. 'melee', 'slinger'. Schema 5.0.0.",
@@ -309,7 +314,7 @@
       "passages": "ARRAY of _passage — on any entity, combat, round, activity, quest progress_log entry, character moment or session. Narrative attached to the most specific thing it describes.",
       "_passage": {
         "text": "STRING — the passage, cleaned up from the notes into complete sentences, with no new facts",
-        "session_id": "session_NNN — the session it came from",
+        "session_id": "UUID — the session it came from (issue #95; was session_NNN)",
         "speaker": "'dm' or an entity ID — who said it. DM exposition is fact; an NPC's words are testimony.",
         "page": "INTEGER or null — the notes page it came from"
       }
@@ -322,57 +327,20 @@
     }
   },
   "_id_registry": {
-    "_note": "Current highest IDs per type. Increment before assigning new entries.",
-    "pc": {
-      "highest": "pc_006",
-      "next": "pc_007"
-    },
-    "npc": {
-      "highest": "npc_014",
-      "next": "npc_015",
-      "voided": [
-        "npc_002",
-        "npc_005",
-        "npc_006"
-      ]
-    },
-    "loc": {
-      "highest": "loc_013",
-      "next": "loc_014"
-    },
-    "qst": {
-      "highest": "qst_005",
-      "next": "qst_006"
-    },
-    "item": {
-      "highest": "item_011",
-      "next": "item_012"
-    },
-    "cbt": {
-      "highest": "cbt_006",
-      "next": "cbt_007"
-    },
-    "session": {
-      "highest": "session_007",
-      "next": "session_008"
-    },
-    "mon": {
-      "highest": "mon_008",
-      "next": "mon_009"
-    },
-    "lore": {
-      "highest": "lore_003",
-      "next": "lore_004"
-    },
-    "moment": {
-      "highest": "moment_001",
-      "next": "moment_002"
-    }
+    "_note": "Since issue #95 (2026-10-21) every entity id is a UUID v4, allocated with ChronicleIds.newId() (shared/chronicle-ids.js), never counted. The old typed ID is kept as legacy_id and is frozen: no new legacy IDs are assigned, except a session_NNN the DM supplies when a session is published.",
+    "format": "uuid-v4",
+    "legacy_voided": [
+      "npc_002",
+      "npc_005",
+      "npc_006",
+      "mon_006"
+    ]
   },
   "party": [
     {
       "_object_type": "player_character",
-      "id": "pc_001",
+      "id": "d274d0ec-9875-488d-8ea2-f7f2615db019",
+      "legacy_id": "pc_001",
       "name": "Zragar",
       "nickname": "Goldie",
       "player": "David",
@@ -437,32 +405,32 @@
           {
             "name": "Shield",
             "level": 1,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Magic Missile",
             "level": 1,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Find Familiar",
             "level": 1,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Absorb Elements",
             "level": 1,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Detect Magic",
             "level": 1,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Comprehend Languages",
             "level": 1,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Concussive Burst",
@@ -502,22 +470,22 @@
           {
             "name": "Knock",
             "level": 2,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Misty Step",
             "level": 2,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Scorching Ray",
             "level": 2,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Spider Climb",
             "level": 2,
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           },
           {
             "name": "Web",
@@ -526,10 +494,10 @@
           }
         ],
         "spellbooks_accessible": [
-          "item_002"
+          "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
         ],
         "equipment_owned": [
-          "item_002"
+          "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
         ],
         "class_features": [
           {
@@ -563,7 +531,7 @@
         ],
         "milestones": [
           {
-            "session_id": "session_003",
+            "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
             "type": "level_up",
             "event": "Level up to 2",
             "note": "Reached after the Siege of Bagyers Farm.",
@@ -627,7 +595,7 @@
       },
       "milestones": [
         {
-          "session_id": "session_003",
+          "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "type": "level_up",
           "event": "Level up to 2",
           "note": "Reached after the Siege of Bagyers Farm.",
@@ -638,7 +606,7 @@
           }
         },
         {
-          "session_id": "session_003",
+          "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "type": "spell_learned",
           "event": "Transcribed 7 level-1 spells from Bessel's Spellbook",
           "note": "After recovering item_002 at Bagyers Farm, Goldie transcribed all 7 level-1 spells into his personal spellbook: Shield, Magic Missile, Mage Armor, Find Familiar, Absorb Elements, Detect Magic, Comprehend Languages.",
@@ -652,11 +620,11 @@
               "Detect Magic",
               "Comprehend Languages"
             ],
-            "source": "item_002"
+            "source": "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
           }
         },
         {
-          "session_id": "session_006",
+          "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
           "type": "level_up",
           "event": "Level up to 3",
           "note": "Reached after the Larkspur Dragon encounter and delivery to Lake Town.",
@@ -676,7 +644,8 @@
     },
     {
       "_object_type": "player_character",
-      "id": "pc_002",
+      "id": "c86bf29f-a914-4e05-9528-3a15d626213d",
+      "legacy_id": "pc_002",
       "name": "Malachite",
       "nickname": "Mal",
       "player": "Lance",
@@ -736,7 +705,7 @@
         "spells_known": [],
         "spellbooks_accessible": [],
         "equipment_owned": [
-          "item_005"
+          "08a496eb-9a76-4fbe-a2ef-c5c4a3e04f57"
         ],
         "class_features": [
           {
@@ -786,7 +755,7 @@
       },
       "milestones": [
         {
-          "session_id": "session_003",
+          "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "type": "level_up",
           "event": "Level up to 2",
           "note": "Reached after the Siege of Bagyers Farm.",
@@ -800,7 +769,7 @@
           }
         },
         {
-          "session_id": "session_006",
+          "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
           "type": "level_up",
           "event": "Level up to 3",
           "note": "Reached after the Larkspur Dragon encounter and delivery to Lake Town.",
@@ -821,7 +790,8 @@
     },
     {
       "_object_type": "player_character",
-      "id": "pc_003",
+      "id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+      "legacy_id": "pc_003",
       "name": "Ashton",
       "nickname": "Ash",
       "player": "Frazer",
@@ -880,7 +850,7 @@
         "spells_known": [],
         "spellbooks_accessible": [],
         "equipment_owned": [
-          "item_006"
+          "7dc8cc04-1c3a-4ec9-8f71-ae428d925d66"
         ],
         "class_features": [
           {
@@ -921,7 +891,7 @@
       },
       "milestones": [
         {
-          "session_id": "session_003",
+          "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "type": "level_up",
           "event": "Level up to 2",
           "note": "Reached after the Siege of Bagyers Farm.",
@@ -935,7 +905,7 @@
           }
         },
         {
-          "session_id": "session_006",
+          "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
           "type": "level_up",
           "event": "Level up to 3",
           "note": "Reached after the Larkspur Dragon encounter and delivery to Lake Town.",
@@ -957,7 +927,8 @@
     },
     {
       "_object_type": "player_character",
-      "id": "pc_004",
+      "id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+      "legacy_id": "pc_004",
       "name": "Asphodel",
       "nickname": "Del",
       "player": "Kevin",
@@ -1014,8 +985,8 @@
         "spells_known": [],
         "spellbooks_accessible": [],
         "equipment_owned": [
-          "item_008",
-          "item_011"
+          "693df217-e136-46f0-a233-0bc6aa8065cb",
+          "876df906-74e3-4e59-b500-1d9830019a89"
         ],
         "class_features": [
           {
@@ -1057,7 +1028,7 @@
       },
       "milestones": [
         {
-          "session_id": "session_003",
+          "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "type": "level_up",
           "event": "Level up to 2",
           "note": "Reached after the Siege of Bagyers Farm.",
@@ -1070,7 +1041,7 @@
           }
         },
         {
-          "session_id": "session_006",
+          "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
           "type": "level_up",
           "event": "Level up to 3",
           "note": "Reached after the Larkspur Dragon encounter and delivery to Lake Town.",
@@ -1090,7 +1061,8 @@
     },
     {
       "_object_type": "player_character",
-      "id": "pc_005",
+      "id": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+      "legacy_id": "pc_005",
       "name": "Derwin",
       "nickname": "Goli",
       "player": "Sam",
@@ -1146,8 +1118,8 @@
         "spells_known": [],
         "spellbooks_accessible": [],
         "equipment_owned": [
-          "item_003",
-          "item_007"
+          "2db127b4-2f69-44db-b67b-fd7804229194",
+          "e3e278a7-b1aa-4e91-b964-783b74edbc53"
         ],
         "class_features": [
           {
@@ -1194,7 +1166,7 @@
       },
       "milestones": [
         {
-          "session_id": "session_003",
+          "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "type": "level_up",
           "event": "Level up to 2",
           "note": "Reached after the Siege of Bagyers Farm.",
@@ -1207,7 +1179,7 @@
           }
         },
         {
-          "session_id": "session_006",
+          "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
           "type": "level_up",
           "event": "Level up to 3",
           "note": "Reached after the Larkspur Dragon encounter and delivery to Lake Town.",
@@ -1227,7 +1199,8 @@
     },
     {
       "_object_type": "player_character",
-      "id": "pc_006",
+      "id": "4aea310d-df5b-491b-910f-ddf974d1a351",
+      "legacy_id": "pc_006",
       "name": "Atticus",
       "nickname": "Atti",
       "player": "Jamie",
@@ -1284,7 +1257,7 @@
         "spells_known": [],
         "spellbooks_accessible": [],
         "equipment_owned": [
-          "item_004"
+          "809ef0c5-265d-4249-97ef-1e632f14cc5a"
         ],
         "class_features": [
           {
@@ -1329,7 +1302,7 @@
       },
       "milestones": [
         {
-          "session_id": "session_003",
+          "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "type": "level_up",
           "event": "Level up to 2",
           "note": "Reached after the Siege of Bagyers Farm.",
@@ -1343,7 +1316,7 @@
           }
         },
         {
-          "session_id": "session_006",
+          "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
           "type": "level_up",
           "event": "Level up to 3",
           "note": "Reached after the Larkspur Dragon encounter and delivery to Lake Town.",
@@ -1365,30 +1338,31 @@
   "session_logs": [
     {
       "_object_type": "session",
-      "id": "session_001",
+      "id": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "legacy_id": "session_001",
       "title": "The Coming of Age",
       "date": "2026-02-10",
       "mechanics": {
         "combats": [
-          "cbt_006"
+          "4db6278a-4c03-43d2-a39e-482b033fbc8f"
         ],
         "level_ups": [],
         "items_found": [],
         "npcs_met": [
-          "npc_001",
-          "npc_004",
-          "npc_009",
-          "npc_010",
-          "npc_014"
+          "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+          "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+          "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+          "f9e0962e-8682-48c8-be05-15ac528d558f",
+          "c63bead9-ef05-441e-b27d-add362e92975"
         ],
         "npcs_lost": [],
         "quests_opened": [
-          "qst_002"
+          "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9"
         ],
         "quests_closed": [],
         "locations_visited": [
-          "loc_007",
-          "loc_008"
+          "233f72d8-59df-4928-ae14-27ecfcd4d80b",
+          "a86a16e2-6d98-485e-a7a1-1ddfa09d9be6"
         ],
         "player_absences": []
       },
@@ -1399,12 +1373,12 @@
           {
             "description": "First Pylon witnessed near Riverbend at age 13",
             "type": "story_event",
-            "ref": "qst_002"
+            "ref": "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9"
           },
           {
             "description": "Wolf fight near Atticus's Clearing — first combat",
             "type": "combat_highlight",
-            "ref": "cbt_006"
+            "ref": "4db6278a-4c03-43d2-a39e-482b033fbc8f"
           },
           {
             "description": "Five-year time skip to age 18 — prologue closes",
@@ -1414,7 +1388,7 @@
           {
             "description": "Party childhood backstory established at Atticus's Clearing",
             "type": "backstory_revelation",
-            "ref": "moment_003"
+            "ref": "eef2cd45-ef80-429a-bdb7-0d868dffa2fd"
           }
         ],
         "opening_scene": "Age 13. The party at Atticus's Clearing, familiar and easy together. Something moves in the trees.",
@@ -1432,13 +1406,14 @@
     },
     {
       "_object_type": "session",
-      "id": "session_002",
+      "id": "48e67e5e-0ae6-45da-b823-0299b250e67c",
+      "legacy_id": "session_002",
       "title": "Vespons & Siege of Bagyers Farm (Part 1)",
       "date": "2026-02-24",
       "mechanics": {
         "combats": [
-          "cbt_001",
-          "cbt_002"
+          "cd5e8175-7e7c-4d0e-9a20-d48f280102f2",
+          "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d"
         ],
         "level_ups": [],
         "items_found": [],
@@ -1447,13 +1422,13 @@
         "quests_opened": [],
         "quests_closed": [],
         "locations_visited": [
-          "loc_003",
-          "loc_007"
+          "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
+          "233f72d8-59df-4928-ae14-27ecfcd4d80b"
         ],
         "player_absences": [
           {
             "type": "player_absence",
-            "pc_id": "pc_003",
+            "pc_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
             "note": "Ashton piloted by David due to Frazer being sick."
           }
         ]
@@ -1465,22 +1440,22 @@
           {
             "description": "Vespon swarm detected in the Northern Woods near the treehouse",
             "type": "story_event",
-            "ref": "cbt_001"
+            "ref": "cd5e8175-7e7c-4d0e-9a20-d48f280102f2"
           },
           {
             "description": "Party transitions to defending Bagyers Farm from a new Pylon emergence",
             "type": "story_event",
-            "ref": "cbt_002"
+            "ref": "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d"
           },
           {
             "description": "Siege of Bagyers Farm begins — first multi-session combat",
             "type": "combat_highlight",
-            "ref": "cbt_002"
+            "ref": "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d"
           },
           {
             "description": "Asphodel downed for first time by Vespon Queen (Round 2)",
             "type": "combat_highlight",
-            "ref": "cbt_001"
+            "ref": "cd5e8175-7e7c-4d0e-9a20-d48f280102f2"
           }
         ],
         "opening_scene": "The party back at the treehouse. Atticus senses something wrong in the woods before anyone else does.",
@@ -1496,7 +1471,7 @@
       "mechanical_notes": [
         {
           "type": "player_absence",
-          "pc_id": "pc_003",
+          "pc_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
           "note": "Ashton piloted by David due to Frazer being sick."
         }
       ],
@@ -1504,45 +1479,46 @@
     },
     {
       "_object_type": "session",
-      "id": "session_003",
+      "id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "legacy_id": "session_003",
       "title": "Siege Conclusion",
       "date": "2026-03-03",
       "mechanics": {
         "combats": [
-          "cbt_002"
+          "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d"
         ],
         "level_ups": [
-          "pc_001",
-          "pc_002",
-          "pc_003",
-          "pc_004",
-          "pc_005",
-          "pc_006"
+          "d274d0ec-9875-488d-8ea2-f7f2615db019",
+          "c86bf29f-a914-4e05-9528-3a15d626213d",
+          "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+          "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+          "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+          "4aea310d-df5b-491b-910f-ddf974d1a351"
         ],
         "items_found": [
-          "item_001",
-          "item_002",
-          "item_003",
-          "item_004",
-          "item_005",
-          "item_006",
-          "item_007",
-          "item_008"
+          "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
+          "4120da64-0c3b-4204-99a2-5f84dc7f9c49",
+          "2db127b4-2f69-44db-b67b-fd7804229194",
+          "809ef0c5-265d-4249-97ef-1e632f14cc5a",
+          "08a496eb-9a76-4fbe-a2ef-c5c4a3e04f57",
+          "7dc8cc04-1c3a-4ec9-8f71-ae428d925d66",
+          "e3e278a7-b1aa-4e91-b964-783b74edbc53",
+          "693df217-e136-46f0-a233-0bc6aa8065cb"
         ],
         "npcs_met": [
-          "npc_011",
-          "npc_012"
+          "1d6a0a99-2568-4496-a565-2fbde67acd8b",
+          "7ffa63ec-318f-476c-a077-827a959b9bcb"
         ],
         "npcs_lost": [
-          "npc_001"
+          "642e6635-92e5-46cb-a8fe-b6c9a2a1390f"
         ],
         "quests_opened": [
-          "qst_001",
-          "qst_004"
+          "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+          "78485dcc-5121-4bb2-9c44-2935349d0651"
         ],
         "quests_closed": [],
         "locations_visited": [
-          "loc_003"
+          "daa1cec7-ef00-452c-aa7f-a60993d4e0ae"
         ],
         "player_absences": []
       },
@@ -1553,31 +1529,31 @@
           {
             "description": "Death of Ched Warmfire",
             "type": "tragedy",
-            "ref": "npc_001"
+            "ref": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f"
           },
           {
             "description": "Pylon destruction by Ashton's Eldritch Blast",
             "type": "story_event",
             "ref": [
-              "cbt_002",
-              "pc_003"
+              "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d",
+              "55643397-35ab-4e4d-8f0b-f847a65ed4e3"
             ]
           },
           {
             "description": "Discovery of Bessel's Spellbook and Ched's Map",
             "type": "story_event",
             "ref": [
-              "item_001",
-              "item_002"
+              "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
+              "4120da64-0c3b-4204-99a2-5f84dc7f9c49"
             ]
           },
           {
             "description": "Blair provides quests and context about Ched's past",
             "type": "story_event",
             "ref": [
-              "npc_004",
-              "qst_001",
-              "qst_004"
+              "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+              "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+              "78485dcc-5121-4bb2-9c44-2935349d0651"
             ]
           }
         ],
@@ -1596,38 +1572,39 @@
     },
     {
       "_object_type": "session",
-      "id": "session_004",
+      "id": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "legacy_id": "session_004",
       "title": "To Menne's Ranch",
       "date": "2026-03-10",
       "mechanics": {
         "combats": [
-          "cbt_003",
-          "cbt_004"
+          "94990c47-ae74-48db-bb99-2f823ff6b23c",
+          "90de8d99-fc0d-407e-8de0-66f5d7494b55"
         ],
         "level_ups": [],
         "items_found": [
-          "item_009"
+          "dfda0b06-b707-481b-b67a-c76793407841"
         ],
         "npcs_met": [
-          "npc_003",
-          "npc_007",
-          "npc_008"
+          "6b7c714b-9093-4408-b55c-366a2b4465ed",
+          "54b54de8-19e2-4e8e-86f1-4388f5823334",
+          "d77743c5-103b-4947-b360-a3ac494820b9"
         ],
         "npcs_lost": [],
         "quests_opened": [
-          "qst_005"
+          "6e84d955-bba8-4d07-b1ac-573fba01f1da"
         ],
         "quests_closed": [
-          "qst_004"
+          "78485dcc-5121-4bb2-9c44-2935349d0651"
         ],
         "locations_visited": [
-          "loc_004",
-          "loc_005"
+          "899e5762-77ff-4034-9620-96b4712e59eb",
+          "23024fd5-77fd-4e07-b494-fabc83b89ab5"
         ],
         "player_absences": [
           {
             "type": "player_absence",
-            "pc_id": "pc_002",
+            "pc_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
             "note": "Malachite piloted by David due to Lance's work schedule."
           }
         ]
@@ -1640,30 +1617,30 @@
             "description": "Escorting Carly to Menne's Ranch through the Axe Beak ambush",
             "type": "story_event",
             "ref": [
-              "npc_008",
-              "cbt_003"
+              "d77743c5-103b-4947-b360-a3ac494820b9",
+              "94990c47-ae74-48db-bb99-2f823ff6b23c"
             ]
           },
           {
             "description": "Trade agreement established with Helen",
             "type": "story_event",
             "ref": [
-              "npc_007",
-              "qst_004"
+              "54b54de8-19e2-4e8e-86f1-4388f5823334",
+              "78485dcc-5121-4bb2-9c44-2935349d0651"
             ]
           },
           {
             "description": "Quarry ROUS quest accepted from Helen",
             "type": "story_event",
             "ref": [
-              "npc_007",
-              "qst_005"
+              "54b54de8-19e2-4e8e-86f1-4388f5823334",
+              "6e84d955-bba8-4d07-b1ac-573fba01f1da"
             ]
           },
           {
             "description": "The 'Goonies Slide' — party entered the Rat Cave via water slide",
             "type": "combat_highlight",
-            "ref": "cbt_004"
+            "ref": "90de8d99-fc0d-407e-8de0-66f5d7494b55"
           }
         ],
         "opening_scene": "Morning after. The party on the road with Carly's wagon, heading north.",
@@ -1679,7 +1656,7 @@
       "mechanical_notes": [
         {
           "type": "player_absence",
-          "pc_id": "pc_002",
+          "pc_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
           "note": "Malachite piloted by David due to Lance's work schedule."
         }
       ],
@@ -1687,31 +1664,32 @@
     },
     {
       "_object_type": "session",
-      "id": "session_005",
+      "id": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "legacy_id": "session_005",
       "title": "The Road West",
       "date": "2026-03-17",
       "mechanics": {
         "combats": [
-          "cbt_004",
-          "cbt_005"
+          "90de8d99-fc0d-407e-8de0-66f5d7494b55",
+          "02fce0b8-9553-4133-974e-9d1669cb9b22"
         ],
         "level_ups": [],
         "items_found": [
-          "item_010"
+          "29ba6371-58a9-4209-a8f2-2ee6d94399eb"
         ],
         "npcs_met": [
-          "npc_013"
+          "342813de-f19d-476a-ba7b-90ef06225021"
         ],
         "npcs_lost": [],
         "quests_opened": [
-          "qst_003"
+          "e4d4ad3c-4aad-4eb6-80c2-0fb3d741df90"
         ],
         "quests_closed": [
-          "qst_005"
+          "6e84d955-bba8-4d07-b1ac-573fba01f1da"
         ],
         "locations_visited": [
-          "loc_002",
-          "loc_005"
+          "42598c87-c1ea-4b13-ba67-70b3d73da002",
+          "23024fd5-77fd-4e07-b494-fabc83b89ab5"
         ],
         "player_absences": []
       },
@@ -1722,29 +1700,29 @@
           {
             "description": "ROUS nest cleared — cbt_004 concluded",
             "type": "story_event",
-            "ref": "cbt_004"
+            "ref": "90de8d99-fc0d-407e-8de0-66f5d7494b55"
           },
           {
             "description": "Emerald reward received from Krustie Gnome",
             "type": "story_event",
             "ref": [
-              "qst_005",
-              "item_010",
-              "npc_003"
+              "6e84d955-bba8-4d07-b1ac-573fba01f1da",
+              "29ba6371-58a9-4209-a8f2-2ee6d94399eb",
+              "6b7c714b-9093-4408-b55c-366a2b4465ed"
             ]
           },
           {
             "description": "Stone-trading caravan met; escort contract to Lake Town accepted",
             "type": "story_event",
             "ref": [
-              "npc_013",
-              "qst_003"
+              "342813de-f19d-476a-ba7b-90ef06225021",
+              "e4d4ad3c-4aad-4eb6-80c2-0fb3d741df90"
             ]
           },
           {
             "description": "Goblin ambush — cbt_005 begins, paused at end of session",
             "type": "combat_highlight",
-            "ref": "cbt_005"
+            "ref": "02fce0b8-9553-4133-974e-9d1669cb9b22"
           }
         ],
         "opening_scene": "Picking up mid-fight — cbt_004, Round 3, the Rat Cave.",
@@ -1762,35 +1740,36 @@
     },
     {
       "_object_type": "session",
-      "id": "session_006",
+      "id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+      "legacy_id": "session_006",
       "title": "The Larkspur Dragons",
       "date": "2026-04-02",
       "mechanics": {
         "combats": [],
         "level_ups": [
-          "pc_001",
-          "pc_002",
-          "pc_003",
-          "pc_004",
-          "pc_005",
-          "pc_006"
+          "d274d0ec-9875-488d-8ea2-f7f2615db019",
+          "c86bf29f-a914-4e05-9528-3a15d626213d",
+          "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+          "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+          "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+          "4aea310d-df5b-491b-910f-ddf974d1a351"
         ],
         "items_found": [
-          "item_011"
+          "876df906-74e3-4e59-b500-1d9830019a89"
         ],
         "npcs_met": [],
         "npcs_lost": [],
         "quests_opened": [],
         "quests_closed": [
-          "qst_003"
+          "e4d4ad3c-4aad-4eb6-80c2-0fb3d741df90"
         ],
         "locations_visited": [
-          "loc_011"
+          "eaba1342-500b-4ff5-b9b5-3a2f4dff7185"
         ],
         "player_absences": [
           {
             "type": "player_absence",
-            "pc_id": "pc_002",
+            "pc_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
             "note": "Malachite piloted by David due to Lance's work schedule."
           }
         ]
@@ -1812,7 +1791,7 @@
       "mechanical_notes": [
         {
           "type": "player_absence",
-          "pc_id": "pc_002",
+          "pc_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
           "note": "Malachite piloted by David due to Lance's work schedule."
         }
       ],
@@ -1820,7 +1799,8 @@
     },
     {
       "_object_type": "session",
-      "id": "session_007",
+      "id": "9fb74b07-6655-4fda-b5f3-c5f12bc79254",
+      "legacy_id": "session_007",
       "title": "The Road to Belfar",
       "date": "2026-04-09",
       "mechanics": {
@@ -1855,7 +1835,8 @@
   "npc_directory": [
     {
       "_object_type": "npc",
-      "id": "npc_001",
+      "id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "legacy_id": "npc_001",
       "name": "Ched Warmfire",
       "mechanics": {
         "disposition": "deceased",
@@ -1865,42 +1846,42 @@
         "role": "village_leader",
         "status_event": {
           "type": "death",
-          "session": "session_003",
-          "combat": "cbt_002",
+          "session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+          "combat": "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d",
           "cause": "Killed by Pylon spawns defending Bagyers Farm"
         },
         "relationships": [
           {
-            "entity_id": "pc_005",
+            "entity_id": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
             "type": "uncle"
           },
           {
-            "entity_id": "npc_004",
+            "entity_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_009",
+            "entity_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_010",
+            "entity_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_014",
+            "entity_id": "c63bead9-ef05-441e-b27d-add362e92975",
             "type": "former_party_member"
           },
           {
-            "entity_id": "pc_002",
+            "entity_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
             "type": "found"
           },
           {
-            "entity_id": "pc_004",
+            "entity_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
             "type": "found"
           }
         ],
-        "first_appeared": "session_001",
-        "last_appeared": "session_003"
+        "first_appeared": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+        "last_appeared": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88"
       },
       "narrative": {
         "description": "A barrel-chested Halfling gone grey and hard. Smiles rarely and means it every time. Found Malachite and Asphodel on the road during his adventuring years and brought them to Riverbend, knowing they would be safe there.",
@@ -1919,7 +1900,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_003",
+      "id": "6b7c714b-9093-4408-b55c-366a2b4465ed",
+      "legacy_id": "npc_003",
       "name": "Krustie Gnome",
       "mechanics": {
         "disposition": "neutral",
@@ -1930,16 +1912,16 @@
         "status_event": null,
         "relationships": [
           {
-            "entity_id": "loc_002",
+            "entity_id": "42598c87-c1ea-4b13-ba67-70b3d73da002",
             "type": "resides_in"
           },
           {
-            "entity_id": "qst_005",
+            "entity_id": "6e84d955-bba8-4d07-b1ac-573fba01f1da",
             "type": "quest_contact"
           }
         ],
-        "first_appeared": "session_004",
-        "last_appeared": "session_005"
+        "first_appeared": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+        "last_appeared": "4478195d-34d9-46ec-b316-2546ca48bf34"
       },
       "narrative": {
         "description": "Small camp presence at the Quarry. No-nonsense, directed the party to the Rat Cave without ceremony.",
@@ -1957,7 +1939,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_004",
+      "id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "legacy_id": "npc_004",
       "name": "Blair",
       "mechanics": {
         "disposition": "friendly",
@@ -1968,31 +1951,31 @@
         "status_event": null,
         "relationships": [
           {
-            "entity_id": "npc_001",
+            "entity_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_009",
+            "entity_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_010",
+            "entity_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_014",
+            "entity_id": "c63bead9-ef05-441e-b27d-add362e92975",
             "type": "former_party_member"
           },
           {
-            "entity_id": "qst_001",
+            "entity_id": "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
             "type": "quest_giver"
           },
           {
-            "entity_id": "qst_004",
+            "entity_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
             "type": "quest_giver"
           }
         ],
-        "first_appeared": "session_001",
+        "first_appeared": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
         "last_appeared": null
       },
       "narrative": {
@@ -2011,7 +1994,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_007",
+      "id": "54b54de8-19e2-4e8e-86f1-4388f5823334",
+      "legacy_id": "npc_007",
       "name": "Helen",
       "mechanics": {
         "disposition": "friendly",
@@ -2022,19 +2006,19 @@
         "status_event": null,
         "relationships": [
           {
-            "entity_id": "loc_004",
+            "entity_id": "899e5762-77ff-4034-9620-96b4712e59eb",
             "type": "resides_in"
           },
           {
-            "entity_id": "qst_004",
+            "entity_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
             "type": "quest_contact"
           },
           {
-            "entity_id": "qst_005",
+            "entity_id": "6e84d955-bba8-4d07-b1ac-573fba01f1da",
             "type": "quest_giver"
           }
         ],
-        "first_appeared": "session_004",
+        "first_appeared": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
         "last_appeared": null
       },
       "narrative": {
@@ -2053,7 +2037,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_008",
+      "id": "d77743c5-103b-4947-b360-a3ac494820b9",
+      "legacy_id": "npc_008",
       "name": "Carly",
       "mechanics": {
         "disposition": "friendly",
@@ -2064,16 +2049,16 @@
         "status_event": null,
         "relationships": [
           {
-            "entity_id": "loc_004",
+            "entity_id": "899e5762-77ff-4034-9620-96b4712e59eb",
             "type": "delivered_to"
           },
           {
-            "entity_id": "qst_004",
+            "entity_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
             "type": "escorted_by"
           }
         ],
-        "first_appeared": "session_004",
-        "last_appeared": "session_004"
+        "first_appeared": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+        "last_appeared": "816bec76-ff80-4a15-9708-bfd4f4f8adf9"
       },
       "narrative": {
         "description": "Caravan owner escorted to Menne's Ranch during the Axe Beak ambush in session_004.",
@@ -2091,7 +2076,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_009",
+      "id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "legacy_id": "npc_009",
       "name": "Bessel",
       "mechanics": {
         "disposition": "deceased",
@@ -2107,27 +2093,27 @@
         },
         "relationships": [
           {
-            "entity_id": "npc_001",
+            "entity_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_010",
+            "entity_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_014",
+            "entity_id": "c63bead9-ef05-441e-b27d-add362e92975",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_004",
+            "entity_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
             "type": "former_party_member"
           },
           {
-            "entity_id": "item_002",
+            "entity_id": "4120da64-0c3b-4204-99a2-5f84dc7f9c49",
             "type": "owned"
           }
         ],
-        "first_appeared": "session_001",
+        "first_appeared": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
         "last_appeared": null
       },
       "narrative": {
@@ -2146,7 +2132,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_010",
+      "id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "legacy_id": "npc_010",
       "name": "Hawk",
       "mechanics": {
         "disposition": "deceased",
@@ -2162,23 +2149,23 @@
         },
         "relationships": [
           {
-            "entity_id": "npc_001",
+            "entity_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_009",
+            "entity_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_004",
+            "entity_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_014",
+            "entity_id": "c63bead9-ef05-441e-b27d-add362e92975",
             "type": "former_party_member"
           }
         ],
-        "first_appeared": "session_001",
+        "first_appeared": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
         "last_appeared": null
       },
       "narrative": {
@@ -2197,7 +2184,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_011",
+      "id": "1d6a0a99-2568-4496-a565-2fbde67acd8b",
+      "legacy_id": "npc_011",
       "name": "Darnell",
       "mechanics": {
         "disposition": "unknown",
@@ -2208,19 +2196,19 @@
         "status_event": null,
         "relationships": [
           {
-            "entity_id": "loc_006",
+            "entity_id": "73966d25-57c2-4707-93a1-9c858d1d9f11",
             "type": "resides_in"
           },
           {
-            "entity_id": "qst_001",
+            "entity_id": "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
             "type": "quest_contact"
           },
           {
-            "entity_id": "item_001",
+            "entity_id": "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
             "type": "marked_on"
           }
         ],
-        "first_appeared": "session_003",
+        "first_appeared": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
         "last_appeared": null
       },
       "narrative": {
@@ -2239,7 +2227,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_012",
+      "id": "7ffa63ec-318f-476c-a077-827a959b9bcb",
+      "legacy_id": "npc_012",
       "name": "Kiki",
       "mechanics": {
         "disposition": "unknown",
@@ -2250,15 +2239,15 @@
         "status_event": null,
         "relationships": [
           {
-            "entity_id": "loc_012",
+            "entity_id": "21e3c9d6-b2d0-432a-9b15-95605f926c37",
             "type": "based_in"
           },
           {
-            "entity_id": "item_001",
+            "entity_id": "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
             "type": "marked_on"
           }
         ],
-        "first_appeared": "session_003",
+        "first_appeared": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
         "last_appeared": null
       },
       "narrative": {
@@ -2277,7 +2266,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_013",
+      "id": "342813de-f19d-476a-ba7b-90ef06225021",
+      "legacy_id": "npc_013",
       "name": "The Low-Level Wizard",
       "mechanics": {
         "disposition": "unknown",
@@ -2288,11 +2278,11 @@
         "status_event": null,
         "relationships": [
           {
-            "entity_id": "qst_003",
+            "entity_id": "e4d4ad3c-4aad-4eb6-80c2-0fb3d741df90",
             "type": "escort_subject"
           }
         ],
-        "first_appeared": "session_005",
+        "first_appeared": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "last_appeared": null
       },
       "narrative": {
@@ -2311,7 +2301,8 @@
     },
     {
       "_object_type": "npc",
-      "id": "npc_014",
+      "id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "legacy_id": "npc_014",
       "name": "Rufus",
       "mechanics": {
         "disposition": "friendly",
@@ -2322,31 +2313,31 @@
         "status_event": null,
         "relationships": [
           {
-            "entity_id": "pc_004",
+            "entity_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
             "type": "mentor"
           },
           {
-            "entity_id": "npc_001",
+            "entity_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_004",
+            "entity_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_009",
+            "entity_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
             "type": "former_party_member"
           },
           {
-            "entity_id": "npc_010",
+            "entity_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
             "type": "former_party_member"
           },
           {
-            "entity_id": "loc_001",
+            "entity_id": "fc8a09a1-ab44-46aa-9e0c-1b16a2bae110",
             "type": "resides_in"
           }
         ],
-        "first_appeared": "session_001",
+        "first_appeared": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
         "last_appeared": null
       },
       "narrative": {
@@ -2367,13 +2358,14 @@
   "bestiary": [
     {
       "_object_type": "monster",
-      "id": "mon_001",
+      "id": "c0d2adb1-386e-42d9-ae31-4a3ce502a310",
+      "legacy_id": "mon_001",
       "name": "Rock Lobster",
       "mechanics": {
         "reliability": "confirmed",
-        "first_encountered": "session_002",
+        "first_encountered": "48e67e5e-0ae6-45da-b823-0299b250e67c",
         "combat_appearances": [
-          "cbt_002"
+          "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d"
         ],
         "creature_type": "Monstrosity",
         "observed_abilities": [
@@ -2404,13 +2396,14 @@
     },
     {
       "_object_type": "monster",
-      "id": "mon_002",
+      "id": "e1b7f481-1cdd-477d-a508-59362d1bc1b5",
+      "legacy_id": "mon_002",
       "name": "Axe Beak",
       "mechanics": {
         "reliability": "confirmed",
-        "first_encountered": "session_004",
+        "first_encountered": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
         "combat_appearances": [
-          "cbt_003"
+          "94990c47-ae74-48db-bb99-2f823ff6b23c"
         ],
         "creature_type": "Beast",
         "observed_abilities": [
@@ -2439,14 +2432,15 @@
     },
     {
       "_object_type": "monster",
-      "id": "mon_003",
+      "id": "7db56047-b857-4987-bd3f-b67010adf11e",
+      "legacy_id": "mon_003",
       "name": "Vespon Swarm",
       "mechanics": {
         "reliability": "confirmed",
-        "first_encountered": "session_002",
+        "first_encountered": "48e67e5e-0ae6-45da-b823-0299b250e67c",
         "combat_appearances": [
-          "cbt_001",
-          "cbt_003"
+          "cd5e8175-7e7c-4d0e-9a20-d48f280102f2",
+          "94990c47-ae74-48db-bb99-2f823ff6b23c"
         ],
         "creature_type": "Swarm (insect)",
         "observed_abilities": [
@@ -2483,13 +2477,14 @@
     },
     {
       "_object_type": "monster",
-      "id": "mon_004",
+      "id": "302ca3fc-ea4f-40c9-b77b-d57138cc6785",
+      "legacy_id": "mon_004",
       "name": "Goblins",
       "mechanics": {
         "reliability": "confirmed",
-        "first_encountered": "session_005",
+        "first_encountered": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "combat_appearances": [
-          "cbt_005"
+          "02fce0b8-9553-4133-974e-9d1669cb9b22"
         ],
         "creature_type": "Humanoid (goblinoid)",
         "observed_abilities": [
@@ -2531,13 +2526,14 @@
     },
     {
       "_object_type": "monster",
-      "id": "mon_005",
+      "id": "2da77d12-00fe-4682-b715-5e88e42104cf",
+      "legacy_id": "mon_005",
       "name": "Vespon Queen",
       "mechanics": {
         "reliability": "confirmed",
-        "first_encountered": "session_002",
+        "first_encountered": "48e67e5e-0ae6-45da-b823-0299b250e67c",
         "combat_appearances": [
-          "cbt_001"
+          "cd5e8175-7e7c-4d0e-9a20-d48f280102f2"
         ],
         "creature_type": "Monstrosity",
         "observed_abilities": [
@@ -2572,13 +2568,14 @@
     },
     {
       "_object_type": "monster",
-      "id": "mon_007",
+      "id": "61aed323-0e64-4953-a2dd-061a77e90599",
+      "legacy_id": "mon_007",
       "name": "Ogre",
       "mechanics": {
         "reliability": "confirmed",
-        "first_encountered": "session_005",
+        "first_encountered": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "combat_appearances": [
-          "cbt_005"
+          "02fce0b8-9553-4133-974e-9d1669cb9b22"
         ],
         "creature_type": "Giant",
         "observed_abilities": [
@@ -2613,13 +2610,14 @@
     },
     {
       "_object_type": "monster",
-      "id": "mon_008",
+      "id": "bf62ea56-6f5b-4e53-8628-d86b465cc859",
+      "legacy_id": "mon_008",
       "name": "Giant Rat (ROUS)",
       "mechanics": {
         "reliability": "confirmed",
-        "first_encountered": "session_004",
+        "first_encountered": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
         "combat_appearances": [
-          "cbt_004"
+          "90de8d99-fc0d-407e-8de0-66f5d7494b55"
         ],
         "creature_type": "Beast",
         "observed_abilities": [
@@ -2655,15 +2653,16 @@
   "world_lore": [
     {
       "_object_type": "lore",
-      "id": "lore_001",
+      "id": "63adc36d-ce4e-4313-8e81-a4598c63740c",
+      "legacy_id": "lore_001",
       "title": "Historical Anomaly of Pylons",
       "mechanics": {
         "reliability": "confirmed",
-        "source": "pc_001",
+        "source": "d274d0ec-9875-488d-8ea2-f7f2615db019",
         "source_type": "scholarly_research",
-        "first_established": "session_001",
+        "first_established": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
         "quest_refs": [
-          "qst_002"
+          "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9"
         ],
         "verifiable_fact": "No record of Pylon structures exists in any chronicle prior to approximately 5 years ago."
       },
@@ -2676,16 +2675,17 @@
     },
     {
       "_object_type": "lore",
-      "id": "lore_002",
+      "id": "421e7307-4401-4ca0-a6fd-44e8dec6437d",
+      "legacy_id": "lore_002",
       "title": "Ched's Original Party",
       "mechanics": {
         "reliability": "confirmed",
-        "source": "npc_004",
+        "source": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
         "source_type": "npc_testimony",
-        "first_established": "session_003",
+        "first_established": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
         "quest_refs": [
-          "qst_001",
-          "qst_002"
+          "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+          "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9"
         ],
         "verifiable_fact": "Ched's original party of five was decimated: Bessel (Wizard) and Hawk (Ranger) were killed; Ched (Fighter), Blair (Cleric), and Rufus (Monk) survived and returned to Riverbend."
       },
@@ -2698,19 +2698,20 @@
     },
     {
       "_object_type": "lore",
-      "id": "lore_003",
+      "id": "5466ee22-a053-4018-9c2a-f7fb27628463",
+      "legacy_id": "lore_003",
       "title": "Riverbend — Founding and Character",
       "mechanics": {
         "category": "settlement_history",
         "canon_status": "confirmed",
-        "first_revealed": "session_001",
+        "first_revealed": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
         "related_locations": [
-          "loc_001"
+          "fc8a09a1-ab44-46aa-9e0c-1b16a2bae110"
         ],
         "related_npcs": [
-          "npc_001",
-          "npc_004",
-          "npc_014"
+          "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+          "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+          "c63bead9-ef05-441e-b27d-add362e92975"
         ]
       },
       "narrative": {
@@ -2723,44 +2724,45 @@
   "inventory_and_loot": [
     {
       "_object_type": "item",
-      "id": "item_001",
+      "id": "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
+      "legacy_id": "item_001",
       "name": "Ched's Map",
       "mechanics": {
         "item_type": "map",
         "is_quest_relevant": true,
         "quest_refs": [
-          "qst_001",
-          "qst_002"
+          "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+          "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9"
         ],
-        "current_holder": "pc_005",
-        "found_session": "session_003",
-        "found_location": "loc_003",
+        "current_holder": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+        "found_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "found_location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "provenance": "Belonged to Ched Warmfire. Passed to Goli at the scene of his death, session_003. Ched had been keeping and adding to it since the decimation of his original party.",
         "contents": {
           "markers": [
             {
               "label": "Darnell",
-              "location_ref": "loc_006",
-              "npc_ref": "npc_011"
+              "location_ref": "73966d25-57c2-4707-93a1-9c858d1d9f11",
+              "npc_ref": "1d6a0a99-2568-4496-a565-2fbde67acd8b"
             },
             {
               "label": "Kiki",
-              "location_ref": "loc_012",
-              "npc_ref": "npc_012"
+              "location_ref": "21e3c9d6-b2d0-432a-9b15-95605f926c37",
+              "npc_ref": "7ffa63ec-318f-476c-a077-827a959b9bcb"
             },
             {
               "label": "Fish",
-              "location_ref": "loc_009",
+              "location_ref": "39c338b2-0c0e-4e7f-b452-5214f07d6b82",
               "npc_ref": null
             },
             {
               "label": "?",
-              "location_ref": "loc_010",
+              "location_ref": "01e75336-bd40-4a1e-8e4d-f1befbf1c83e",
               "npc_ref": null
             },
             {
               "label": "X",
-              "location_ref": "loc_013",
+              "location_ref": "0e73edb7-3f95-46aa-81b9-994883bf48ca",
               "npc_ref": null
             }
           ]
@@ -2775,17 +2777,18 @@
     },
     {
       "_object_type": "item",
-      "id": "item_002",
+      "id": "4120da64-0c3b-4204-99a2-5f84dc7f9c49",
+      "legacy_id": "item_002",
       "name": "Bessel's Spellbook",
       "mechanics": {
         "item_type": "spellbook",
         "is_quest_relevant": false,
         "quest_refs": [
-          "qst_002"
+          "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9"
         ],
-        "current_holder": "pc_001",
-        "found_session": "session_003",
-        "found_location": "loc_003",
+        "current_holder": "d274d0ec-9875-488d-8ea2-f7f2615db019",
+        "found_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "found_location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "provenance": "Belonged to Bessel (npc_009), Wizard of Ched's original party. Recovered from the Bagyers Farm site during session_003.",
         "contents": {
           "spells": [
@@ -2843,7 +2846,7 @@
             }
           ],
           "transcribed_by": [
-            "pc_001"
+            "d274d0ec-9875-488d-8ea2-f7f2615db019"
           ]
         }
       },
@@ -2856,15 +2859,16 @@
     },
     {
       "_object_type": "item",
-      "id": "item_003",
+      "id": "2db127b4-2f69-44db-b67b-fd7804229194",
+      "legacy_id": "item_003",
       "name": "Potions of Healing",
       "mechanics": {
         "item_type": "consumable",
         "is_quest_relevant": false,
         "quest_refs": [],
-        "current_holder": "pc_005",
-        "found_session": "session_003",
-        "found_location": "loc_003",
+        "current_holder": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+        "found_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "found_location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "provenance": "Found in an adventuring chest at Bagyers Farm, session_003. 4 potions recovered.",
         "contents": null
       },
@@ -2877,15 +2881,16 @@
     },
     {
       "_object_type": "item",
-      "id": "item_004",
+      "id": "809ef0c5-265d-4249-97ef-1e632f14cc5a",
+      "legacy_id": "item_004",
       "name": "+1 Moon Sickle",
       "mechanics": {
         "item_type": "weapon",
         "is_quest_relevant": false,
         "quest_refs": [],
-        "current_holder": "pc_006",
-        "found_session": "session_003",
-        "found_location": "loc_003",
+        "current_holder": "4aea310d-df5b-491b-910f-ddf974d1a351",
+        "found_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "found_location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "provenance": "Found in an adventuring chest at Bagyers Farm, session_003. Previous owner unknown.",
         "contents": null
       },
@@ -2898,15 +2903,16 @@
     },
     {
       "_object_type": "item",
-      "id": "item_005",
+      "id": "08a496eb-9a76-4fbe-a2ef-c5c4a3e04f57",
+      "legacy_id": "item_005",
       "name": "Boots of Striding and Springing",
       "mechanics": {
         "item_type": "wondrous item",
         "is_quest_relevant": false,
         "quest_refs": [],
-        "current_holder": "pc_002",
-        "found_session": "session_003",
-        "found_location": "loc_003",
+        "current_holder": "c86bf29f-a914-4e05-9528-3a15d626213d",
+        "found_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "found_location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "provenance": "Found in an adventuring chest at Bagyers Farm, session_003. Previous owner unknown.",
         "contents": null
       },
@@ -2919,15 +2925,16 @@
     },
     {
       "_object_type": "item",
-      "id": "item_006",
+      "id": "7dc8cc04-1c3a-4ec9-8f71-ae428d925d66",
+      "legacy_id": "item_006",
       "name": "Cloak of Protection",
       "mechanics": {
         "item_type": "wondrous item",
         "is_quest_relevant": false,
         "quest_refs": [],
-        "current_holder": "pc_003",
-        "found_session": "session_003",
-        "found_location": "loc_003",
+        "current_holder": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+        "found_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "found_location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "provenance": "Found in an adventuring chest at Bagyers Farm, session_003. Previous owner unknown.",
         "contents": null
       },
@@ -2940,15 +2947,16 @@
     },
     {
       "_object_type": "item",
-      "id": "item_007",
+      "id": "e3e278a7-b1aa-4e91-b964-783b74edbc53",
+      "legacy_id": "item_007",
       "name": "Gloves of Thievery",
       "mechanics": {
         "item_type": "wondrous item",
         "is_quest_relevant": false,
         "quest_refs": [],
-        "current_holder": "pc_005",
-        "found_session": "session_003",
-        "found_location": "loc_003",
+        "current_holder": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+        "found_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "found_location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "provenance": "Found in an adventuring chest at Bagyers Farm, session_003. Previous owner unknown.",
         "contents": null
       },
@@ -2961,15 +2969,16 @@
     },
     {
       "_object_type": "item",
-      "id": "item_008",
+      "id": "693df217-e136-46f0-a233-0bc6aa8065cb",
+      "legacy_id": "item_008",
       "name": "+1 Brass Knuckles",
       "mechanics": {
         "item_type": "weapon",
         "is_quest_relevant": false,
         "quest_refs": [],
-        "current_holder": "pc_004",
-        "found_session": "session_003",
-        "found_location": "loc_003",
+        "current_holder": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+        "found_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "found_location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "provenance": "Found in an adventuring chest at Bagyers Farm, session_003. Previous owner unknown.",
         "contents": null
       },
@@ -2982,17 +2991,18 @@
     },
     {
       "_object_type": "item",
-      "id": "item_009",
+      "id": "dfda0b06-b707-481b-b67a-c76793407841",
+      "legacy_id": "item_009",
       "name": "Trade Commission",
       "mechanics": {
         "item_type": "currency",
         "is_quest_relevant": false,
         "quest_refs": [
-          "qst_004"
+          "78485dcc-5121-4bb2-9c44-2935349d0651"
         ],
         "current_holder": null,
-        "found_session": "session_004",
-        "found_location": "loc_004",
+        "found_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+        "found_location": "899e5762-77ff-4034-9620-96b4712e59eb",
         "provenance": "30 GP commission paid by Helen at Menne's Ranch upon completion of the Potion Supply Chain quest, session_004.",
         "contents": null
       },
@@ -3005,17 +3015,18 @@
     },
     {
       "_object_type": "item",
-      "id": "item_010",
+      "id": "29ba6371-58a9-4209-a8f2-2ee6d94399eb",
+      "legacy_id": "item_010",
       "name": "Unrefined Emerald",
       "mechanics": {
         "item_type": "currency",
         "is_quest_relevant": false,
         "quest_refs": [
-          "qst_005"
+          "6e84d955-bba8-4d07-b1ac-573fba01f1da"
         ],
         "current_holder": "party_shared",
-        "found_session": "session_005",
-        "found_location": "loc_002",
+        "found_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+        "found_location": "42598c87-c1ea-4b13-ba67-70b3d73da002",
         "provenance": "Reward from Helen at Menne's Ranch for clearing the ROUS infestation (qst_005). Received session_005. Valued at approximately 100 GP unrefined.",
         "contents": null
       },
@@ -3028,14 +3039,15 @@
     },
     {
       "_object_type": "item",
-      "id": "item_011",
+      "id": "876df906-74e3-4e59-b500-1d9830019a89",
+      "legacy_id": "item_011",
       "name": "Immovable Rod",
       "mechanics": {
         "item_type": "wondrous_item",
         "is_quest_relevant": false,
         "quest_refs": [],
-        "current_holder": "pc_004",
-        "found_session": "session_006",
+        "current_holder": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+        "found_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
         "found_location": null,
         "provenance": "Loot from session_006 — session not yet logged in Chronicle.",
         "contents": null
@@ -3051,7 +3063,8 @@
   "locations": [
     {
       "_object_type": "location",
-      "id": "loc_001",
+      "id": "fc8a09a1-ab44-46aa-9e0c-1b16a2bae110",
+      "legacy_id": "loc_001",
       "name": "Riverbend",
       "parent_location": null,
       "mechanics": {
@@ -3061,19 +3074,19 @@
         "combat_history": [],
         "sessions_visited": [],
         "connected_to": [
-          "loc_003",
-          "loc_007"
+          "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
+          "233f72d8-59df-4928-ae14-27ecfcd4d80b"
         ],
         "notable_entities": [
-          "npc_001",
-          "npc_004",
-          "npc_014",
-          "pc_001",
-          "pc_002",
-          "pc_003",
-          "pc_004",
-          "pc_005",
-          "pc_006"
+          "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+          "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+          "c63bead9-ef05-441e-b27d-add362e92975",
+          "d274d0ec-9875-488d-8ea2-f7f2615db019",
+          "c86bf29f-a914-4e05-9528-3a15d626213d",
+          "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+          "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+          "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+          "4aea310d-df5b-491b-910f-ddf974d1a351"
         ]
       },
       "narrative": {
@@ -3099,7 +3112,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_002",
+      "id": "42598c87-c1ea-4b13-ba67-70b3d73da002",
+      "legacy_id": "loc_002",
       "name": "The Quarry",
       "parent_location": null,
       "mechanics": {
@@ -3107,17 +3121,17 @@
         "region": "Southwest — 2 days from Menne's Ranch",
         "type": "mining_site",
         "combat_history": [
-          "cbt_005"
+          "02fce0b8-9553-4133-974e-9d1669cb9b22"
         ],
         "sessions_visited": [
-          "session_005"
+          "4478195d-34d9-46ec-b316-2546ca48bf34"
         ],
         "connected_to": [
-          "loc_004",
-          "loc_005"
+          "899e5762-77ff-4034-9620-96b4712e59eb",
+          "23024fd5-77fd-4e07-b494-fabc83b89ab5"
         ],
         "notable_entities": [
-          "npc_003"
+          "6b7c714b-9093-4408-b55c-366a2b4465ed"
         ]
       },
       "narrative": {
@@ -3139,7 +3153,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_003",
+      "id": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
+      "legacy_id": "loc_003",
       "name": "Bagyers Farm",
       "parent_location": null,
       "mechanics": {
@@ -3147,18 +3162,18 @@
         "region": "Riverbend outskirts",
         "type": "farm",
         "combat_history": [
-          "cbt_002"
+          "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d"
         ],
         "sessions_visited": [
-          "session_002",
-          "session_003"
+          "48e67e5e-0ae6-45da-b823-0299b250e67c",
+          "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88"
         ],
         "connected_to": [
-          "loc_001",
-          "loc_007"
+          "fc8a09a1-ab44-46aa-9e0c-1b16a2bae110",
+          "233f72d8-59df-4928-ae14-27ecfcd4d80b"
         ],
         "notable_entities": [
-          "npc_001"
+          "642e6635-92e5-46cb-a8fe-b6c9a2a1390f"
         ]
       },
       "narrative": {
@@ -3181,7 +3196,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_004",
+      "id": "899e5762-77ff-4034-9620-96b4712e59eb",
+      "legacy_id": "loc_004",
       "name": "Menne's Ranch",
       "parent_location": null,
       "mechanics": {
@@ -3189,17 +3205,17 @@
         "region": "North of Riverbend",
         "type": "ranch",
         "combat_history": [
-          "cbt_003"
+          "94990c47-ae74-48db-bb99-2f823ff6b23c"
         ],
         "sessions_visited": [
-          "session_004"
+          "816bec76-ff80-4a15-9708-bfd4f4f8adf9"
         ],
         "connected_to": [
-          "loc_001",
-          "loc_002"
+          "fc8a09a1-ab44-46aa-9e0c-1b16a2bae110",
+          "42598c87-c1ea-4b13-ba67-70b3d73da002"
         ],
         "notable_entities": [
-          "npc_007"
+          "54b54de8-19e2-4e8e-86f1-4388f5823334"
         ]
       },
       "narrative": {
@@ -3222,7 +3238,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_005",
+      "id": "23024fd5-77fd-4e07-b494-fabc83b89ab5",
+      "legacy_id": "loc_005",
       "name": "The Rat Cave",
       "parent_location": null,
       "mechanics": {
@@ -3230,14 +3247,14 @@
         "region": "Near The Quarry",
         "type": "dungeon",
         "combat_history": [
-          "cbt_004"
+          "90de8d99-fc0d-407e-8de0-66f5d7494b55"
         ],
         "sessions_visited": [
-          "session_004",
-          "session_005"
+          "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+          "4478195d-34d9-46ec-b316-2546ca48bf34"
         ],
         "connected_to": [
-          "loc_002"
+          "42598c87-c1ea-4b13-ba67-70b3d73da002"
         ],
         "notable_entities": []
       },
@@ -3261,7 +3278,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_006",
+      "id": "73966d25-57c2-4707-93a1-9c858d1d9f11",
+      "legacy_id": "loc_006",
       "name": "Belfar",
       "parent_location": null,
       "mechanics": {
@@ -3272,7 +3290,7 @@
         "sessions_visited": [],
         "connected_to": [],
         "notable_entities": [
-          "npc_011"
+          "1d6a0a99-2568-4496-a565-2fbde67acd8b"
         ]
       },
       "narrative": {
@@ -3290,7 +3308,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_007",
+      "id": "233f72d8-59df-4928-ae14-27ecfcd4d80b",
+      "legacy_id": "loc_007",
       "name": "The Northern Woods",
       "parent_location": null,
       "mechanics": {
@@ -3298,17 +3317,17 @@
         "region": "North of Riverbend",
         "type": "wilderness",
         "combat_history": [
-          "cbt_001",
-          "cbt_006"
+          "cd5e8175-7e7c-4d0e-9a20-d48f280102f2",
+          "4db6278a-4c03-43d2-a39e-482b033fbc8f"
         ],
         "sessions_visited": [
-          "session_001",
-          "session_002"
+          "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+          "48e67e5e-0ae6-45da-b823-0299b250e67c"
         ],
         "connected_to": [
-          "loc_001",
-          "loc_003",
-          "loc_008"
+          "fc8a09a1-ab44-46aa-9e0c-1b16a2bae110",
+          "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
+          "a86a16e2-6d98-485e-a7a1-1ddfa09d9be6"
         ],
         "notable_entities": []
       },
@@ -3332,22 +3351,23 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_008",
+      "id": "a86a16e2-6d98-485e-a7a1-1ddfa09d9be6",
+      "legacy_id": "loc_008",
       "name": "Atticus's Clearing",
-      "parent_location": "loc_007",
+      "parent_location": "233f72d8-59df-4928-ae14-27ecfcd4d80b",
       "mechanics": {
         "visibility": "visited",
         "region": "Northern Woods",
         "type": "wilderness",
         "combat_history": [],
         "sessions_visited": [
-          "session_001"
+          "11f734de-23b4-4473-a1fb-7b4a18a67cc7"
         ],
         "connected_to": [
-          "loc_007"
+          "233f72d8-59df-4928-ae14-27ecfcd4d80b"
         ],
         "notable_entities": [
-          "npc_014"
+          "c63bead9-ef05-441e-b27d-add362e92975"
         ]
       },
       "narrative": {
@@ -3369,7 +3389,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_009",
+      "id": "39c338b2-0c0e-4e7f-b452-5214f07d6b82",
+      "legacy_id": "loc_009",
       "name": "Sholes Ford",
       "parent_location": null,
       "mechanics": {
@@ -3396,7 +3417,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_010",
+      "id": "01e75336-bd40-4a1e-8e4d-f1befbf1c83e",
+      "legacy_id": "loc_010",
       "name": "Western Unknown",
       "parent_location": null,
       "mechanics": {
@@ -3423,7 +3445,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_011",
+      "id": "eaba1342-500b-4ff5-b9b5-3a2f4dff7185",
+      "legacy_id": "loc_011",
       "name": "Lake Town",
       "parent_location": null,
       "mechanics": {
@@ -3433,7 +3456,7 @@
         "combat_history": [],
         "sessions_visited": [],
         "connected_to": [
-          "loc_002"
+          "42598c87-c1ea-4b13-ba67-70b3d73da002"
         ],
         "notable_entities": []
       },
@@ -3452,7 +3475,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_012",
+      "id": "21e3c9d6-b2d0-432a-9b15-95605f926c37",
+      "legacy_id": "loc_012",
       "name": "Green Harbor",
       "parent_location": null,
       "mechanics": {
@@ -3463,7 +3487,7 @@
         "sessions_visited": [],
         "connected_to": [],
         "notable_entities": [
-          "npc_012"
+          "7ffa63ec-318f-476c-a077-827a959b9bcb"
         ]
       },
       "narrative": {
@@ -3481,7 +3505,8 @@
     },
     {
       "_object_type": "location",
-      "id": "loc_013",
+      "id": "0e73edb7-3f95-46aa-81b9-994883bf48ca",
+      "legacy_id": "loc_013",
       "name": "Southern Unknown",
       "parent_location": null,
       "mechanics": {
@@ -3510,34 +3535,36 @@
   "quest_ledger": [
     {
       "_object_type": "quest",
-      "id": "qst_001",
+      "id": "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+      "legacy_id": "qst_001",
       "title": "Avenge Uncle Ched",
       "mechanics": {
         "status": "active",
         "priority": "high",
         "category": "long-term",
         "visibility": "revealed",
-        "origin_session": "session_003",
-        "given_by": "npc_004",
+        "origin_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "given_by": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
         "reward_received": null,
         "objectives": [
           {
-            "id": "obj_001",
+            "id": "eb5dbfd2-9549-4c3c-860a-ce3d42bf5842",
+            "legacy_id": "obj_001",
             "description": "Find Darnell in Belfar to learn about Ched's past.",
             "is_completed": false,
-            "location_ref": "loc_006",
-            "npc_ref": "npc_011"
+            "location_ref": "73966d25-57c2-4707-93a1-9c858d1d9f11",
+            "npc_ref": "1d6a0a99-2568-4496-a565-2fbde67acd8b"
           }
         ],
         "progress_log": [
           {
-            "session_id": "session_003",
+            "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
             "type": "inciting_event",
             "fact": "Ched Warmfire killed by Pylon spawns during the Siege of Bagyers Farm.",
             "progress_narrative": null
           },
           {
-            "session_id": "session_003",
+            "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
             "type": "lead_acquired",
             "fact": "Blair suggested finding Darnell in Belfar. Darnell is marked on Ched's Map.",
             "progress_narrative": null
@@ -3558,34 +3585,36 @@
     },
     {
       "_object_type": "quest",
-      "id": "qst_002",
+      "id": "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9",
+      "legacy_id": "qst_002",
       "title": "The Pylon Anomaly",
       "mechanics": {
         "status": "active",
         "priority": "critical",
         "category": "long-term",
         "visibility": "revealed",
-        "origin_session": "session_001",
+        "origin_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
         "given_by": null,
         "reward_received": null,
         "objectives": [
           {
-            "id": "obj_002",
+            "id": "4e7baa92-8d2a-490e-b6ca-b6b84a37ab67",
+            "legacy_id": "obj_002",
             "description": "Seek information in Belfar about the Pylons.",
             "is_completed": false,
-            "location_ref": "loc_006",
+            "location_ref": "73966d25-57c2-4707-93a1-9c858d1d9f11",
             "npc_ref": null
           }
         ],
         "progress_log": [
           {
-            "session_id": "session_001",
+            "session_id": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
             "type": "inciting_event",
             "fact": "First Pylon structure witnessed by the group near Riverbend.",
             "progress_narrative": null
           },
           {
-            "session_id": "session_003",
+            "session_id": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
             "type": "objective_completed",
             "fact": "Bagyers Farm Pylon neutralized via Ashton's Eldritch Blast. Pylon phenomenon remains active elsewhere.",
             "progress_narrative": null
@@ -3605,14 +3634,15 @@
     },
     {
       "_object_type": "quest",
-      "id": "qst_003",
+      "id": "e4d4ad3c-4aad-4eb6-80c2-0fb3d741df90",
+      "legacy_id": "qst_003",
       "title": "Escort to Lake Town",
       "mechanics": {
         "status": "completed",
         "priority": "medium",
         "category": "short-term",
         "visibility": "revealed",
-        "origin_session": "session_005",
+        "origin_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "given_by": null,
         "reward_received": {
           "description": "36 GP contract payment (6 GP/person × 6 party members) from Lake Town upon delivery.",
@@ -3621,40 +3651,41 @@
         },
         "objectives": [
           {
-            "id": "obj_005",
+            "id": "990c5b37-715c-4c30-8d88-782f7d644759",
+            "legacy_id": "obj_005",
             "description": "Escort the stone-trading caravan to Lake Town.",
             "is_completed": true,
-            "location_ref": "loc_011",
+            "location_ref": "eaba1342-500b-4ff5-b9b5-3a2f4dff7185",
             "npc_ref": null
           }
         ],
         "progress_log": [
           {
-            "session_id": "session_005",
+            "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
             "type": "inciting_event",
             "fact": "Accepted 6 GP/person contract to escort stone-trading caravan to Lake Town.",
             "progress_narrative": null
           },
           {
-            "session_id": "session_005",
+            "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
             "type": "setback",
             "fact": "Ambushed by goblins and an Ogre mid-route. Combat paused at end of session_005.",
             "progress_narrative": null
           },
           {
-            "session_id": "session_006",
+            "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
             "type": "setback",
             "fact": "Two Larkspur dragons appeared during the goblin ambush. The escorted group was killed in the fighting.",
             "progress_narrative": null
           },
           {
-            "session_id": "session_006",
+            "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
             "type": "objective_completed",
             "fact": "Party delivered the stone cargo and the bodies of the escorted group to Lake Town. Contract fulfilled despite the loss of the clients.",
             "progress_narrative": null
           },
           {
-            "session_id": "session_006",
+            "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
             "type": "reward_received",
             "fact": "Lake Town paid the 36 GP contract. Town mourned the dead but was grateful to have them returned.",
             "progress_narrative": null
@@ -3673,34 +3704,36 @@
     },
     {
       "_object_type": "quest",
-      "id": "qst_004",
+      "id": "78485dcc-5121-4bb2-9c44-2935349d0651",
+      "legacy_id": "qst_004",
       "title": "Blair's Potion Supply Chain",
       "mechanics": {
         "status": "completed",
         "priority": "medium",
         "category": "medium-term",
         "visibility": "revealed",
-        "origin_session": "session_003",
-        "given_by": "npc_004",
+        "origin_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+        "given_by": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
         "reward_received": {
           "description": "30 GP trade commission from Helen at Menne's Ranch",
           "value_gp": 30,
           "item_refs": [
-            "item_009"
+            "dfda0b06-b707-481b-b67a-c76793407841"
           ]
         },
         "objectives": [
           {
-            "id": "obj_003",
+            "id": "297c9faa-ded0-4d85-997c-c6aa280bf9f8",
+            "legacy_id": "obj_003",
             "description": "Establish trade agreement with Helen at Menne's Ranch.",
             "is_completed": true,
-            "location_ref": "loc_004",
-            "npc_ref": "npc_007"
+            "location_ref": "899e5762-77ff-4034-9620-96b4712e59eb",
+            "npc_ref": "54b54de8-19e2-4e8e-86f1-4388f5823334"
           }
         ],
         "progress_log": [
           {
-            "session_id": "session_004",
+            "session_id": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
             "type": "objective_completed",
             "fact": "Escorted Carly (npc_008) to Menne's Ranch and established trade agreement with Helen (npc_007).",
             "progress_narrative": null
@@ -3716,46 +3749,48 @@
     },
     {
       "_object_type": "quest",
-      "id": "qst_005",
+      "id": "6e84d955-bba8-4d07-b1ac-573fba01f1da",
+      "legacy_id": "qst_005",
       "title": "The Quarry ROUS Problem",
       "mechanics": {
         "status": "completed",
         "priority": "medium",
         "category": "short-term",
         "visibility": "revealed",
-        "origin_session": "session_004",
-        "given_by": "npc_007",
+        "origin_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+        "given_by": "54b54de8-19e2-4e8e-86f1-4388f5823334",
         "reward_received": {
           "description": "Unrefined emerald from Krustie Gnome at The Quarry as payment for clearing the ROUS infestation.",
           "value_gp": 100,
           "item_refs": [
-            "item_010"
+            "29ba6371-58a9-4209-a8f2-2ee6d94399eb"
           ]
         },
         "objectives": [
           {
-            "id": "obj_004",
+            "id": "eab4ed99-348d-4336-92ed-4b6f42c8bbb0",
+            "legacy_id": "obj_004",
             "description": "Clear the ROUS infestation from the cave near The Quarry.",
             "is_completed": true,
-            "location_ref": "loc_005",
+            "location_ref": "23024fd5-77fd-4e07-b494-fabc83b89ab5",
             "npc_ref": null
           }
         ],
         "progress_log": [
           {
-            "session_id": "session_004",
+            "session_id": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
             "type": "lead_acquired",
             "fact": "Received directions from Krustie (npc_003). Discovered the Rat Cave via water slide entry.",
             "progress_narrative": null
           },
           {
-            "session_id": "session_005",
+            "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
             "type": "objective_completed",
             "fact": "Cleared the ROUS nest across cbt_004. Provided tails to Krustie Gnome as proof.",
             "progress_narrative": null
           },
           {
-            "session_id": "session_005",
+            "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
             "type": "reward_received",
             "fact": "Unrefined emerald (item_010, ~100 GP) received from Krustie Gnome (npc_003) at The Quarry.",
             "progress_narrative": null
@@ -3773,20 +3808,21 @@
   "combat_encounters": [
     {
       "_object_type": "combat",
-      "id": "cbt_001",
+      "id": "cd5e8175-7e7c-4d0e-9a20-d48f280102f2",
+      "legacy_id": "cbt_001",
       "name": "Vespon Queen & Swarm",
       "mechanics": {
         "outcome": "victory",
-        "location": "loc_007",
+        "location": "233f72d8-59df-4928-ae14-27ecfcd4d80b",
         "sessions": [
-          "session_002"
+          "48e67e5e-0ae6-45da-b823-0299b250e67c"
         ],
         "total_rounds_logged": 4,
         "enemies_roster": [
           {
             "actor_id": "Vespon Queen",
             "type": "individual",
-            "mon_ref": "mon_005",
+            "mon_ref": "2da77d12-00fe-4682-b715-5e88e42104cf",
             "count": 1,
             "count_remaining": 0,
             "notes": "Killed by pc_004 in Round 4."
@@ -3794,7 +3830,7 @@
           {
             "actor_id": "Vespon Swarm",
             "type": "group",
-            "mon_ref": "mon_003",
+            "mon_ref": "7db56047-b857-4987-bd3f-b67010adf11e",
             "count": null,
             "count_remaining": 0,
             "notes": "Put to sleep by pc_001 Sleep in Round 4. Entombed by Mold Earth finale."
@@ -3802,7 +3838,7 @@
         ],
         "pcs_downed": [
           {
-            "pc_id": "pc_004",
+            "pc_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
             "round": 2,
             "revived_round": null,
             "revived_by": null,
@@ -3814,26 +3850,26 @@
             "enemy_type": "Vespon Queen",
             "round": 4,
             "slot": 3,
-            "killed_by": "pc_004"
+            "killed_by": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
           },
           {
             "enemy_type": "Vespon Swarm",
             "round": 4,
             "slot": 1,
-            "killed_by": "pc_001",
+            "killed_by": "d274d0ec-9875-488d-8ea2-f7f2615db019",
             "notes": "Sleep used; entombed by Mold Earth — not individually killed"
           }
         ],
         "status_effects_applied": [
           {
             "effect": "Sleep",
-            "applied_by": "pc_001",
+            "applied_by": "d274d0ec-9875-488d-8ea2-f7f2615db019",
             "round": 4,
             "targets": "Vespon Swarm"
           },
           {
             "effect": "Mold Earth",
-            "applied_by": "pc_001",
+            "applied_by": "d274d0ec-9875-488d-8ea2-f7f2615db019",
             "round": 4,
             "targets": "Vespon Swarm — entombed finale"
           }
@@ -3861,11 +3897,11 @@
       "rounds": [
         {
           "n": 1,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -3884,7 +3920,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -3903,7 +3939,7 @@
             },
             {
               "s": 3,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -3923,7 +3959,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -3943,7 +3979,7 @@
             },
             {
               "s": 5,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -3962,7 +3998,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -3985,11 +4021,11 @@
         },
         {
           "n": 2,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -4009,7 +4045,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -4029,7 +4065,7 @@
             },
             {
               "s": 3,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -4049,7 +4085,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -4068,7 +4104,7 @@
             },
             {
               "s": 5,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -4088,7 +4124,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -4119,7 +4155,7 @@
                     {
                       "res": "hit",
                       "val": 12,
-                      "target_id": "pc_004",
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
                       "effect": "downed"
                     }
                   ]
@@ -4132,11 +4168,11 @@
         },
         {
           "n": 3,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -4155,7 +4191,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -4175,7 +4211,7 @@
             },
             {
               "s": 3,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -4195,7 +4231,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -4215,7 +4251,7 @@
             },
             {
               "s": 5,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -4235,7 +4271,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -4258,11 +4294,11 @@
         },
         {
           "n": 4,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -4282,7 +4318,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -4302,7 +4338,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -4328,7 +4364,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -4340,7 +4376,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -4352,7 +4388,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -4371,21 +4407,22 @@
     },
     {
       "_object_type": "combat",
-      "id": "cbt_002",
+      "id": "4ca28b9b-d2fc-41f4-9863-6bdf5613bc4d",
+      "legacy_id": "cbt_002",
       "name": "Siege of Bagyers Farm",
       "mechanics": {
         "outcome": "victory",
-        "location": "loc_003",
+        "location": "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
         "sessions": [
-          "session_002",
-          "session_003"
+          "48e67e5e-0ae6-45da-b823-0299b250e67c",
+          "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88"
         ],
         "total_rounds_logged": 19,
         "enemies_roster": [
           {
             "actor_id": "Rock Lobsters",
             "type": "group",
-            "mon_ref": "mon_001",
+            "mon_ref": "c0d2adb1-386e-42d9-ae31-4a3ce502a310",
             "count": null,
             "count_remaining": 0,
             "notes": "Pylon-spawned. Continuous reinforcements until Pylon destroyed Round 11."
@@ -4393,35 +4430,35 @@
         ],
         "pcs_downed": [
           {
-            "pc_id": "pc_001",
+            "pc_id": "d274d0ec-9875-488d-8ea2-f7f2615db019",
             "round": 6,
             "revived_round": null,
             "revived_by": null,
             "notes": "Goli DOWNED Round 6."
           },
           {
-            "pc_id": "pc_005",
+            "pc_id": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
             "round": 6,
             "revived_round": null,
             "revived_by": null,
             "notes": "Del at 1HP Round 6, then DOWNED Round 7. Death saves Rounds 7-11."
           },
           {
-            "pc_id": "pc_004",
+            "pc_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
             "round": 7,
             "revived_round": null,
             "revived_by": null,
             "notes": "DOWNED Round 7. Death saves Rounds 8-11. Stabilised Round 10."
           },
           {
-            "pc_id": "pc_003",
+            "pc_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
             "round": 12,
             "revived_round": null,
             "revived_by": null,
             "notes": "Ash DOWNED Round 12. Death saves Rounds 13-16."
           },
           {
-            "pc_id": "pc_006",
+            "pc_id": "4aea310d-df5b-491b-910f-ddf974d1a351",
             "round": 14,
             "revived_round": null,
             "revived_by": null,
@@ -4433,21 +4470,21 @@
             "enemy_type": "Rock Lobsters",
             "round": 19,
             "slot": 5,
-            "killed_by": "pc_002",
+            "killed_by": "c86bf29f-a914-4e05-9528-3a15d626213d",
             "notes": "Ongoing kills throughout. Final Rock Lobster killed Round 19."
           },
           {
             "enemy_type": "Pylon",
             "round": 11,
             "slot": 4,
-            "killed_by": "pc_003",
+            "killed_by": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
             "notes": "Destroyed by Eldritch Blast — stopped Rock Lobster spawning."
           }
         ],
         "status_effects_applied": [
           {
             "effect": "Entangle",
-            "applied_by": "pc_006",
+            "applied_by": "4aea310d-df5b-491b-910f-ddf974d1a351",
             "round": 1,
             "targets": "6 Rock Lobsters restrained"
           }
@@ -4475,11 +4512,11 @@
       "rounds": [
         {
           "n": 1,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -4500,7 +4537,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -4520,7 +4557,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -4539,7 +4576,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -4560,7 +4597,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -4581,7 +4618,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -4604,11 +4641,11 @@
         },
         {
           "n": 2,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -4628,7 +4665,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -4648,7 +4685,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -4667,7 +4704,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -4687,7 +4724,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -4706,7 +4743,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -4737,7 +4774,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_003"
+                      "target_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3"
                     }
                   ]
                 }
@@ -4749,11 +4786,11 @@
         },
         {
           "n": 3,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -4774,7 +4811,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -4794,7 +4831,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -4814,7 +4851,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -4834,7 +4871,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -4854,7 +4891,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -4876,11 +4913,11 @@
         },
         {
           "n": 4,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -4901,7 +4938,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -4920,7 +4957,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -4939,7 +4976,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -4956,7 +4993,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -4976,7 +5013,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -5013,17 +5050,17 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_005"
+                      "target_id": "2e850ecb-fccb-4ef0-a21d-df9585f5404c"
                     },
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_004"
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
                     },
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -5035,11 +5072,11 @@
         },
         {
           "n": 5,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -5060,7 +5097,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -5080,7 +5117,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -5105,7 +5142,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -5125,7 +5162,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -5143,7 +5180,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -5173,11 +5210,11 @@
         },
         {
           "n": 6,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -5198,7 +5235,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -5217,7 +5254,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -5244,7 +5281,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -5263,7 +5300,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -5283,7 +5320,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -5321,12 +5358,12 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_001"
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
                     },
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_005"
+                      "target_id": "2e850ecb-fccb-4ef0-a21d-df9585f5404c"
                     }
                   ]
                 }
@@ -5347,11 +5384,11 @@
         },
         {
           "n": 7,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -5370,7 +5407,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -5389,7 +5426,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -5409,7 +5446,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -5428,7 +5465,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -5448,7 +5485,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -5478,7 +5515,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_004",
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
                       "effect": "downed"
                     }
                   ]
@@ -5491,11 +5528,11 @@
         },
         {
           "n": 8,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -5515,7 +5552,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -5534,7 +5571,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -5553,7 +5590,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -5573,7 +5610,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -5593,7 +5630,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -5615,11 +5652,11 @@
         },
         {
           "n": 9,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -5639,7 +5676,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -5659,7 +5696,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -5678,7 +5715,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -5698,7 +5735,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -5718,7 +5755,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -5748,7 +5785,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -5760,11 +5797,11 @@
         },
         {
           "n": 10,
-          "sid": "session_002",
+          "sid": "48e67e5e-0ae6-45da-b823-0299b250e67c",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -5785,7 +5822,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -5804,7 +5841,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -5823,7 +5860,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -5843,7 +5880,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -5863,7 +5900,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -5893,12 +5930,12 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_001"
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
                     },
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_003"
+                      "target_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3"
                     }
                   ]
                 }
@@ -5910,11 +5947,11 @@
         },
         {
           "n": 11,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -5934,7 +5971,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -5953,7 +5990,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -5972,7 +6009,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -5993,7 +6030,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -6013,7 +6050,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -6044,7 +6081,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_001"
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
                     }
                   ]
                 }
@@ -6056,11 +6093,11 @@
         },
         {
           "n": 12,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -6080,7 +6117,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -6099,7 +6136,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -6111,7 +6148,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -6130,7 +6167,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -6149,7 +6186,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -6172,12 +6209,12 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_006"
+                      "target_id": "4aea310d-df5b-491b-910f-ddf974d1a351"
                     },
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_003",
+                      "target_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
                       "effect": "downed"
                     }
                   ]
@@ -6190,11 +6227,11 @@
         },
         {
           "n": 13,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -6213,7 +6250,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -6233,7 +6270,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -6245,7 +6282,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -6264,7 +6301,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -6283,7 +6320,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -6307,12 +6344,12 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     },
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ],
                   "notes": "2 hits on Malachite"
@@ -6325,11 +6362,11 @@
         },
         {
           "n": 14,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -6349,7 +6386,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -6369,7 +6406,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -6381,7 +6418,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -6400,7 +6437,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -6421,7 +6458,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -6444,7 +6481,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_006",
+                      "target_id": "4aea310d-df5b-491b-910f-ddf974d1a351",
                       "effect": "downed"
                     }
                   ]
@@ -6457,11 +6494,11 @@
         },
         {
           "n": 15,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -6481,7 +6518,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -6500,7 +6537,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -6512,7 +6549,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -6530,7 +6567,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -6549,7 +6586,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -6573,12 +6610,12 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     },
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ],
                   "notes": "Hit twice on Malachite"
@@ -6591,11 +6628,11 @@
         },
         {
           "n": 16,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -6615,7 +6652,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -6634,7 +6671,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -6646,7 +6683,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -6665,7 +6702,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -6684,7 +6721,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -6707,7 +6744,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -6719,11 +6756,11 @@
         },
         {
           "n": 17,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -6743,7 +6780,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -6762,7 +6799,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -6774,7 +6811,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -6794,7 +6831,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -6812,7 +6849,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -6835,7 +6872,7 @@
                     {
                       "res": "crit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -6847,11 +6884,11 @@
         },
         {
           "n": 18,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -6871,7 +6908,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -6891,7 +6928,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -6911,7 +6948,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -6932,7 +6969,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -6951,7 +6988,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -6982,7 +7019,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -6994,11 +7031,11 @@
         },
         {
           "n": 19,
-          "sid": "session_003",
+          "sid": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -7017,7 +7054,7 @@
             },
             {
               "s": 2,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -7038,7 +7075,7 @@
             },
             {
               "s": 3,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -7058,7 +7095,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -7078,7 +7115,7 @@
             },
             {
               "s": 5,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -7104,20 +7141,21 @@
     },
     {
       "_object_type": "combat",
-      "id": "cbt_003",
+      "id": "94990c47-ae74-48db-bb99-2f823ff6b23c",
+      "legacy_id": "cbt_003",
       "name": "Axe Beak & Vespon Ambush",
       "mechanics": {
         "outcome": "victory",
-        "location": "loc_004",
+        "location": "899e5762-77ff-4034-9620-96b4712e59eb",
         "sessions": [
-          "session_004"
+          "816bec76-ff80-4a15-9708-bfd4f4f8adf9"
         ],
         "total_rounds_logged": 9,
         "enemies_roster": [
           {
             "actor_id": "Axe Beaks",
             "type": "group",
-            "mon_ref": "mon_002",
+            "mon_ref": "e1b7f481-1cdd-477d-a508-59362d1bc1b5",
             "count": null,
             "count_remaining": 0,
             "notes": "Road ambush. Killed both party horses."
@@ -7125,7 +7163,7 @@
           {
             "actor_id": "Vespon Swarm",
             "type": "group",
-            "mon_ref": "mon_003",
+            "mon_ref": "7db56047-b857-4987-bd3f-b67010adf11e",
             "count": null,
             "count_remaining": 0,
             "notes": "Last Vespon killed by pc_002 in Round 11."
@@ -7133,14 +7171,14 @@
         ],
         "pcs_downed": [
           {
-            "pc_id": "pc_004",
+            "pc_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
             "round": 7,
             "revived_round": null,
             "revived_by": null,
             "notes": "Del DOWNED Round 7 by Axe Beak attack."
           },
           {
-            "pc_id": "pc_003",
+            "pc_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
             "round": 9,
             "revived_round": 10,
             "revived_by": null,
@@ -7152,7 +7190,7 @@
             "enemy_type": "Vespon Swarm",
             "round": 11,
             "slot": 3,
-            "killed_by": "pc_002"
+            "killed_by": "c86bf29f-a914-4e05-9528-3a15d626213d"
           },
           {
             "enemy_type": "Axe Beaks",
@@ -7165,13 +7203,13 @@
         "status_effects_applied": [
           {
             "effect": "Entangle",
-            "applied_by": "pc_006",
+            "applied_by": "4aea310d-df5b-491b-910f-ddf974d1a351",
             "round": 1,
             "targets": "Axe Beaks/Swarm"
           },
           {
             "effect": "Sleep",
-            "applied_by": "pc_001",
+            "applied_by": "d274d0ec-9875-488d-8ea2-f7f2615db019",
             "round": 6,
             "targets": "2 Vespons — woke up after"
           }
@@ -7199,11 +7237,11 @@
       "rounds": [
         {
           "n": 1,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -7222,7 +7260,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -7242,7 +7280,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -7262,7 +7300,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -7281,7 +7319,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -7300,7 +7338,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -7323,11 +7361,11 @@
         },
         {
           "n": 4,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -7344,7 +7382,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -7363,7 +7401,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -7383,7 +7421,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -7402,7 +7440,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -7421,7 +7459,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -7443,11 +7481,11 @@
         },
         {
           "n": 5,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -7473,7 +7511,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -7492,7 +7530,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -7511,7 +7549,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -7531,7 +7569,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -7551,7 +7589,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -7601,11 +7639,11 @@
         },
         {
           "n": 6,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -7631,7 +7669,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -7651,7 +7689,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -7672,7 +7710,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -7691,7 +7729,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -7711,7 +7749,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -7733,11 +7771,11 @@
         },
         {
           "n": 7,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -7764,7 +7802,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -7784,7 +7822,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -7802,7 +7840,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -7826,7 +7864,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -7845,7 +7883,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -7883,7 +7921,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_004",
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
                       "effect": "downed"
                     }
                   ]
@@ -7896,11 +7934,11 @@
         },
         {
           "n": 8,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -7919,7 +7957,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -7939,7 +7977,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -7959,7 +7997,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -7978,7 +8016,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -8004,7 +8042,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -8035,7 +8073,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_003"
+                      "target_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3"
                     }
                   ]
                 }
@@ -8047,11 +8085,11 @@
         },
         {
           "n": 9,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -8070,7 +8108,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -8089,7 +8127,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -8108,7 +8146,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -8128,7 +8166,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -8147,7 +8185,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -8179,7 +8217,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_003",
+                      "target_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
                       "effect": "downed"
                     }
                   ]
@@ -8192,11 +8230,11 @@
         },
         {
           "n": 10,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -8220,7 +8258,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -8239,7 +8277,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -8259,7 +8297,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -8278,7 +8316,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -8297,7 +8335,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -8329,7 +8367,7 @@
                     {
                       "res": "crit",
                       "val": null,
-                      "target_id": "pc_006"
+                      "target_id": "4aea310d-df5b-491b-910f-ddf974d1a351"
                     }
                   ]
                 }
@@ -8341,11 +8379,11 @@
         },
         {
           "n": 11,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -8369,7 +8407,7 @@
             },
             {
               "s": 2,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -8389,7 +8427,7 @@
             },
             {
               "s": 3,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -8410,7 +8448,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -8423,7 +8461,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -8436,7 +8474,7 @@
             },
             {
               "s": 6,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -8455,21 +8493,22 @@
     },
     {
       "_object_type": "combat",
-      "id": "cbt_004",
+      "id": "90de8d99-fc0d-407e-8de0-66f5d7494b55",
+      "legacy_id": "cbt_004",
       "name": "The Rat Cave",
       "mechanics": {
         "outcome": "victory",
-        "location": "loc_005",
+        "location": "23024fd5-77fd-4e07-b494-fabc83b89ab5",
         "sessions": [
-          "session_004",
-          "session_005"
+          "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+          "4478195d-34d9-46ec-b316-2546ca48bf34"
         ],
         "total_rounds_logged": 7,
         "enemies_roster": [
           {
             "actor_id": "ROUS",
             "type": "group",
-            "mon_ref": "mon_008",
+            "mon_ref": "bf62ea56-6f5b-4e53-8628-d86b465cc859",
             "count": null,
             "count_remaining": 0,
             "notes": "Final ROUS killed by pc_003 Eldritch Blast in Round 7."
@@ -8481,7 +8520,7 @@
             "enemy_type": "ROUS",
             "round": 7,
             "slot": 4,
-            "killed_by": "pc_003",
+            "killed_by": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
             "notes": "Final ROUS. Multiple kills across all 7 rounds."
           }
         ],
@@ -8509,11 +8548,11 @@
       "rounds": [
         {
           "n": 1,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -8533,7 +8572,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -8553,7 +8592,7 @@
             },
             {
               "s": 3,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -8573,7 +8612,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -8593,7 +8632,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -8614,7 +8653,7 @@
             },
             {
               "s": 6,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -8637,11 +8676,11 @@
         },
         {
           "n": 2,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -8662,7 +8701,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -8682,7 +8721,7 @@
             },
             {
               "s": 3,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -8702,7 +8741,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -8721,7 +8760,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -8741,7 +8780,7 @@
             },
             {
               "s": 6,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -8770,7 +8809,7 @@
                     {
                       "res": "hit",
                       "val": null,
-                      "target_id": "pc_001"
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
                     }
                   ]
                 }
@@ -8782,11 +8821,11 @@
         },
         {
           "n": 3,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -8806,7 +8845,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -8826,7 +8865,7 @@
             },
             {
               "s": 3,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -8846,7 +8885,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -8865,7 +8904,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -8884,7 +8923,7 @@
             },
             {
               "s": 6,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -8921,25 +8960,25 @@
                     {
                       "res": "hit",
                       "val": 10,
-                      "target_id": "pc_001",
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019",
                       "detail": "Bite"
                     },
                     {
                       "res": "hit",
                       "val": 3,
-                      "target_id": "pc_004",
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
                       "detail": "Bite"
                     },
                     {
                       "res": "hit",
                       "val": 4,
-                      "target_id": "pc_002",
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
                       "detail": "Bite"
                     },
                     {
                       "res": "hit",
                       "val": 16,
-                      "target_id": "pc_003",
+                      "target_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
                       "detail": "Bite"
                     }
                   ],
@@ -8953,11 +8992,11 @@
         },
         {
           "n": 4,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -8977,7 +9016,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -8997,7 +9036,7 @@
             },
             {
               "s": 3,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -9017,7 +9056,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -9037,7 +9076,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -9062,7 +9101,7 @@
             },
             {
               "s": 6,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -9102,11 +9141,11 @@
         },
         {
           "n": 5,
-          "sid": "session_004",
+          "sid": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -9126,7 +9165,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -9146,7 +9185,7 @@
             },
             {
               "s": 3,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -9165,7 +9204,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -9183,7 +9222,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -9203,7 +9242,7 @@
             },
             {
               "s": 6,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -9240,7 +9279,7 @@
                     {
                       "res": "hit",
                       "val": 11,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -9252,11 +9291,11 @@
         },
         {
           "n": 6,
-          "sid": "session_005",
+          "sid": "4478195d-34d9-46ec-b316-2546ca48bf34",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -9276,7 +9315,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -9296,7 +9335,7 @@
             },
             {
               "s": 3,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -9316,7 +9355,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -9336,7 +9375,7 @@
             },
             {
               "s": 5,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -9356,7 +9395,7 @@
             },
             {
               "s": 6,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -9384,11 +9423,11 @@
         },
         {
           "n": 7,
-          "sid": "session_005",
+          "sid": "4478195d-34d9-46ec-b316-2546ca48bf34",
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -9407,7 +9446,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -9426,7 +9465,7 @@
             },
             {
               "s": 3,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -9446,7 +9485,7 @@
             },
             {
               "s": 4,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -9473,20 +9512,21 @@
     },
     {
       "_object_type": "combat",
-      "id": "cbt_005",
+      "id": "02fce0b8-9553-4133-974e-9d1669cb9b22",
+      "legacy_id": "cbt_005",
       "name": "Goblin Ambush",
       "mechanics": {
         "outcome": "paused",
-        "location": "loc_002",
+        "location": "42598c87-c1ea-4b13-ba67-70b3d73da002",
         "sessions": [
-          "session_005"
+          "4478195d-34d9-46ec-b316-2546ca48bf34"
         ],
         "total_rounds_logged": 3,
         "enemies_roster": [
           {
             "actor_id": "Goblins",
             "type": "group",
-            "mon_ref": "mon_004",
+            "mon_ref": "302ca3fc-ea4f-40c9-b77b-d57138cc6785",
             "count": null,
             "count_remaining": null,
             "notes": "Several killed. Count unknown. Combat paused."
@@ -9494,7 +9534,7 @@
           {
             "actor_id": "Goblin Slingers",
             "type": "group",
-            "mon_ref": "mon_004",
+            "mon_ref": "302ca3fc-ea4f-40c9-b77b-d57138cc6785",
             "count": null,
             "count_remaining": null,
             "notes": "Active at end of Round 3.",
@@ -9503,7 +9543,7 @@
           {
             "actor_id": "Ogre",
             "type": "individual",
-            "mon_ref": "mon_007",
+            "mon_ref": "61aed323-0e64-4953-a2dd-061a77e90599",
             "count": 1,
             "count_remaining": 0,
             "notes": "Appeared at treeline end of Round 1. Killed by pc_006 Ice Knife in Round 3."
@@ -9511,10 +9551,10 @@
         ],
         "pcs_downed": [
           {
-            "pc_id": "pc_004",
+            "pc_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
             "round": 2,
             "revived_round": 2,
-            "revived_by": "pc_006",
+            "revived_by": "4aea310d-df5b-491b-910f-ddf974d1a351",
             "notes": "Del DOWNED by Goblin Slinger sling. Revived by pc_006 Cure Wounds same round."
           }
         ],
@@ -9523,37 +9563,37 @@
             "enemy_type": "Goblin",
             "round": 1,
             "slot": 4,
-            "killed_by": "pc_005"
+            "killed_by": "2e850ecb-fccb-4ef0-a21d-df9585f5404c"
           },
           {
             "enemy_type": "Goblin",
             "round": 2,
             "slot": 1,
-            "killed_by": "pc_004"
+            "killed_by": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
           },
           {
             "enemy_type": "Ogre",
             "round": 3,
             "slot": 3,
-            "killed_by": "pc_006"
+            "killed_by": "4aea310d-df5b-491b-910f-ddf974d1a351"
           }
         ],
         "status_effects_applied": [
           {
             "effect": "Entangle",
-            "applied_by": "pc_006",
+            "applied_by": "4aea310d-df5b-491b-910f-ddf974d1a351",
             "round": 1,
             "targets": "goblin cluster"
           },
           {
             "effect": "Witch Bolt",
-            "applied_by": "pc_003",
+            "applied_by": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
             "round": 2,
             "targets": "Ogre"
           },
           {
             "effect": "Sleep",
-            "applied_by": "pc_001",
+            "applied_by": "d274d0ec-9875-488d-8ea2-f7f2615db019",
             "round": 3,
             "targets": "1 goblin (fails); 2 succeed"
           }
@@ -9581,11 +9621,11 @@
       "rounds": [
         {
           "n": 1,
-          "sid": "session_005",
+          "sid": "4478195d-34d9-46ec-b316-2546ca48bf34",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -9603,7 +9643,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -9621,7 +9661,7 @@
             },
             {
               "s": 3,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -9641,7 +9681,7 @@
             },
             {
               "s": 4,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -9662,7 +9702,7 @@
             },
             {
               "s": 5,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -9683,7 +9723,7 @@
             },
             {
               "s": 6,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -9731,7 +9771,7 @@
                     {
                       "res": "hit",
                       "val": 7,
-                      "target_id": "pc_004"
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
                     }
                   ]
                 }
@@ -9754,11 +9794,11 @@
         },
         {
           "n": 2,
-          "sid": "session_005",
+          "sid": "4478195d-34d9-46ec-b316-2546ca48bf34",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -9783,7 +9823,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -9803,7 +9843,7 @@
             },
             {
               "s": 3,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -9824,7 +9864,7 @@
             },
             {
               "s": 4,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -9845,7 +9885,7 @@
             },
             {
               "s": 5,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -9866,7 +9906,7 @@
             },
             {
               "s": 6,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -9899,13 +9939,13 @@
                     {
                       "res": "hit",
                       "val": 3,
-                      "target_id": "pc_004",
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
                       "detail": "Melee"
                     },
                     {
                       "res": "hit",
                       "val": 3,
-                      "target_id": "pc_002",
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
                       "detail": "Melee"
                     }
                   ]
@@ -9926,7 +9966,7 @@
                     {
                       "res": "hit",
                       "val": 7,
-                      "target_id": "pc_004",
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
                       "effect": "downed"
                     }
                   ]
@@ -9947,7 +9987,7 @@
                     {
                       "res": "hit",
                       "val": 10,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -9959,11 +9999,11 @@
         },
         {
           "n": 3,
-          "sid": "session_005",
+          "sid": "4478195d-34d9-46ec-b316-2546ca48bf34",
           "slots": [
             {
               "s": 1,
-              "a": "pc_004",
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
               "activities": [
                 {
                   "economy": "action",
@@ -9989,7 +10029,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
               "activities": [
                 {
                   "economy": "action",
@@ -10008,7 +10048,7 @@
             },
             {
               "s": 3,
-              "a": "pc_006",
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
               "activities": [
                 {
                   "economy": "action",
@@ -10030,7 +10070,7 @@
             },
             {
               "s": 4,
-              "a": "pc_005",
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
               "activities": [
                 {
                   "economy": "action",
@@ -10050,7 +10090,7 @@
             },
             {
               "s": 5,
-              "a": "pc_003",
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
               "activities": [
                 {
                   "economy": "action",
@@ -10070,7 +10110,7 @@
             },
             {
               "s": 6,
-              "a": "pc_001",
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
               "activities": [
                 {
                   "economy": "action",
@@ -10102,7 +10142,7 @@
                     {
                       "res": "hit",
                       "val": 4,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -10122,7 +10162,7 @@
                     {
                       "res": "hit",
                       "val": 4,
-                      "target_id": "pc_004"
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
                     }
                   ]
                 }
@@ -10142,7 +10182,7 @@
                     {
                       "res": "hit",
                       "val": 12,
-                      "target_id": "pc_002"
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
                     }
                   ]
                 }
@@ -10157,13 +10197,14 @@
     },
     {
       "_object_type": "combat",
-      "id": "cbt_006",
+      "id": "4db6278a-4c03-43d2-a39e-482b033fbc8f",
+      "legacy_id": "cbt_006",
       "name": "Wolf Fight",
       "mechanics": {
         "outcome": "victory",
-        "location": "loc_007",
+        "location": "233f72d8-59df-4928-ae14-27ecfcd4d80b",
         "sessions": [
-          "session_001"
+          "11f734de-23b4-4473-a1fb-7b4a18a67cc7"
         ],
         "total_rounds_logged": 0,
         "enemies_roster": [
@@ -10202,15 +10243,16 @@
   "character_moments": [
     {
       "_object_type": "character_moment",
-      "id": "moment_001",
+      "id": "a7f8edfb-faee-4088-b5a6-26bdfcb1a37e",
+      "legacy_id": "moment_001",
       "type": "clutch_save",
       "mechanics": {
         "character_ids": [
-          "pc_006",
-          "pc_004"
+          "4aea310d-df5b-491b-910f-ddf974d1a351",
+          "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
         ],
-        "parent_event_id": "cbt_005",
-        "origin_session": "session_005",
+        "parent_event_id": "02fce0b8-9553-4133-974e-9d1669cb9b22",
+        "origin_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "round_ref": 2,
         "mechanical_action": "Atticus (pc_006) cast Cure Wounds on downed Asphodel (pc_004) as the Action in slot 3 of Round 2, cbt_005 — before any other party member had acted after Del was dropped."
       },
@@ -10222,14 +10264,15 @@
     },
     {
       "_object_type": "character_moment",
-      "id": "moment_002",
+      "id": "2c42cdc3-42c0-420e-87ce-63e783109977",
+      "legacy_id": "moment_002",
       "type": "combat_highlight",
       "mechanics": {
         "character_ids": [
-          "pc_002"
+          "c86bf29f-a914-4e05-9528-3a15d626213d"
         ],
-        "parent_event_id": "cbt_004",
-        "origin_session": "session_005",
+        "parent_event_id": "90de8d99-fc0d-407e-8de0-66f5d7494b55",
+        "origin_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "round_ref": null,
         "mechanical_action": "Malachite (pc_002) landed a critical hit on a ROUS during cbt_004 (The Rat Cave). The result was described at the table as a 'SPLAT!' that set the tone for the encounter's conclusion."
       },
@@ -10241,19 +10284,20 @@
     },
     {
       "_object_type": "character_moment",
-      "id": "moment_003",
+      "id": "eef2cd45-ef80-429a-bdb7-0d868dffa2fd",
+      "legacy_id": "moment_003",
       "type": "backstory_revelation",
       "mechanics": {
         "character_ids": [
-          "pc_001",
-          "pc_002",
-          "pc_003",
-          "pc_004",
-          "pc_005",
-          "pc_006"
+          "d274d0ec-9875-488d-8ea2-f7f2615db019",
+          "c86bf29f-a914-4e05-9528-3a15d626213d",
+          "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+          "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+          "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+          "4aea310d-df5b-491b-910f-ddf974d1a351"
         ],
         "parent_event_id": null,
-        "origin_session": "session_001",
+        "origin_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
         "round_ref": null,
         "mechanical_action": "Non-combat. During the session_001 prologue, the party established their shared childhood history at Atticus's Clearing — the treehouse base used for make-believe adventures at age 13."
       },

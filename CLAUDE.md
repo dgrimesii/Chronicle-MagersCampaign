@@ -20,7 +20,7 @@ Read these files first, in this order:
 
 Before writing any code:
 - Campaign data paths live only in `shared/chronicle-store.js`, relative to the calling page; every page that loads it is one folder below the root (`admin/` or `player/`). A page at any other depth needs the store's paths changed first
-- Verify any ID you assign does not already exist in `magers-campaign.json`
+- New entity ids are UUIDs from `ChronicleIds.newId()` (`shared/chronicle-ids.js`), never counted or typed by hand (issue #95). A reference you write must be an existing entity's `id` (its UUID), never its `legacy_id`
 
 Ask for clarification rather than proceeding if:
 - You are unsure whether to write to the JSON file directly or via the Delta Review workflow
@@ -163,11 +163,12 @@ async function loadCampaignData() {
 
 ## Shared module load order
 
-When a page needs all five shared modules, load them in this order:
+When a page needs all six shared modules, load them in this order:
 
 ```html
 <script src="../shared/config.js"></script>
 <script src="../shared/chronicle-store.js"></script>
+<script src="../shared/chronicle-ids.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script src="../shared/chronicle-narrative.js"></script>
@@ -175,6 +176,8 @@ When a page needs all five shared modules, load them in this order:
 ```
 
 `chronicle-store.js` exports `window.ChronicleStore`. Load it on every page that reads or writes campaign data. It reads `config.js` at call time and works without it for reads (config.js is absent on GitHub Pages), so the player view loads it too.
+
+`chronicle-ids.js` exports `window.ChronicleIds` (and `module.exports` under Node): UUID allocation and legacy-ID translation (issue #95). No dependencies. Load it on any page that accepts IDs from outside the data (intake output, AI output, links) and must turn a legacy ID into a UUID, or that creates entities. The two viewers do not load it, because `normaliseCampaignJson` must stay self-contained.
 
 `chronicle-integrity.js` exports `window.ChronicleIntegrity`. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 
@@ -257,25 +260,18 @@ This file exists in the repository but is dead code. The EMBEDDED_DATA markers i
 
 ### ID format
 
-All IDs follow `<type>_<zero-padded-number>`:
+Since issue #95 every entity `id` is a lowercase **UUID v4**, e.g. `3f2b8c1e-9a4d-4c7e-b1f0-6d2a9e5c4b81`. The DM chose this format to match Storyteller's constraint C15: opaque, non-sequential, and type-free, so the type lives in the array, never in the id.
 
-| Type | Prefix | Example |
-|---|---|---|
-| Party | `pc_` | `pc_001` |
-| NPC | `npc_` | `npc_014` |
-| Location | `loc_` | `loc_014` |
-| Quest | `qst_` | `qst_006` |
-| Item | `item_` | `item_011` |
-| Combat | `cbt_` | `cbt_007` |
-| Bestiary | `mon_` | `mon_009` |
-| Lore | `lore_` | `lore_003` |
-| Session | `session_` | `session_006` |
-| Prompt Improvement Log | `pil_` | `pil_001` |
-| Entity Relationship | `rel_` | `rel_001` |
-| Faction | `fac_` | `fac_001` |
-| Cohort | `coh_` | `coh_001` |
+- Create ids with `ChronicleIds.newId()` (`shared/chronicle-ids.js`), or with `crypto.randomUUID()` in a one-off script. Never count, never type one by hand, never reuse one.
+- Every reference (`a`, `target_id`, `mon_ref`, `character_ids`, `current_holder`, `sid`, `sessions[]`, `from_id`…) holds the target's UUID `id`.
+- Never infer an entity's type from its id. Use the array it sits in.
+- Every entity that existed before #95 keeps its old typed ID as `legacy_id` (`pc_001`, `npc_014`, `cbt_005`, `session_005`, `obj_003`). Legacy IDs are frozen: never assign a new one, except that a new session keeps the `session_NNN` the DM gave it at intake (Delta Review does this at publish).
+- Legacy IDs still name entities outside the data: in the AI prompts, intake, notes and prose. Code that accepts an ID from outside must translate it with `ChronicleIds.buildLegacyIndex()` / `translateRefs()`. Prose is never rewritten.
+- After editing `data/magers-campaign.json` by hand, run `node scripts/migrate-opaque-ids.js data/magers-campaign.json --check`. It must print CHECK PASSED.
 
-Never reuse a voided or skipped ID. The current gap IDs in the NPC registry (`npc_002`, `npc_005`, `npc_006`) and the bestiary (`mon_006`, Goblin Slinger, folded into Goblins `mon_004` by issue #94) are permanently voided.
+Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `deferred_gaps[]` (`gap_NNN`). No entity refers to them.
+
+Legacy IDs that were voided must never appear as a `legacy_id`: `npc_002`, `npc_005`, `npc_006` (gaps in the NPC registry) and `mon_006` (Goblin Slinger, folded into Goblins by issue #94).
 
 A variant of a creature (a goblin with a sling) is the same bestiary entry in a different role. Give its combat roster group a `role` and point `mon_ref` at the base creature; tag abilities seen only in that role with the same `role`. Do not add a second bestiary entry for it.
 
@@ -287,18 +283,18 @@ Each entry shape:
 ```json
 {
   "id":             "gap_001",
-  "combat_id":      "cbt_005",
+  "combat_id":      "<combat UUID>",
   "combat_name":    "Goblin Ambush",
-  "session_id":     "session_006",
+  "session_id":     "<session UUID>",
   "missing_rounds": [9],
   "gap_type":       "incoming",
-  "deferred_at":    "session_006",
+  "deferred_at":    "<session UUID>",
   "status":         "pending"
 }
 ```
 
 Rules:
-- IDs follow `gap_001`, `gap_002`, etc. Assign the next by reading the current array length.
+- IDs follow `gap_001`, `gap_002`, etc. Assign the next by reading the current array length. The combat and session references are UUIDs like every other reference (#95); publish translates a legacy session ID before writing the record.
 - `gap_type` is `'incoming'` (gap in staged data) or `'continuity'` (jump between sessions).
 - `deferred_at` is the `session_id` of the publish cycle that created the record.
 - Only update `status` — from `'pending'` to `'resolved'` — when a gap is fixed. Do not rename or remove entries.
@@ -319,13 +315,13 @@ The `relationship_type` field on each entry in `entity_relationships[]` must be 
 | `witnessed` | The source entity witnessed the target event or entity in a significant way |
 | `unknown` | A relationship exists but its nature has not been established |
 
-### Next available IDs (as of v4.1 — sessions 006 and 007 are placeholders)
+### Next available IDs
 
-`pc_007`, `npc_015`, `loc_014`, `qst_006`, `item_012`, `cbt_007`, `session_008`, `mon_009`, `lore_004`, `moment_002`, `pil_001`, `rel_001`, `fac_001`, `coh_001`
+None since issue #95: entity ids are UUIDs and are not counted. The last legacy IDs assigned were `pc_006`, `npc_014`, `loc_013`, `qst_005`, `obj_005`, `item_011`, `cbt_006`, `session_007`, `mon_008`, `lore_003` and `moment_003`. Sessions 006 and 007 are placeholders.
 
-Voided/skipped IDs (never reuse): `npc_002`, `npc_005`, `npc_006`, `mon_006`
+The next session's legacy ID, typed by the DM at intake, is `session_008`. Workflow records still count: the next `pil_NNN` and `gap_NNN` come from their array lengths.
 
-Update CLAUDE.md (this section) when new IDs are assigned.
+Voided/skipped legacy IDs (never reuse): `npc_002`, `npc_005`, `npc_006`, `mon_006`
 
 ### Field naming
 
@@ -355,7 +351,7 @@ Schema 5.0.0 (issue #93) uses the turn schema. A slot is `{ s, a, activities[], 
 - `economy` is one of `action`, `bonus_action`, `reaction`, `movement`, `free`, `legendary_action`, `legendary_resistance`
 - For the `action` economy, `name` is a standard action (Attack, Magic, Dash, Ready…), `Death Save`, or `No Action: <reason>`; the spell or weapon goes in `detail`. For other economies `name` is the feature or spell itself
 - Down is an outcome `effect`, never an activity. Death saves record `success` or `failure`. A down or kill matched to its roll lives only in that outcome's `effect`, not also in `special_events`
-- `target_id` is an ID or null: an entity ID, or a roster `actor_id` until enemies get IDs (#95). One target per outcome; never slash-joined. A target that is not an entity goes in `target_text` with `target_id` null. Never invent an ID
+- `target_id` is an ID or null: an entity's UUID `id`, or a roster `actor_id` (roster groups have no ids; #95 converted only objects that already had one). One target per outcome; never slash-joined. A target that is not an entity goes in `target_text` with `target_id` null. Never invent an ID
 - One outcome per attack roll, even when the target repeats ("Melee (x2)" on one PC is two outcomes). An outcome's own `detail` (Bite, Claw) names the attack used for that roll and overrides the activity's `detail`
 - Enemies have no slots: one `enemy_turns[]` entry per roster group per round, `{ actor_id, activities[], special_events[], notes }`
 - Never add the 4.x fields (`action`, `bonus_action`, `reaction`, `movement`, `object_interaction`, `attacks`) back to a slot
@@ -404,7 +400,7 @@ Do not change `_schema_version` without explicit instruction. It lives at the ro
 - Do not add a sync indicator bar to any page
 - Do not hardcode the Drive proxy URL or campaign file ID outside of `shared/config.js`
 - Do not introduce npm packages, a bundler, or a JS framework
-- Do not reuse voided ID numbers
+- Do not reuse voided legacy IDs, and do not mint new typed or sequential ids: new ids are UUIDs from `ChronicleIds.newId()` (#95)
 - Do not change `_schema_version` without explicit instruction
 - Do not invent field names not present in the schema or the normaliser — check the README schema table first
 - Do not store game state (HP, spell slots, conditions) in `magers-campaign.json`
@@ -443,7 +439,7 @@ After any code change, open the affected page in a browser and check:
 
 **For schema/JSON changes:**
 - [ ] `_schema_version` is unchanged unless you were explicitly told to update it
-- [ ] All new IDs are in the correct format and not already used
+- [ ] All new ids are UUIDs, and `node scripts/migrate-opaque-ids.js data/magers-campaign.json --check` passes
 - [ ] `meta.last_updated` reflects today's date
 - [ ] No game state fields (HP, spell slots, conditions) were added
 
@@ -459,11 +455,11 @@ After any code change, open the affected page in a browser and check:
 The DM manages the post-session workflow through the admin tools, then manually replaces the JSON file. When asked to update `data/magers-campaign.json` directly:
 
 1. Read the current file before editing
-2. Assign the next available ID for any new entity — check the "Next available IDs" section above
+2. Give any new entity a UUID id (`crypto.randomUUID()` or `ChronicleIds.newId()`) and no `legacy_id` (a new session may keep the DM's `session_NNN` as `legacy_id`); reference other entities by their UUID `id`
 3. Follow all schema conventions for the entity type
 4. Update `meta.last_updated` to today's date
 5. Do not change `_schema_version`
-6. After editing, note which IDs were assigned and update this file's "Next available IDs" section if asked
+6. After editing, run `node scripts/migrate-opaque-ids.js data/magers-campaign.json --check` and confirm CHECK PASSED
 
 ---
 

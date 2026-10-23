@@ -749,7 +749,10 @@ function guessSessionRef(filename, data) {
   const m = filename.match(/session[_-](\d{3})/i);
   if (m) return `session_${m[1]}`;
   const sessions = data.sessions || data.session_logs || [];
-  return sessions.length ? sessions[sessions.length-1].id || sessions[sessions.length-1].session_id || '' : '';
+  // Prefer the session's legacy_id (session_005): since issue #95 its id is a
+  // UUID, which would be meaningless as a backup's session label.
+  const last = sessions[sessions.length-1];
+  return last ? (last.legacy_id || last.id || last.session_id || '') : '';
 }
 
 function labelFromFilename(filename) {

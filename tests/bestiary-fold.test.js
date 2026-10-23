@@ -56,29 +56,35 @@ function loadNormaliser(file) {
 
 const rawText  = fs.readFileSync(path.join(ROOT, 'data/magers-campaign.json'), 'utf8');
 const campaign = JSON.parse(rawText);
+// Entity ids are UUIDs since issue #95; L finds an entity by its legacy ID.
+const L = require('../shared/chronicle-ids.js').buildLegacyIndex(campaign);
 
 // ── B-1: mon_006 is gone ────────────────────────────────────────────────────
 console.log('\nB-1  No reference to mon_006');
-assert('the text "mon_006" appears nowhere in the campaign file', !rawText.includes('mon_006'));
+// Since #95 the _id_registry lists mon_006 among the voided legacy IDs, which
+// records the void rather than referring to the entity, so it is left out.
+const withoutVoidList = JSON.stringify(Object.assign({}, campaign, { _id_registry: null }));
+assert('the text "mon_006" appears nowhere in the campaign file except the voided list',
+  !withoutVoidList.includes('mon_006') && campaign._id_registry.legacy_voided.includes('mon_006'));
 assert('no bestiary entry is named Goblin Slinger',
   !campaign.bestiary.some(b => /slinger/i.test(b.name)));
 
 // ── B-2: the Goblin Ambush roster ───────────────────────────────────────────
 console.log('\nB-2  Goblin Ambush roster');
-const ambush = campaign.combat_encounters.find(c => c.id === 'cbt_005');
+const ambush = campaign.combat_encounters.find(c => c.id === L.get('cbt_005'));
 const roster = ambush.mechanics.enemies_roster;
 const slingers = roster.find(g => g.actor_id === 'Goblin Slingers');
 const goblins  = roster.find(g => g.actor_id === 'Goblins');
-assert('Goblin Slingers points at mon_004', slingers?.mon_ref === 'mon_004');
+assert('Goblin Slingers points at mon_004', slingers?.mon_ref === L.get('mon_004'));
 assert('Goblin Slingers has role "slinger"', slingers?.role === 'slinger');
-assert('Goblins still points at mon_004 with no role', goblins?.mon_ref === 'mon_004' && goblins.role === undefined);
+assert('Goblins still points at mon_004 with no role', goblins?.mon_ref === L.get('mon_004') && goblins.role === undefined);
 const turnActors = new Set(ambush.rounds.flatMap(r => (r.enemy_turns || []).map(t => t.actor_id)));
 assert('enemy turns are still logged as "Goblins" and "Goblin Slingers"',
   turnActors.has('Goblins') && turnActors.has('Goblin Slingers'));
 
 // ── B-3: the merged Goblins entry ───────────────────────────────────────────
 console.log('\nB-3  Merged Goblins entry');
-const gob = campaign.bestiary.find(b => b.id === 'mon_004');
+const gob = campaign.bestiary.find(b => b.id === L.get('mon_004'));
 const slingAbilities = gob.mechanics.observed_abilities.filter(a => a.role === 'slinger');
 assert('two abilities are tagged slinger', slingAbilities.length === 2);
 assert('the general abilities stay untagged',

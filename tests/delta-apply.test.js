@@ -53,80 +53,35 @@ function assert(label, condition) {
 const fixturePath = path.join(__dirname, 'fixtures', 'test-campaign.json');
 const fixture     = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 
-// ── Inline applyDeltasToCampaign ─────────────────────────────────────────────
-// This is the pure logic extracted from delta-review.html. The tests run this
-// function directly so they can catch regressions in the routing branches
-// without needing a browser. Keep this in sync with the implementation in
-// admin/delta-review.html if the function is changed.
-//
-// NOTE: The sessionStorage and deferredGaps references in the full
-// implementation are browser-only. This extract omits them — the tests only
-// exercise the NEW / MOD / ROUND routing branches.
+// ── applyDeltasToCampaign, cut from delta-review.html ────────────────────────
+// Until issue #95 this file held a hand-kept copy of the function, which had
+// drifted (it lacked the MOD, RELATIONSHIP and metadata code). It now cuts the
+// real function, and its helper withOpaqueId, out of the page, the same way
+// tests/turn-schema.test.js loads normaliseCampaignJson. The page's browser
+// globals are passed in: deferredGaps (empty), a sessionStorage with no
+// prompt-log entries, and ChronicleIds from shared/chronicle-ids.js.
+const ChronicleIds = require('../shared/chronicle-ids.js');
+function loadApplyDeltas() {
+  const src   = fs.readFileSync(path.join(__dirname, '..', 'admin', 'delta-review.html'), 'utf8').replace(/\r\n/g, '\n');
+  const start = src.indexOf('function withOpaqueId');
+  const fnAt  = src.indexOf('function applyDeltasToCampaign', start);
+  const end   = src.indexOf('\n}\n', fnAt);
+  if (start < 0 || fnAt < 0 || end < 0) throw new Error('applyDeltasToCampaign not found in delta-review.html');
+  const sessionStorage = { getItem: () => null, removeItem: () => {} };
+  return new Function('ChronicleIds', 'deferredGaps', 'sessionStorage',
+    src.slice(start, end + 2) + '\nreturn applyDeltasToCampaign;')(ChronicleIds, [], sessionStorage);
+}
+const applyDeltasToCampaign = loadApplyDeltas();
 
-// arrayPrefixMap: kept in sync with the copy in delta-review.html.
-// Maps campaign array names to their ID prefix for auto-assignment of missing IDs.
-const arrayPrefixMap = {
-  npc_directory:      'npc',
-  locations:          'loc',
-  inventory_and_loot: 'item',
-  quest_ledger:       'qst',
-  bestiary:           'mon',
-  session_logs:       'session',
-};
+// The fixture's entities have UUID ids since #95. L finds one by legacy ID.
+const L = ChronicleIds.buildLegacyIndex(fixture);
 
-function applyDeltasToCampaign(campaign, approved) {
-  const out = JSON.parse(JSON.stringify(campaign)); // deep clone — does not mutate input
-
-  for (const delta of approved) {
-    const arr = delta.array;
-    if (!arr || !out[arr]) continue;
-
-    if (delta.type === 'NEW') {
-      // Append new entity (avoid duplicates by id).
-      // Auto-assign id if missing (cascade items arrive without one).
-      let id = delta.rawData?.id;
-      if (!id && delta.rawData) {
-        const prefix = arrayPrefixMap[arr];
-        if (prefix) {
-          const maxNum = out[arr].reduce((m, e) => {
-            const n = parseInt((e.id || '').split('_').pop(), 10);
-            return isNaN(n) ? m : Math.max(m, n);
-          }, 0);
-          delta.rawData.id = prefix + '_' + String(maxNum + 1).padStart(3, '0');
-          id = delta.rawData.id;
-        }
-      }
-      if (id && out[arr].some(e => e.id === id)) continue;
-      if (delta.rawData) out[arr].push(delta.rawData);
-
-    } else if (delta.type === 'MOD') {
-      // Patch fields on an existing entity
-      const id  = delta.rawData?.id || delta.targetId;
-      const idx = out[arr].findIndex(e => e.id === id);
-      if (idx > -1 && delta.rawData) {
-        Object.assign(out[arr][idx], delta.rawData);
-      }
-
-    } else if (delta.type === 'ROUND') {
-      // Insert a round into combat_encounters — routes by combatId, not by array.
-      // Using type:'NEW' here (the pre-#39 bug) would push rawData to the array
-      // root instead of into combat.rounds[].
-      const cbtIdx = out.combat_encounters?.findIndex(c => c.id === delta.combatId);
-      if (cbtIdx > -1 && delta.rawData) {
-        const rounds = out.combat_encounters[cbtIdx].rounds || [];
-        const exists = rounds.findIndex(r => r.n === delta.rawData.n);
-        if (exists > -1) {
-          rounds[exists] = delta.rawData; // overwrite existing round
-        } else {
-          rounds.push(delta.rawData);
-          rounds.sort((a, b) => a.n - b.n); // keep rounds in numeric order
-        }
-        out.combat_encounters[cbtIdx].rounds = rounds;
-      }
-    }
-  }
-
-  return out;
+// sameCampaign(a, b) — equal apart from the publish metadata that every
+// publish stamps (_last_published, _delta_count). The old inline copy left
+// those out, so "nothing changed" tests compared whole files.
+function sameCampaign(a, b) {
+  const strip = c => JSON.stringify(Object.assign({}, c, { _last_published: null, _delta_count: null }));
+  return strip(a) === strip(b);
 }
 
 // ── Inline remainingRounds computation ───────────────────────────────────────
@@ -163,7 +118,7 @@ console.log('\nTest F-1 — ROUND delta inserts round into combat.rounds[]');
   };
 
   const result = applyDeltasToCampaign(fixture, [delta]);
-  const cbt    = result.combat_encounters.find(c => c.id === 'cbt_001');
+  const cbt    = result.combat_encounters.find(c => c.id === L.get('cbt_001'));
 
   assert(
     'combat_encounters length unchanged (round not added as new combat entry)',
@@ -175,7 +130,7 @@ console.log('\nTest F-1 — ROUND delta inserts round into combat.rounds[]');
   );
   assert(
     'cbt_001.rounds length increased by 1',
-    cbt.rounds.length === fixture.combat_encounters.find(c => c.id === 'cbt_001').rounds.length + 1
+    cbt.rounds.length === fixture.combat_encounters.find(c => c.id === L.get('cbt_001')).rounds.length + 1
   );
 }
 
@@ -203,7 +158,7 @@ console.log('\nTest F-2 — ROUND delta sorts rounds in ascending order after in
   };
 
   const result     = applyDeltasToCampaign(campaignWithGap, [delta]);
-  const cbt        = result.combat_encounters.find(c => c.id === 'cbt_001');
+  const cbt        = result.combat_encounters.find(c => c.id === L.get('cbt_001'));
   const roundNums  = cbt.rounds.map(r => r.n);
 
   assert(
@@ -235,9 +190,9 @@ console.log('\nTest F-3 — ROUND delta overwrites existing round (no duplicate)
   };
 
   const result    = applyDeltasToCampaign(fixture, [delta]);
-  const cbt       = result.combat_encounters.find(c => c.id === 'cbt_001');
+  const cbt       = result.combat_encounters.find(c => c.id === L.get('cbt_001'));
   const round2    = cbt.rounds.find(r => r.n === 2);
-  const origCount = fixture.combat_encounters.find(c => c.id === 'cbt_001').rounds.length;
+  const origCount = fixture.combat_encounters.find(c => c.id === L.get('cbt_001')).rounds.length;
 
   assert(
     'round count unchanged after overwrite (no duplicate added)',
@@ -270,7 +225,7 @@ console.log('\nTest F-4 — NEW delta on combat_encounters appends new combat (n
   };
 
   const result = applyDeltasToCampaign(fixture, [delta]);
-  const cbt    = result.combat_encounters.find(c => c.id === 'cbt_001');
+  const cbt    = result.combat_encounters.find(c => c.id === L.get('cbt_001'));
 
   // NEW branch with no .id pushes directly — confirming NEW != ROUND routing
   assert(
@@ -279,7 +234,7 @@ console.log('\nTest F-4 — NEW delta on combat_encounters appends new combat (n
   );
   assert(
     'cbt_001.rounds unchanged — round object went to root, not into rounds[]',
-    cbt.rounds.length === fixture.combat_encounters.find(c => c.id === 'cbt_001').rounds.length
+    cbt.rounds.length === fixture.combat_encounters.find(c => c.id === L.get('cbt_001')).rounds.length
   );
 }
 
@@ -374,9 +329,7 @@ console.log('\nTest F-9 — RAW delta item is silently skipped — nothing writt
     },
   };
 
-  const before = JSON.stringify(fixture);
   const result = applyDeltasToCampaign(fixture, [rawDelta]);
-  const after  = JSON.stringify(result);
 
   assert(
     'session_logs length unchanged — RAW item not appended as a new session entry',
@@ -384,23 +337,19 @@ console.log('\nTest F-9 — RAW delta item is silently skipped — nothing writt
   );
   assert(
     'campaign JSON identical to input — RAW item produces no mutations',
-    before === after
+    sameCampaign(fixture, result)
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Group F-10 — NEW delta with no id gets auto-assigned id (issue #66)
+// Group F-10 — NEW delta with no id gets a UUID (issues #66, #95)
 // ═══════════════════════════════════════════════════════════════════════════
-// Before issue #66: cascade items arrived with no id in rawData. The duplicate
-// guard in applyDeltasToCampaign() was a no-op on undefined, so the entity was
-// pushed as-is — no id, schema violation, unreachable by any id-based lookup.
-// After fix: the NEW branch derives the next id from max(existing numeric suffixes)+1,
-// which is collision-safe even when ids have been voided or skipped.
+// Before issue #66 cascade items arrived with no id and were pushed without
+// one. #66 counted the next typed id (npc_004); since #95 every new entity
+// gets an opaque UUID instead, and no legacy_id, so nothing is counted.
 
-console.log('\nTest F-10 — NEW delta with no id gets auto-assigned collision-safe id');
+console.log('\nTest F-10 — NEW delta with no id gets a UUID');
 {
-  // F-10a: cascade NPC with no id — fixture has npc_001, npc_002, npc_003.
-  // max numeric suffix = 3, so auto-assigned id should be npc_004.
   const cascadeNpc = {
     type:    'NEW',
     array:   'npc_directory',
@@ -412,37 +361,15 @@ console.log('\nTest F-10 — NEW delta with no id gets auto-assigned collision-s
   const result10a = applyDeltasToCampaign(fixture, [cascadeNpc]);
   const added10a  = result10a.npc_directory.find(n => n.name === 'Barnes');
 
-  assert(
-    'F-10a: cascade NPC is added to npc_directory',
-    result10a.npc_directory.length === fixture.npc_directory.length + 1
-  );
-  assert(
-    'F-10a: auto-assigned id is npc_004 (max 003 + 1)',
-    added10a?.id === 'npc_004'
-  );
+  assert('F-10a: cascade NPC is added to npc_directory',
+    result10a.npc_directory.length === fixture.npc_directory.length + 1);
+  assert('F-10a: its id is a UUID', ChronicleIds.isOpaqueId(added10a?.id));
+  assert('F-10a: it has no legacy_id (no typed IDs are minted after #95)', !!added10a && !('legacy_id' in added10a));
+  assert('F-10a: the queue item itself is not modified', !('id' in cascadeNpc.rawData));
 
-  // F-10b: gap-safety check — campaign with npc_001 and npc_003 (npc_002 voided/skipped).
-  // length+1 would give 3 (collision with npc_003). max+1 should give npc_004.
-  const campaignWithGap = JSON.parse(JSON.stringify(fixture));
-  campaignWithGap.npc_directory = [
-    { id: 'npc_001', name: 'Alpha' },
-    { id: 'npc_003', name: 'Gamma' }, // npc_002 voided — gap in sequence
-  ];
-
-  const cascadeGap = {
-    type:    'NEW',
-    array:   'npc_directory',
-    status:  'approved',
-    rawData: { name: 'Delta', type: 'npc', description: 'New NPC.' },
-  };
-
-  const result10b = applyDeltasToCampaign(campaignWithGap, [cascadeGap]);
-  const added10b  = result10b.npc_directory.find(n => n.name === 'Delta');
-
-  assert(
-    'F-10b: gap-safe — auto-assigned id is npc_004, not npc_003 (length+1 collision)',
-    added10b?.id === 'npc_004'
-  );
+  const twice = applyDeltasToCampaign(fixture, [cascadeNpc, Object.assign({}, cascadeNpc, { rawData: { name: 'Delta' } })]);
+  const ids   = twice.npc_directory.map(n => n.id);
+  assert('F-10b: two new NPCs get two different ids', new Set(ids).size === ids.length);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -466,9 +393,7 @@ console.log('\nTest F-11 — NEW delta with unrecognised array is silently skipp
     rawData: { name: 'Session 006 — Lance absent', type: 'session_note', description: 'Malachite piloted by David.' },
   };
 
-  const before = JSON.stringify(fixture);
   const result = applyDeltasToCampaign(fixture, [garbageDelta]);
-  const after  = JSON.stringify(result);
 
   assert(
     'locations[] unchanged — garbage item not appended',
@@ -476,8 +401,62 @@ console.log('\nTest F-11 — NEW delta with unrecognised array is silently skipp
   );
   assert(
     'campaign JSON identical to input — unknown array produces no mutation',
-    before === after
+    sameCampaign(fixture, result)
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Group F-12 — legacy IDs in staged deltas are translated at publish (#95)
+// ═══════════════════════════════════════════════════════════════════════════
+// Intake and the AI name entities by legacy ID. Publish must write the UUIDs
+// the data uses, or every new reference would resolve to nothing.
+
+console.log('\nTest F-12 — legacy IDs and placeholders become UUIDs at publish');
+{
+  // F-12a: references inside a round (slot actor) and the round's combat.
+  const round = { n: 4, slots: [{ s: 1, a: 'pc_001', activities: [], notes: null }], enemy_turns: [] };
+  const r12a  = applyDeltasToCampaign(fixture, [{ type: 'ROUND', combatId: 'cbt_001', array: 'combat_encounters', rawData: round }]);
+  const added = r12a.combat_encounters.find(c => c.id === L.get('cbt_001')).rounds.find(r => r.n === 4);
+  assert('F-12a: round lands in cbt_001 (legacy combatId translated)', !!added);
+  assert('F-12a: slot actor pc_001 written as its UUID', added?.slots[0].a === L.get('pc_001'));
+  assert('F-12a: the queue item still says pc_001 (not mutated)', round.slots[0].a === 'pc_001');
+
+  // F-12b: a combat created this publish, with its round queued before it.
+  const r12b = applyDeltasToCampaign(fixture, [
+    { type: 'ROUND', combatId: 'cbt_099', array: 'combat_encounters', rawData: { n: 1, slots: [], enemy_turns: [] } },
+    { type: 'NEW', array: 'combat_encounters', rawData: { id: 'cbt_099', name: 'New Fight', rounds: [] } },
+  ]);
+  const fight = r12b.combat_encounters.find(c => c.name === 'New Fight');
+  assert('F-12b: new combat gets a UUID', ChronicleIds.isOpaqueId(fight?.id));
+  assert('F-12b: its placeholder is not kept as legacy_id', !!fight && !('legacy_id' in fight));
+  assert('F-12b: the round queued before it found it', fight?.rounds.length === 1);
+
+  // F-12c: a new session keeps the DM's session number as legacy_id, and a
+  // reference to it elsewhere in the same publish is translated.
+  const r12c = applyDeltasToCampaign(fixture, [
+    { type: 'NEW', array: 'session_logs', rawData: { id: 'session_042', title: 'S42' } },
+    { type: 'MOD', array: 'npc_directory', targetId: 'npc_001', rawData: { id: 'npc_001', last_seen: 'session_042' } },
+  ]);
+  const s42 = r12c.session_logs.find(s => s.title === 'S42');
+  assert('F-12c: new session id is a UUID', ChronicleIds.isOpaqueId(s42?.id));
+  assert('F-12c: new session keeps legacy_id session_042', s42?.legacy_id === 'session_042');
+  const npc1 = r12c.npc_directory.find(n => n.id === L.get('npc_001'));
+  assert('F-12c: MOD by legacy targetId patched the right NPC', npc1?.last_seen === s42?.id);
+
+  // F-12d: a NEW delta for an entity that already exists is skipped.
+  const r12d = applyDeltasToCampaign(fixture, [{ type: 'NEW', array: 'npc_directory', rawData: { id: 'npc_001', name: 'Dup' } }]);
+  assert('F-12d: NEW with an existing legacy id adds nothing', r12d.npc_directory.length === fixture.npc_directory.length);
+
+  // F-12e: relationship ids are UUIDs and their endpoints are translated.
+  // The fixture has no entity_relationships array (publish skips a delta whose
+  // array is missing), so this uses a copy that has an empty one, as the real
+  // campaign file does.
+  const withRels = Object.assign(JSON.parse(JSON.stringify(fixture)), { entity_relationships: [] });
+  const r12e = applyDeltasToCampaign(withRels, [{ type: 'RELATIONSHIP', array: 'entity_relationships',
+    rawData: { from_id: 'pc_001', to_id: 'npc_001', significance: 'significant_event' } }]);
+  const rel = (r12e.entity_relationships || [])[0];
+  assert('F-12e: relationship id is a UUID', ChronicleIds.isOpaqueId(rel?.id));
+  assert('F-12e: endpoints translated', rel?.from_id === L.get('pc_001') && rel?.to_id === L.get('npc_001'));
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

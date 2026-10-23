@@ -244,6 +244,12 @@ console.log('\nTest T-4 — bonus action, movement, enemy turns, and re-running'
 // ── Test T-5 — the converted campaign file ───────────────────────────────────
 console.log('\nTest T-5 — data/magers-campaign.json is fully on 5.0.0');
 const campaign = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'magers-campaign.json'), 'utf8'));
+// Since issue #95 entity ids are UUIDs. These tests name entities by their
+// legacy ID (pc_004, cbt_002), which is how the DM's decisions were written:
+// L turns a legacy ID into the UUID, R turns a UUID back for comparisons.
+const L = require('../shared/chronicle-ids.js').buildLegacyIndex(campaign);
+const R = new Map([...L].map(([legacy, id]) => [id, legacy]));
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 {
   const rounds = campaign.combat_encounters.flatMap(c => c.rounds);
   const slots  = rounds.flatMap(r => r.slots);
@@ -268,18 +274,18 @@ const campaign = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'magers-camp
 console.log('\nTest T-8 — enemy targets and effects in data/magers-campaign.json');
 {
   const turn = (cbt, n, actor) => {
-    const r = campaign.combat_encounters.find(c => c.id === cbt).rounds.find(x => x.n === n);
-    return /^pc_/.test(actor) ? r.slots.find(s => s.a === actor) : r.enemy_turns.find(e => e.actor_id === actor);
+    const r = campaign.combat_encounters.find(c => c.legacy_id === cbt).rounds.find(x => x.n === n);
+    return /^pc_/.test(actor) ? r.slots.find(s => s.a === L.get(actor)) : r.enemy_turns.find(e => e.actor_id === actor);
   };
   const outs = t => t.activities.flatMap(a => a.outcomes);
-  const ids = t => outs(t).map(o => o.target_id ?? '#' + o.target_text).join();
+  const ids = t => outs(t).map(o => (R.get(o.target_id) ?? o.target_id) ?? '#' + o.target_text).join();
   const allOuts = campaign.combat_encounters.flatMap(c => {
     const roster = (c.mechanics.enemies_roster || []).map(g => g.actor_id);
     return c.rounds.flatMap(r => [...r.slots, ...r.enemy_turns]).flatMap(outs).map(o => ({ o, roster }));
   });
 
   assert('every target_id is an entity ID, a roster actor, or null',
-    allOuts.every(({ o, roster }) => o.target_id === null || /^(pc|npc|mon|loc|item)_\d+$/.test(o.target_id) || roster.includes(o.target_id)));
+    allOuts.every(({ o, roster }) => o.target_id === null || (UUID.test(o.target_id) && R.has(o.target_id)) || roster.includes(o.target_id)));
   assert('target_text only where target_id is null', allOuts.every(({ o }) => !('target_text' in o) || o.target_id === null));
   assert('cbt_002 r6 split → pc_001, pc_005',  ids(turn('cbt_002', 6, 'Rock Lobsters')) === 'pc_001,pc_005');
   assert('cbt_002 r10 split → pc_001, pc_003', ids(turn('cbt_002', 10, 'Rock Lobsters')) === 'pc_001,pc_003');
@@ -291,13 +297,13 @@ console.log('\nTest T-8 — enemy targets and effects in data/magers-campaign.js
   // Repeated target (DM rule 6): one outcome per attack even on the same target.
   for (const n of [13, 15]) {
     const os = outs(turn('cbt_002', n, 'Rock Lobsters'));
-    assert(`cbt_002 r${n} "Melee (x2)" → two hits on pc_002`, os.length === 2 && os.every(o => o.target_id === 'pc_002' && o.res === 'hit'));
+    assert(`cbt_002 r${n} "Melee (x2)" → two hits on pc_002`, os.length === 2 && os.every(o => o.target_id === L.get('pc_002') && o.res === 'hit'));
   }
   // Outcome-level detail (DM rule 7): each 4.x attacks[].name came through.
   assert('cbt_004 r3 ROUS: four outcomes with detail "Bite"', outs(turn('cbt_004', 3, 'ROUS')).map(o => o.detail).join() === 'Bite,Bite,Bite,Bite');
   assert('cbt_005 r2 Goblins: two outcomes with detail "Melee"', outs(turn('cbt_005', 2, 'Goblins')).map(o => o.detail).join() === 'Melee,Melee');
 
-  const eff = (t, target) => outs(t).find(o => (o.target_id ?? o.target_text) === target)?.effect;
+  const eff = (t, target) => outs(t).find(o => ((R.get(o.target_id) ?? o.target_id) ?? o.target_text) === target)?.effect;
   const events = t => t.special_events.map(e => e.description);
   assert('cbt_001 r2 pc_004 downed, event removed',  eff(turn('cbt_001', 2, 'Vespon Queen'), 'pc_004') === 'downed' && events(turn('cbt_001', 2, 'Vespon Queen')).length === 0);
   assert('cbt_005 r2 pc_004 downed, event removed',  eff(turn('cbt_005', 2, 'Goblin Slingers'), 'pc_004') === 'downed' && events(turn('cbt_005', 2, 'Goblin Slingers')).length === 0);
@@ -328,8 +334,8 @@ console.log('\nTest T-6 — log-viewer and player normalisers on the real data')
   const playerView = loadNormaliser('player/index.html')(campaign);
 
   for (const [label, view] of [['admin', adminView], ['player', playerView]]) {
-    const cbt2 = view.combats.find(c => c.id === 'cbt_002');
-    const cbt5 = view.combats.find(c => c.id === 'cbt_005');
+    const cbt2 = view.combats.find(c => c.id === L.get('cbt_002'));
+    const cbt5 = view.combats.find(c => c.id === L.get('cbt_005'));
     const text = c => JSON.stringify(c.rounds.map(r => [r.slots.map(s => [s.act, s.res, s.val, s.notes]), r.enemy.map(e => [e.desc, e.impact])]));
 
     assert(label + ': cbt_002 has all 19 rounds',          cbt2.rounds.length === 19);
@@ -340,18 +346,19 @@ console.log('\nTest T-6 — log-viewer and player normalisers on the real data')
     const r19 = cbt2.rounds.find(r => r.n === 19);
     assert(label + ': Ched\'s death in cbt_002 round 19',  /Ched Warmfire confirmed dead/.test(r19?.summary || ''));
     const r4 = cbt2.rounds.find(r => r.n === 4);
-    assert(label + ': cbt_002 r4 Goli shows the action',   r4.slots.find(s => s.a === 'pc_005').act === '3 Melee Attacks');
-    assert(label + ': single-outcome result still shown',  r4.slots.find(s => s.a === 'pc_001').res === 'hit');
+    assert(label + ': cbt_002 r4 Goli shows the action',   r4.slots.find(s => s.a === L.get('pc_005')).act === '3 Melee Attacks');
+    assert(label + ': single-outcome result still shown',  r4.slots.find(s => s.a === L.get('pc_001')).res === 'hit');
     // cbt_002 r4 now has three outcomes (DM decision), so no single result is shown.
     assert(label + ': enemy turn lists its activity',      r4.enemy[0].desc === 'Rock Lobsters: Melee');
     // Downs and kills moved from special_events to outcome effects must still
     // appear where the viewer showed them before.
-    const cbt1 = view.combats.find(c => c.id === 'cbt_001');
-    assert(label + ': cbt_001 r2 enemy impact shows pc_004 downed', cbt1.rounds.find(r => r.n === 2).enemy[0].impact === 'pc_004 downed');
+    const cbt1 = view.combats.find(c => c.id === L.get('cbt_001'));
+    // The target is named by nickname since #95 (target_id is a UUID).
+    assert(label + ': cbt_001 r2 enemy impact shows Del downed', cbt1.rounds.find(r => r.n === 2).enemy[0].impact === 'Del downed');
     const c5r3 = cbt5.rounds.find(r => r.n === 3);
-    assert(label + ': cbt_005 r3 Atti\'s notes show Ogre killed',  /Ogre killed$/.test(c5r3.slots.find(s => s.a === 'pc_006').notes));
-    const c3r7 = view.combats.find(c => c.id === 'cbt_003').rounds.find(r => r.n === 7);
-    assert(label + ': cbt_003 r7 impact shows horse killed and pc_004 downed', c3r7.enemy[0].impact === 'horse killed; pc_004 downed');
+    assert(label + ': cbt_005 r3 Atti\'s notes show Ogre killed',  /Ogre killed$/.test(c5r3.slots.find(s => s.a === L.get('pc_006')).notes));
+    const c3r7 = view.combats.find(c => c.id === L.get('cbt_003')).rounds.find(r => r.n === 7);
+    assert(label + ': cbt_003 r7 impact shows horse killed and Del downed', c3r7.enemy[0].impact === 'horse killed; Del downed');
   }
 
   assert('admin and player combats are identical',

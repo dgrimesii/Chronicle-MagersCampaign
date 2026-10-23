@@ -504,6 +504,31 @@ function normaliseCampaignJson(json) {
       free: 'Free: ', legendary_action: 'Legendary: ', legendary_resistance: 'Legendary: ',
     };
 
+    // ── Opaque IDs (issue #95) ──
+    // Every entity id is now a UUID, and its old typed ID is kept as legacy_id.
+    // LEGACY_IDS maps legacy_id → id. It is returned as DATA.legacy_ids so the
+    // page can translate the hardcoded maps still keyed by legacy IDs (RELS,
+    // PARTY_LOOKUP) and so a link to an old ID (npc_014) still opens the entity.
+    // TARGET_LABEL maps id → the short name a combat line shows, because a raw
+    // UUID in "… downed" would be unreadable where "pc_004 downed" used to be.
+    // Party members use their nickname, as the combat viewer does elsewhere.
+    const LEGACY_IDS = {};
+    const TARGET_LABEL = {};
+    for (const arr of ['party', 'session_logs', 'npc_directory', 'bestiary', 'world_lore', 'inventory_and_loot',
+                       'locations', 'quest_ledger', 'combat_encounters', 'character_moments', 'factions', 'cohorts']) {
+      for (const e of json[arr] || []) {
+        if (e.legacy_id) LEGACY_IDS[e.legacy_id] = e.id;
+        TARGET_LABEL[e.id] = (arr === 'party' ? e.nickname : null) || e.name || e.title || e.id;
+      }
+    }
+
+    // targetLabel(id) — readable name for an outcome's target_id. An id the data
+    // does not know (a roster actor_id such as "Ogre") is already a name, so it
+    // is shown as written.
+    function targetLabel(id) {
+      return id == null ? null : (TARGET_LABEL[id] ?? id);
+    }
+
     // activityLabel(act) — one line of text for a 5.0.0 activity.
     // Why: the renderer has one text cell per turn. Attack and Magic are generic
     // standard-action names, so the weapon or spell (detail) stands in for them,
@@ -529,15 +554,16 @@ function normaliseCampaignJson(json) {
       return act && Array.isArray(act.outcomes) && act.outcomes.length === 1 ? act.outcomes[0] : null;
     }
 
-    // effectLines(activities) — "pc_004 downed", "horse killed" for every
-    // outcome that carries an effect.
+    // effectLines(activities) — "Del downed", "horse killed" for every
+    // outcome that carries an effect. The target is named via targetLabel()
+    // (issue #95), since target_id is now a UUID.
     // Why: in 5.0.0 a down or kill matched to a roll is stored once, as that
     // outcome's effect, and removed from special_events (DM decision on #93).
     // The renderer used to show it from special_events, so without these lines
     // those downs and kills would silently disappear from the combat view.
     function effectLines(activities) {
       return (activities || []).flatMap(a => (a.outcomes || []).filter(o => o.effect)
-        .map(o => (o.target_id ?? o.target_text ?? 'target') + ' ' + o.effect));
+        .map(o => (targetLabel(o.target_id) ?? o.target_text ?? 'target') + ' ' + o.effect));
     }
 
     // Flatten a slot to the compact shape the renderer expects.
@@ -610,11 +636,15 @@ function normaliseCampaignJson(json) {
     }
 
     return {
+      // legacy_id → id for every entity (issue #95). See LEGACY_IDS above.
+      legacy_ids: LEGACY_IDS,
+
       // ── Sessions ──────────────────────────────────────────────────────────────
       // v4: id/date promoted to root; summary/tone moved into narrative sub-object;
       //     key_moments are now objects {description, type, ref} — flatten to strings for viewer
       sessions: (json.session_logs || []).map(s => ({
         id:             s.id,                                        // v4: s.id            (was s.session_id)
+        legacy_id:      s.legacy_id ?? null,                         // #95: the old session_NNN, shown as the round tag
         title:          s.title,
         date:           s.date,                                      // v4: s.date           (was s.session_date)
         summary:        s.narrative?.summary       ?? null,          // v4: s.narrative.summary (was s.summary)
@@ -638,6 +668,7 @@ function normaliseCampaignJson(json) {
       // v4: class/level moved into mechanics; free-text notes renamed campaign_notes; milestones at root
       party: (json.party || []).map(p => ({
         id:         p.id,
+        legacy_id:  p.legacy_id ?? null,              // #95: the old pc_NNN, so legacy links and maps resolve
         name:       p.name,
         nickname:   p.nickname,
         player:     p.player,
@@ -910,6 +941,31 @@ function registerAll() {
   DATA.combats.forEach(e=>{ ENTITIES[e.id]={...e,_type:'combat',_name:e.name,_search:[e.name,e.narrativeContext,e.notes].join(' ')}; });
   DATA.lore.forEach(e=>{ ENTITIES[e.id]={...e,_type:'lore',_name:e.title,_search:[e.title,e.content].join(' ')}; });
   DATA.bestiary.forEach(e=>{ ENTITIES[e.id]={...e,_type:'lore',_name:e.name,_search:[e.name,e.traits?.join(' ')].join(' ')}; });
+  relinkLegacyMaps();
+}
+
+// relinkLegacyMaps() — re-keys the hardcoded RELS and PARTY_LOOKUP maps from
+// legacy IDs (pc_001) to the UUIDs the data now uses, and adds each entity's
+// legacy_id to its search text.
+// Why: both maps were written by hand before issue #95 and still name
+// entities by legacy ID. Translating them at load keeps them working without
+// hand-editing ~40 lines of UUIDs, and #106 replaces RELS with relationships
+// computed from the data. Remove the RELS half when #106 ships.
+// Safe to run on every load: a key that is already a UUID is not in
+// legacy_ids, so it maps to itself.
+function relinkLegacyMaps() {
+  const L  = DATA.legacy_ids || {};
+  const to = id => L[id] ?? id;
+  for (const key of Object.keys(RELS)) {
+    const rels = RELS[key].map(r => ({ ...r, id: to(r.id) }));
+    delete RELS[key];
+    RELS[to(key)] = rels;
+  }
+  for (const key of Object.keys(PARTY_LOOKUP)) {
+    if (L[key]) { PARTY_LOOKUP[L[key]] = PARTY_LOOKUP[key]; delete PARTY_LOOKUP[key]; }
+  }
+  // Searching an old ID (npc_014) still finds the entity.
+  Object.values(ENTITIES).forEach(e => { if (e.legacy_id) e._search += ' ' + e.legacy_id; });
 }
 
 // ══════════════════════════════════════════════════════
@@ -985,6 +1041,9 @@ function matchesSession(e, sid) {
 // ENTITY DETAIL VIEW
 // ══════════════════════════════════════════════════════
 function selectEntity(id) {
+  // A legacy ID (npc_014) from an old link or note opens the same entity as
+  // its UUID (issue #95). Unknown IDs pass through unchanged.
+  id = DATA?.legacy_ids?.[id] ?? id;
   state.selectedId = id;
   state.search = '';
   document.getElementById('search-input').value = '';
@@ -994,6 +1053,11 @@ function selectEntity(id) {
 }
 
 function getName(id) { return ENTITIES[id]?._name || id; }
+// sessionLabel(id) — the short label a session reference shows, e.g.
+// "session_005". Since issue #95 a session's id is a UUID, so the label comes
+// from its legacy_id; a session created after #95 has the session_NNN the DM
+// typed as its legacy_id too. An unknown id is shown as given.
+function sessionLabel(id) { return id ? (ENTITIES[id]?.legacy_id ?? id) : id; }
 function getType(id) { return ENTITIES[id]?._type || 'unknown'; }
 
 // ══════════════════════════════════════════════════════
@@ -1327,7 +1391,7 @@ function renderRoundBlock(round, cbtId) {
     <div class="round-block" id="round-${cbtId}-${round.n}">
       <div class="round-header" onclick="toggleRound('${cbtId}',${round.n})">
         <span class="round-num">Round ${round.n}</span>
-        <span class="round-session-tag">${round.sid}</span>
+        <span class="round-session-tag">${sessionLabel(round.sid)}</span>
         <div class="round-summary-chips">${summaryChips}</div>
         <span class="round-toggle">${isOpen?'▲':'▼'}</span>
       </div>
@@ -1507,7 +1571,7 @@ function renderDetail(id) {
         </div>
         <div class="detail-section full">
           <div class="section-label">Progress Log</div>
-          <div class="timeline">${(ent.progress||[]).map(p=>`<div class="timeline-item"><div class="timeline-dot"></div><span class="timeline-session">${p.s}</span><span class="timeline-text">${p.e}</span></div>`).join('')}</div>
+          <div class="timeline">${(ent.progress||[]).map(p=>`<div class="timeline-item"><div class="timeline-dot"></div><span class="timeline-session">${sessionLabel(p.s)}</span><span class="timeline-text">${p.e}</span></div>`).join('')}</div>
         </div>
         ${rels.length ? `<div class="detail-section full">
           <div class="section-label">Key People & Places</div>
@@ -1527,7 +1591,7 @@ function renderDetail(id) {
         </div>
         <div class="detail-section">
           <div class="section-label">Found</div>
-          <div class="section-text">${ent.session || ent.origin_session || '—'}</div>
+          <div class="section-text">${sessionLabel(ent.session || ent.origin_session) || '—'}</div>
         </div>
         ${holder ? `<div class="detail-section full">
           <div class="section-label">Current Holder</div>

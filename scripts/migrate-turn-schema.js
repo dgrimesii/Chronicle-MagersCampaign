@@ -73,7 +73,10 @@ const NOT_AN_ATTACK_NAME = /^(attacks?|hits?)$/i;
 // What counts as an entity ID in target_id. Anything else the notes named
 // as a target ("horse") is not an entity, so it goes in target_text instead
 // and target_id stays null — the DM's decision on #93: never invent an ID.
+// Since #95 an entity ID is a UUID; a legacy typed ID is still accepted,
+// because a 4.x round may come from a file that has not been migrated yet.
 const ENTITY_ID = /^(pc|npc|mon|loc|item|qst|cbt|lore|fac|coh|session|moment)_\d+$/;
+const Ids = require('../shared/chronicle-ids.js');
 
 /**
  * targetFields(raw, roster) → { target_id, target_text? }
@@ -87,7 +90,7 @@ const ENTITY_ID = /^(pc|npc|mon|loc|item|qst|cbt|lore|fac|coh|session|moment)_\d
 function targetFields(raw, roster) {
   const t = raw == null ? null : String(raw).trim();
   if (!t) return { target_id: null };
-  if (ENTITY_ID.test(t) || (roster || []).includes(t)) return { target_id: t };
+  if (ENTITY_ID.test(t) || Ids.isOpaqueId(t) || (roster || []).includes(t)) return { target_id: t };
   return { target_id: null, target_text: t };
 }
 
@@ -405,13 +408,20 @@ function countTurns(json) {
 // script stays safe to re-run. A decision whose expected shape is missing is
 // reported, never forced.
 
+// The DM decisions below name combats and party members by their legacy ID
+// (cbt_002, pc_004), as the DM wrote them on #93. Since #95 the data uses
+// UUIDs, so every lookup passes through lid(), which applyDmDecisions() points
+// at the file's legacy index. On a file that has not been migrated the index
+// is empty and lid() returns its input, so both kinds of file work.
+let lid = x => x;
+
 /**
  * hasCombat(json, cbt) → boolean
  * True when the file has that combat. Lets the DM decisions skip files they
  * were never meant for, instead of reporting them as failures.
  */
 function hasCombat(json, cbt) {
-  return (json.combat_encounters || []).some(c => c.id === cbt);
+  return (json.combat_encounters || []).some(c => c.id === lid(cbt));
 }
 
 /**
@@ -420,9 +430,9 @@ function hasCombat(json, cbt) {
  * pc_NNN) in one round.
  */
 function turnOf(json, cbt, n, actor) {
-  const round = (json.combat_encounters || []).find(c => c.id === cbt)?.rounds?.find(r => r.n === n);
+  const round = (json.combat_encounters || []).find(c => c.id === lid(cbt))?.rounds?.find(r => r.n === n);
   if (!round) return null;
-  const turn = /^pc_\d+$/.test(actor) ? round.slots.find(s => s.a === actor) : round.enemy_turns.find(e => e.actor_id === actor);
+  const turn = /^pc_\d+$/.test(actor) ? round.slots.find(s => s.a === lid(actor)) : round.enemy_turns.find(e => e.actor_id === actor);
   return turn && Array.isArray(turn.activities) ? { round, turn } : null;
 }
 
@@ -445,7 +455,7 @@ function attachEffect(json, d, applied, report) {
   const found = turnOf(json, d.cbt, d.n, d.actor);
   if (!found) { report.push(`${where}: DM decision "${d.label}" not applied — turn not found`); return; }
   const outs = found.turn.activities.flatMap(a => a.outcomes);
-  const matches = outs.filter(o => d.setTarget ? (o.target_id === null || o.target_id === d.setTarget) : (o.target_id ?? o.target_text) === d.target);
+  const matches = outs.filter(o => d.setTarget ? (o.target_id === null || o.target_id === d.setTarget) : (o.target_id ?? o.target_text) === lid(d.target));
   if (matches.length !== 1) { report.push(`${where}: DM decision "${d.label}" not applied — ${matches.length} matching outcomes`); return; }
   const o = matches[0];
   if (o.effect === d.effect) return; // already applied on an earlier run
@@ -501,7 +511,7 @@ function expandNoteTargets(json, applied, report) {
     report.push('cbt_002 r4 Rock Lobsters: DM decision "three outcomes from the note" not applied — shape not as expected');
     return;
   }
-  act.outcomes = ['pc_005', 'pc_004', 'pc_002'].map(id => ({ res: 'hit', val: null, target_id: id }));
+  act.outcomes = ['pc_005', 'pc_004', 'pc_002'].map(id => ({ res: 'hit', val: null, target_id: lid(id) }));
   applied.push('cbt_002 r4 Rock Lobsters: one untargeted hit → hits on pc_005 (Goli), pc_004 (Del), pc_002 (Mal), from the note');
 }
 
@@ -519,8 +529,8 @@ function repeatTargets(json, applied, report) {
     if (!hasCombat(json, 'cbt_002')) return;
     const act = turnOf(json, 'cbt_002', n, 'Rock Lobsters')?.turn.activities[0];
     const os = act?.outcomes || [];
-    if (os.length === 2 && os.every(o => o.target_id === 'pc_002' && o.res === 'hit')) continue; // already applied
-    if (os.length !== 1 || os[0].target_id !== 'pc_002' || os[0].res !== 'hit') {
+    if (os.length === 2 && os.every(o => o.target_id === lid('pc_002') && o.res === 'hit')) continue; // already applied
+    if (os.length !== 1 || os[0].target_id !== lid('pc_002') || os[0].res !== 'hit') {
       report.push(`cbt_002 r${n} Rock Lobsters: DM decision "two hits on pc_002" not applied — shape not as expected`);
       continue;
     }
@@ -553,6 +563,8 @@ function applyDmDecisions(json, report) {
   // IDs such as cbt_001 for unrelated synthetic combats, so checking IDs alone
   // would report false failures there; check the campaign itself.
   if (json.meta?.campaign_name !== 'Magers Campaign') return applied;
+  const index = Ids.buildLegacyIndex(json);
+  lid = x => index.get(x) ?? x;
   expandNoteTargets(json, applied, report);
   repeatTargets(json, applied, report);
   for (const d of EFFECT_DECISIONS) attachEffect(json, d, applied, report);
@@ -579,7 +591,7 @@ function migrateCampaign(input, today) {
     // Roster actor_ids are valid target_id values for this combat only.
     const roster = (cbt.mechanics?.enemies_roster || []).map(g => g.actor_id);
     for (const r of cbt.rounds || []) {
-      const where = `${cbt.id} r${r.n}`;
+      const where = `${cbt.legacy_id ?? cbt.id} r${r.n}`; // legacy ID reads better in the report (#95)
       r.slots = (r.slots || []).map(s => convertSlot(s, `${where} ${s.a}`, report, roster));
       r.enemy_turns = (r.enemy_turns || []).map(e => convertEnemyTurn(e, `${where} ${e.actor_id}`, report, roster));
     }

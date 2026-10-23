@@ -96,10 +96,12 @@ console.log('\nTest E-1 — round delta item has required fields');
 
 // ── Test E-2 — Round delta combatId resolves to a known combat ───────────────
 // delta-review matches incoming round deltas to existing combats by ID.
-// A delta for an unknown combat ID cannot be processed.
+// A delta for an unknown combat ID cannot be processed. Intake still names
+// combats by their legacy ID (cbt_001) and publish translates it (issue #95),
+// so either form counts as known.
 console.log('\nTest E-2 — round delta combatId resolves to a known combat in fixture');
 {
-  const knownCombatIds = new Set(fixture.combat_encounters.map(c => c.id));
+  const knownCombatIds = new Set(fixture.combat_encounters.flatMap(c => [c.id, c.legacy_id]));
   const item = makeRoundDeltaItem('cbt_001', 4, [], []);
 
   assert(

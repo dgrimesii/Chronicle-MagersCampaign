@@ -28,6 +28,7 @@ Chronicle-MagersCampaign/
 ├── shared/
 │   ├── config.js               # GITIGNORED — Drive proxy URL, campaign file ID, Anthropic and Gemini API keys
 │   ├── chronicle-store.js      # Storage module — every campaign read and write goes through window.ChronicleStore
+│   ├── chronicle-ids.js        # Opaque UUID ids and legacy-ID translation (#95) — exports window.ChronicleIds; also require()-able in Node
 │   ├── chronicle-ai.js         # Shared Anthropic API module — exports window.ChronicleAI
 │   ├── chronicle-integrity.js  # Shared gap-detection module — exports window.ChronicleIntegrity
 │   └── chronicle-narrative.js  # Shared Gemini narrative module — exports window.ChronicleNarrative
@@ -37,7 +38,8 @@ Chronicle-MagersCampaign/
 ├── scripts/
 │   ├── build.js                # STALE — injected EMBEDDED_DATA into HTML files; markers removed in Phase 1, script is now dead code
 │   ├── harvest-characters.js  # Fetches all 6 PC character sheets from D&D Beyond, extracts key ability/spell names, writes data/pc-abilities.json. Run manually after sessions where characters level up.
-│   └── migrate-turn-schema.js # Converts combat rounds from 4.x slots to the 5.0.0 turn schema (issue #93). Dry run by default; --write rewrites the file. Idempotent; prints before/after counts and the inconsistencies it found.
+│   ├── migrate-turn-schema.js # Converts combat rounds from 4.x slots to the 5.0.0 turn schema (issue #93). Dry run by default; --write rewrites the file. Idempotent; prints before/after counts and the inconsistencies it found.
+│   └── migrate-opaque-ids.js  # Gives every entity a UUID id and keeps its typed ID as legacy_id (issue #95). Dry run by default; --write rewrites; --check only checks that every reference resolves. Idempotent.
 ├── notes/
 │   └── phase1-claude-code-prompt.md  # Historical prompt used to migrate data reads from Drive to repo fetch
 ├── docs/
@@ -50,10 +52,11 @@ Chronicle-MagersCampaign/
 │   ├── intake-image.test.js          # Group A — OCR round-data shape validation
 │   ├── intake-preparation.test.js    # Group C — session data preparation checks
 │   ├── delta-schema.test.js          # Group E — delta item schema validation
-│   ├── delta-apply.test.js           # Tests for the applyDeltasToCampaign() logic copied from delta-review.html
+│   ├── delta-apply.test.js           # Tests for applyDeltasToCampaign(), cut from delta-review.html at run time
 │   ├── store.test.js                 # Tests for shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
 │   ├── turn-schema.test.js           # Tests for the 5.0.0 turn schema: migration rules, converted data, both viewers' normalisers
 │   ├── bestiary-fold.test.js         # Tests for the Goblin Slinger fold (#94): no mon_006, roster roles, both viewers' bestiary
+│   ├── opaque-ids.test.js            # Tests for opaque ids (#95): chronicle-ids.js, the reference check (gate), migrated data, both viewers
 │   ├── fixtures/
 │   │   └── test-campaign.json        # Minimal v5.0.0 synthetic campaign for automated tests
 │   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
@@ -75,6 +78,8 @@ APP HOSTING → GitHub Pages  (Chronicle-MagersCampaign repo)
 ```
 
 Campaign data lives in `data/magers-campaign.json`. Every page that needs it calls `ChronicleStore.loadCampaign()`, which fetches this file same-origin (no proxy, no CORS) or, in Safe Test Mode, the test fixture. No page calls `fetch()` on the campaign file or talks to the Drive proxy itself; the one exception is `admin/drive-test.html`, which exists to test the proxy directly. Updating the JSON and pushing to GitHub triggers an automatic Pages redeploy; every page picks up the new data on next load.
+
+**Identifiers (issue #95).** Every entity `id` is a UUID v4, allocated by `ChronicleIds.newId()` in `shared/chronicle-ids.js`, never counted. The old typed ID (`pc_001`, `npc_014`, `cbt_005`, `session_005`) is kept on the entity as `legacy_id` and is frozen. Intake, the AI prompts and the DM still name entities by legacy ID, so anything that accepts an ID from outside the data translates it: Delta Review translates its staged queue when the campaign loads and again at publish, and the viewers accept a legacy ID in `selectEntity()`. Run `node scripts/migrate-opaque-ids.js data/magers-campaign.json --check` after any hand edit to confirm every reference still resolves.
 
 The store module exists so the planned storage moves change only one file: rebuild phase 2 makes publish commit to the repo instead of Drive (#97), and phase 7 replaces the repo and Drive with an API backed by Postgres (see `docs/intake-redesign.md`, "Build order").
 
@@ -163,7 +168,10 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 
 | v4 JSON path | Viewer field | Notes |
 |---|---|---|
-| `session_logs[].id` | `sessions[].id` | was `session_id` in v3 |
+| every entity's `legacy_id` → `id` | `legacy_ids` (object) | #95: map of legacy ID → UUID over every top-level entity array. The page uses it to re-key the hardcoded `RELS` and `PARTY_LOOKUP` maps at load (`relinkLegacyMaps()`), to open an entity from a legacy ID in `selectEntity()`, and to add each `legacy_id` to the search text |
+| `session_logs[].id` | `sessions[].id` | was `session_id` in v3; a UUID since #95 |
+| `session_logs[].legacy_id` | `sessions[].legacy_id` | #95: the session's `session_NNN`. Session references (round tag, quest progress log, item "Found") show it through `sessionLabel()`, so they read as before |
+| `party[].legacy_id` | `party[].legacy_id` | #95: the old `pc_NNN` |
 | `session_logs[].date` | `sessions[].date` | was `session_date` in v3 |
 | `session_logs[].narrative.summary` | `sessions[].summary` | was root-level in v3 |
 | `session_logs[].narrative.tone` | `sessions[].narrative_vibe` | was root-level in v3 |
@@ -203,8 +211,8 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `rounds[].slots[].activities[]` | `rounds[].slots[].act` | 5.0.0: every activity as one label, joined with ` / ` (`activityLabel()`): the action bare, others prefixed `BA:`, `R:`, `Move:`, `Free:`, `Legendary:`. Attack and Magic show their `detail` (weapon or spell); other names show `name · detail`. 4.x: `slot.action.name` |
 | `rounds[].slots[].activities[economy=action].outcomes[0].res` | `rounds[].slots[].res` | 5.0.0: the action activity's result when it has exactly one outcome, else null (no badge), as 4.x did for `attacks[]`. Falls back to the first activity when there is no action. 4.x: `slot.action.res` |
 | `rounds[].slots[].activities[economy=action].outcomes[0].val` | `rounds[].slots[].val` | Same rule as `res`. 4.x: `slot.action.val` |
-| `rounds[].slots[].notes` + outcome `effect` | `rounds[].slots[].notes` | Slot notes, else the action activity's `notes`, followed by one "`<target> <effect>`" line per outcome effect (e.g. `Ogre killed`), joined with `; ` (`effectLines()`) |
-| `rounds[].enemy_turns[]` | `rounds[].enemy[{desc, impact}]` | 5.0.0: `desc` = `actor_id: ` + every activity's label, each with ` (res, val)` when it has one outcome, joined with `; `. `impact` = one "`<target> <effect>`" line per outcome effect (`pc_004 downed`), then the `special_events[].description`s not matched to a roll, joined with `; `. 4.x: built from `action.name/res/val` and `special_events` |
+| `rounds[].slots[].notes` + outcome `effect` | `rounds[].slots[].notes` | Slot notes, else the action activity's `notes`, followed by one "`<target> <effect>`" line per outcome effect (e.g. `Ogre killed`), joined with `; ` (`effectLines()`). Since #95 the target is named by `targetLabel()`: a party member's nickname, another entity's name, or a roster label as written (`Del downed`, not the UUID) |
+| `rounds[].enemy_turns[]` | `rounds[].enemy[{desc, impact}]` | 5.0.0: `desc` = `actor_id: ` + every activity's label, each with ` (res, val)` when it has one outcome, joined with `; `. `impact` = one "`<target> <effect>`" line per outcome effect (`Del downed`; the target named by `targetLabel()`, #95), then the `special_events[].description`s not matched to a roll, joined with `; `. 4.x: built from `action.name/res/val` and `special_events` |
 | `world_lore[].narrative.content` | `lore[].content` | was root-level in v3 |
 | `world_lore[].mechanics.reliability` | `lore[].reliability` | was root-level in v3 |
 | `bestiary[].mechanics.reliability` | `bestiary[].reliability` | was root-level in v3 |
@@ -258,10 +266,10 @@ Introduced by issue #93 (design: `docs/intake-redesign.md`, "What a turn holds")
 | Activity | `outcomes[]` | One per attack roll or spell target; empty when there was no roll |
 | Activity (optional) | `detail`, `val_type`, `notes`, `member` | Spell or weapon; damage/healing; annotation; named group member (goblin 3) |
 | Activity (optional) | `ready_ref` | On a reaction releasing a readied action: `{ round, s }` of the Ready activity |
-| Outcome | `res`, `val`, `target_id` | Always present (null when unknown). Replaces 4.x `attacks[]` entries and the action's own result. `target_id` is an ID or null: an entity ID (`pc_NNN`…), or the `actor_id` of one of the combat's `enemies_roster` groups until enemies get IDs (#95). It is never free text, and never several targets joined |
+| Outcome | `res`, `val`, `target_id` | Always present (null when unknown). Replaces 4.x `attacks[]` entries and the action's own result. `target_id` is an ID or null: an entity's UUID id (since #95), or the `actor_id` of one of the combat's `enemies_roster` groups, because roster groups have no ids. It is never free text, and never several targets joined |
 | Outcome (optional) | `target_text` | The target exactly as written when it is not an entity (`"horse"`). Only present when `target_id` is null |
 | Outcome (optional) | `detail` | The attack used for this one roll (`Bite`, `Claw`). Overrides the activity's `detail`, so one Multiattack can hold a claw and a bite with separate targets. Carried from each 4.x `attacks[].name`, except labels that are not attack names ("Attack"/"attacks" restate the activity; "hits" is a result) |
-| Outcome (rule) | one per attack | One outcome per attack roll, even when the target repeats: "Melee (x2)" on Malachite is two outcomes with `target_id: "pc_002"` |
+| Outcome (rule) | one per attack | One outcome per attack roll, even when the target repeats: "Melee (x2)" on Malachite is two outcomes with the same `target_id` (Malachite's id, legacy `pc_002`) |
 | Outcome (optional) | `effect`, `notes` | `downed` / `killed` (down is an outcome, never an activity); per-roll note such as `Nat 1` or `Bite`. A down or kill matched to its roll lives only here, not also in `special_events` |
 
 **Enemy turns:** `{ actor_id, activities[], special_events[], notes }`. There is one turn per `enemies_roster` group per round, holding every activity of that group. Enemies have no initiative slots, so the 4.x `initiative_position` was dropped (it was null on every recorded turn). Legendary actions and resistances are activities in the boss's turn. Lair actions are their own turn with `actor_id: "lair"`.
@@ -301,21 +309,27 @@ Introduced by issue #93 (design: `docs/intake-redesign.md`, "What a turn holds")
 
 ### ID registry
 
-| Entity | In use | Gaps (voided) |
+Since issue #95 every entity `id` is a lowercase **UUID v4** (`3f2b8c1e-9a4d-4c7e-b1f0-6d2a9e5c4b81`), the format chosen by the DM to match Storyteller's constraint C15 (opaque, non-sequential, type-free). The type lives in the array an entity sits in, never in its id. New ids come from `ChronicleIds.newId()`; there is no "next available" ID any more.
+
+Each entity migrated by #95 keeps its old typed ID as `legacy_id`. Legacy IDs are **frozen**: none are assigned to new entities, except that a session published after #95 keeps the `session_NNN` the DM typed at intake. The file's own `_id_registry` records the format and the voided legacy IDs.
+
+| Entity | Legacy IDs (frozen) | Voided legacy IDs (never reuse) |
 |---|---|---|
 | Party | pc_001–pc_006 | — |
-| NPCs | npc_001, npc_003, npc_004, npc_007–npc_013 | 002, 005, 006 voided |
+| NPCs | npc_001, npc_003, npc_004, npc_007–npc_014 | npc_002, npc_005, npc_006 |
 | Locations | loc_001–loc_013 | — |
-| Quests | qst_001–qst_005 | — |
-| Items | item_001–item_010 | — |
+| Quests | qst_001–qst_005 (objectives obj_001–obj_005) | — |
+| Items | item_001–item_011 | — |
 | Combats | cbt_001–cbt_006 | — |
-| Bestiary | mon_001–mon_005, mon_007–mon_008 | 006 voided (Goblin Slinger, folded into Goblins `mon_004` by #94) |
-| Lore | lore_001–lore_002 | — |
-| Sessions | session_001–session_005 | — |
-| Factions | (none yet) | — |
-| Cohorts | (none yet) | — |
+| Bestiary | mon_001–mon_005, mon_007–mon_008 | mon_006 (Goblin Slinger, folded into Goblins by #94) |
+| Lore | lore_001–lore_003 | — |
+| Sessions | session_001–session_007 | — |
+| Character moments | moment_001–moment_003 | — |
+| Factions, cohorts, relationships | (none yet) | — |
 
-Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session_006`, `mon_009`, `lore_003`, `fac_001`, `coh_001`
+Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `deferred_gaps[]` (`gap_NNN`). No entity refers to them.
+
+`scripts/migrate-opaque-ids.js` did the conversion: 77 ids (72 entities and 5 quest objectives) and 727 references, found by walking the whole file for strings that exactly equal a legacy ID. 77 prose strings that mention a legacy ID inside longer text ("Killed by pc_006 Ice Knife") were left as written.
 
 ---
 
@@ -387,7 +401,8 @@ Next available: `npc_014`, `loc_014`, `qst_006`, `item_011`, `cbt_007`, `session
 - **URL:** `https://<user>.github.io/Chronicle-MagersCampaign/admin/delta-review.html`
 - **Audience:** DM only
 - Reviews AI-proposed session deltas (new entities, round data, quest updates) before committing them to the campaign JSON
-- Loads `../shared/config.js`, `../shared/chronicle-store.js`, `../shared/chronicle-integrity.js`, `../shared/chronicle-ai.js` and `../shared/chronicle-narrative.js`
+- Loads `../shared/config.js`, `../shared/chronicle-store.js`, `../shared/chronicle-ids.js`, `../shared/chronicle-integrity.js`, `../shared/chronicle-ai.js` and `../shared/chronicle-narrative.js`
+- **IDs (issue #95):** the staged queue names entities by legacy ID. When the campaign loads, `translateQueueIds()` rewrites every legacy ID in the queue to its UUID, before gap detection. At publish, `applyDeltasToCampaign()` translates every delta again and gives each NEW entity a UUID. A placeholder the page or intake made up for a new entity (`cbt_007`, `session_008`) maps to that UUID for the rest of the publish, and NEW deltas are applied first, so a round queued before its new combat still finds it. Only a new session keeps its placeholder, as `legacy_id`. Relationship ids are UUIDs too. The New-combat placeholder number is counted from the frozen legacy IDs, so it never names an existing combat
 - Uses `ChronicleAI.sendCorrectionToAI()` to refine individual delta items via an AI assistant chat panel
 - On load, calls `loadIntakeDelta()` — if a `chronicle_intake_delta` key exists in sessionStorage (written by `intake.html` "Send to Delta Review"), the envelope items replace the default empty queue and a banner identifies the session source. The key is **not cleared on load** — it persists until `publish()` succeeds, so the DM can navigate away and return without losing the queue (restoration banner auto-dismisses after 5 seconds). If no key exists, the queue is empty as usual.
 - **Integrity pre-flight panel**: on load, calls `ChronicleStore.loadCampaign()` (`../data/magers-campaign.json`) and runs `ChronicleIntegrity.checks()` against the staged session data. If gaps are found, an integrity panel appears in the center area before the review queue. Each gap presents three options: **Accept** (acknowledged, no record written), **Defer** (flagged for future correction — written to `deferred_gaps[]` in the published JSON), or **Edit** (AI-assisted fill via image or typed description; approved proposals join the approval queue). The Publish button is blocked until every gap has an explicit Accept or Defer decision. The **Reprocess** sub-option under Edit is a disabled placeholder — see code comments for design decisions required before building
@@ -465,7 +480,23 @@ GET for all operations except writes avoids CORS preflight. POST uses `Content-T
 
 ## Shared modules
 
-Load order when a page needs several: `config.js` → `chronicle-store.js` → `chronicle-integrity.js` → `chronicle-ai.js` → `chronicle-narrative.js` → page script.
+Load order when a page needs several: `config.js` → `chronicle-store.js` → `chronicle-ids.js` → `chronicle-integrity.js` → `chronicle-ai.js` → `chronicle-narrative.js` → page script.
+
+### `shared/chronicle-ids.js`
+
+Loaded by `delta-review.html`; required directly by `scripts/migrate-opaque-ids.js`, `scripts/migrate-turn-schema.js` and the tests. Exports `window.ChronicleIds` in the browser and `module.exports` under Node. No dependencies. Added by issue #95.
+
+| Export | What it does |
+|---|---|
+| `ENTITY_ARRAYS` | The root arrays whose objects carry an opaque id. Quest objectives are added by `forEachEntity()`. `prompt_improvement_log` and `deferred_gaps` are not included (workflow records) |
+| `newId()` | A fresh lowercase UUID v4 (`crypto.randomUUID()`). The one place ids are minted |
+| `isOpaqueId(s)` / `isLegacyId(s)` | Whether `s` is a UUID / a typed legacy ID such as `npc_014` (whole string only) |
+| `forEachEntity(campaign, fn)` | Calls `fn(obj, arrayName)` for every entity and quest objective |
+| `buildLegacyIndex(campaign)` | `Map` of `legacy_id` → `id` |
+| `translateRefs(value, index)` | Deep copy with every string that exactly equals a legacy ID replaced; prose and `legacy_id` fields untouched |
+| `findEntity(campaign, idOrLegacy)` | `{ entity, array }` for a UUID or a legacy ID, or `null` |
+
+The two viewers do not load it: `normaliseCampaignJson` must stay self-contained, so it builds its own `legacy_ids` map. `chronicle-narrative.js` does not load it either; it matches a party member by `id` or through `legacy_id` itself (`_findPartyMember()`).
 
 ### `shared/chronicle-store.js`
 
@@ -534,6 +565,10 @@ Public API (`window.ChronicleAI`):
 | `cbt_002` r6 IDs disagree with names | `data/magers-campaign.json` | The event "pc_001 (Goli) downed" and "pc_005 (Del) at 1HP" name the wrong IDs (pc_001 is Goldie, pc_005 is Goli). `mechanics.pcs_downed` records Del's round 7 down twice (under pc_005 and pc_004) and has pc_001 "Goli DOWNED Round 6". The round 6 hit targets pc_001 and pc_005. Slot data supports the names. Left unchanged for the DM to check against the notes as a separate data fix. |
 | `cbt_003` r5 note may sit on the wrong turn | `data/magers-campaign.json` | The Axe Beaks note "1 swarm attacks each horse (2 total). Del hit." reads like the Vespon Swarm's turn (one horse outcome, notes "2 separate swarm attacks"). Left as is pending the DM's check of the session_004 notes. |
 | Death saves no longer count in round hit/miss chips | `admin/log-viewer.html`, `player/index.html` | `roundSummaryChips()` and the combat totals count `res === 'hit'`/`'miss'`. Death saves were logged as hit/miss and inflated those counts; as success/failure they no longer do. Intentional, recorded here so the change in totals is not mistaken for lost data. |
+| Prose still names legacy IDs | `data/magers-campaign.json` | 77 strings mention a legacy ID inside text ("Killed by pc_006 Ice Knife", "Combat paused at end of session_005"). #95 left them as written: rewriting them to UUIDs would make the notes unreadable, and `legacy_id` still resolves them. The viewers show them as plain text, not links. |
+| AI prompts and intake still use legacy IDs | `shared/chronicle-ai.js`, `admin/intake.html`, `admin/glossary.html`, `shared/chronicle-narrative.js` | The party roster in the prompts, the AI's example output, the session ID field in intake and the glossary's PC list all say `pc_001`/`session_006`. Delta Review translates them to UUIDs when the campaign loads and at publish. An entity created after #95 has no legacy ID, so the AI is shown its UUID. Moved off legacy IDs by the intake rebuild (#99–#101). |
+| Hardcoded relationship and party maps keyed by legacy ID | `admin/log-viewer.html`, `player/index.html` | `RELS` and `PARTY_LOOKUP` were written by hand with legacy IDs. `relinkLegacyMaps()` re-keys them to UUIDs at load (56 graph links before and after #95). `RELS` is replaced by computed relationships in #106. |
+| Enemy roster groups have no ids | `data/magers-campaign.json` | An outcome's `target_id` and an enemy turn's `actor_id` may be a roster `actor_id` label ("Goblins"), not a UUID. #95 gave ids to objects that already had one; roster groups never did. The reference check accepts a roster label only within its own combat. |
 | `scripts/build.js` is dead code | `scripts/build.js` | EMBEDDED_DATA markers were removed from all HTML files in Phase 1. Running the script produces "SKIP (markers not found)" warnings and changes nothing. |
 | Log editor edits are in-memory only | `admin/log-editor.html` | No write-back to JSON or Drive. Changes are lost on page reload. |
 | Player view links to admin | `player/index.html` | Has a "⇄ Admin" button linking to `../admin/log-viewer.html`. |
@@ -559,10 +594,11 @@ tests/
 ├── intake-image.test.js            # Group A — OCR round-data shape validation
 ├── intake-preparation.test.js      # Group C — session data preparation checks
 ├── delta-schema.test.js            # Group E — delta item schema validation
-├── delta-apply.test.js             # applyDeltasToCampaign() logic (copy of the delta-review.html function)
+├── delta-apply.test.js             # applyDeltasToCampaign(), cut from delta-review.html (no copy since #95), incl. legacy-ID translation
 ├── store.test.js                   # shared/chronicle-store.js — paths, Drive calls, Safe Test Mode
 ├── turn-schema.test.js             # 5.0.0 turn schema — migration rules, converted data, both normalisers
 ├── bestiary-fold.test.js           # Goblin Slinger fold (#94) — no mon_006, roster roles, both normalisers
+├── opaque-ids.test.js              # Opaque ids (#95) — helpers, reference check, migrated data, both normalisers
 ├── fixtures/
 │   └── test-campaign.json          # Minimal v5.0.0 synthetic campaign — no real data
 ├── ocr-ground-truth/
@@ -600,7 +636,7 @@ Switching test mode on or off requires changing only `config.js`. Older copies o
 
 ### Test fixture
 
-`tests/fixtures/test-campaign.json` is a minimal v5.0.0 campaign with synthetic data (no real Magers campaign content). It contains: 2 party members, 2 sessions, 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. All automated tests run against this fixture.
+`tests/fixtures/test-campaign.json` is a minimal v5.0.0 campaign with synthetic data (no real Magers campaign content). It contains: 2 party members, 2 sessions, 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. All automated tests run against this fixture. Since #95 its entities have UUID ids with their old typed IDs as `legacy_id`, like the real file; its two quest objectives never had ids and still have none.
 
 ---
 

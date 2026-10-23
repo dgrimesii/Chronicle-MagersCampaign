@@ -84,16 +84,19 @@ console.log('\nTest C-2 — schema version is v5.x');
   assert('_schema_version starts with "5."', fixture._schema_version?.startsWith('5.'));
 }
 
-// ── Test C-3 — All entity IDs follow the <type>_<number> format ──────────────
-// The intake pipeline assigns new IDs by reading the current max. Malformed
-// existing IDs would break the next-ID calculation.
-console.log('\nTest C-3 — entity IDs follow <type>_<number> format');
+// ── Test C-3 — Entity IDs are UUIDs, with the old typed ID kept ──────────────
+// Since issue #95 every entity id is an opaque UUID and its old typed ID
+// (pc_001) is kept as legacy_id. The intake pipeline still names entities by
+// legacy ID and publish translates them, so both halves must be well formed.
+console.log('\nTest C-3 — entity ids are UUIDs and legacy_ids follow <type>_<number>');
 {
-  const ID_PATTERN = /^[a-z]+_\d+$/;
+  const UUID_PATTERN   = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const LEGACY_PATTERN = /^[a-z]+_\d+$/;
 
   function checkIds(arr, label) {
     arr.forEach(function(item) {
-      assert(label + ' id "' + item.id + '" matches pattern', ID_PATTERN.test(item.id));
+      assert(label + ' id "' + item.id + '" is a UUID v4', UUID_PATTERN.test(item.id));
+      assert(label + ' legacy_id "' + item.legacy_id + '" matches <type>_<number>', LEGACY_PATTERN.test(item.legacy_id));
     });
   }
 

@@ -152,13 +152,30 @@ Use character names and nicknames from ground_truth directly.`;
   // ═════════════════════════════════════════════════════════
 
   /**
+   * _findPartyMember(id, campaign) → PARTY_ROSTER entry, or null.
+   * Since issue #95 actor IDs in the campaign data are UUIDs, but PARTY_ROSTER
+   * is keyed by the legacy pc_NNN. A legacy ID matches the roster directly; a
+   * UUID is matched through the campaign's party entry and its legacy_id. A
+   * party member with no roster entry (a new PC) is described from the data.
+   * Without this, every PC in a combat summary would show as a raw UUID.
+   */
+  function _findPartyMember(id, campaign) {
+    const direct = PARTY_ROSTER.find(p => p.id === id);
+    if (direct) return direct;
+    const pc = (campaign?.party || []).find(p => p.id === id);
+    if (!pc) return null;
+    return PARTY_ROSTER.find(p => p.id === pc.legacy_id)
+      || { id, name: pc.name, nickname: pc.nickname || pc.name, cls: pc.mechanics?.class ?? null };
+  }
+
+  /**
    * _resolveActorName(actorId, campaign)
    * Returns the display name for an actor ID.
    * Checks party roster (uses nickname), then NPC directory, then falls back to raw ID.
    * Used when building combat summaries — keeps actor references human-readable for Gemini.
    */
   function _resolveActorName(actorId, campaign) {
-    const pc = PARTY_ROSTER.find(p => p.id === actorId);
+    const pc = _findPartyMember(actorId, campaign);
     if (pc) return pc.nickname;
     const npc = (campaign.npc_directory || []).find(n => n.id === actorId);
     if (npc) return npc.name;
@@ -229,7 +246,7 @@ Use character names and nicknames from ground_truth directly.`;
       if (loc) return [{ id, type: 'location', name: loc.name, description: loc.narrative?.description || null }];
 
       // Party members may appear as cascade context if named in a session
-      const pc = PARTY_ROSTER.find(p => p.id === id);
+      const pc = _findPartyMember(id, campaign);
       if (pc) return [{ id, type: 'pc', name: pc.name, nickname: pc.nickname, cls: pc.cls }];
 
       return []; // ID not found in any known array — omit

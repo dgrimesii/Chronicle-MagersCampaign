@@ -659,10 +659,11 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 <!-- chronicle-store.js owns every campaign read and the publish write (issue #96).
      It must load before the page script, which calls it at init and on publish. -->
 <script src="../shared/chronicle-store.js"></script>
+<script src="../shared/chronicle-ids.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <!-- chronicle-narrative.js loaded here for detectCascadeCandidates (issue #44).
-     Per CLAUDE.md load order: config → store → integrity → ai → narrative → page script. -->
+     Per CLAUDE.md load order: config → store → ids → integrity → ai → narrative → page script. -->
 <script src="../shared/chronicle-narrative.js"></script>
 <script>
 // Drive access (read, backup, write) now lives in shared/chronicle-store.js
@@ -2284,7 +2285,8 @@ function showInterpretForm(itemId) {
  *
  * Shows or hides the new-combat name input and auto-assigned ID span based on
  * whether '-- New combat --' is selected in the Interpret form. Also computes
- * the next available cbt_NNN when the fields are shown.
+ * the next placeholder cbt_NNN when the fields are shown. Publish turns the
+ * placeholder into a UUID (issue #95).
  *
  * Why compute ID here (not on form render): the ID must account for NEW combat
  * cascade items queued by earlier Interpret calls this session — items that exist
@@ -2312,8 +2314,12 @@ function toggleNewCombatFields(itemId) {
     .filter(i => i.type === 'NEW' && i.array === 'combat_encounters')
     .map(i => i.rawData?.id).filter(Boolean);
 
+  // Since #95 combat ids are UUIDs, so the placeholder is counted from the
+  // frozen legacy IDs (cbt_006 → cbt_007). It never collides with a legacy ID,
+  // and publish replaces it with a UUID. Counting c.id would give cbt_001,
+  // which is cbt_001's legacy ID: its rounds would land in that old combat.
   const allIds = [
-    ...(campaignIntegrityData?.combat_encounters || []).map(c => c.id),
+    ...(campaignIntegrityData?.combat_encounters || []).map(c => c.legacy_id ?? c.id),
     ...inFlight,
   ];
   const maxNum = allIds.reduce((m, id) => {
@@ -2644,7 +2650,7 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
         sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
         sourceQuote: coh.description || coh.anchor_detail || 'Extracted from session notes.',
         rawData: {
-          // id is omitted here — applyDeltasToCampaign() assigns coh_NNN via arrayPrefixMap.
+          // id is omitted here — applyDeltasToCampaign() assigns a UUID at publish (#95).
           name: coh.name,
           mechanics: {
             status:               'active',
@@ -2862,7 +2868,7 @@ function promoteCohortToFaction(itemId) {
       sourceRef:             item.sourceRef,
       sourceQuote:           `Promoted from cohort: ${item.rawData.narrative?.description || cohortName}`,
       rawData: {
-        // id omitted — applyDeltasToCampaign() assigns fac_NNN via arrayPrefixMap.
+        // id omitted — applyDeltasToCampaign() assigns a UUID at publish (#95).
         // Name copied from cohort — DM should refine to a proper faction display name.
         name:      cohortName,
         narrative: { description: item.rawData.narrative?.description || null },
@@ -3931,9 +3937,14 @@ function afterPublishSuccess(updated, publishedSessionId) {
   // npcs_met, etc.) come from the updated JSON if the session was published with
   // full data; if it's a minimal intake stub they will be absent, which is fine —
   // detectCascadeCandidates uses optional chaining and returns [] for missing arrays.
-  const sessionRaw = (updated.session_logs || []).find(s => s.session_id === publishedSessionId);
+  // Since #95 the published session's id is a UUID and the session_NNN the DM
+  // typed is its legacy_id, so match either. The session keeps its real (UUID)
+  // id, because the relationships detectCascadeCandidates compares it with
+  // were translated to UUIDs at publish.
+  const sessionRaw = (updated.session_logs || []).find(s =>
+    s.id === publishedSessionId || s.legacy_id === publishedSessionId || s.session_id === publishedSessionId);
   const session    = sessionRaw
-    ? Object.assign({}, sessionRaw, { id: publishedSessionId })
+    ? Object.assign({}, sessionRaw, { id: sessionRaw.id ?? publishedSessionId })
     : { id: publishedSessionId };
 
   // detectCascadeCandidates finds NPCs/locations without flavor_text and
@@ -4007,51 +4018,77 @@ function triggerNarrativeGeneration() {
   window.location = 'narrative.html';
 }
 
-// arrayPrefixMap: maps campaign array names to their ID prefix string.
-// Used by the NEW branch below to auto-assign IDs to entities that arrive without one
-// (e.g. cascade items from the AI correction assistant, which have no access to the
-// campaign JSON at build time). Arrays not listed here — entity_relationships,
-// deferred_gaps, combat_encounters — manage their own IDs in separate branches.
-const arrayPrefixMap = {
-  npc_directory:      'npc',
-  locations:          'loc',
-  inventory_and_loot: 'item',
-  quest_ledger:       'qst',
-  bestiary:           'mon',
-  session_logs:       'session',
-  cohorts:            'coh',   // added: issue #62
-  factions:           'fac',   // added: issue #62 (faction cascade from Promote to Faction)
-};
+/**
+ * withOpaqueId(rawData, assigned) → a copy of rawData whose id is the
+ * assigned UUID, with legacy_id next to it when one is kept.
+ *
+ * Why: a new entity arrives with no id or a placeholder (cbt_007,
+ * session_008) and must be written with a UUID (issue #95). id and
+ * legacy_id go first, after _object_type, matching the migrated data so a
+ * reader sees them together.
+ */
+function withOpaqueId(rawData, assigned) {
+  const { _object_type, id, legacy_id, ...rest } = rawData;
+  const out = {};
+  if (_object_type !== undefined) out._object_type = _object_type;
+  out.id = assigned.id;
+  if (assigned.legacy) out.legacy_id = assigned.legacy;
+  return Object.assign(out, rest);
+}
 
 // Apply the approved review-queue deltas to a campaign JSON object.
-// Returns a new object — does not mutate the input.
+// Returns a new object — does not mutate the input or the deltas.
 function applyDeltasToCampaign(campaign, approved) {
   const out = JSON.parse(JSON.stringify(campaign)); // deep clone
 
+  // ── Opaque IDs (issue #95) ──
+  // The data uses UUIDs, but intake and the AI name entities by legacy ID
+  // (pc_001, cbt_005), and give entities created this session a placeholder
+  // (cbt_007, session_008). Pass 1 gives every NEW entity its UUID up front
+  // and records placeholder → UUID, so a ROUND for a combat created in the
+  // same publish finds it whatever order the deltas arrive in. Every delta is
+  // then translated (tr) against the legacy IDs plus those placeholders.
+  // Without this, publish would write references that resolve to nothing.
+  const idIndex  = ChronicleIds.buildLegacyIndex(out);
+  const assigned = new Map(); // NEW delta → { id, legacy }
   for (const delta of approved) {
+    if (delta.type !== 'NEW' || !delta.rawData || !out[delta.array]) continue;
+    const given = delta.rawData.id;
+    // An id that already names an entity, or a placeholder an earlier NEW
+    // delta already claimed, is a duplicate: the dedup check below skips it.
+    if (given && (idIndex.has(given) || out[delta.array].some(e => e.id === given))) continue;
+    const fresh = ChronicleIds.newId();
+    if (given) idIndex.set(given, fresh);
+    // Only a session keeps its placeholder as legacy_id: session_NNN is the
+    // session number the DM typed at intake, and Versions labels backups by it.
+    // Any other placeholder was counted up by this page, which #95 retires.
+    const legacy = delta.array === 'session_logs' && ChronicleIds.isLegacyId(given) ? given : null;
+    assigned.set(delta, { id: fresh, legacy });
+  }
+  const tr = v => ChronicleIds.translateRefs(v, idIndex);
+
+  // New entities are written first, so a ROUND or MOD queued ahead of the
+  // combat or session it belongs to still finds it. Order within each group
+  // is kept.
+  const ordered = [...approved.filter(d => d.type === 'NEW'), ...approved.filter(d => d.type !== 'NEW')];
+
+  for (const delta of ordered) {
     const arr = delta.array;
     if (!arr || !out[arr]) continue;
+    // Translated copies; the queue items themselves are left untouched.
+    const rawData  = delta.rawData ? tr(delta.rawData) : delta.rawData;
+    const targetId = tr(delta.targetId);
+    const combatId = tr(delta.combatId);
 
     if (delta.type === 'NEW') {
-      // Append new entity (avoid duplicates by id).
-      // If rawData has no id (e.g. cascade items built without campaign JSON access),
-      // derive the next available id from the highest existing numeric suffix in the array.
-      // Using max+1 rather than length+1 avoids collisions when IDs have been voided or
-      // skipped (e.g. npc_directory has 10 entries but the highest id is npc_013).
-      let id = delta.rawData?.id;
-      if (!id && delta.rawData) {
-        const prefix = arrayPrefixMap[arr];
-        if (prefix) {
-          const maxNum = out[arr].reduce((m, e) => {
-            const n = parseInt((e.id || '').split('_').pop(), 10);
-            return isNaN(n) ? m : Math.max(m, n);
-          }, 0);
-          delta.rawData.id = prefix + '_' + String(maxNum + 1).padStart(3, '0');
-          id = delta.rawData.id;
-        }
-      }
-      if (id && out[arr].some(e => e.id === id)) continue;
-      if (delta.rawData) out[arr].push(delta.rawData);
+      // Append new entity (avoid duplicates by id). A NEW delta that pass 1
+      // gave a UUID is written with it; any other already names an existing
+      // entity (its id was translated to that entity's UUID) and is skipped.
+      if (!rawData) continue;
+      const a = assigned.get(delta);
+      const entity = a ? withOpaqueId(rawData, a) : rawData;
+      if (entity.id && out[arr].some(e => e.id === entity.id)) continue;
+      out[arr].push(entity);
 
     } else if (delta.type === 'MOD') {
       // Patch fields on an existing entity.
@@ -4064,14 +4101,14 @@ function applyDeltasToCampaign(campaign, approved) {
       //   match on rawData.quest_hint). Push to mechanics.progress_log[] rather than
       //   Object.assign — so only the progress entry is added, not the whole quest overwritten.
       //   Used for quest update cascade items generated by extractNarrativeEntities() (issue #90).
-      const id = delta.rawData?.id || delta.targetId;
+      const id = rawData?.id || targetId;
       let idx  = out[arr].findIndex(e => e.id === id);
 
       // Quest progress-log path: no id on the delta, but _progress_append is present.
       // Try to find the quest by exact title, then partial title, using quest_hint.
       // Guard: only applies to quest_ledger — other array MODs always have an id.
-      if (idx === -1 && arr === 'quest_ledger' && delta.rawData?._progress_append) {
-        const hint = (delta.rawData.quest_hint || '').toLowerCase().trim();
+      if (idx === -1 && arr === 'quest_ledger' && rawData?._progress_append) {
+        const hint = (rawData.quest_hint || '').toLowerCase().trim();
         if (hint) {
           // Exact title match first (preferred — avoids ambiguous partial matches).
           idx = out[arr].findIndex(q => (q.title || '').toLowerCase() === hint);
@@ -4083,13 +4120,13 @@ function applyDeltasToCampaign(campaign, approved) {
             // Name-match failed — log a warning so the DM knows to correct manually.
             // We do not error out — other approved items should still publish.
             console.warn('[applyDeltasToCampaign] Quest progress-log: no title match for hint "' +
-              delta.rawData.quest_hint + '" — entry skipped. DM must add manually.');
+              rawData.quest_hint + '" — entry skipped. DM must add manually.');
           }
         }
       }
 
-      if (idx > -1 && delta.rawData) {
-        if (delta.rawData._progress_append) {
+      if (idx > -1 && rawData) {
+        if (rawData._progress_append) {
           // Push the progress_log entry rather than overwriting the quest object.
           // Object.assign would replace the entire quest, destroying its existing fields.
           // _progress_append is detected only on quest MOD items from issue #90 —
@@ -4099,13 +4136,13 @@ function applyDeltasToCampaign(campaign, approved) {
           if (!Array.isArray(out[arr][idx].mechanics.progress_log)) {
             out[arr][idx].mechanics.progress_log = [];
           }
-          out[arr][idx].mechanics.progress_log.push(delta.rawData._progress_append);
-        } else if (delta.rawData._cohort_session_append) {
+          out[arr][idx].mechanics.progress_log.push(rawData._progress_append);
+        } else if (rawData._cohort_session_append) {
           // Cohort session-append path: push the session id to associated_sessions[]
           // rather than Object.assign-ing the whole cohort record.
           // This preserves all existing cohort fields (description, home_location, etc.)
           // and only appends the new session association.
-          const sessionToAdd = delta.rawData._cohort_session_append.sessionId;
+          const sessionToAdd = rawData._cohort_session_append.sessionId;
           if (sessionToAdd) {
             if (!out[arr][idx].mechanics) out[arr][idx].mechanics = {};
             if (!Array.isArray(out[arr][idx].mechanics.associated_sessions)) {
@@ -4117,20 +4154,20 @@ function applyDeltasToCampaign(campaign, approved) {
             }
           }
         } else {
-          Object.assign(out[arr][idx], delta.rawData);
+          Object.assign(out[arr][idx], rawData);
         }
       }
 
     } else if (delta.type === 'ROUND') {
       // Insert a round into combat_encounters
-      const cbtIdx = out.combat_encounters?.findIndex(c => c.id === delta.combatId);
-      if (cbtIdx > -1 && delta.rawData) {
+      const cbtIdx = out.combat_encounters?.findIndex(c => c.id === combatId);
+      if (cbtIdx > -1 && rawData) {
         const rounds = out.combat_encounters[cbtIdx].rounds || [];
-        const exists = rounds.findIndex(r => r.n === delta.rawData.n);
+        const exists = rounds.findIndex(r => r.n === rawData.n);
         if (exists > -1) {
-          rounds[exists] = delta.rawData;
+          rounds[exists] = rawData;
         } else {
-          rounds.push(delta.rawData);
+          rounds.push(rawData);
           rounds.sort((a, b) => a.n - b.n);
         }
         out.combat_encounters[cbtIdx].rounds = rounds;
@@ -4150,9 +4187,9 @@ function applyDeltasToCampaign(campaign, approved) {
       //   Match on from_id + to_id + significance='participation' to avoid confusing
       //   a participation edge with a significant_event edge between the same pair.
       //
-      // Both tiers use the same rel_NNN ID format; next ID is array.length + 1.
+      // Both tiers get a fresh UUID as their id (issue #95).
       if (!Array.isArray(out.entity_relationships)) out.entity_relationships = [];
-      const rd  = delta.rawData || {};
+      const rd  = rawData || {};
       const sig = rd.significance || 'participation';
 
       // Helper to build a complete entity_relationships[] entry from rawData.
@@ -4179,10 +4216,8 @@ function applyDeltasToCampaign(campaign, approved) {
 
       if (sig === 'significant_event') {
         // Tier 2: always a new entry — no dedup check.
-        const nextIdx = out.entity_relationships.length + 1;
-        out.entity_relationships.push(
-          buildRelEntry('rel_' + String(nextIdx).padStart(3, '0'), 'significant_event')
-        );
+        // UUID, not rel_NNN (issue #95).
+        out.entity_relationships.push(buildRelEntry(ChronicleIds.newId(), 'significant_event'));
 
       } else {
         // Tier 1 participation: find existing by from_id + to_id + significance.
@@ -4199,10 +4234,8 @@ function applyDeltasToCampaign(campaign, approved) {
           }
         } else {
           // No prior participation edge for this pair — append
-          const nextIdx = out.entity_relationships.length + 1;
-          out.entity_relationships.push(
-            buildRelEntry('rel_' + String(nextIdx).padStart(3, '0'), 'participation')
-          );
+          // UUID, not rel_NNN (issue #95).
+          out.entity_relationships.push(buildRelEntry(ChronicleIds.newId(), 'participation'));
         }
       }
     }
@@ -4237,7 +4270,8 @@ function applyDeltasToCampaign(campaign, approved) {
     // re-publish after a partial publish failure.
     for (const dg of deferredGaps) {
       if (!out.deferred_gaps.some(existing => existing.id === dg.id)) {
-        out.deferred_gaps.push(dg);
+        // A gap names its session by the DM's session_NNN; translate it (#95).
+        out.deferred_gaps.push(tr(dg));
       }
     }
   }
@@ -4256,7 +4290,9 @@ function applyDeltasToCampaign(campaign, approved) {
     let nextPilIdx = out.prompt_improvement_log.length + 1;
     for (const entry of storedPilEntries) {
       const id = 'pil_' + String(nextPilIdx).padStart(3, '0');
-      out.prompt_improvement_log.push(Object.assign({ id }, entry));
+      // The entry's session_id may be a legacy ID; translate it (#95). The log
+      // keeps pil_NNN ids: it is a workflow record, never referenced by an entity.
+      out.prompt_improvement_log.push(Object.assign({ id }, tr(entry)));
       nextPilIdx++;
     }
     // Clear the sessionStorage log now that entries are committed to the JSON.
@@ -4771,14 +4807,16 @@ function propagateGroundTruth(newKeys, sourceItemId) {
  *
  * Checks whether a just-applied set of diffs constitutes a new→existing redirect.
  * A redirect is confirmed when a NEW item receives a diff that sets `k === 'id'`
- * to a value matching the entity ID pattern (e.g. `loc_005`, `npc_014`).
+ * to a value matching the entity ID pattern (e.g. `loc_005`, `npc_014`, or a UUID since #95).
  *
  * Why only NEW items: MOD and round items already reference existing entities by
  * definition — setting their ID field is a legitimate edit, not a redirect.
  *
  * Why id-pattern matching: the AI is instructed to include an explicit id diff
  * when the DM resolves a new entity to an existing one. The pattern
- * /^[a-z]+_\d{3,}$/ matches all Chronicle ID formats and nothing else.
+ * /^[a-z]+_\d{3,}$/ matches the legacy Chronicle ID formats, and
+ * ChronicleIds.isOpaqueId() the UUIDs used since issue #95 (the AI now sees
+ * UUIDs for entities created after #95, which have no legacy ID).
  *
  * Side effects when redirect is detected:
  *   - item.type set to 'MOD'
@@ -4793,7 +4831,7 @@ function _detectAndApplyRedirect(item, appliedDiffs) {
   // Find the first diff that sets an entity ID field to a valid Chronicle ID.
   // The AI is instructed to include this diff when resolving new→existing.
   const idDiff = appliedDiffs.find(
-    d => d.k === 'id' && d.new && /^[a-z]+_\d{3,}$/.test(String(d.new))
+    d => d.k === 'id' && d.new && (/^[a-z]+_\d{3,}$/.test(String(d.new)) || ChronicleIds.isOpaqueId(String(d.new)))
   );
   if (!idDiff) return;
 
@@ -4918,6 +4956,22 @@ function _checkEntityNameRedirect(item, newName) {
 // Build the INCOMING array that ChronicleIntegrity.checks() expects from the
 // existing items[] and cascadeItems[]. Round items carry combatId + roundNumber.
 // Non-round items (session logs, NPCs, quests) are ignored by checks().
+/**
+ * translateQueueIds(index) — replaces every legacy ID in the staged queue
+ * (items[] and cascadeItems[]) with its UUID, in place.
+ *
+ * Why in place: the queue items are shared by the render, gap and publish
+ * code, which all hold references to the same objects. Each item's own queue
+ * id (d_001) is not a legacy entity ID, so translateRefs leaves it alone.
+ * Removing this makes every staged round for an existing combat look like a
+ * new combat to the integrity check.
+ */
+function translateQueueIds(index) {
+  for (const item of [...items, ...cascadeItems]) {
+    Object.assign(item, ChronicleIds.translateRefs(item, index));
+  }
+}
+
 function buildIncomingFromItems() {
   return [...items, ...cascadeItems]
     .filter(i => i.combatId && i.roundNumber != null)
@@ -4946,6 +5000,14 @@ async function initIntegrity() {
     // and throws on a failed fetch, so the catch below still reports it.
     const json = await ChronicleStore.loadCampaign();
 
+    // Issue #95: the staged items name entities by legacy ID (cbt_005, pc_001),
+    // because intake and the AI still use them, but the campaign data uses
+    // UUIDs. Translate the queue now, before gap detection, so a round for
+    // cbt_005 is matched to that combat instead of looking like a new one.
+    // Placeholders for entities created this session (cbt_007) are not in the
+    // index and stay as they are; publish turns them into UUIDs.
+    translateQueueIds(ChronicleIds.buildLegacyIndex(json));
+
     // Build the campaign data shape used by integrity checks and entity dedup.
     //
     // combat_encounters is shaped for ChronicleIntegrity.checks() — only the fields
@@ -4963,6 +5025,7 @@ async function initIntegrity() {
     campaignIntegrityData = {
       combat_encounters: (json.combat_encounters || []).map(c => ({
         id:          c.id,
+        legacy_id:   c.legacy_id ?? null,  // #95: numbers the next placeholder cbt_NNN
         name:        c.name,
         // v4 stores round count in mechanics sub-object; fall back to null if absent
         totalRounds: c.mechanics?.total_rounds_logged ?? null,

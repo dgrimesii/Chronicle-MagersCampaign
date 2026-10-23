@@ -3,12 +3,13 @@
   "meta": {
     "campaign_name": "Test Campaign",
     "system": "D&D 5e",
-    "last_updated": "2026-10-20",
+    "last_updated": "2026-10-21",
     "note": "Synthetic test data — no real Magers campaign content"
   },
   "party": [
     {
-      "id": "pc_001",
+      "id": "51aa5d2f-f926-4498-b34d-da1371d01fdd",
+      "legacy_id": "pc_001",
       "name": "Aldric",
       "mechanics": {
         "class": "Fighter",
@@ -21,7 +22,8 @@
       "campaign_notes": "Test PC 1"
     },
     {
-      "id": "pc_002",
+      "id": "80441a13-3c7c-4dd1-a20c-871d6bdc8ed7",
+      "legacy_id": "pc_002",
       "name": "Sable",
       "mechanics": {
         "class": "Rogue",
@@ -36,7 +38,8 @@
   ],
   "session_logs": [
     {
-      "id": "session_001",
+      "id": "e81425af-b3af-4211-b439-020ceeff08a3",
+      "legacy_id": "session_001",
       "date": "2026-01-01",
       "narrative": {
         "summary": "The party arrived at the test location and encountered the first combat.",
@@ -53,15 +56,16 @@
       "mechanics": {
         "xp_awarded": 300,
         "combats": [
-          "cbt_001"
+          "60b901d7-0551-46e7-a4ae-8c4156e3517b"
         ],
         "locations_visited": [
-          "loc_001"
+          "994bb2f2-6dd8-40a2-ba6c-bea5a69f8250"
         ]
       }
     },
     {
-      "id": "session_002",
+      "id": "a48faea8-a0af-4f26-a650-2f369d460f95",
+      "legacy_id": "session_002",
       "date": "2026-01-08",
       "narrative": {
         "summary": "The party explored the ruins and resolved the goblin quest.",
@@ -76,20 +80,21 @@
         "xp_awarded": 200,
         "combats": [],
         "locations_visited": [
-          "loc_002"
+          "16ac97da-d817-4607-884e-ca8acec0077e"
         ]
       }
     }
   ],
   "combat_encounters": [
     {
-      "id": "cbt_001",
+      "id": "60b901d7-0551-46e7-a4ae-8c4156e3517b",
+      "legacy_id": "cbt_001",
       "name": "Goblin Skirmish",
       "mechanics": {
         "outcome": "victory",
-        "location": "loc_001",
+        "location": "994bb2f2-6dd8-40a2-ba6c-bea5a69f8250",
         "sessions": [
-          "session_001"
+          "e81425af-b3af-4211-b439-020ceeff08a3"
         ],
         "total_rounds_logged": 3
       },
@@ -104,7 +109,7 @@
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "51aa5d2f-f926-4498-b34d-da1371d01fdd",
               "activities": [
                 {
                   "economy": "action",
@@ -123,7 +128,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "80441a13-3c7c-4dd1-a20c-871d6bdc8ed7",
               "activities": [
                 {
                   "economy": "action",
@@ -168,7 +173,7 @@
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "51aa5d2f-f926-4498-b34d-da1371d01fdd",
               "activities": [
                 {
                   "economy": "action",
@@ -187,7 +192,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "80441a13-3c7c-4dd1-a20c-871d6bdc8ed7",
               "activities": [
                 {
                   "economy": "action",
@@ -232,7 +237,7 @@
           "slots": [
             {
               "s": 1,
-              "a": "pc_001",
+              "a": "51aa5d2f-f926-4498-b34d-da1371d01fdd",
               "activities": [
                 {
                   "economy": "action",
@@ -251,7 +256,7 @@
             },
             {
               "s": 2,
-              "a": "pc_002",
+              "a": "80441a13-3c7c-4dd1-a20c-871d6bdc8ed7",
               "activities": [
                 {
                   "economy": "action",
@@ -275,36 +280,39 @@
   ],
   "npc_directory": [
     {
-      "id": "npc_001",
+      "id": "6fc2f3e7-6f58-4840-a2d3-4efd72a62968",
+      "legacy_id": "npc_001",
       "name": "Grak",
       "mechanics": {
         "disposition": "hostile",
         "affiliation": null,
-        "first_seen": "session_001"
+        "first_seen": "e81425af-b3af-4211-b439-020ceeff08a3"
       },
       "narrative": {
         "description": "Leader of the goblin skirmish group. Defeated in session 1."
       }
     },
     {
-      "id": "npc_002",
+      "id": "0c4e2999-34d6-4be6-a068-c2a220522d10",
+      "legacy_id": "npc_002",
       "name": "Elder Wynn",
       "mechanics": {
         "disposition": "friendly",
         "affiliation": "Village Council",
-        "first_seen": "session_001"
+        "first_seen": "e81425af-b3af-4211-b439-020ceeff08a3"
       },
       "narrative": {
         "description": "Village elder who hired the party to clear the road."
       }
     },
     {
-      "id": "npc_003",
+      "id": "56526aa6-8137-48aa-86ca-7af1e684486e",
+      "legacy_id": "npc_003",
       "name": "Mira",
       "mechanics": {
         "disposition": "neutral",
         "affiliation": null,
-        "first_seen": "session_002"
+        "first_seen": "a48faea8-a0af-4f26-a650-2f369d460f95"
       },
       "narrative": {
         "description": "Traveller encountered at the ruins. Knows about the hidden cache."
@@ -313,7 +321,8 @@
   ],
   "locations": [
     {
-      "id": "loc_001",
+      "id": "994bb2f2-6dd8-40a2-ba6c-bea5a69f8250",
+      "legacy_id": "loc_001",
       "name": "North Road Ambush Site",
       "mechanics": {
         "visibility": "known"
@@ -323,7 +332,8 @@
       }
     },
     {
-      "id": "loc_002",
+      "id": "16ac97da-d817-4607-884e-ca8acec0077e",
+      "legacy_id": "loc_002",
       "name": "Crumbled Watch Tower",
       "mechanics": {
         "visibility": "known"
@@ -335,13 +345,14 @@
   ],
   "quest_ledger": [
     {
-      "id": "qst_001",
+      "id": "9412ff48-b756-44bf-8c18-f08da573046f",
+      "legacy_id": "qst_001",
       "name": "Clear the North Road",
       "mechanics": {
         "status": "complete",
         "priority": "main",
         "category": "combat",
-        "origin_session": "session_001",
+        "origin_session": "e81425af-b3af-4211-b439-020ceeff08a3",
         "objectives": [
           {
             "description": "Defeat the goblin ambush group",
@@ -359,13 +370,14 @@
       }
     },
     {
-      "id": "qst_002",
+      "id": "f82d4f79-9548-487c-a749-39ef10f18b55",
+      "legacy_id": "qst_002",
       "name": "Find the Hidden Cache",
       "mechanics": {
         "status": "active",
         "priority": "side",
         "category": "exploration",
-        "origin_session": "session_002",
+        "origin_session": "a48faea8-a0af-4f26-a650-2f369d460f95",
         "objectives": [
           {
             "description": "Locate the cache beneath the ruins",
@@ -385,12 +397,13 @@
   ],
   "inventory_and_loot": [
     {
-      "id": "item_001",
+      "id": "19da5d7a-a771-4cbe-9ef8-de5c3d2acd0d",
+      "legacy_id": "item_001",
       "name": "Crude Map",
       "mechanics": {
         "item_type": "document",
-        "current_holder": "pc_001",
-        "found_session": "session_001",
+        "current_holder": "51aa5d2f-f926-4498-b34d-da1371d01fdd",
+        "found_session": "e81425af-b3af-4211-b439-020ceeff08a3",
         "is_quest_relevant": true
       },
       "narrative": {
@@ -398,12 +411,13 @@
       }
     },
     {
-      "id": "item_002",
+      "id": "dac2eb63-a0b0-4b81-afc1-5e915fb1ecfa",
+      "legacy_id": "item_002",
       "name": "Goblin Scimitar",
       "mechanics": {
         "item_type": "weapon",
-        "current_holder": "pc_002",
-        "found_session": "session_001",
+        "current_holder": "80441a13-3c7c-4dd1-a20c-871d6bdc8ed7",
+        "found_session": "e81425af-b3af-4211-b439-020ceeff08a3",
         "is_quest_relevant": false
       },
       "narrative": {
@@ -416,5 +430,15 @@
   "character_moments": [],
   "deferred_gaps": [],
   "factions": [],
-  "cohorts": []
+  "cohorts": [],
+  "_id_registry": {
+    "_note": "Since issue #95 (2026-10-21) every entity id is a UUID v4, allocated with ChronicleIds.newId() (shared/chronicle-ids.js), never counted. The old typed ID is kept as legacy_id and is frozen: no new legacy IDs are assigned, except a session_NNN the DM supplies when a session is published.",
+    "format": "uuid-v4",
+    "legacy_voided": [
+      "npc_002",
+      "npc_005",
+      "npc_006",
+      "mon_006"
+    ]
+  }
 }
