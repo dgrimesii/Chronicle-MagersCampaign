@@ -826,8 +826,12 @@
       </div>
     </div>
 
+    <!-- Issue #71: this notice used to say "Drag rows to reorder", but this page
+         never had reordering. The DM chose to build it into the new session page
+         (admin/session.html, #99) instead, because this page is retired in phase 5
+         of the intake rebuild. Remove this notice with the page. -->
     <div class="notice" id="order-notice" style="display:none;">
-      <strong>Page order matters.</strong> Images will be processed top-to-bottom as listed. Drag rows to reorder if needed after upload.
+      <strong>Page order matters.</strong> Images are processed top to bottom as listed. This page cannot reorder them: remove the pages and add them again in order, or use the Session page, which can.
     </div>
 
     <!-- Upload error — shown by handleSessionFiles() when an unsupported file
