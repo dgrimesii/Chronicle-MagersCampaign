@@ -409,13 +409,24 @@ window.ChronicleIntegrity = {
     return hits.length === 1 ? { id: hits[0], words: m[1] } : null;
   }
 
-  /** 2. Source line: the line a turn came from names a different character than its row. */
+  // namesPc(line, id, names) — the line mentions that PC anywhere, by name
+  // or short form. The DM's notes are often in two columns ("ASP - Healing
+  // Hands   Goli - 2 Att"), so one line can hold two turns; the second
+  // column's turn must not be flagged for the first column's name (found on
+  // the real session 6 page 1, #103).
+  function namesPc(line, id, names) {
+    const list = (names && names.get(id)) || [];
+    const words = String(line || '').split(/[^A-Za-z'’]+/).map(norm).filter(w => w.length >= 3);
+    return words.some(w => list.some(n => norm(n) === w || norm(n).startsWith(w)));
+  }
+
+  /** 2. Source line: the line a turn came from names a different character than its row, and not its own. */
   CI.sourceLine = function sourceLine(combat, ctx) {
     const flags = [];
     for (const r of roundsOf(combat)) for (const sl of r.slots || []) {
       if (!sl.source_line) continue;
       const lead = leadName(sl.source_line, ctx.names);
-      if (lead && lead.id !== sl.a) {
+      if (lead && lead.id !== sl.a && !namesPc(sl.source_line, sl.a, ctx.names)) {
         flags.push({ check: 'source-line', cell: cell(combat, r, { s: sl.s }),
           message: `Round ${r.n}: this turn's line names ${lead.words}, but it sits in ${displayOf(ctx, sl.a)}'s row ("${sl.source_line}").`,
           suggestedMove: { to: lead.id, label: 'Move to ' + lead.words } });

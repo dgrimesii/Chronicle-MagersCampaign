@@ -175,7 +175,7 @@ async function loadCampaignData() {
 
 ## Shared module load order
 
-When a page needs all nine shared modules, load them in this order:
+When a page needs all ten shared modules, load them in this order:
 
 ```html
 <script src="../shared/config.js"></script>
@@ -184,6 +184,7 @@ When a page needs all nine shared modules, load them in this order:
 <script src="../shared/chronicle-publish.js"></script>
 <script src="../shared/chronicle-entities.js"></script>
 <script src="../shared/chronicle-facts.js"></script>
+<script src="../shared/chronicle-grid.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <script src="../shared/chronicle-narrative.js"></script>
@@ -201,6 +202,8 @@ When a page needs all nine shared modules, load them in this order:
 `chronicle-facts.js` exports `window.ChronicleFacts` (and `module.exports` under Node): the session page's per-page facts (#101), meaning the facts prompt, the reply check, the imbalance and action-economy checks, and the merge across page breaks. It needs `chronicle-entities.js` loaded first and touches no DOM, storage or network. A fact names actors and targets only by the occurrence ids step 3 settled, never by name, and never assigns an initiative slot: keep both rules in `validateFacts()` and the prompt.
 
 Passages (#102) come from the same call. Each is `{ text, session_id, speaker, page }` and lives on exactly one object, the most specific thing it describes; never copy one to a second place. `speaker` is `"dm"` (exposition, fact) or the NPC's entity id (testimony), and an NPC's words keep the NPC as speaker whether quoted or reported. New lore an NPC told the party is `reliability: "rumoured"`, `source_type: "npc_testimony"`. A passage is cleaned into sentences but adds no fact the notes do not contain. Gemini reads confirmed entity text and passages, never raw notes.
+
+`chronicle-grid.js` exports `window.ChronicleGrid` (and `module.exports` under Node): the session page's round grid (#103), meaning split assignment, the initiative order and every direct move, each a function on the grid model, plus `toTurnSchema()`, the rounds publish (#106) will write. No dependencies, DOM, storage or network. Every correction in the grid is a direct move; do not add an AI call to a move (only "Re-extract this round" calls the AI, through the page). Moves and their rules belong here, not in the page, so `tests/round-grid.test.js` tests the real code.
 
 `chronicle-integrity.js` exports `window.ChronicleIntegrity`: gap detection (`checks()`) and, since #104, the nine round sanity checks (`roundChecks()` and one function per check). The sanity checks are advisory: never give a flag a blocking field, and never make publish depend on them. It has no dependencies — it can be loaded without `chronicle-ai.js` or `chronicle-narrative.js` when a page only needs gap detection and no AI calls.
 

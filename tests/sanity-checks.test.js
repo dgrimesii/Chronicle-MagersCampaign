@@ -105,6 +105,11 @@ console.log('\nTest S-2 — source line');
   ok.rounds[0].slots[1].source_line = 'Sable - Shortsword hit 11';
   ok.rounds[0].slots[0].source_line = 'Ald - hit (8)'; // short form, start of one PC's name
   assert('S-2: a line naming the row\'s own PC (or its short form) is not', CI.sourceLine(ok, fxCtx()).length === 0);
+  // Notes in two columns: one line holds Aldric's turn and Sable's. Sable's
+  // turn must not be flagged for the line starting with Aldric (session 6).
+  const cols = combat();
+  cols.rounds[0].slots[1].source_line = 'Aldric - Longsword hit 8     Sable - Shortsword hit 11';
+  assert('S-2: a two-column line that also names the row\'s PC is not flagged', CI.sourceLine(cols, fxCtx()).length === 0);
 }
 
 console.log('\nTest S-3 — ability ownership');

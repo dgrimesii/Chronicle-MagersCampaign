@@ -170,6 +170,40 @@
   .passage .speaker.npc { color:var(--c-npc); }
   .passage-text { font-size:0.98rem; line-height:1.45; }
 
+
+  /* ── Step 4: the round grid (#103) ── */
+  .grid-combat h3 { margin-bottom:0.75rem; }
+  .order-pass { margin:0.5rem 0 1rem; }
+  .order-pass summary { cursor:pointer; font-size:0.95rem; }
+  .order-row { display:flex; align-items:center; gap:8px; padding:4px 10px; background:var(--card-bg); border:1px solid var(--border); border-radius:3px; margin-top:4px; font-size:0.9rem; }
+  .order-row input { background:var(--parchment-dark); color:var(--ink); border:1px solid var(--border-strong); border-radius:3px; padding:2px 4px; color-scheme:dark; }
+  .grid-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:3px; }
+  .round-grid { border-collapse:collapse; width:100%; font-size:0.82rem; }
+  .round-grid th, .round-grid td { border:1px solid var(--border); padding:5px 6px; vertical-align:top; text-align:left; }
+  .round-grid thead th { font-family:'Cinzel',serif; font-size:0.65rem; letter-spacing:0.08em; color:var(--muted); background:var(--parchment-dark); position:sticky; top:0; }
+  .round-grid tbody th { font-weight:600; color:var(--amber-light); white-space:nowrap; min-width:90px; background:var(--parchment-dark); }
+  .round-grid .enemy-row th { color:var(--rust); }
+  .round-grid .enemy-sep th { font-family:'Cinzel',serif; font-size:0.62rem; letter-spacing:0.08em; color:var(--muted); font-weight:400; }
+  .gcell { min-width:150px; cursor:pointer; position:relative; background:var(--card-bg); }
+  .gcell:hover { background:rgba(212,175,55,0.05); }
+  .gcell.selected { outline:2px solid var(--amber); outline-offset:-2px; }
+  .gcell.flagged { box-shadow:inset 3px 0 0 var(--amber); }
+  .act-line { padding:1px 0; }
+  .act-line[draggable="true"] { cursor:grab; }
+  .turn-handle { float:right; cursor:grab; color:var(--muted); margin-left:4px; }
+  .cell-mark { font-size:0.72rem; margin-right:4px; }
+  .cell-mark.flag { color:var(--amber-light); }
+  .cell-mark.ai { color:var(--purple); }
+  .ai-note { color:var(--purple); font-size:0.85rem; }
+  .round-grid a, .grid-combat a { color:var(--amber-light); }
+  .notes-row .ai-note { font-size:0.78rem; line-height:1.3; margin-top:3px; }
+  .flag-note { color:var(--amber-light); font-size:0.88rem; margin:2px 0; }
+  .notes-row td { background:transparent; }
+  .cell-editor { background:var(--card-bg); border:1px solid var(--amber-dim); border-radius:4px; padding:0.8rem 1rem; margin-top:0.8rem; }
+  .cell-editor h4 { font-family:'Cinzel',serif; font-size:0.8rem; letter-spacing:0.06em; margin-bottom:0.4rem; display:flex; justify-content:space-between; }
+  .edit-act { border-top:1px solid var(--border); padding-top:0.4rem; margin-top:0.4rem; }
+  .outcome-edit { margin-left:1.2rem; }
+
   @media (max-width: 640px) {
     .session-pick { grid-template-columns:1fr; }
     .ident-head { grid-template-columns:1fr; gap:2px; }
@@ -295,18 +329,22 @@
 
   <!-- ═══════════════════════ STEP 4: REVIEW ═══════════════════════ -->
   <!-- Shown by finishIdentify(). Each page is read again, this time for its
-       facts, against the names settled in step 3 (#101). Until the round
-       grid (#103) exists, the facts are shown as a read-only list, merged
-       across page breaks, with the checks' flags. -->
+       facts, against the names settled in step 3 (#101). Then the review
+       (#103): split assignment, and for each combat the initiative order
+       and the round grid, corrected by direct moves. -->
   <div id="review-section" style="display:none;">
     <h1 class="page-title">Review</h1>
     <p class="page-subtitle">The AI reads each page for what happened, using the names you settled.</p>
     <div class="notice" id="identity-summary"></div>
     <div id="facts-list"></div>
     <div id="facts-flags"></div>
-    <div id="facts-merged"></div>
+    <!-- Filled by renderReview(): split assignment, the grids, then the
+         facts that are not in a grid (quest progress, passages, loot). -->
+    <div id="split-panel"></div>
+    <div id="grid-panel"></div>
+    <div id="facts-other"></div>
     <div class="notice" id="facts-next" style="display:none;">
-      <strong>The round grid for checking and correcting these facts is the next step and is not built yet</strong> (issue #103). Nothing has been saved.
+      <strong>Publishing from this page is the next step and is not built yet</strong> (issue #106). Nothing has been saved.
     </div>
     <div class="actions">
       <button class="btn" onclick="backToIdentify()">← Back to Identify</button>
@@ -329,6 +367,10 @@
 <!-- chronicle-facts.js: the step 4 facts prompt, reply check, self-checks
      and the merge across page breaks (issue #101). Needs chronicle-entities.js. -->
 <script src="../shared/chronicle-facts.js"></script>
+<!-- chronicle-grid.js: the round grid's model and every direct move (issue #103). -->
+<script src="../shared/chronicle-grid.js"></script>
+<!-- chronicle-integrity.js: the nine sanity checks (#104) the grid shows as flags. -->
+<script src="../shared/chronicle-integrity.js"></script>
 <!-- chronicle-ai.js sends each page to the AI (extractMentions #100, extractFacts #101). -->
 <script src="../shared/chronicle-ai.js"></script>
 <script>
@@ -367,6 +409,14 @@ const session = {
   // Passages (#102), built when every page's facts are in:
   passageItems:     [], // ChronicleFacts.passageItems(...).items — MOD _passage_append
   deferredPassages: [], // passages that belong to a round, activity or quest step (#106)
+  // The review (#103), built once per set of facts:
+  refs:        [],    // every page's references (ChronicleFacts.pageReferences)
+  assignList:  [],    // ChronicleGrid.splitAssignments(...) — split occurrences to assign
+  grids:       [],    // one ChronicleGrid model per combat
+  gridsBuilt:  false,
+  gridKey:     '',    // factsKey the grids were built from
+  selected:    null,  // { gi, round, row|enemy } — the cell in the editor
+  eventForm:   null,  // { gi, round, ei } — an event being turned into attacks
   // Context for extraction (#100), loaded now so it is ready by then. Both
   // stay null if their load fails; extraction must cope without them.
   entities:    null,  // { npcs, locations, monsters, combats } name lists
@@ -1240,9 +1290,9 @@ function retryFacts(i) {
 }
 
 /**
- * renderFacts() — the per-page status, then (when every page is done) the
- * session's facts merged across page breaks, with every flag. Read-only
- * until the round grid (#103).
+ * renderFacts() — the per-page status; once every page is read, prepares the
+ * review (#103) the first time: split assignment, then one round grid per
+ * combat. Later calls only redraw, so grid edits are kept.
  */
 function renderFacts() {
   document.getElementById('facts-list').innerHTML = session.facts.map((fp, i) => {
@@ -1254,12 +1304,14 @@ function renderFacts() {
   }).join('');
   const done = session.facts.length && session.facts.every(fp => fp.status === 'done');
   document.getElementById('facts-next').style.display = done ? 'block' : 'none';
-  if (!done) { document.getElementById('facts-merged').innerHTML = ''; document.getElementById('facts-flags').innerHTML = ''; return; }
-
+  if (!done) {
+    for (const id of ['facts-flags', 'split-panel', 'grid-panel', 'facts-other']) document.getElementById(id).innerHTML = '';
+    return;
+  }
   const refs = session.facts.flatMap(fp => fp.references);
-  const byOcc = new Map(refs.map(r => [r.occ, r]));
   const merged = ChronicleFacts.mergePages(session.facts.map(fp => ({ page: fp.page, facts: fp.facts })), refs);
   session.mergedFacts = merged;
+  session.refs = refs;
   // Passages (#102): turned into publish items now; those that belong to a
   // round, activity or quest step wait for the facts to be written (#106).
   // New lore an NPC told the party becomes rumoured npc_testimony.
@@ -1275,35 +1327,512 @@ function renderFacts() {
     const summary = merged.summaries.map(x => x.text).join(' ');
     if (summary) session.header.rawData.summary = summary; else delete session.header.rawData.summary;
   }
-  const flags = merged.issues.map(x => x.detail)
-    .concat(session.facts.flatMap(fp => fp.issues.map(x => x.detail)))
-    .concat(session.facts.flatMap(fp => fp.selfCheck.map(t => 'AI self-check: ' + t)));
+  // The grids are built once per set of facts; a later redraw keeps edits.
+  if (session.gridKey !== session.factsKey) {
+    session.gridKey = session.factsKey;
+    session.assignList = ChronicleGrid.splitAssignments(refs, merged);
+    session.grids = [];
+    session.gridsBuilt = false;
+    if (!session.assignList.length) buildGrids();
+  }
+  renderReview();
+}
+
+// ══════════════════════════════════════════════════════
+// Step 4 — the round grid (issue #103)
+// ══════════════════════════════════════════════════════
+
+// labelOf(id) → what the DM calls an entity: a PC's nickname, an entity's
+// name, a new entity's name, or the text itself (roster groups are labels).
+function labelOf(id) {
+  if (id == null) return '';
+  const pc = session.campaign.party.find(p => p.id === id);
+  if (pc) return pc.nickname || pc.name;
+  const e = session.index.entities.get(id);
+  if (e) return e.name;
+  const made = ChronicleEntities.newEntities(session.rows).get(id);
+  return made ? made.name : String(id);
+}
+
+// combatLabel(ref) → "Goblin Ambush (cbt_005)", a new combat's name, or the
+// AI's "new: <name>".
+function combatLabel(ref) {
+  const e = session.index.entities.get(ref);
+  if (e) return e.name + (e.legacyId ? ` (${e.legacyId})` : '');
+  const made = ChronicleEntities.newEntities(session.rows).get(ref);
+  return made ? made.name + ' (new)' : String(ref).replace(/^new:\s*/, '') + ' (new combat)';
+}
+
+/**
+ * gridContext(combatRef, assignments) → what ChronicleGrid.buildGrid needs.
+ * The recorded order is the continuing combat's last recorded round, so a
+ * page that continues the Goblin Ambush starts from the order already
+ * confirmed there.
+ */
+function gridContext(combatRef, assignments) {
+  const cbt = session.campaign.combat_encounters.find(c => c.id === combatRef);
+  const last = cbt && (cbt.rounds || []).slice().sort((a, b) => b.n - a.n)[0];
+  return {
+    refs: session.refs, assignments: assignments || new Map(session.assignList.map(a => [a.occ, a.assigned])),
+    isParty: id => session.campaign.party.some(p => p.id === id), nameOf: labelOf, name: combatLabel(combatRef),
+    recordedOrder: last ? last.slots.slice().sort((a, b) => a.s - b.s).map(s => s.a) : null,
+    rosterLabels: new Set(((cbt && cbt.mechanics && cbt.mechanics.enemies_roster) || []).map(g => g.actor_id)),
+  };
+}
+
+// rosterOf(grid) → the combat's recorded roster, for the action-economy
+// check's starting counts.
+function rosterOf(grid) {
+  const cbt = session.campaign.combat_encounters.find(c => c.id === grid.combat);
+  return (cbt && cbt.mechanics && cbt.mechanics.enemies_roster) || [];
+}
+
+/**
+ * buildGrids() — one grid per combat from the merged facts, with the split
+ * assignments applied, and #101's AI self-check notes placed beside their
+ * cells. Rebuilding discards grid edits, so the page only does it when the
+ * DM asks (after changing assignments) or when the facts change.
+ */
+function buildGrids() {
+  const assignments = new Map(session.assignList.map(a => [a.occ, a.assigned]));
+  session.grids = session.mergedFacts.combats.map(c => ChronicleGrid.buildGrid(c, gridContext(c.combat, assignments)));
+  const notes = session.facts.flatMap(fp => fp.selfCheck);
+  const loose = session.grids.map(g => ChronicleGrid.attachSelfCheck(g, notes, session.refs));
+  session.looseNotes = notes.filter(n => loose.every(l => l.includes(n)));
+  session.gridsBuilt = true;
+  session.selected = null;
+}
+
+function renderReview() {
+  renderSplit();
+  renderGrids();
+  renderOther();
+}
+
+/**
+ * renderSplit() — the occurrences a step 3 Split left to assign, each with
+ * the AI's proposal and reason, and bulk assignment by spelling or page.
+ * An occurrence left unassigned holds back only its own facts.
+ */
+function renderSplit() {
+  const el = document.getElementById('split-panel');
+  const list = session.assignList || [];
+  if (!list.length) { el.innerHTML = ''; return; }
+  const optionsFor = (a, selected) => `<option value="">(leave unassigned)</option>` +
+    a.candidates.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === selected ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+  const spellings = [...new Set(list.map(a => a.asWritten.toLowerCase()))];
+  const pages = [...new Set(list.map(a => String(a.page)))];
+  const cands = list[0].candidates;
+  el.innerHTML = `<div class="fact-combat"><h3>Split assignment</h3>
+    <p class="hint">Each of these was split in step 3. Confirm who each one is; the AI's guess is filled in. Unassigned ones hold back only their own facts.</p>
+    <div class="ident-form">Assign all
+      <select id="bulk-spelling">${spellings.map(s => `<option>${escapeHtml(s)}</option>`).join('')}</select>
+      or page <select id="bulk-page"><option value="">—</option>${pages.map(p => `<option>${escapeHtml(p)}</option>`).join('')}</select>
+      to <select id="bulk-to">${cands.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('')}</select>
+      <button class="btn" onclick="bulkAssign()">Assign</button></div>
+    ${list.map((a, i) => `<div class="fact-turn"><span class="who">p.${escapeHtml(String(a.page))} "${escapeHtml(a.asWritten)}"</span>
+      <span><select onchange="session.assignList[${i}].assigned = this.value || null">${optionsFor(a, a.assigned)}</select>
+      ${a.reason ? `<span class="fact-line"> AI: ${escapeHtml(a.reason)}</span>` : ''}<div class="fact-line">${escapeHtml(a.context || '')}</div></span></div>`).join('')}
+    <div class="actions"><button class="btn btn-primary" onclick="buildGrids(); renderReview();">${session.gridsBuilt ? 'Rebuild the grids (discards grid edits)' : 'Build the grids'}</button></div>
+  </div>`;
+}
+
+function bulkAssign() {
+  const page = document.getElementById('bulk-page').value;
+  const filter = page ? { page } : { asWritten: document.getElementById('bulk-spelling').value };
+  ChronicleGrid.assignWhere(session.assignList, filter, document.getElementById('bulk-to').value);
+  renderSplit();
+}
+
+// gridFlags(gi) → #104's flags for one grid, placed on its cells.
+function gridFlags(gi) {
+  const g = session.grids[gi];
+  const ctx = { abilities: CI_CONTEXT(), names: ChronicleIntegrity.partyNames(session.campaign), order: ChronicleGrid.checkOrder(g) };
+  return ChronicleGrid.mapFlags(g, ChronicleIntegrity.roundChecks(ChronicleGrid.checkCombat(g, rosterOf(g)), ctx));
+}
+// CI_CONTEXT() → the ability context, built once per page: the harvested
+// sheets plus what the campaign records each PC using.
+let abilityCache = null;
+function CI_CONTEXT() {
+  if (!abilityCache) abilityCache = ChronicleIntegrity.abilityContext(session.campaign, { characters: session.pcAbilities || [] });
+  return abilityCache;
+}
+
+const ECON_SHORT = { action: 'A', bonus_action: 'BA', reaction: 'R', movement: 'Move', free: 'Free', legendary_action: 'LA', legendary_resistance: 'LR' };
+
+// outcomeText(o) → "hit 8 → Goblins (killed) [Nat 1]".
+function outcomeText(o) {
+  const target = o.target_id ? labelOf(o.target_id) : (o.target_text || '');
+  return [o.detail, o.res, o.val, target ? '→ ' + target : '', o.effect ? '(' + o.effect + ')' : '', o.notes ? '[' + o.notes + ']' : '']
+    .filter(x => x !== null && x !== undefined && x !== '').join(' ');
+}
+// activityLine(a) → "A: Attack · Shortsword — hit 8 → Goblins, miss".
+function activityLine(a) {
+  return `${ECON_SHORT[a.economy] || a.economy}: ${a.name}${a.detail ? ' · ' + a.detail : ''}${a.outcomes.length ? ' — ' + a.outcomes.map(outcomeText).join(', ') : ''}`;
+}
+
+/**
+ * renderGrids() — every combat: pass 1 (the initiative order) and pass 2
+ * (the round grid), with flags, AI notes, events and the cell editor.
+ */
+function renderGrids() {
+  const el = document.getElementById('grid-panel');
+  if (!session.gridsBuilt) { el.innerHTML = session.assignList && session.assignList.length ? '<p class="hint">Confirm the split assignments above, then build the grids.</p>' : ''; return; }
+  session.flagsByGrid = session.grids.map((g, gi) => gridFlags(gi));
+  el.innerHTML = session.grids.map((g, gi) => renderGrid(gi)).join('') +
+    (session.grids.length ? '' : '<p class="hint">No combat on these pages.</p>');
+}
+
+function renderGrid(gi) {
+  const g = session.grids[gi];
+  const flags = session.flagsByGrid[gi];
+  const sel = session.selected && session.selected.gi === gi ? session.selected : null;
+  const flagsAt = at => flags.filter(f => f.at && Number(f.at.round) === Number(at.round) && (at.enemy != null ? f.at.enemy === at.enemy : f.at.row === at.row));
+  const order = g.rows.map((r, i) => `
+    <div class="order-row" draggable="true" data-order="${gi}:${i}">
+      <span class="drag-handle">≡</span><span class="file-order">${i + 1}</span>
+      <span class="file-item-name">${escapeHtml(r.label)}</span>
+      <label class="fact-line">joins round <input type="number" min="1" style="width:4em" value="${r.from ?? ''}" onchange="gridDo(${gi}, g => ChronicleGrid.setJoinLeave(g, '${r.key}', this.value, g.rows[${i}].to))"></label>
+      <label class="fact-line">leaves after <input type="number" min="1" style="width:4em" value="${r.to ?? ''}" onchange="gridDo(${gi}, g => ChronicleGrid.setJoinLeave(g, '${r.key}', g.rows[${i}].from, this.value))"></label>
+      <button class="icon-btn" ${i === 0 ? 'disabled' : ''} onclick="gridDo(${gi}, g => ChronicleGrid.moveRow(g, ${i}, ${i - 1}))">↑</button>
+      <button class="icon-btn" ${i === g.rows.length - 1 ? 'disabled' : ''} onclick="gridDo(${gi}, g => ChronicleGrid.moveRow(g, ${i}, ${i + 1}))">↓</button>
+    </div>`).join('');
+  const cellHtml = (round, at, cell) => {
+    const f = flagsAt(at);
+    const isSel = sel && Number(sel.round) === Number(round.n) && (at.enemy != null ? sel.enemy === at.enemy : sel.row === at.row);
+    const keyAttr = at.enemy != null ? `data-enemy="${escapeHtml(at.enemy)}"` : `data-row="${escapeHtml(at.row)}"`;
+    let lines = '';
+    if (cell) {
+      const acts = cell.activities;
+      const expandKey = gi + ':' + round.n + ':' + (at.enemy || at.row);
+      if (at.enemy != null && acts.length > 2 && !(session.expanded || new Set()).has(expandKey)) {
+        // A group cell shows one line per economy until expanded.
+        const byEcon = new Map();
+        for (const a of acts) byEcon.set(a.economy, (byEcon.get(a.economy) || []).concat(a));
+        lines = [...byEcon].map(([e, list]) => `<div class="act-line">${ECON_SHORT[e] || e} ×${list.length}: ${escapeHtml([...new Set(list.map(a => a.name))].join('/'))} · ${escapeHtml(list.flatMap(a => a.outcomes.map(o => o.res || '?')).join(', '))}</div>`).join('') +
+          `<a class="fact-line" href="#" onclick="event.stopPropagation(); (session.expanded = session.expanded || new Set()).add('${expandKey}'); renderGrids(); return false;">show each</a>`;
+      } else {
+        lines = acts.map((a, ai) => `<div class="act-line" draggable="true" data-act="${ai}">${escapeHtml(activityLine(a))}</div>`).join('');
+      }
+      if (cell.special_events.length) lines += cell.special_events.map(ev => `<div class="fact-event">${escapeHtml(ev.type + (ev.description ? ': ' + ev.description : ''))}</div>`).join('');
+    }
+    return `<td class="gcell${f.length ? ' flagged' : ''}${isSel ? ' selected' : ''}" data-grid="${gi}" data-round="${round.n}" ${keyAttr}
+      onclick="selectCell(${gi}, ${round.n}, ${at.enemy != null ? `null, '${escapeHtml(at.enemy).replace(/'/g, '&#39;')}'` : `'${at.row}', null`})">
+      ${cell ? `<span class="turn-handle" draggable="true" title="Drag the whole turn">⠿</span>` : ''}
+      ${lines}
+      ${f.length ? `<span class="cell-mark flag" title="${escapeHtml(f.map(x => x.message).join('\n'))}">⚑${f.length}</span>` : ''}
+      ${cell && cell.aiNotes && cell.aiNotes.length ? `<span class="cell-mark ai" title="${escapeHtml(cell.aiNotes.join('\n'))}">✦</span>` : ''}
+    </td>`;
+  };
+  const rounds = g.rounds;
+  const head = `<tr><th>Slot</th>${rounds.map(r => `<th>Round ${r.n}<div class="fact-line">p.${escapeHtml(r.pages.join('+'))}
+    <a href="#" onclick="reextractRound(${gi}, ${r.n}); return false;">re-extract</a>${r.reextract ? ' · ' + escapeHtml(r.reextract) : ''}</div></th>`).join('')}</tr>`;
+  const partyRows = g.rows.map((row, i) => `<tr><th>${i + 1} · ${escapeHtml(row.label)}${row.from ? `<div class="fact-line">from r${row.from}</div>` : ''}</th>
+    ${rounds.map(r => cellHtml(r, { round: r.n, row: row.key }, r.cells[row.key])).join('')}</tr>`).join('');
+  const enemyRows = g.enemyRows.map(e => `<tr class="enemy-row"><th>${escapeHtml(e.label)}${e.isNew ? '<div class="fact-line">new group</div>' : ''}</th>
+    ${rounds.map(r => cellHtml(r, { round: r.n, enemy: e.key }, r.enemy[e.key])).join('')}</tr>`).join('');
+  const notesRow = `<tr class="notes-row"><th>Events &amp; notes</th>${rounds.map(r => `<td>
+    ${r.events.map((ev, ei) => `<div class="fact-event">${escapeHtml(ev.text)} <a href="#" onclick="openEventForm(${gi}, ${r.n}, ${ei}); return false;">turn into attacks</a></div>`).join('')}
+    ${(r.aiNotes || []).map(n => `<div class="ai-note">✦ ${escapeHtml(n)}</div>`).join('')}
+    ${flags.filter(f => f.at && Number(f.at.round) === Number(r.n) && f.at.row == null && f.at.enemy == null).map(f => `<div class="fact-line flag-note">⚑ ${escapeHtml(f.message)}</div>`).join('')}
+  </td>`).join('')}</tr>`;
+  const eventForm = session.eventForm && session.eventForm.gi === gi ? renderEventForm(gi) : '';
+  const held = g.held.length ? `<div class="flag-box"><strong>Held back (not published until assigned):</strong><ul>${g.held.map(h => `<li>Round ${h.round}: "${escapeHtml(h.asWritten)}" — ${escapeHtml(h.source_line)} (${escapeHtml(h.reason)})</li>`).join('')}</ul></div>` : '';
+  return `<div class="fact-combat grid-combat"><h3>${escapeHtml(g.name)}</h3>
+    <details class="order-pass" ${session.orderOpen === false ? '' : 'open'}><summary><strong>Pass 1 — initiative order</strong> <span class="fact-line">drag a row, or use the arrows; every round follows</span></summary>
+      <div class="order-list" data-orderlist="${gi}">${order}</div></details>
+    <div class="grid-wrap"><table class="round-grid"><thead>${head}</thead><tbody>${partyRows}
+      ${enemyRows ? `<tr class="enemy-sep"><th colspan="${rounds.length + 1}">Enemies — their effects happen sometime during the round</th></tr>${enemyRows}` : ''}
+      ${notesRow}</tbody></table></div>
+    ${eventForm}${held}
+    ${sel ? renderCellEditor(gi) : '<p class="hint">Click a cell to edit it. Drag a line to move one activity, or ⠿ to move or swap a whole turn.</p>'}
+  </div>`;
+}
+
+function selectCell(gi, round, row, enemy) {
+  session.selected = { gi, round, row: row || null, enemy: enemy || null };
+  renderGrids();
+}
+
+// atOf(sel) → the grid address of the selected cell.
+function atOf(sel, extra) {
+  return Object.assign(sel.enemy != null ? { round: sel.round, enemy: sel.enemy } : { round: sel.round, row: sel.row }, extra || {});
+}
+
+/**
+ * gridDo(gi, fn) — runs one move on a grid and redraws. A refused move (an
+ * empty cell, a missing activity) is shown under the grid instead.
+ */
+function gridDo(gi, fn) {
+  try {
+    fn(session.grids[gi]);
+    session.gridError = null;
+  } catch (err) {
+    session.gridError = err.message;
+  }
+  renderGrids();
+}
+
+// targetOptions(gi, selected) → <option>s for an outcome's target: the
+// grid's rows and enemy groups, then every other settled name on the pages.
+function targetOptions(gi, selected) {
+  const g = session.grids[gi];
+  const seen = new Set();
+  const opts = [];
+  const add = (id, label) => { if (id && !seen.has(id)) { seen.add(id); opts.push([id, label]); } };
+  for (const r of g.rows) add(r.key, r.label);
+  for (const e of g.enemyRows) add(e.key, e.label + ' (group)');
+  for (const ref of session.refs) if (ref.entityId && !/^roster:/.test(ref.entityId)) add(ref.entityId, labelOf(ref.entityId));
+  return `<option value="">(none / text)</option>` + opts.map(([id, l]) => `<option value="${escapeHtml(id)}" ${id === selected ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('');
+}
+
+// rowOptions(gi, selected) → <option>s for "move to": party rows then enemy rows.
+function rowOptions(gi, selected) {
+  const g = session.grids[gi];
+  return g.rows.map(r => `<option value="row:${escapeHtml(r.key)}" ${selected === 'row:' + r.key ? 'selected' : ''}>${escapeHtml(r.label)}</option>`).join('') +
+    g.enemyRows.map(e => `<option value="enemy:${escapeHtml(e.key)}" ${selected === 'enemy:' + e.key ? 'selected' : ''}>${escapeHtml(e.label)} (group)</option>`).join('');
+}
+function roundOptions(gi, selected) {
+  return session.grids[gi].rounds.map(r => `<option value="${r.n}" ${Number(selected) === r.n ? 'selected' : ''}>round ${r.n}</option>`).join('');
+}
+// parseTarget('row:<id>' | 'enemy:<key>', round) → a grid address.
+function parseTarget(value, round) {
+  const i = value.indexOf(':');
+  return value.slice(0, i) === 'enemy' ? { round: Number(round), enemy: value.slice(i + 1) } : { round: Number(round), row: value.slice(i + 1) };
+}
+
+/**
+ * renderCellEditor(gi) — the selected cell: its flags with their one-click
+ * moves, the AI's self-check notes, its source lines, and every activity and
+ * outcome as editable fields, with move and add controls. Editing in place
+ * fixes a misread ("Iteraling Hinds" → Healing Hands) with no AI call.
+ */
+function renderCellEditor(gi) {
+  const g = session.grids[gi];
+  const sel = session.selected;
+  const at = atOf(sel);
+  const round = g.rounds.find(r => r.n === sel.round);
+  const cell = sel.enemy != null ? round.enemy[sel.enemy] : round.cells[sel.row];
+  const label = sel.enemy != null ? sel.enemy : labelOf(sel.row);
+  const flags = session.flagsByGrid[gi].filter(f => f.at && Number(f.at.round) === Number(sel.round) && (sel.enemy != null ? f.at.enemy === sel.enemy : f.at.row === sel.row));
+  const econ = cur => ChronicleFacts.ENUMS.economy.map(e => `<option ${e === cur ? 'selected' : ''}>${e}</option>`).join('');
+  const resSel = cur => ['', ...ChronicleFacts.ENUMS.res].map(e => `<option value="${e}" ${e === (cur || '') ? 'selected' : ''}>${e || '—'}</option>`).join('');
+  const effSel = cur => ['', 'downed', 'killed'].map(e => `<option value="${e}" ${e === (cur || '') ? 'selected' : ''}>${e || '—'}</option>`).join('');
+  const here = sel.enemy != null ? `enemy:${sel.enemy}` : `row:${sel.row}`;
+  const acts = cell ? cell.activities : [];
+  const fi = idx => session.flagsByGrid[gi].indexOf(flags[idx]);
+  return `<div class="cell-editor">
+    <h4>Round ${sel.round} · ${escapeHtml(label)} <button class="icon-btn" onclick="session.selected = null; renderGrids();">✕</button></h4>
+    ${session.gridError ? `<div class="ident-error">${escapeHtml(session.gridError)}</div>` : ''}
+    ${flags.map((f, i) => `<div class="flag-note">⚑ ${escapeHtml(f.message)} ${f.suggestedMove ? `<button class="btn" onclick="applyFlagMove(${gi}, ${fi(i)})">${escapeHtml(f.suggestedMove.label)}</button>` : ''}</div>`).join('')}
+    ${cell && cell.aiNotes ? cell.aiNotes.map(n => `<div class="ai-note">✦ AI: ${escapeHtml(n)}</div>`).join('') : ''}
+    ${cell ? cell.source_lines.map(l => `<div class="fact-line">p.${escapeHtml(String(l.page))}: ${escapeHtml(l.text)}</div>`).join('') : '<p class="hint">Empty cell.</p>'}
+    ${acts.map((a, ai) => `<div class="edit-act">
+      <div class="ident-form">
+        <select id="e${ai}-econ">${econ(a.economy)}</select>
+        <input id="e${ai}-name" value="${escapeHtml(a.name)}" size="12" title="Name: a standard action, Death Save, No Action: reason, or the feature">
+        <input id="e${ai}-detail" value="${escapeHtml(a.detail || '')}" size="14" placeholder="detail (spell, weapon)">
+        <input id="e${ai}-notes" value="${escapeHtml(a.notes || '')}" size="14" placeholder="notes">
+        <button class="btn" onclick="saveActivity(${gi}, ${ai})">Save</button>
+        <button class="btn" onclick="gridDo(${gi}, g => ChronicleGrid.removeActivity(g, atOf(session.selected, { ai: ${ai} })))">Delete</button>
+      </div>
+      ${a.outcomes.map((o, oi) => `<div class="ident-form outcome-edit">
+        <select id="e${ai}-${oi}-res">${resSel(o.res)}</select>
+        <input id="e${ai}-${oi}-val" value="${o.val ?? ''}" size="3" placeholder="val">
+        <select id="e${ai}-${oi}-target">${targetOptions(gi, o.target_id)}</select>
+        <input id="e${ai}-${oi}-text" value="${escapeHtml(o.target_text || '')}" size="8" placeholder="target text">
+        <select id="e${ai}-${oi}-effect">${effSel(o.effect)}</select>
+        <input id="e${ai}-${oi}-notes" value="${escapeHtml(o.notes || '')}" size="8" placeholder="notes">
+        <button class="btn" onclick="saveOutcome(${gi}, ${ai}, ${oi})">Save</button>
+        <button class="icon-btn remove" title="Remove this outcome" onclick="gridDo(${gi}, g => ChronicleGrid.removeOutcome(g, atOf(session.selected, { ai: ${ai}, oi: ${oi} })))">✕</button>
+        ${acts.length > 1 ? `<select onchange="if (this.value !== '') gridDo(${gi}, g => ChronicleGrid.moveOutcome(g, atOf(session.selected, { ai: ${ai}, oi: ${oi} }), atOf(session.selected, { ai: Number(this.value) })))">
+          <option value="">move to activity…</option>${acts.map((x, j) => j === ai ? '' : `<option value="${j}">${j + 1}. ${escapeHtml(x.name)}</option>`).join('')}</select>` : ''}
+      </div>`).join('')}
+      <div class="ident-form"><button class="btn" onclick="gridDo(${gi}, g => ChronicleGrid.addOutcome(g, atOf(session.selected, { ai: ${ai} }), {}))">+ outcome</button>
+        move this activity to <select id="e${ai}-to">${rowOptions(gi, here)}</select> <select id="e${ai}-round">${roundOptions(gi, sel.round)}</select>
+        <button class="btn" onclick="moveActivityTo(${gi}, ${ai})">Move</button></div>
+    </div>`).join('')}
+    <div class="ident-form"><button class="btn" onclick="gridDo(${gi}, g => ChronicleGrid.addActivity(g, atOf(session.selected), { economy: 'action', name: 'Attack' }))">+ activity</button>
+      ${cell ? `move the whole turn to <select id="turn-to">${rowOptions(gi, here)}</select> <select id="turn-round">${roundOptions(gi, sel.round)}</select>
+      <button class="btn" onclick="moveTurnTo(${gi})">Move (swaps if taken)</button>` : ''}</div>
+  </div>`;
+}
+
+function saveActivity(gi, ai) {
+  const v = id => document.getElementById(`e${ai}-${id}`).value;
+  gridDo(gi, g => ChronicleGrid.editActivity(g, atOf(session.selected, { ai }), { economy: v('econ'), name: v('name').trim() || 'Attack', detail: v('detail').trim(), notes: v('notes').trim() }));
+}
+function saveOutcome(gi, ai, oi) {
+  const v = id => document.getElementById(`e${ai}-${oi}-${id}`).value;
+  gridDo(gi, g => ChronicleGrid.editOutcome(g, atOf(session.selected, { ai, oi }), {
+    res: v('res'), val: v('val').trim(), target_id: v('target'), target_text: v('target') ? '' : v('text').trim(), effect: v('effect'), notes: v('notes').trim() }));
+}
+function moveActivityTo(gi, ai) {
+  const to = parseTarget(document.getElementById(`e${ai}-to`).value, document.getElementById(`e${ai}-round`).value);
+  const from = atOf(session.selected, { ai });
+  // A reaction moved into another row keeps a note of whose turn it interrupted.
+  const act = (from.enemy != null ? session.grids[gi].rounds.find(r => r.n === from.round).enemy[from.enemy] : session.grids[gi].rounds.find(r => r.n === from.round).cells[from.row]).activities[ai];
+  const extra = act && act.economy === 'reaction' ? { interrupted: from.enemy != null ? from.enemy : labelOf(from.row) } : null;
+  gridDo(gi, g => ChronicleGrid.moveActivity(g, from, to, extra));
+  session.selected = Object.assign({ gi }, to.enemy != null ? { round: to.round, enemy: to.enemy, row: null } : { round: to.round, row: to.row, enemy: null });
+  renderGrids();
+}
+function moveTurnTo(gi) {
+  const to = parseTarget(document.getElementById('turn-to').value, document.getElementById('turn-round').value);
+  gridDo(gi, g => ChronicleGrid.moveTurn(g, atOf(session.selected), to));
+}
+// applyFlagMove(gi, flagIndex) — the flag's one-click fix ("Move to Att").
+function applyFlagMove(gi, fi) {
+  const f = session.flagsByGrid[gi][fi];
+  gridDo(gi, g => ChronicleGrid.applySuggestedMove(g, f, f.suggestedMove.to));
+  session.selected = { gi, round: f.at.round, row: f.suggestedMove.to, enemy: null };
+  renderGrids();
+}
+
+/**
+ * openEventForm / renderEventForm / submitEventForm — turn an event into
+ * attacks (#103, decided 23 October): pick whose activity it is, the action,
+ * the result, and up to two targets with a count each ("Dragon ×3").
+ */
+function openEventForm(gi, round, ei) {
+  session.eventForm = { gi, round, ei };
+  renderGrids();
+}
+function renderEventForm(gi) {
+  const ef = session.eventForm;
+  const ev = session.grids[gi].rounds.find(r => r.n === ef.round).events[ef.ei];
+  if (!ev) return '';
+  const pair = i => `<select id="ev-target${i}">${targetOptions(gi, null)}</select> × <input id="ev-count${i}" type="number" min="0" max="10" value="${i === 1 ? 1 : 0}" style="width:3.5em">`;
+  return `<div class="cell-editor"><h4>Turn into attacks — round ${ef.round}: "${escapeHtml(ev.text)}"</h4>
+    <div class="ident-form">Whose: <select id="ev-row">${rowOptions(gi, null)}</select>
+      <select id="ev-econ">${ChronicleFacts.ENUMS.economy.map(e => `<option>${e}</option>`).join('')}</select>
+      <input id="ev-name" value="Attack" size="10">
+      result <select id="ev-res">${ChronicleFacts.ENUMS.res.map(e => `<option ${e === 'hit' ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
+    <div class="ident-form">Targets: ${pair(1)} and ${pair(2)}
+      <button class="btn btn-primary" onclick="submitEventForm(${gi})">Convert</button>
+      <button class="btn" onclick="session.eventForm = null; renderGrids();">Cancel</button></div></div>`;
+}
+function submitEventForm(gi) {
+  const ef = session.eventForm;
+  const targets = [];
+  for (const i of [1, 2]) {
+    const id = document.getElementById(`ev-target${i}`).value;
+    const n = Number(document.getElementById(`ev-count${i}`).value) || 0;
+    for (let k = 0; k < n; k++) targets.push(id ? { target_id: id } : { target_text: '' });
+  }
+  const where = parseTarget(document.getElementById('ev-row').value, ef.round);
+  const spec = Object.assign(where.enemy != null ? { enemy: where.enemy } : { row: where.row }, {
+    economy: document.getElementById('ev-econ').value, name: document.getElementById('ev-name').value.trim() || 'Attack',
+    res: document.getElementById('ev-res').value, targets });
+  gridDo(gi, g => ChronicleGrid.eventToActivity(g, ef.round, ef.ei, spec));
+  session.eventForm = null;
+  session.selected = Object.assign({ gi, round: ef.round }, where.enemy != null ? { enemy: where.enemy, row: null } : { row: where.row, enemy: null });
+  renderGrids();
+}
+
+/**
+ * reextractRound(gi, n) — "Re-extract this round": the round's page(s) go
+ * back to the AI with the confirmed initiative order, asking for that one
+ * round. The reply must pass the same validation as the first read; only
+ * that round is replaced (ChronicleGrid.replaceRound), every other edit stays.
+ */
+async function reextractRound(gi, n) {
+  const g = session.grids[gi];
+  const round = g.rounds.find(r => r.n === n);
+  round.reextract = 'reading…';
+  renderGrids();
+  try {
+    const combats = ChronicleFacts.combatChoices(session.campaign, session.rows, session.index);
+    const order = ChronicleGrid.orderFor(g, n).map((k, i) => `${i + 1}. ${labelOf(k)}`).join(', ');
+    const out = { combat: g.combat, rounds: [] };
+    for (const fp of session.facts.filter(f => round.pages.map(String).includes(String(f.page)))) {
+      const system = ChronicleFacts.factsPrompt({ pageLabel: fp.label, references: fp.references, combats, carry: null, reread: null, focus: { combat: g.combat, n, order } });
+      const facts = ChronicleFacts.parseFacts(await ChronicleAI.extractFacts({ system, image: fp.image, text: fp.text }));
+      const errors = ChronicleFacts.validateFacts(facts, fp.references, combats);
+      if (errors.length) throw new Error(errors[0]);
+      for (const c of facts.combats.filter(c => c.combat === g.combat)) for (const r of c.rounds.filter(r => Number(r.n) === Number(n))) {
+        out.rounds.push({ n, pages: [fp.page], turns: r.turns.map(t => Object.assign({ page: fp.page }, t)),
+          enemy_turns: r.enemy_turns.map(t => Object.assign({ page: fp.page }, t)), events: r.events });
+      }
+    }
+    if (!out.rounds.length) throw new Error(`the AI returned no round ${n}`);
+    // Two pages of one round are joined, as mergePages does.
+    const joined = out.rounds.reduce((a, r) => (a ? Object.assign(a, { pages: a.pages.concat(r.pages), turns: a.turns.concat(r.turns), enemy_turns: a.enemy_turns.concat(r.enemy_turns), events: a.events.concat(r.events) }) : r), null);
+    ChronicleGrid.replaceRound(g, n, { combat: g.combat, rounds: [joined] }, gridContext(g.combat));
+    g.rounds.find(r => r.n === n).reextract = 're-read';
+  } catch (err) {
+    const r = g.rounds.find(x => x.n === n);
+    if (r) r.reextract = 'failed: ' + (err.message || err);
+  }
+  renderGrids();
+}
+
+// Drag and drop in the grid: a line moves one activity, ⠿ moves (or swaps)
+// a whole turn, and a row of the order list moves that row. One set of
+// listeners on the panel, because every redraw replaces the cells.
+(function() {
+  const panel = document.getElementById('grid-panel');
+  let drag = null;
+  const cellOf = el => el && el.closest('td.gcell');
+  const addrOf = td => ({ gi: Number(td.dataset.grid), at: td.dataset.enemy != null ? { round: Number(td.dataset.round), enemy: td.dataset.enemy } : { round: Number(td.dataset.round), row: td.dataset.row } });
+  panel.addEventListener('dragstart', e => {
+    const orderRow = e.target.closest && e.target.closest('.order-row');
+    if (orderRow) { const [gi, i] = orderRow.dataset.order.split(':').map(Number); drag = { kind: 'order', gi, i }; }
+    else {
+      const td = cellOf(e.target);
+      if (!td) return;
+      const { gi, at } = addrOf(td);
+      if (e.target.classList.contains('turn-handle')) drag = { kind: 'turn', gi, at };
+      else if (e.target.dataset.act != null) drag = { kind: 'activity', gi, at: Object.assign({}, at, { ai: Number(e.target.dataset.act) }) };
+      else return;
+    }
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', drag.kind); // Firefox needs data set to start a drag
+  });
+  panel.addEventListener('dragover', e => {
+    if (!drag) return;
+    if (drag.kind === 'order' ? e.target.closest('.order-row') : cellOf(e.target)) e.preventDefault();
+  });
+  panel.addEventListener('drop', e => {
+    if (!drag) return;
+    e.preventDefault();
+    const d = drag; drag = null;
+    if (d.kind === 'order') {
+      const row = e.target.closest('.order-row');
+      if (row) gridDo(d.gi, g => ChronicleGrid.moveRow(g, d.i, Number(row.dataset.order.split(':')[1])));
+      return;
+    }
+    const td = cellOf(e.target);
+    if (!td) return;
+    const { gi, at } = addrOf(td);
+    if (gi !== d.gi) return; // moves stay within one combat
+    if (d.kind === 'turn') gridDo(gi, g => ChronicleGrid.moveTurn(g, d.at, at));
+    else gridDo(gi, g => ChronicleGrid.moveActivity(g, d.at, at));
+  });
+  panel.addEventListener('dragend', () => { drag = null; });
+}());
+
+/**
+ * renderOther() — what is not in a grid: general flags (round resets, AI
+ * notes that name no cell), quest progress, passages and loot.
+ */
+function renderOther() {
+  const merged = session.mergedFacts;
+  const refs = session.refs;
+  const byOcc = new Map(refs.map(r => [r.occ, r]));
+  const flags = merged.issues.map(x => x.detail).concat((session.looseNotes || []).map(t => 'AI self-check: ' + t));
   document.getElementById('facts-flags').innerHTML = flags.length
     ? `<div class="flag-box"><strong>Check these:</strong><ul>${flags.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>` : '';
-
-  const combatName = ref => {
-    const e = session.index.entities.get(ref);
-    if (e) return e.name + (e.legacyId ? ` (${e.legacyId})` : '');
-    const made = ChronicleEntities.newEntities(session.rows).get(ref);
-    return made ? made.name + ' (new)' : String(ref);
-  };
   // who(occ) → "Bel → Belfar": the words as written and what they were
-  // settled as, without the trailing "(array)" the AI prompt label carries.
-  // A fact with no occurrence (an unnamed quest) says so instead of "undefined".
+  // settled as. A fact with no occurrence (an unnamed quest) says so.
   const who = occ => {
     if (occ == null) return '(not named in the notes)';
     const r = byOcc.get(occ);
     return r ? `${r.asWritten} → ${r.label.replace(/ \([^)]*\)$/, '')}` : String(occ);
   };
-  const turnHtml = (t, enemy) => `<div class="fact-turn"><span class="who${enemy ? ' enemy' : ''}">${escapeHtml(who(t.actor))}</span>
-    <span>${t.activities.map(a => escapeHtml(activityText(a, byOcc))).join('<br>') || '<em>nothing recorded</em>'}${(t.special_events || []).map(ev => `<div class="fact-event">${escapeHtml(ev.type + (ev.description ? ': ' + ev.description : ''))}</div>`).join('')}
-    <div class="fact-line">p.${escapeHtml(String(t.page))}: ${escapeHtml(t.source_line || '')}</div></span></div>`;
-  document.getElementById('facts-merged').innerHTML = merged.combats.map(c => `<div class="fact-combat"><h3>${escapeHtml(combatName(c.combat))}</h3>${c.rounds.map(r => `
-    <div class="fact-round"><h4>Round ${r.n}${r.pages.length > 1 ? ' — across pages ' + r.pages.join(' and ') : ''}</h4>
-      ${r.turns.map(t => turnHtml(t, false)).join('')}${r.enemy_turns.map(t => turnHtml(t, true)).join('')}
-      ${r.events.map(ev => `<div class="fact-event">${escapeHtml(ev)}</div>`).join('')}</div>`).join('')}</div>`).join('')
-    + (merged.quest_progress.length ? `<div class="fact-combat"><h3>Quest progress</h3>${merged.quest_progress.map(q => `<div class="fact-turn"><span class="who">${escapeHtml(who(q.quest))}</span><span>${escapeHtml(q.entry || '')}<div class="fact-line">p.${escapeHtml(String(q.page))}: ${escapeHtml(q.source_line || '')}</div></span></div>`).join('')}</div>` : '')
-    + renderPassages(merged, byOcc, combatName, who)
+  document.getElementById('facts-other').innerHTML =
+    (merged.quest_progress.length ? `<div class="fact-combat"><h3>Quest progress</h3>${merged.quest_progress.map(q => `<div class="fact-turn"><span class="who">${escapeHtml(who(q.quest))}</span><span>${escapeHtml(q.entry || '')}<div class="fact-line">p.${escapeHtml(String(q.page))}: ${escapeHtml(q.source_line || '')}</div></span></div>`).join('')}</div>` : '')
+    + renderPassages(merged, byOcc, combatLabel, who)
     + (merged.loot.length ? `<div class="fact-combat"><h3>Loot</h3>${merged.loot.map(l => `<div class="fact-turn"><span class="who">${escapeHtml(l.item ? who(l.item) : l.item_text || '(item not named)')}</span><span>${escapeHtml(l.change || '')}${l.holder ? ' — ' + escapeHtml(who(l.holder)) : ''}<div class="fact-line">p.${escapeHtml(String(l.page))}: ${escapeHtml(l.source_line || '')}</div></span></div>`).join('')}</div>` : '');
 }
 
@@ -1343,16 +1872,6 @@ function countTurns(facts) {
   let n = 0;
   for (const c of facts.combats) for (const r of c.rounds) n += r.turns.length + r.enemy_turns.length;
   return n;
-}
-
-// activityText(a, byOcc) → "A: Attack · Shortbow — hit 10 → Ogre, miss".
-function activityText(a, byOcc) {
-  const econ = { action: 'A', bonus_action: 'BA', reaction: 'R', movement: 'Move', free: 'Free', legendary_action: 'LA', legendary_resistance: 'LR' }[a.economy] || a.economy;
-  const outs = a.outcomes.map(o => {
-    const target = o.target ? (byOcc.get(o.target)?.asWritten || o.target) : (o.target_text || '');
-    return [o.detail, o.res, o.val, target ? '→ ' + target : '', o.effect ? '(' + o.effect + ')' : ''].filter(x => x !== null && x !== undefined && x !== '').join(' ');
-  }).join(', ');
-  return `${econ}: ${a.name}${a.detail ? ' · ' + a.detail : ''}${outs ? ' — ' + outs : ''}${a.notes ? ' [' + a.notes + ']' : ''}`;
 }
 
 // setStep(n) — marks steps before n done and step n active in the progress bar.

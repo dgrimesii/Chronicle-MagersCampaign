@@ -114,8 +114,11 @@
         }
         // array: where the entity lives (a new one's array comes from step 3),
         // so a passage attached to it can be published to the right list.
+        // candidates: for an occurrence of a split row, the entities it must
+        // be assigned between (the round grid's split assignment, #103).
         out.push({ occ: o.id, asWritten: o.asWritten, context: o.context, label, entityId, group, kind: r.kind,
-          array: res.roster ? 'enemies_roster' : (entityId ? arrayOf(entityId) : null) });
+          array: res.roster ? 'enemies_roster' : (entityId ? arrayOf(entityId) : null),
+          candidates: res.needsAssignment ? res.needsAssignment.map(id => ({ id, name: nameOf(id) })) : null });
       }
     }
     return out;
@@ -153,11 +156,14 @@
    * carry  — { combat, round } where the previous page stopped, or null
    * reread — problems found in the first reply, listed so the second read
    *          fixes them (the issue's "re-reads the round once")
+   * focus  — { combat, n, order } to read one round only, against the
+   *          initiative order the DM confirmed: the round grid's
+   *          "Re-extract this round" (#103). order is text ("1. Del, 2. Mal").
    * The rules are the design's: attribute by occurrence, never by slot;
    * one outcome per roll; down is an outcome effect; the 2024 rules and the
    * party's action economy are added by ChronicleAI.extractFacts.
    */
-  function factsPrompt({ pageLabel, references, combats, carry, reread }) {
+  function factsPrompt({ pageLabel, references, combats, carry, reread, focus }) {
     const refs = references.map(r => `${r.occ} | "${r.asWritten}" = ${r.label} | line: ${r.context}`).join('\n');
     const cmb = combats.length
       ? combats.map(c => `${c.ref} | ${c.name}${c.open ? ' (open' + (c.lastRound ? `, recorded to round ${c.lastRound}` : '') + ')' : ''}`).join('\n')
@@ -195,6 +201,7 @@ RULES:
       A description of a place goes on the place. The party arriving at a place is an event: attach it to the round or combat if it happens in one, otherwise the session.
     - "source_lines": the lines of the notes it came from, copied exactly.
 12. "page_summary": one or two sentences saying what happens on this page, for the DM's reference.
+13. "assignments": for each occurrence listed as "one of: …", propose which of those it is: {"occ":"<occurrence id>","choice":"<one of the names exactly as listed>","reason":"<a few words: spelling, place, who else is there, which combat>"}. The DM confirms these later.
 10. Before answering, check your own rounds against these sanity checks (issue #104) and re-read the lines behind any that fail:
     - Imbalance: one character with two actions in a round while another listed character has none usually means a line was misread.
     - Source line: every turn's actor is the character its source line names.
@@ -204,7 +211,7 @@ RULES:
     - State: a character downed or killed earlier does nothing but Death Save or No Action until healed.
     - Duplicates: the same action with the same result and number in two turns of one round is usually a line read twice.
     List anything you still cannot resolve in "self_check". These are sanity checks: when the notes really say something unusual, record what they say.
-${reread && reread.length ? `\nA FIRST READ OF THIS PAGE HAD THESE PROBLEMS. Re-read the page and fix them:\n- ${reread.join('\n- ')}\n` : ''}
+${reread && reread.length ? `\nA FIRST READ OF THIS PAGE HAD THESE PROBLEMS. Re-read the page and fix them:\n- ${reread.join('\n- ')}\n` : ''}${focus ? `\nRE-READ ONE ROUND: record only round ${focus.n} of combat ${focus.combat}, as one combat with that one round. The DM has confirmed the initiative order: ${focus.order}. Use it to tell whose turn each line is; still record turns in the order the notes list them. Leave quest_progress, loot, passages and assignments empty.\n` : ''}
 Respond with JSON only, no prose:
 {"combats":[{"combat":"<combat id>","rounds":[{"n":4,"turns":[{"actor":"occ_1_1","source_line":"Asp - Healing Hands","activities":[{"economy":"action","name":"Magic","detail":"Healing Hands","val_type":null,"outcomes":[{"res":"unclear","val":null,"target":null,"target_text":null,"detail":null,"effect":null}],"notes":null}]}],"enemy_turns":[{"actor":"occ_1_4","source_line":"Goblins - Hit Mal (opportunity)","activities":[{"economy":"reaction","name":"Opportunity Attack","outcomes":[{"res":"hit","val":null,"target":"occ_1_5"}]}],"special_events":[]}],"events":[]}]}],"quest_progress":[],"loot":[],"passages":[{"text":"Two Larkspur dragons swooped down on the cart from the ridges and killed everyone at the cart.","speaker":"dm","attach":{"to":"round","combat":"<combat id>","n":4},"source_lines":["Larkspur dragons descend on cart from ridges. Kill all at the cart."]}],"page_summary":"The Goblin Ambush continues through rounds 4 and 5 as Larkspur dragons join the fight.","self_check":[]}`;
   }
@@ -223,7 +230,7 @@ Respond with JSON only, no prose:
     let parsed;
     try { parsed = JSON.parse(body.slice(start, end + 1)); } catch (e) { throw new Error('The AI reply was not valid JSON: ' + e.message); }
     if (!parsed || !Array.isArray(parsed.combats)) throw new Error('The AI reply has no "combats" list.');
-    for (const k of ['quest_progress', 'loot', 'self_check', 'passages']) if (!Array.isArray(parsed[k])) parsed[k] = [];
+    for (const k of ['quest_progress', 'loot', 'self_check', 'passages', 'assignments']) if (!Array.isArray(parsed[k])) parsed[k] = [];
     if (typeof parsed.page_summary !== 'string') parsed.page_summary = null;
     for (const p of parsed.passages) {
       if (!Array.isArray(p.source_lines)) p.source_lines = p.source_lines ? [String(p.source_lines)] : [];
@@ -283,30 +290,57 @@ Respond with JSON only, no prose:
       }
     });
     for (const q of facts.quest_progress) if (q.quest != null && !occ.has(q.quest)) errors.push(`Quest progress names "${q.quest}" instead of an occurrence id.`);
-    // Passages (#102): the speaker is "dm" or an occurrence; the attachment
-    // names an occurrence, a combat from the list, or a round, activity or
-    // quest step that this reply itself contains.
+    // Passages (#102): the speaker must be "dm" or an occurrence; a speaker
+    // named instead is an error (testimony must point at the NPC). An
+    // attachment the reply cannot back up is not an error: it is moved to
+    // the nearest place that exists (repairAttachments), because one
+    // misplaced passage must not throw away a page of facts (seen on the
+    // real session 6 page 1, #103). The DM can still see where it went.
+    repairAttachments(facts, occ, refs);
     (facts.passages || []).forEach((p, i) => {
       const at = `Passage ${i + 1}`;
       if (!p.text || !String(p.text).trim()) errors.push(`${at} has no text.`);
       if (p.speaker !== 'dm' && !occ.has(p.speaker)) errors.push(`${at}: speaker "${p.speaker}" is neither "dm" nor an occurrence id.`);
-      const a = p.attach || { to: 'session' };
-      const roundOf = (cmb, n) => facts.combats.find(c => c.combat === cmb)?.rounds.find(r => Number(r.n) === Number(n));
-      if (a.to === 'entity') { if (!occ.has(a.occ)) errors.push(`${at} attaches to "${a.occ}", not an occurrence id.`); }
-      else if (a.to === 'combat') { if (!refs.has(a.combat) && !facts.combats.some(c => c.combat === a.combat)) errors.push(`${at} attaches to an unknown combat "${a.combat}".`); }
-      else if (a.to === 'round') { if (!roundOf(a.combat, a.n)) errors.push(`${at} attaches to round ${a.n} of "${a.combat}", which this page does not record.`); }
-      else if (a.to === 'activity') {
-        const t = roundOf(a.combat, a.n) && roundOf(a.combat, a.n).turns.concat(roundOf(a.combat, a.n).enemy_turns).find(x => x.actor === a.actor);
-        if (!t || !t.activities[Number(a.index)]) errors.push(`${at} attaches to an activity this page does not record.`);
-      }
-      else if (a.to === 'quest_progress') { if (!facts.quest_progress[Number(a.index)]) errors.push(`${at} attaches to a quest step this page does not record.`); }
-      else if (a.to !== 'session') errors.push(`${at} has an unknown attachment "${a.to}".`);
     });
     for (const l of facts.loot) {
       if (l.item != null && !occ.has(l.item)) errors.push(`Loot names "${l.item}" instead of an occurrence id.`);
       if (l.holder != null && !occ.has(l.holder)) errors.push(`Loot holder "${l.holder}" is not an occurrence id.`);
     }
     return [...new Set(errors)];
+  }
+
+  /**
+   * repairAttachments(facts, occ, combatRefs) — moves each passage whose
+   * attachment names something the reply does not have to the nearest place
+   * that does: an activity → its round → its combat → the session; an
+   * unknown occurrence or quest step → the session. Each move is added to
+   * the reply's self_check notes, so the DM sees it beside the review.
+   */
+  function repairAttachments(facts, occ, combatRefs) {
+    const roundOf = (cmb, n) => facts.combats.find(c => c.combat === cmb)?.rounds.find(r => Number(r.n) === Number(n));
+    const combatOk = cmb => combatRefs.has(cmb) || facts.combats.some(c => c.combat === cmb);
+    (facts.passages || []).forEach((p, i) => {
+      const a = p.attach || { to: 'session' };
+      let to = a;
+      if (a.to === 'activity') {
+        const r = roundOf(a.combat, a.n);
+        const t = r && r.turns.concat(r.enemy_turns).find(x => x.actor === a.actor);
+        if (!t || !t.activities[Number(a.index)]) to = r ? { to: 'round', combat: a.combat, n: a.n } : (combatOk(a.combat) ? { to: 'combat', combat: a.combat } : { to: 'session' });
+      } else if (a.to === 'round') {
+        if (!roundOf(a.combat, a.n)) to = combatOk(a.combat) ? { to: 'combat', combat: a.combat } : { to: 'session' };
+      } else if (a.to === 'combat') {
+        if (!combatOk(a.combat)) to = { to: 'session' };
+      } else if (a.to === 'entity') {
+        if (!occ.has(a.occ)) to = { to: 'session' };
+      } else if (a.to === 'quest_progress') {
+        if (!facts.quest_progress[Number(a.index)]) to = { to: 'session' };
+      } else if (a.to !== 'session') to = { to: 'session' };
+      if (to !== a) {
+        p.attach = to;
+        if (!Array.isArray(facts.self_check)) facts.self_check = [];
+        facts.self_check.push(`Passage ${i + 1} ("${String(p.text || '').slice(0, 50)}") was attached to ${a.to} ${a.n != null ? 'round ' + a.n : (a.occ || '')}, which this page does not record; it now sits on the ${to.to}${to.n != null ? ' (round ' + to.n + ')' : ''}.`);
+      }
+    });
   }
 
   /**
@@ -373,7 +407,7 @@ Respond with JSON only, no prose:
   function mergePages(pages, references) {
     const combats = new Map();
     const issues = [];
-    const quest_progress = [], loot = [], passages = [], summaries = [];
+    const quest_progress = [], loot = [], passages = [], summaries = [], assignments = [];
     for (const p of pages) {
       const f = p.facts;
       for (const c of f.combats) {
@@ -405,12 +439,13 @@ Respond with JSON only, no prose:
         passages.push(Object.assign({}, ps, { attach, page: p.page }));
       }
       if (f.page_summary) summaries.push({ page: p.page, text: f.page_summary });
+      assignments.push(...(f.assignments || []).map(a => Object.assign({ page: p.page }, a)));
       quest_progress.push(...f.quest_progress.map(q => Object.assign({ page: p.page }, q)));
       loot.push(...f.loot.map(l => Object.assign({ page: p.page }, l)));
     }
     return {
       combats: [...combats.values()].map(m => ({ combat: m.combat, rounds: [...m.rounds.values()].sort((a, b) => a.n - b.n) })),
-      quest_progress, loot, passages, summaries, issues,
+      quest_progress, loot, passages, summaries, assignments, issues,
     };
   }
 

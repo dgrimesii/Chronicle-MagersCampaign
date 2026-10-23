@@ -256,10 +256,19 @@ console.log('\nTest P-1 — passages parse and validate');
   bad.passages[0].speaker = 'Rufus';
   bad.passages[1].attach = { to: 'entity', occ: 'Belfar' };
   bad.passages[3].attach = { to: 'round', combat: AMBUSH, n: 12 };
-  const errs = F.validateFacts(F.parseFacts(JSON.stringify(bad)), pRefs, combats);
+  const badParsed = F.parseFacts(JSON.stringify(bad));
+  const errs = F.validateFacts(badParsed, pRefs, combats);
   assert('P-1: a speaker named instead of "dm" or an occurrence is an error', errs.some(e => /speaker "Rufus"/.test(e)));
-  assert('P-1: an attachment by name is an error', errs.some(e => /attaches to "Belfar"/.test(e)));
-  assert('P-1: an attachment to a round the page does not record is an error', errs.some(e => /round 12/.test(e)));
+  // Since #103 a bad attachment is repaired, not an error: one misplaced
+  // passage must not throw away a page of facts (seen on session 6 page 1).
+  assert('P-1: an attachment by name is moved to the session, not an error', errs.length === 1 && badParsed.passages[1].attach.to === 'session');
+  assert('P-1: an attachment to a round the page does not record falls back to its combat', badParsed.passages[3].attach.to === 'combat' && badParsed.passages[3].attach.combat === AMBUSH);
+  assert('P-1: each repair is noted in the self-check notes', badParsed.self_check.filter(n => /which this page does not record/.test(n)).length === 2);
+  const act2 = notesPage();
+  act2.passages[3].attach = { to: 'activity', combat: AMBUSH, n: 8, actor: 'occ_notes_4', index: 5 };
+  const a2 = F.parseFacts(JSON.stringify(act2));
+  F.validateFacts(a2, pRefs, combats);
+  assert('P-1: an activity the page does not record falls back to its round', a2.passages[3].attach.to === 'round' && a2.passages[3].attach.n === 8);
   assert('P-1: a passage with no attachment defaults to the session', F.parseFacts('{"combats":[],"passages":[{"text":"x","speaker":"dm"}]}').passages[0].attach.to === 'session');
   const p = F.factsPrompt({ pageLabel: 'notes', references: pRefs, combats, carry: null, reread: null });
   assert('P-1: the prompt asks for passages: clean-up rule, speaker and attachment', /add no fact the notes do not contain/.test(p) && /"speaker": "dm"/.test(p) && /A description of a place goes on the place/.test(p));
