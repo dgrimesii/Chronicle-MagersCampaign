@@ -42,6 +42,7 @@ const TEST_FILES = [
   'tests/entity-pages.test.js',
   'tests/header-draft.test.js',
   'tests/session-publish.test.js',
+  'tests/viewer-passages.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

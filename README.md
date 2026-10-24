@@ -59,6 +59,7 @@ Chronicle-MagersCampaign/
 │   ├── entity-pages.test.js          # Tests for shared/chronicle-pages.js (#105): touched pages, the draft prompt and its checks, text changes and judgment events through applySession
 │   ├── header-draft.test.js          # Tests for the session header's own draft (#74): prompt, reply check, edited header and placeholder replace through applySession
 │   ├── session-publish.test.js       # Tests for the session page's publish (#106): sessionQueue, the review through applySession, republishing, computed relationships
+│   ├── viewer-passages.test.js       # Tests for passages and aliases in the viewers (#107): both normalisers carry them identically, testimony set apart, alias search
 │   ├── absence-notes.test.js         # Tests for player absence as a session note (#112): migrated data, the migration, publish, extraction, both viewers
 │   ├── round-grid.test.js            # Tests for shared/chronicle-grid.js (#103): building, order, every move, session 6's misreads, flags with one-click moves, split assignment, output
 │   ├── sanity-checks.test.js         # Tests for the nine round sanity checks (#104): one per check on the fixture, plus the acceptance cases
@@ -243,6 +244,11 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `rounds[].slots[].activities[economy=action].outcomes[0].val` | `rounds[].slots[].val` | Same rule as `res` |
 | `rounds[].slots[].notes` + outcome `effect` | `rounds[].slots[].notes` | Slot notes, else the action activity's `notes`, followed by one "`<target> <effect>`" line per outcome effect (e.g. `Ogre killed`), joined with `; ` (`effectLines()`). Since #95 the target is named by `targetLabel()`: a party member's nickname, another entity's name, or a roster label as written (`Del downed`, not the UUID) |
 | `rounds[].enemy_turns[]` | `rounds[].enemy[{desc, impact}]` | 5.0.0: `desc` = `actor_id: ` + every activity's label, each with ` (res, val)` when it has one outcome, joined with `; `. `impact` = one "`<target> <effect>`" line per outcome effect (`Del downed`; the target named by `targetLabel()`, #95), then the `special_events[].description`s not matched to a roll, joined with `; ` |
+| `passages` on any object (sessions, party, NPCs, locations, quests, items, combats, rounds, lore, bestiary, character moments) | same object, `passages` | #107: passed through, `[]` when absent, so no view has to guard. Each `{ text, session_id, speaker, page }` |
+| `rounds[].slots[].activities[].passages` / `rounds[].enemy_turns[].activities[].passages` | `rounds[].slots[].passages` / `rounds[].enemy[].passages` | #107: the flat slot has no activities list, so each activity's passages are gathered onto its slot or enemy row with `activity` (the activity's label) added |
+| `quest_ledger[].mechanics.progress_log[].passages` | `quests[].progress[].passages` | #107 |
+| `aliases` on every entity | same object, `aliases` | #107: `[]` when absent; the admin log viewer adds them to the search text |
+| `session_logs[].mechanics.locations_visited` / `.npcs_met` | `sessions[].locations_visited` / `sessions[].npcs_met` | #107: so a place or person can list the sessions it appears in |
 | `world_lore[].narrative.content` | `lore[].content` | was root-level in v3 |
 | `world_lore[].mechanics.reliability` | `lore[].reliability` | was root-level in v3 |
 | `bestiary[].mechanics.reliability` | `bestiary[].reliability` | was root-level in v3 |
@@ -396,6 +402,7 @@ Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `def
 - **Audience:** DM only
 - Loads the campaign at init with `ChronicleStore.loadCampaign()` (`../data/magers-campaign.json`)
 - Loads D3.js (v7.9, cdnjs CDN), `../shared/config.js` and `../shared/chronicle-store.js`
+- **Passages and aliases (#107):** each entity card lists its passages, newest session first, each with its speaker, session and page; DM exposition has a teal edge, NPC testimony a purple edge, italics and a "<NPC> said" label so it never reads as fact. A place, person, creature or item also lists its **linked events** (combats fought there or in, sessions visited or met, the session an item was found), each with its passage count, linking to the event instead of copying its passages. The session detail shows the session's passages; the combat detail its own, and each round its own and its activities' (the round header counts them); a quest's progress log shows each step's. "Also called" lists aliases, and the sidebar search matches them ("Bel" finds Belfar). The player view renders none of this yet (#110, phase 7), though its normaliser carries the same fields
 - Identical UI structure to player view: Browse + Graph views, sidebar, entity detail cards. The graph's edges come from the campaign's `entity_relationships[]` (`buildRels()`, #106), with a graph-only "The Party" node for party relationships and an NPC's disposition shown on the party's relationship with it; the player view still uses its hand-written map
 - 7-item admin nav bar; "⇄ Player View" button to `../player/`
 - On load failure, shows an error panel with message and copy-to-clipboard option
@@ -751,6 +758,7 @@ tests/
 ├── entity-pages.test.js            # Entity pages (#105) — pages, draft rules (0 HP is not death, testimony attributed), _set text changes, judgments through applySession
 ├── header-draft.test.js            # Header draft (#74) — prompt rules, reply check, edited header publishes, placeholder kept unless replace is ticked
 ├── session-publish.test.js         # Session publish (#106) — every reviewed fact lands once, a republish adds nothing, relationships follow confirmed data
+├── viewer-passages.test.js         # Viewer passages (#107) — passages on every object reach the view, NPC testimony marked, aliases searchable
 ├── absence-notes.test.js           # Absence notes (#112) — migrated data, migration script, publish once, extraction, both normalisers
 ├── round-grid.test.js              # Round grid (#103) — building, order, moves, session 6 misreads, flags → "Move to Att", split assignment, output
 ├── sanity-checks.test.js           # Round sanity checks (#104) — one per check on the fixture; Cure Wounds in Goli's row; cbt_002 round 4; never blocks

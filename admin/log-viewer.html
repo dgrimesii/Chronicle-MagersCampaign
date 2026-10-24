@@ -109,6 +109,15 @@ aside{width:260px;flex-shrink:0;border-right:1px solid var(--border-strong);disp
 .detail-body{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
 .detail-section{display:flex;flex-direction:column;gap:0.5rem;}
 .detail-section.full{grid-column:1/-1;}
+/* Passages (#107): DM exposition is fact; an NPC's words are testimony,
+   set apart by a purple edge, italics and a "said" label so a rumour is
+   never read as a description. */
+.passage-list{display:flex;flex-direction:column;gap:6px;margin-top:0.4rem;}
+.passage{padding:0.45rem 0.75rem;border-left:3px solid var(--teal);background:rgba(74,158,122,0.06);border-radius:0 3px 3px 0;font-size:0.92rem;line-height:1.6;}
+.passage.testimony{border-left-color:var(--purple);background:rgba(192,144,255,0.07);font-style:italic;}
+.passage-meta{font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:2px;font-style:normal;}
+.passage.testimony .passage-meta{color:var(--purple);}
+.round-passages{padding:0.6rem 0.85rem;border-top:1px solid var(--border);}
 .section-label{font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.18em;color:var(--muted);text-transform:uppercase;margin-bottom:0.25rem;padding-bottom:3px;border-bottom:1px solid var(--border);}
 .section-text{font-size:0.95rem;line-height:1.65;color:var(--ink);}
 
@@ -558,6 +567,10 @@ function normaliseCampaignJson(json) {
         res:   one?.res ?? null,
         val:   one?.val ?? null,
         notes: notes || null,
+        // Passages attached to one of this turn's activities (#102, #106),
+        // each with the activity it describes. The flat slot has no
+        // activities list, so without this they would be lost (#107).
+        passages: acts.flatMap(a => (a.passages || []).map(p => ({ ...p, activity: activityLabel(a) }))),
       };
     }
 
@@ -581,7 +594,9 @@ function normaliseCampaignJson(json) {
       // Outcome effects first, then any special_events that were not matched
       // to a roll (e.g. "Ogre emerged from treeline").
       const effectImpact = [...effectLines(et.activities), impact].filter(Boolean).join('; ') || null;
-      return { desc, impact: effectImpact };
+      // An enemy activity's passages, as for a slot (#107).
+      const passages = (et.activities || []).flatMap(a => (a.passages || []).map(p => ({ ...p, activity: (et.actor_id || '?') + ': ' + activityLabel(a) })));
+      return { desc, impact: effectImpact, passages };
     }
 
     return {
@@ -607,6 +622,12 @@ function normaliseCampaignJson(json) {
         // session records no absence (the field is omitted in the data).
         // Replaces the old mechanics.player_absences, which no view read.
         absence_notes:  s.narrative?.absence_notes ?? [],
+        // Passages on the session itself (#102), and the places visited and
+        // NPCs met, so a place or person can list the sessions it appears in
+        // (#107). [] when absent.
+        passages:          s.passages                   ?? [],
+        locations_visited: s.mechanics?.locations_visited ?? [],
+        npcs_met:          s.mechanics?.npcs_met          ?? [],
         // Narrative generation fields — written by Gemini, never hand-edited.
         // Pass through as-is so future chronicle entry UI can read them directly.
         chronicle_entry:              s.narrative?.chronicle_entry              ?? null,
@@ -630,6 +651,8 @@ function normaliseCampaignJson(json) {
         level:      p.mechanics?.level ?? null,    // v4: p.mechanics.level (was p.current_level)
         notes:      p.campaign_notes   ?? null,    // v4: p.campaign_notes  (was p.notes)
         milestones: p.milestones       || [],      // v4: p.milestones still at root
+        aliases:    p.aliases          ?? [],      // #93: other names the notes use (#107 search)
+        passages:   p.passages         ?? [],      // #102: narrative attached to this PC
       })),
 
       // ── NPCs ──────────────────────────────────────────────────────────────────
@@ -638,6 +661,8 @@ function normaliseCampaignJson(json) {
         ...n,
         disposition: n.mechanics?.disposition ?? null,  // v4: n.mechanics.disposition (was n.disposition)
         description: n.narrative?.description ?? null,  // v4: n.narrative.description (was n.description)
+        aliases:     n.aliases  ?? [],                   // #93; [] so no view has to guard (#107)
+        passages:    n.passages ?? [],                   // #102: what this NPC said, or was described as
       })),
 
       // ── Locations ─────────────────────────────────────────────────────────────
@@ -646,6 +671,8 @@ function normaliseCampaignJson(json) {
         ...l,
         visibility:  l.mechanics?.visibility  ?? null,  // v4: l.mechanics.visibility  (was l.visibility)
         description: l.narrative?.description ?? null,  // v4: l.narrative.description (was l.description)
+        aliases:     l.aliases  ?? [],                   // #93 (#107)
+        passages:    l.passages ?? [],                   // #102
       })),
 
       // ── Quests ────────────────────────────────────────────────────────────────
@@ -669,8 +696,11 @@ function normaliseCampaignJson(json) {
           s: p.session_id,
           e: p.fact ?? p.entry ?? '',               // v4: p.fact (was p.entry); fallback keeps older data readable
           progress_narrative: p.progress_narrative ?? null,  // Gemini-generated narrative for this log entry; null until generated
+          passages: p.passages ?? [],                // #106: narrative about this step (#107)
         })),
         origin: q.mechanics?.origin_session ?? null,  // v4: q.mechanics.origin_session (was q.origin_session)
+        aliases:  q.aliases  ?? [],                   // #93 (#107)
+        passages: q.passages ?? [],                   // #102
       })),
 
       // ── Items ─────────────────────────────────────────────────────────────────
@@ -684,6 +714,8 @@ function normaliseCampaignJson(json) {
         holder:  i.mechanics?.current_holder  ?? null,   // v4: i.mechanics.current_holder (was i.current_holder_id)
         notes:   (i.notes || '') + (i.narrative?.description ? ' ' + i.narrative.description : ''),
         quest:   i.mechanics?.is_quest_relevant ?? false, // v4: i.mechanics.is_quest_relevant (was i.is_quest_item)
+        aliases:  i.aliases  ?? [],                       // #93 (#107)
+        passages: i.passages ?? [],                       // #102
       })),
 
       // ── Combats ───────────────────────────────────────────────────────────────
@@ -701,9 +733,12 @@ function normaliseCampaignJson(json) {
         narrativeContext: c.narrative?.setup               ?? null,  // v4: c.narrative.setup    (was c.narrativeContext)
         finale:           c.narrative?.finale              ?? null,  // v4: c.narrative.finale
         aftermath:        c.narrative?.aftermath           ?? null,  // v4: c.narrative.aftermath
+        aliases:          c.aliases                        ?? [],    // #93 (#107)
+        passages:         c.passages                       ?? [],    // #102: passages on the combat itself
         // Remap rounds: flatten slots and convert enemy_turns → enemy[]
         rounds: (c.rounds || []).map(round => ({
           ...round,
+          passages: round.passages ?? [],   // #106: passages on the round (#107)
           slots: (round.slots || []).map(flattenSlot),
           enemy: (round.enemy_turns || round.enemy || []).map(flattenEnemyTurn), // v4: round.enemy_turns (was round.enemy)
         })),
@@ -715,6 +750,8 @@ function normaliseCampaignJson(json) {
         ...l,
         content:     l.narrative?.content     ?? null,  // v4: l.narrative.content (was l.content)
         reliability: l.mechanics?.reliability ?? null,  // v4: l.mechanics.reliability
+        aliases:     l.aliases  ?? [],                   // #93 (#107)
+        passages:    l.passages ?? [],                   // #102
       })),
 
       // ── Bestiary ──────────────────────────────────────────────────────────────
@@ -725,6 +762,8 @@ function normaliseCampaignJson(json) {
         reliability:        b.mechanics?.reliability        ?? null,  // v4: b.mechanics.reliability
         first_encountered:  b.mechanics?.first_encountered  ?? null,  // v4: b.mechanics.first_encountered
         combat_appearances: b.mechanics?.combat_appearances ?? [],    // v4: b.mechanics.combat_appearances
+        aliases:            b.aliases  ?? [],                         // #93 (#107)
+        passages:           b.passages ?? [],                         // #102
         // The bestiary detail panel reads content (as "Knowledge") and traits (as
         // "Observed traits"), names left over from v3. v4 moved both, so the panel
         // showed nothing but reliability. Map them from the v4 paths so a merged
@@ -753,6 +792,7 @@ function normaliseCampaignJson(json) {
         description:     m.narrative?.description     ?? null,  // v4: m.narrative.description     (was m.description)
         parent_event_id: m.mechanics?.parent_event_id ?? null,  // v4: m.mechanics.parent_event_id (was m.parent_event_id)
         origin_session:  m.mechanics?.origin_session  ?? null,  // v4: m.mechanics.origin_session  (was m.origin_session)
+        passages:        m.passages ?? [],                       // #102: why the moment mattered (#107)
       })),
 
       // ── Entity relationships ───────────────────────────────────────────────────
@@ -896,6 +936,8 @@ function registerAll() {
   DATA.lore.forEach(e=>{ ENTITIES[e.id]={...e,_type:'lore',_name:e.title,_search:[e.title,e.content].join(' ')}; });
   DATA.bestiary.forEach(e=>{ ENTITIES[e.id]={...e,_type:'lore',_name:e.name,_search:[e.name,e.traits?.join(' ')].join(' ')}; });
   relinkLegacyMaps();
+  // An entity's aliases are searchable too (#107): "Bel" finds Belfar.
+  Object.values(ENTITIES).forEach(e => { if (e.aliases?.length) e._search += ' ' + e.aliases.join(' '); });
   buildRels();
 }
 
@@ -1013,6 +1055,85 @@ function getType(id) { return ENTITIES[id]?._type || 'unknown'; }
 // ══════════════════════════════════════════════════════
 // SESSION DETAIL RENDERER
 // ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// PASSAGES (issue #107)
+// ══════════════════════════════════════════════════════
+
+// escHtml(s) — passage text came from the AI's reading of the notes, so it
+// is escaped before it goes into the page.
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// sessionRank(id) → a session's place in play order (by date), so passages
+// list newest session first. An unknown session sorts last.
+function sessionRank(id) {
+  const i = DATA.sessions.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).findIndex(s => s.id === id);
+  return i < 0 ? -1 : i;
+}
+
+/**
+ * passageListHtml(passages) → the passages, newest session first, each with
+ * its speaker, session and page. speaker "dm" is the DM's exposition (fact);
+ * an entity id is what that NPC said (testimony), shown apart so it is never
+ * taken for a description. A passage on an activity names the activity. ''
+ * for none, so an object with no passages shows nothing (no "undefined").
+ */
+function passageListHtml(passages) {
+  const list = (passages || []).filter(p => p && p.text);
+  if (!list.length) return '';
+  return `<div class="passage-list">${list.slice().sort((a, b) => sessionRank(b.session_id) - sessionRank(a.session_id)).map(p => {
+    const said = p.speaker && p.speaker !== 'dm';
+    const who = said ? escHtml(getName(p.speaker)) + ' said' : 'DM';
+    const meta = [who, p.activity ? escHtml(p.activity) : '', sessionLabel(p.session_id) || '', p.page != null ? 'p.' + p.page : ''].filter(Boolean).join(' · ');
+    return `<div class="passage${said ? ' testimony' : ''}"><div class="passage-meta">${meta}</div>${escHtml(p.text)}</div>`;
+  }).join('')}</div>`;
+}
+
+// passagesSection(passages, label) → a detail section of passages, or ''.
+function passagesSection(passages, label) {
+  const html = passageListHtml(passages);
+  return html ? `<div class="detail-section full"><div class="section-label">${label || 'Passages'}</div>${html}</div>` : '';
+}
+
+// combatPassageCount(c) → passages on a combat, its rounds and its activities.
+function combatPassageCount(c) {
+  return (c.passages || []).length + (c.rounds || []).reduce((n, r) => n + (r.passages || []).length +
+    (r.slots || []).concat(r.enemy || []).reduce((m, t) => m + (t.passages || []).length, 0), 0);
+}
+
+/**
+ * linkedEventsSection(ent) → the events a place, person or thing is linked
+ * to, each with how many passages it holds, linking to the event rather than
+ * copying its passages (docs/intake-redesign.md "Where a passage lives"):
+ * a place's combats and the sessions that visited it; a person's sessions
+ * (met) and the combats they took a turn in; a creature's combats; an item's
+ * session found. '' when there are none.
+ */
+function linkedEventsSection(ent) {
+  const ev = [];
+  const add = (e, label) => { if (e && !ev.some(x => x.e.id === e.id)) ev.push({ e, label }); };
+  const combats = DATA.combats || [];
+  if (ent._type === 'location') {
+    combats.filter(c => c.location === ent.id).forEach(c => add(c, 'fight here'));
+    DATA.sessions.filter(s => (s.locations_visited || []).includes(ent.id)).forEach(s => add(s, 'visited'));
+  } else if (ent._type === 'npc' || ent._type === 'pc') {
+    if (ent._type === 'npc') DATA.sessions.filter(s => (s.npcs_met || []).includes(ent.id)).forEach(s => add(s, 'met'));
+    combats.filter(c => (c.rounds || []).some(r => (r.slots || []).some(s => s.a === ent.id))).forEach(c => add(c, 'fought'));
+  } else if (ent._type === 'item' && ent.session) {
+    add(DATA.sessions.find(s => s.id === ent.session), 'found');
+  } else if (ent.combat_appearances) {
+    combats.filter(c => ent.combat_appearances.includes(c.id)).forEach(c => add(c, 'fought'));
+  }
+  if (!ev.length) return '';
+  const count = e => e.rounds ? combatPassageCount(e) : (e.passages || []).length;
+  return `<div class="detail-section full"><div class="section-label">Linked events</div><div class="rel-chips">${ev.map(({ e, label }) => {
+    const n = count(e);
+    const colour = e.rounds ? TYPE_HEX.combat : TYPE_HEX.session;
+    return `<div class="rel-chip" onclick="selectEntity('${e.id}')"><span class="rel-chip-dot" style="background:${colour}"></span><div><div>${escHtml(e.name || e.title || e.legacy_id)}</div><div class="rel-chip-label">${label}${n ? ' · ' + n + ' passage' + (n === 1 ? '' : 's') : ''}</div></div></div>`;
+  }).join('')}</div></div>`;
+}
+
 function renderSessionDetail(sess) {
   const bc = document.getElementById('browse-content');
   const sidx = DATA.sessions.findIndex(s=>s.id===sess.id);
@@ -1065,6 +1186,13 @@ function renderSessionDetail(sess) {
         <div class="section-text" style="margin-top:0.4rem;">${sess.summary}</div>
         ${sess.narrative_vibe ? `<div class="session-vibe">${sess.narrative_vibe}</div>` : ''}
       </div>
+
+      <!-- Passages on the session itself (#107) -->
+      ${passageListHtml(sess.passages) ? `
+        <div style="margin-bottom:1.25rem;">
+          <div class="section-label">Passages</div>
+          ${passageListHtml(sess.passages)}
+        </div>` : ''}
 
       <!-- Attendance (#112): absence notes, shown on the admin view only -->
       ${sess.absence_notes?.length ? `
@@ -1238,6 +1366,9 @@ function renderCombatDetail(cbt) {
       <!-- Narrative context -->
       ${cbt.narrativeContext?`<div class="session-vibe" style="margin-bottom:1rem;">${cbt.narrativeContext}</div>`:''}
 
+      <!-- Passages on the combat itself (#107); round and activity passages sit in their round -->
+      ${passageListHtml(cbt.passages) ? `<div style="margin-bottom:1rem;"><div class="section-label">Passages</div>${passageListHtml(cbt.passages)}</div>` : ''}
+
       <!-- Stats row -->
       <div class="combat-stat-row">
         <div class="combat-stat"><div class="combat-stat-num">${cbt.totalRounds}</div><div class="combat-stat-label">Rounds</div></div>
@@ -1344,11 +1475,18 @@ function renderRoundBlock(round, cbtId) {
         <span style="font-style:italic;line-height:1.55;">${round.summary}</span>
       </div>` : '';
 
+  // Passages on this round and on its activities (#107), shown next to the
+  // round; the header counts them so a closed round still shows it has some.
+  const actPassages = (round.slots || []).concat(round.enemy || []).flatMap(t => t.passages || []);
+  const roundPassages = (round.passages || []).concat(actPassages);
+  const passageBlock = roundPassages.length ? `<div class="round-passages"><div class="section-label">Passages</div>${passageListHtml(roundPassages)}</div>` : '';
+
   return `
     <div class="round-block" id="round-${cbtId}-${round.n}">
       <div class="round-header" onclick="toggleRound('${cbtId}',${round.n})">
         <span class="round-num">Round ${round.n}</span>
         <span class="round-session-tag">${sessionLabel(round.sid)}</span>
+        ${roundPassages.length ? `<span class="round-session-tag" title="Passages on this round">${roundPassages.length} passage${roundPassages.length === 1 ? '' : 's'}</span>` : ''}
         <div class="round-summary-chips">${summaryChips}</div>
         <span class="round-toggle">${isOpen?'▲':'▼'}</span>
       </div>
@@ -1358,6 +1496,7 @@ function renderRoundBlock(round, cbtId) {
           ${enemyRows}
         </div>
         ${roundSummaryBlock}
+        ${passageBlock}
       </div>
     </div>`;
 }
@@ -1528,7 +1667,7 @@ function renderDetail(id) {
         </div>
         <div class="detail-section full">
           <div class="section-label">Progress Log</div>
-          <div class="timeline">${(ent.progress||[]).map(p=>`<div class="timeline-item"><div class="timeline-dot"></div><span class="timeline-session">${sessionLabel(p.s)}</span><span class="timeline-text">${p.e}</span></div>`).join('')}</div>
+          <div class="timeline">${(ent.progress||[]).map(p=>`<div class="timeline-item"><div class="timeline-dot"></div><span class="timeline-session">${sessionLabel(p.s)}</span><span class="timeline-text">${p.e}${passageListHtml(p.passages)}</span></div>`).join('')}</div>
         </div>
         ${rels.length ? `<div class="detail-section full">
           <div class="section-label">Key People & Places</div>
@@ -1611,6 +1750,10 @@ function renderDetail(id) {
   const statusBadge = ent.status ? `<span class="detail-badge" style="color:${ent.status==='completed'?'var(--teal)':ent.status==='active'?'var(--amber-dim)':'var(--muted)'};border-color:currentColor;background:rgba(0,0,0,0.03);">${ent.status}</span>` : '';
   const visBadge = ent.visibility ? `<span class="detail-badge" style="color:${ent.visibility==='visited'?'var(--teal)':'var(--muted)'};border-color:currentColor;background:rgba(0,0,0,0.03);">${ent.visibility}</span>` : '';
   const typeBadge = `<span class="detail-badge" style="color:${colour};border-color:${colour};background:rgba(0,0,0,0.03);">${ent._type}</span>`;
+  // Passages on this entity, newest session first, and the events it is
+  // linked to (#107). Aliases are listed so the DM sees what the notes call it.
+  const extras = (ent.aliases?.length ? `<div class="detail-section full"><div class="section-label">Also called</div><div class="section-text">${ent.aliases.map(escHtml).join(', ')}</div></div>` : '')
+    + passagesSection(ent.passages) + linkedEventsSection(ent);
 
   bc.innerHTML = `
     <div class="detail-card">
@@ -1624,6 +1767,7 @@ function renderDetail(id) {
         <button class="btn btn-amber" onclick="switchView('graph');focusNode('${id}')" style="margin-left:auto;flex-shrink:0;">Show in graph →</button>
       </div>
       ${body}
+      ${extras ? `<div class="detail-body">${extras}</div>` : ''}
     </div>`;
 }
 
