@@ -581,6 +581,12 @@
       rawData[TITLE_ARRAYS.has(array) ? 'title' : 'name'] = name;
       if (asWritten && norm(asWritten) !== norm(name)) rawData.aliases = [asWritten];
       if (array !== 'combat_encounters') Object.assign(rawData, { mechanics: {}, narrative: {}, notes: null });
+      // The session it first appears in, in the field its array uses, so
+      // publish can derive npcs_met and the party's relationships from it
+      // (#106). The session is named by its session_NNN; publish translates
+      // it. Other arrays have no first-appearance field.
+      const FIRST = { npc_directory: 'first_appeared', quest_ledger: 'origin_session', world_lore: 'first_established' };
+      if (FIRST[array] && sessionLegacyId) rawData.mechanics[FIRST[array]] = sessionLegacyId;
       items.push({ id: 'ident_new_' + id, type: 'NEW', array, status: 'approved', title: `New ${OBJECT_TYPE[array]}: ${name}`, rawData });
     };
     for (const r of rows) {

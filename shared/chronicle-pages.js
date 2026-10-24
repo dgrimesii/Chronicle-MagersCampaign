@@ -322,7 +322,10 @@ Respond with JSON only: {"changes":[],"judgments":[],"header":{"title":"","summa
 
   /**
    * judgmentItems(approved, ctx) → publish items for approved judgments.
-   * ctx = { sessionRef (session_NNN), arrayOf(id), newId() }.
+   * ctx = { sessionRef (session_NNN), arrayOf(id), newId() }. A moment uses
+   * the judgment's own newId when the page gave it one on approval (#106),
+   * so publishing the same review twice finds the moment instead of adding
+   * a second copy.
    *   moment       → NEW character_moments entry, origin_session the session
    *   relationship → RELATIONSHIP, significance significant_event
    *   death        → MOD _set mechanics.status_event {type death…} and
@@ -339,7 +342,7 @@ Respond with JSON only: {"changes":[],"judgments":[],"header":{"title":"","summa
       rawData: Object.assign({ id, _set: set }, extra || {}) }));
     for (const j of approved) {
       if (j.kind === 'moment') {
-        const id = ctx.newId();
+        const id = j.newId || ctx.newId();
         items.push({ id: 'judg_' + items.length, type: 'NEW', array: 'character_moments', status: 'approved', title: 'Character moment: ' + j.type,
           rawData: { _object_type: 'character_moment', id, type: j.type,
             mechanics: { character_ids: clone(j.character_ids), parent_event_id: j.combat || null, origin_session: ctx.sessionRef, round_ref: j.round ?? null, mechanical_action: j.source || null },

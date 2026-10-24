@@ -845,39 +845,38 @@ function toggleSettings() {
 // ══════════════════════════════════════════════════════
 // RELATIONSHIP INDEX
 // ══════════════════════════════════════════════════════
-const RELS = {
-  'pc_001':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_002',label:'carries'},{type:'lore',id:'lore_001',label:'researched'} ],
-  'pc_002':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_005',label:'carries'},{type:'npc',id:'npc_001',label:'fought alongside'} ],
-  'pc_003':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_006',label:'carries'} ],
-  'pc_004':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_008',label:'carries'} ],
-  'pc_005':[ {type:'location',id:'loc_007',label:'grew up near'},{type:'item',id:'item_003',label:'carries'},{type:'item',id:'item_007',label:'carries'},{type:'npc',id:'npc_001',label:'nephew of'} ],
-  'pc_006':[ {type:'location',id:'loc_007',label:'has clearing in'},{type:'item',id:'item_004',label:'carries'} ],
-  'npc_001':[ {type:'pc',id:'pc_005',label:'uncle of'},{type:'npc',id:'npc_004',label:'party member'},{type:'npc',id:'npc_009',label:'party member'},{type:'npc',id:'npc_010',label:'party member'},{type:'location',id:'loc_003',label:'died at'},{type:'quest',id:'qst_001',label:'subject of'},{type:'item',id:'item_001',label:'left behind'} ],
-  'npc_003':[ {type:'location',id:'loc_002',label:'lives at'},{type:'quest',id:'qst_005',label:'gave info for'} ],
-  'npc_004':[ {type:'npc',id:'npc_001',label:'old party with'},{type:'quest',id:'qst_001',label:'gave'},{type:'quest',id:'qst_004',label:'gave'},{type:'location',id:'loc_006',label:'directed party to'} ],
-  'npc_007':[ {type:'location',id:'loc_004',label:'based at'},{type:'quest',id:'qst_004',label:'completed with'},{type:'quest',id:'qst_005',label:'gave'} ],
-  'npc_008':[ {type:'quest',id:'qst_004',label:'escorted for'},{type:'location',id:'loc_004',label:'delivered to'} ],
-  'npc_009':[ {type:'npc',id:'npc_001',label:'old party with'},{type:'item',id:'item_002',label:'owned'} ],
-  'npc_010':[ {type:'npc',id:'npc_001',label:'old party with'} ],
-  'npc_011':[ {type:'location',id:'loc_006',label:'lives in'},{type:'quest',id:'qst_001',label:'key to'},{type:'quest',id:'qst_002',label:'may know about'},{type:'item',id:'item_001',label:'marked on'} ],
-  'npc_012':[ {type:'location',id:'loc_012',label:'based in'},{type:'item',id:'item_001',label:'marked on'} ],
-  'npc_013':[ {type:'quest',id:'qst_003',label:'traveling with'} ],
-  'loc_002':[ {type:'combat',id:'cbt_005',label:'site of'},{type:'npc',id:'npc_003',label:'home of'} ],
-  'loc_003':[ {type:'combat',id:'cbt_002',label:'site of'},{type:'npc',id:'npc_001',label:'death of'},{type:'quest',id:'qst_002',label:'pylon at'} ],
-  'loc_004':[ {type:'combat',id:'cbt_003',label:'site of'},{type:'npc',id:'npc_007',label:'home of'} ],
-  'loc_005':[ {type:'combat',id:'cbt_004',label:'site of'} ],
-  'loc_007':[ {type:'combat',id:'cbt_001',label:'site of'} ],
-  'qst_001':[ {type:'npc',id:'npc_011',label:'key contact'},{type:'npc',id:'npc_001',label:'about'},{type:'npc',id:'npc_004',label:'given by'} ],
-  'qst_002':[ {type:'lore',id:'lore_001',label:'concerns'},{type:'location',id:'loc_003',label:'pylon at'},{type:'location',id:'loc_006',label:'research at'} ],
-  'qst_003':[ {type:'combat',id:'cbt_005',label:'threatened by'},{type:'npc',id:'npc_013',label:'involves'} ],
-  'qst_004':[ {type:'npc',id:'npc_004',label:'given by'},{type:'npc',id:'npc_007',label:'completed with'},{type:'npc',id:'npc_008',label:'involved'} ],
-  'qst_005':[ {type:'npc',id:'npc_003',label:'led by'},{type:'npc',id:'npc_007',label:'given by'},{type:'combat',id:'cbt_004',label:'resolved by'} ],
-  'item_001':[ {type:'npc',id:'npc_001',label:'belonged to'},{type:'npc',id:'npc_011',label:'marks'},{type:'npc',id:'npc_012',label:'marks'} ],
-  'item_002':[ {type:'npc',id:'npc_009',label:'belonged to'},{type:'pc',id:'pc_001',label:'held by'} ],
-  'cbt_002':[ {type:'location',id:'loc_003',label:'at'},{type:'npc',id:'npc_001',label:'Ched fell'},{type:'quest',id:'qst_002',label:'pylon destroyed'} ],
-  'lore_001':[ {type:'quest',id:'qst_002',label:'relevant to'} ],
-  'lore_002':[ {type:'npc',id:'npc_001',label:'about'},{type:'npc',id:'npc_004',label:'about'},{type:'npc',id:'npc_009',label:'about'},{type:'npc',id:'npc_010',label:'about'} ],
-};
+// RELS — entity id → [{ type, id, label }], built at load by buildRels()
+// from the campaign's entity_relationships[], which publish computes from
+// confirmed data (#106). It replaced a hand-written map keyed by legacy IDs.
+const RELS = {};
+
+// The words each relationship type shows as in the graph panel.
+const REL_LABELS = { combat_antagonist: 'fought', allied: 'allied with', quest_connection: 'tied to quest',
+  location_inhabitant: 'lives in', social_contact: 'knows', witnessed: 'witnessed', unknown: 'linked to' };
+
+// PARTY_NODE — "party" is the reserved from_id of party-level relationships
+// (one per pairing, never one per PC; #43, #106). It is not an entity, so it
+// is a graph-only node and never appears in the browse lists.
+const PARTY_NODE = { id: 'party', name: 'The Party', _name: 'The Party', type: 'pc', _type: 'pc' };
+
+/**
+ * buildRels() — fills RELS from DATA.entity_relationships, both ways, so each
+ * end of a relationship lists the other. A party relationship to an NPC shows
+ * the NPC's disposition with it (an attribute of the relationship, the DM's
+ * rule on #106). Without this the graph would have no edges.
+ */
+function buildRels() {
+  for (const k of Object.keys(RELS)) delete RELS[k];
+  for (const r of DATA.entity_relationships || []) {
+    if (!r || !r.from_id || !r.to_id) continue;
+    const label = (REL_LABELS[r.relationship_type] || r.relationship_type) + (r.disposition ? ' (' + r.disposition + ')' : '');
+    (RELS[r.from_id] = RELS[r.from_id] || []).push({ type: getType(r.to_id), id: r.to_id, label });
+    (RELS[r.to_id] = RELS[r.to_id] || []).push({ type: r.from_id === 'party' ? 'pc' : getType(r.from_id), id: r.from_id, label });
+  }
+}
+
+// graphNode(id) → the entity a graph node or panel link shows, or the party node.
+function graphNode(id) { return id === 'party' ? PARTY_NODE : ENTITIES[id]; }
 
 // ══════════════════════════════════════════════════════
 // ENTITY REGISTRY — flat lookup of all entities
@@ -897,25 +896,21 @@ function registerAll() {
   DATA.lore.forEach(e=>{ ENTITIES[e.id]={...e,_type:'lore',_name:e.title,_search:[e.title,e.content].join(' ')}; });
   DATA.bestiary.forEach(e=>{ ENTITIES[e.id]={...e,_type:'lore',_name:e.name,_search:[e.name,e.traits?.join(' ')].join(' ')}; });
   relinkLegacyMaps();
+  buildRels();
 }
 
-// relinkLegacyMaps() — re-keys the hardcoded RELS and PARTY_LOOKUP maps from
-// legacy IDs (pc_001) to the UUIDs the data now uses, and adds each entity's
-// legacy_id to its search text.
-// Why: both maps were written by hand before issue #95 and still name
-// entities by legacy ID. Translating them at load keeps them working without
-// hand-editing ~40 lines of UUIDs, and #106 replaces RELS with relationships
-// computed from the data. Remove the RELS half when #106 ships.
+// relinkLegacyMaps() — re-keys the hardcoded PARTY_LOOKUP map from legacy IDs
+// (pc_001) to the UUIDs the data now uses, and adds each entity's legacy_id
+// to its search text.
+// Why: the map was written by hand before issue #95 and still names
+// entities by legacy ID. Translating it at load keeps it working without
+// hand-editing UUIDs. (RELS used to be relinked here too; since #106 it is
+// built from the data's UUIDs by buildRels().)
 // Safe to run on every load: a key that is already a UUID is not in
 // legacy_ids, so it maps to itself.
 function relinkLegacyMaps() {
   const L  = DATA.legacy_ids || {};
   const to = id => L[id] ?? id;
-  for (const key of Object.keys(RELS)) {
-    const rels = RELS[key].map(r => ({ ...r, id: to(r.id) }));
-    delete RELS[key];
-    RELS[to(key)] = rels;
-  }
   for (const key of Object.keys(PARTY_LOOKUP)) {
     if (L[key]) { PARTY_LOOKUP[L[key]] = PARTY_LOOKUP[key]; delete PARTY_LOOKUP[key]; }
   }
@@ -1007,7 +1002,7 @@ function selectEntity(id) {
   if (state.view === 'graph') focusNode(id);
 }
 
-function getName(id) { return ENTITIES[id]?._name || id; }
+function getName(id) { return graphNode(id)?._name || id; }
 // sessionLabel(id) — the short label a session reference shows, e.g.
 // "session_005". Since issue #95 a session's id is a UUID, so the label comes
 // from its legacy_id; a session created after #95 has the session_NNN the DM
@@ -1720,12 +1715,14 @@ let simulation, svgSel, nodeGroup, linkGroup, labelGroup;
 
 function buildGraphData() {
   const nodes = Object.values(ENTITIES).map(e=>({ id:e.id, name:e._name, type:e._type, ...e }));
+  // The party node exists only when a relationship names it.
+  if (RELS.party) nodes.push({ ...PARTY_NODE });
   const links = [];
   const seen = new Set();
   Object.entries(RELS).forEach(([src, rels]) => {
     rels.forEach(r => {
       const key = [src,r.id].sort().join('--');
-      if (!seen.has(key) && ENTITIES[src] && ENTITIES[r.id]) {
+      if (!seen.has(key) && graphNode(src) && graphNode(r.id)) {
         seen.add(key);
         links.push({ source:src, target:r.id, label:r.label });
       }
@@ -1775,7 +1772,9 @@ function initGraph() {
 
   // Labels
   labelGroup = g.append('g').selectAll('text').data(nodes).join('text')
-    .text(d => d.name.length > 14 ? d.name.slice(0,13)+'…' : d.name)
+    // An entity with no name or title (the test fixture has untitled sessions
+    // and quests) gets an empty label instead of stopping the whole graph.
+    .text(d => { const n = d.name || ''; return n.length > 14 ? n.slice(0,13)+'…' : n; })
     .attr('font-size', '9px')
     .attr('font-family', 'Cinzel, serif')
     .attr('text-anchor','middle')
@@ -1804,7 +1803,7 @@ function initGraph() {
 
 function showNodePanel(d) {
   const panel = document.getElementById('graph-node-panel');
-  const rels = (RELS[d.id]||[]).slice(0,6);
+  const rels = (RELS[d.id]||[]).slice(0,8);
   panel.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
       <span style="width:10px;height:10px;border-radius:50%;background:${TYPE_HEX[d.type]};flex-shrink:0;display:inline-block;"></span>
@@ -1812,8 +1811,8 @@ function showNodePanel(d) {
     </div>
     <div class="gnp-type">${d.type}${d.cls?' · '+d.cls:d.status?' · '+d.status:''}</div>
     ${rels.length ? `<div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:5px;">Connections</div>
-    <div class="gnp-rels">${rels.map(r=>`<div class="gnp-rel" onclick="showNodePanel(Object.values(ENTITIES).find(e=>e.id==='${r.id}'))"><span style="width:7px;height:7px;border-radius:50%;background:${TYPE_HEX[r.type]||'#888'};display:inline-block;flex-shrink:0;"></span><span class="gnp-rel-name">${getName(r.id)}</span><span style="font-size:0.72rem;color:var(--muted);margin-left:auto;">${r.label}</span></div>`).join('')}</div>` : ''}
-    <button class="gnp-btn" onclick="selectEntity('${d.id}');switchView('browse')">View full record →</button>`;
+    <div class="gnp-rels">${rels.map(r=>`<div class="gnp-rel" onclick="showNodePanel(graphNode('${r.id}'))"><span style="width:7px;height:7px;border-radius:50%;background:${TYPE_HEX[r.type]||'#888'};display:inline-block;flex-shrink:0;"></span><span class="gnp-rel-name">${getName(r.id)}</span><span style="font-size:0.72rem;color:var(--muted);margin-left:auto;">${r.label}</span></div>`).join('')}</div>` : ''}
+    ${d.id === 'party' ? '' : `<button class="gnp-btn" onclick="selectEntity('${d.id}');switchView('browse')">View full record →</button>`}`;
   panel.classList.add('visible');
   highlightNode(d.id);
 }

@@ -5584,42 +5584,8 @@ function loadIntakeDelta() {
           </div>`;
       };
 
-    } else if (item.type === 'RELATIONSHIP') {
-      // Relationship item detected by intake AI (issue #43, two-tier model).
-      // significance = 'participation' → Tier 1 party-level combat edge (one per combat)
-      // significance = 'significant_event' → Tier 2 individual story-weighted edge
-      // NPC/location IDs are placeholders — verify before approving.
-      const fromId  = item.rawData?.from_id            || '?';
-      const toId    = item.rawData?.to_id              || '?';
-      const relType = item.rawData?.relationship_type  || 'unknown';
-      const sig     = item.rawData?.significance       || 'participation';
-      const notes   = item.rawData?.ground_truth_notes || '';
-      // Tier 2 gets a distinct amber badge so the DM immediately sees story-weighted edges
-      const sigBadge = sig === 'significant_event'
-        ? `<span style="padding:0.15rem 0.5rem;border-radius:3px;
-            background:rgba(212,175,55,0.15);color:var(--amber);font-size:0.75rem;
-            margin-left:0.4rem;">Tier 2 — significant event</span>`
-        : `<span style="padding:0.15rem 0.5rem;border-radius:3px;
-            background:rgba(111,66,193,0.12);color:#b09ef5;font-size:0.75rem;
-            margin-left:0.4rem;">Tier 1 — participation</span>`;
-      render = () => `
-        <div class="nl-narrative">
-          <strong>Relationship:</strong>
-          <span style="font-family:'JetBrains Mono',monospace;">${escapeHtmlDR(fromId)}</span>
-          →
-          <span style="font-family:'JetBrains Mono',monospace;">${escapeHtmlDR(toId)}</span>
-          <span style="margin-left:0.5rem;padding:0.15rem 0.5rem;border-radius:3px;
-            background:rgba(111,66,193,0.15);color:#b09ef5;font-size:0.8rem;">
-            ${escapeHtmlDR(relType)}
-          </span>
-          ${sigBadge}
-        </div>
-        ${notes ? `<div style="font-size:0.88rem;color:var(--text2);margin-top:0.6rem;
-          font-style:italic;line-height:1.6;">${escapeHtmlDR(notes)}</div>` : ''}
-        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">
-          NPC/location IDs may be placeholders — verify against the campaign entity list before approving.
-        </div>`;
-
+    // The RELATIONSHIP card (issue #43) was removed by #106: intake no longer
+    // queues relationships; they are computed at publish from confirmed data.
     } else if (item.array === 'quest_ledger' && item.rawData?._progress_append) {
       // Quest progress-log append item (issue #90). rawData has quest_hint for title-match
       // on publish and _progress_append carrying the progress_log entry to push.

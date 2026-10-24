@@ -4,8 +4,8 @@
     "**/*.scss",
     "**/*.sass",
     "**/*.ts",
-    "data/**",
-    "tests/**",
-    "OCR Test Files/**"
+    "**/data/**",
+    "**/tests/**",
+    "**/OCR Test Files/**"
   ]
 }

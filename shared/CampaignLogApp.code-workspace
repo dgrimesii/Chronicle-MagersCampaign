@@ -9,6 +9,15 @@
 		}
 	],
 	"settings": {
-		"liveServer.settings.multiRootWorkspaceName": "Chronicle-MagersCampaign"
+		"liveServer.settings.multiRootWorkspaceName": "Chronicle-MagersCampaign",
+		"liveServer.settings.ignoreFiles": [
+			".vscode/**",
+			"**/*.scss",
+			"**/*.sass",
+			"**/*.ts",
+			"**/data/**",
+			"**/tests/**",
+			"**/OCR Test Files/**"
+		]
 	}
 }

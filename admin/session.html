@@ -363,9 +363,6 @@
     <div id="facts-other"></div>
     <div id="header-panel"></div>
     <div id="approval-panel"></div>
-    <div class="notice" id="facts-next" style="display:none;">
-      <strong>Publishing from this page is the next step and is not built yet</strong> (issue #106). Nothing has been saved.
-    </div>
     <div class="actions">
       <button class="btn" onclick="backToIdentify()">← Back to Identify</button>
     </div>
@@ -446,6 +443,10 @@ const session = {
   headerDraft:  null, // the header's own draft (#74): { status: 'drafting'|'done'|'error', error, warnings }
   passageMoves: {},   // passage index → attach, the DM's moves
   approvals:    null, // Set of approved section keys
+  // Publish (#106):
+  publishing:   false, // a publish is running; the button is disabled
+  publishResult: null, // { ok, text, notes, unplaced } from the last publish
+  published:    false, // the review was written; leaving no longer warns
   // Context for extraction (#100), loaded now so it is ready by then. Both
   // stay null if their load fails; extraction must cope without them.
   entities:    null,  // { npcs, locations, monsters, combats } name lists
@@ -462,9 +463,11 @@ const session = {
  * True once the DM has added a page or a notes file. Nothing on this page is
  * saved anywhere, so any of these would be lost by leaving or reloading.
  * Picking a session and date alone is cheap to redo and does not count.
- * Steps 2–5 extend this when they add state; publish (#106) sets it false.
+ * Steps 2–5 extend this when they add state; once publish (#106) has
+ * written the review it is false, so leaving after publishing does not warn.
  */
 function hasUnpublishedWork() {
+  if (session.published) return false;
   return session.pages.length > 0 || session.notes !== null;
 }
 
@@ -1202,8 +1205,8 @@ function bulkAcknowledge() {
 /**
  * finishIdentify() — every row is settled. Builds the publish items the
  * answers produce (new entities, aliases, notes, roster groups) and says
- * how many. Step 4, review, is not built yet (#101–#105), so the page
- * stops here; publish (#106) will send these items with the session header.
+ * how many, then starts step 4 (the facts read). Publish (#106) sends
+ * these items with the rest of the review (ChroniclePublish.sessionQueue).
  */
 function finishIdentify() {
   session.identityItems = ChronicleEntities.toQueueItems(session.rows, session.index, session.legacyId);
@@ -1332,7 +1335,6 @@ function renderFacts() {
     return `<div class="extract-row"><span class="name">${escapeHtml(fp.label[0].toUpperCase() + fp.label.slice(1))}</span>${state}</div>`;
   }).join('');
   const done = session.facts.length && session.facts.every(fp => fp.status === 'done');
-  document.getElementById('facts-next').style.display = done ? 'block' : 'none';
   if (!done) {
     for (const id of ['facts-flags', 'split-panel', 'grid-panel', 'facts-other']) document.getElementById(id).innerHTML = '';
     return;
@@ -2207,7 +2209,11 @@ function decideChange(i, decision) {
   renderReview();
 }
 function decideJudgment(i, decision) {
-  session.draft.judgments[i].decision = decision;
+  const j = session.draft.judgments[i];
+  j.decision = decision;
+  // A moment's id is fixed when it is approved (#106), so publishing the
+  // same review twice finds the moment instead of adding a second one.
+  if (decision === 'approved' && !j.newId) j.newId = ChronicleIds.newId();
   renderReview();
 }
 
@@ -2263,7 +2269,7 @@ function publishPlan() {
   const arrayOf = id => session.index.entities.get(id)?.array || made.get(id)?.array || (session.campaign.party.some(p => p.id === id) ? 'party' : null);
   const textItems = ChroniclePages.textItems(pages, d.changes.filter(c => c.decision === 'accepted').map(c => ({ id: c.id, field: c.field, text: c.final })));
   const judgmentItems = ChroniclePages.judgmentItems(d.judgments.filter(j => j.decision === 'approved'), { sessionRef: session.legacyId, arrayOf, newId: ChronicleIds.newId });
-  const combats = session.grids.map(g => ChronicleGrid.toTurnSchema(g, session.legacyId));
+  const combats = session.grids.map(g => Object.assign(ChronicleGrid.toTurnSchema(g, session.legacyId), { name: g.name }));
   // A placeholder keeps its recorded header unless the DM ticked replace (#74).
   const rec = (session.campaign.session_logs || []).find(s => s.legacy_id === session.legacyId);
   const he = session.headerEdit || {};
@@ -2273,13 +2279,37 @@ function publishPlan() {
   // does not report keeping a recorded field it then replaces.
   return { header: ChroniclePages.headerForPublish(session.header, headerReplace), headerReplace, identityItems: session.identityItems, passageItems: session.passageItems, deferredPassages: session.deferredPassages,
     textItems, judgmentItems, combats,
+    // Quest progress and loot from the facts (#106), written by sessionQueue.
+    questProgress: session.mergedFacts.quest_progress, loot: session.mergedFacts.loot,
     pending: d.changes.filter(c => c.decision === 'pending').length + d.judgments.filter(j => j.decision === 'pending').length };
 }
 
 /**
- * renderApproval() — one click per section to confirm it was reviewed, and
- * the summary of what publish will write, which replaces the old
- * confirmation panel (#37). Publish itself is #106.
+ * pendingDecisions() → [{ label, panel }] — every decision still open, for
+ * the list beside the Publish button (#106). The DM asked that Publish stay
+ * disabled until all decisions are made and that it be clear which are
+ * pending: a section not yet approved, a proposed text change or judgment
+ * event not yet decided, or a draft still running. panel is the element
+ * the list links to. Held-back facts (an occurrence left unassigned) are not
+ * pending: leaving one unassigned is the DM's choice and holds back only its
+ * own facts, which the summary lists.
+ */
+function pendingDecisions() {
+  const out = [];
+  const d = session.draft || {};
+  if (d.status === 'drafting') out.push({ label: 'The entity-page draft is still running', panel: 'pages-panel' });
+  if ((session.headerDraft || {}).status === 'drafting') out.push({ label: 'The header draft is still running', panel: 'header-panel' });
+  (d.changes || []).forEach(c => { if (c.decision === 'pending') out.push({ label: `Text change: ${labelOf(c.id)} — ${c.field}: accept or reject`, panel: 'pages-panel' }); });
+  (d.judgments || []).forEach(j => { if (j.decision === 'pending') out.push({ label: `Judgment event: ${j.kind}${j.type ? ' (' + j.type + ')' : ''}: approve or drop`, panel: 'pages-panel' }); });
+  for (const s of sections()) if (!(session.approvals || new Set()).has(s.key)) out.push({ label: `Tick "${s.label} reviewed"`, panel: 'approval-panel' });
+  return out;
+}
+
+/**
+ * renderApproval() — one click per section to confirm it was reviewed, the
+ * summary of what publish will write (which replaces the old confirmation
+ * panel, #37), the decisions still pending, and the Publish button (#106),
+ * enabled only when nothing is pending.
  */
 function renderApproval() {
   const el = document.getElementById('approval-panel');
@@ -2287,6 +2317,9 @@ function renderApproval() {
   session.approvals = session.approvals || new Set();
   const plan = publishPlan();
   session.publishPlan = plan;
+  // What sessionQueue could not place, shown before publishing (#106).
+  try { plan.queuePreview = ChroniclePublish.sessionQueue(plan, queueContext()).unplaced; } catch (e) { plan.queuePreview = [{ what: 'The publish plan', reason: e.message }]; }
+  const pending = pendingDecisions();
   const secs = sections();
   const all = secs.every(s => session.approvals.has(s.key));
   const n = (list, one, many) => `${list.length} ${list.length === 1 ? one : many}`;
@@ -2303,9 +2336,128 @@ function renderApproval() {
       <li>${n(plan.textItems, 'text change', 'text changes')} accepted, ${n(plan.judgmentItems, 'judgment event', 'judgment events')} approved${plan.pending ? `, ${plan.pending} still undecided` : ''}</li>
       ${(plan.header.rawData.narrative?.absence_notes || []).length ? `<li>${plan.header.rawData.narrative.absence_notes.length} attendance note${plan.header.rawData.narrative.absence_notes.length === 1 ? '' : 's'}</li>` : ''}
     </ul>
-    <div class="actions"><button class="btn btn-primary" disabled title="Publishing from this page is issue #106">Publish (not built yet, #106)</button></div>
-    <p class="hint">${all ? 'Every section is approved.' : `${secs.filter(s => !session.approvals.has(s.key)).length} section(s) not yet approved.`} Nothing has been saved.</p>
+    ${heldHtml(plan)}
+    ${pendingHtml(pending)}
+    <div class="actions"><button class="btn btn-primary" id="publish-btn" onclick="publishFromPage()" ${pending.length || session.publishing ? 'disabled' : ''}
+      title="${pending.length ? 'Make the decisions listed above first' : 'Write this session to the campaign file'}">${session.publishing ? 'Publishing…' : 'Publish session'}</button></div>
+    <p class="hint" id="publish-status">${publishStatusHtml(all)}</p>
+    ${publishNotesHtml()}
   </div>`;
+}
+
+// pendingHtml(pending) → the list of open decisions, each linking to its panel.
+function pendingHtml(pending) {
+  if (!pending.length) return '<p class="fact-line">Every decision is made. Publish writes the plan above.</p>';
+  return `<div class="flag-box"><strong>${pending.length} decision${pending.length === 1 ? '' : 's'} pending before Publish:</strong><ul>${pending.map(p =>
+    `<li><a href="#" onclick="document.getElementById('${p.panel}').scrollIntoView({ behavior: 'smooth' }); return false;">${escapeHtml(p.label)}</a></li>`).join('')}</ul></div>`;
+}
+
+// heldHtml(plan) → what this publish will not write: facts held back in the
+// grids, round events not turned into attacks, and passages that cannot be
+// placed, so nothing is left out silently.
+function heldHtml(plan) {
+  const held = plan.combats.flatMap(c => c.held.map(h => `${c.name} round ${h.round}: "${h.asWritten}" — ${h.reason}`));
+  const events = plan.combats.flatMap(c => c.events.map(e => `${c.name} round ${e.round}: ${e.text}`));
+  const unplaced = (plan.queuePreview || []).map(u => `${u.what} — ${u.reason}`);
+  const list = (title, rows) => rows.length ? `<div class="fact-round"><h4>${title}</h4><ul>${rows.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>` : '';
+  const body = list('Facts held back (an actor not yet assigned or settled)', held)
+    + list('Round events not turned into attacks (their lines stay as passages)', events)
+    + list('Not placed', unplaced);
+  return body ? `<div class="fact-combat"><h4>Not written by this publish</h4>${body}</div>` : '';
+}
+
+// publishStatusHtml(all) → the line under the button: the last publish's
+// result, or what is left to approve.
+function publishStatusHtml(all) {
+  const r = session.publishResult;
+  if (r) return `<span style="color:${r.ok ? 'var(--teal)' : 'var(--rust)'};font-style:normal;">${escapeHtml(r.text)}</span>`;
+  return (all ? 'Every section is approved.' : `${sections().filter(s => !session.approvals.has(s.key)).length} section(s) not yet approved.`) + ' Nothing has been saved.';
+}
+
+// publishNotesHtml() → publish's own notes (decisions it made, such as a
+// placeholder's title kept), listed on the page rather than only in the console.
+function publishNotesHtml() {
+  const r = session.publishResult;
+  if (!r || !r.notes || !r.notes.length) return '';
+  return `<details class="fact-round"><summary>${r.notes.length} publish note${r.notes.length === 1 ? '' : 's'}</summary><ul>${r.notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul></details>`;
+}
+
+/**
+ * queueContext() → the ctx ChroniclePublish.sessionQueue() needs: the
+ * session, and how an occurrence maps to an entity (entityOf) and to its
+ * grid row key (actorKey). A roster group's occurrence has no entity of its
+ * own; its row key is the group's actor_id.
+ */
+function queueContext() {
+  const made = ChronicleEntities.newEntities(session.rows);
+  const arrayOf = id => session.index.entities.get(id)?.array || made.get(id)?.array
+    || (session.campaign.party.some(p => p.id === id) ? 'party' : null);
+  const refOf = occ => session.refs.find(r => r.occ === occ);
+  return {
+    sessionRef: session.legacyId, newId: ChronicleIds.newId,
+    entityOf: occ => {
+      const id = refOf(occ)?.entityId;
+      if (!id || /^roster:/.test(id)) return null;
+      return { id, array: arrayOf(id) };
+    },
+    actorKey: occ => {
+      const id = refOf(occ)?.entityId;
+      if (!id) return null;
+      const m = /^roster:[^:]+:(.+)$/.exec(id);
+      if (m) return m[1];
+      // A creature that is not a roster group is keyed by its name in the
+      // grid (ChronicleGrid.buildGrid), a person by their id.
+      return session.grids.some(g => g.enemyRows.some(e => e.key === labelOf(id))) ? labelOf(id) : id;
+    },
+  };
+}
+
+/**
+ * publishFromPage() — the Publish button (#106). Writes the reviewed session
+ * to the local campaign file:
+ *   1. ChronicleStore.loadPublishBase() reads the file on disk. It must stay
+ *      the first await in this click handler: the first publish opens a
+ *      folder picker and each browser session asks for permission, which the
+ *      browser allows only straight after a click (CLAUDE.md, #97).
+ *   2. ChroniclePublish.sessionQueue() turns the plan into the queue, and
+ *      applySession() applies it to the file just read (not to the copy the
+ *      page loaded), including the computed relationships.
+ *   3. ChronicleStore.publishSession() writes it, refusing if the file
+ *      changed since step 1 and keeping data/magers-campaign.prev.json. In
+ *      Safe Test Mode it writes only tests/output/test-campaign.published.json.
+ * Publish never commits, pushes or calls GitHub; the status line suggests the
+ * commit message. Every failure is shown, ending "Nothing was written".
+ */
+async function publishFromPage() {
+  if (session.publishing || pendingDecisions().length) return;
+  session.publishing = true;
+  session.publishResult = null;
+  renderApproval();
+  const status = text => { const el = document.getElementById('publish-status'); if (el) el.textContent = text; };
+  try {
+    status('Reading the campaign file…');
+    const base = await ChronicleStore.loadPublishBase();
+    status('Applying the review…');
+    const queue = ChroniclePublish.sessionQueue(publishPlan(), queueContext());
+    const { campaign, notes } = ChroniclePublish.applySession(base, queue.items);
+    const s = (campaign.session_logs || []).find(x => x.legacy_id === session.legacyId);
+    const result = await ChronicleStore.publishSession(campaign,
+      { sessionId: s ? s.id : session.legacyId, sessionRef: session.legacyId, title: s ? s.title || '' : '', label: session.legacyId },
+      { onProgress: status });
+    const rels = (campaign.entity_relationships || []).length;
+    session.publishResult = { ok: true, notes, unplaced: queue.unplaced,
+      text: result.testMode
+        ? `✓ [TEST MODE] Written to ${result.path}; the real campaign file is untouched. ${rels} relationships computed. Commit message would be "${result.commitMessage}".`
+        : `✓ Published to ${result.path} (previous file kept as ${result.previousPath}). ${rels} relationships computed. Commit in VS Code as "${result.commitMessage}".` };
+    session.published = true;
+    // Every step, Publish included, is now done (setStep marks steps below n).
+    setStep(6);
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    session.publishResult = { ok: false, notes: [], unplaced: [], text: 'Publish failed: ' + msg + (/Nothing (else )?was written|unchanged/.test(msg) ? '' : ' Nothing was written.') };
+  }
+  session.publishing = false;
+  renderApproval();
 }
 
 // countTurns(facts) → party and enemy turns on one page, for the status line.

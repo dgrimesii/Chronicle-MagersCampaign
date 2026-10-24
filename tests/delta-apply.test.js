@@ -78,14 +78,16 @@ const C = ChronicleIds.buildLegacyIndex(campaign);
 // sameCampaign(a, b) — equal apart from the timestamps every publish stamps
 // (_last_published, _delta_count, meta.last_updated) and the derived fields it
 // may complete. Used by the "nothing changed" tests on the fixture, after the
-// fixture has had its derived fields completed once.
+// fixture has had its derived fields and its computed relationships (#106)
+// completed once: a relationship keeps its id across regenerations, so a
+// publish that changes nothing leaves them identical.
 function sameCampaign(a, b) {
   const strip = c => JSON.stringify(Object.assign({}, c, {
     _last_published: null, _delta_count: null, meta: Object.assign({}, c.meta, { last_updated: null }),
   }));
   return strip(a) === strip(b);
 }
-const fixtureDerived = (() => { const c = JSON.parse(JSON.stringify(fixture)); ChroniclePublish.deriveFields(c); return c; })();
+const fixtureDerived = (() => { const c = JSON.parse(JSON.stringify(fixture)); ChroniclePublish.deriveFields(c); ChroniclePublish.deriveRelationships(c); return c; })();
 
 // loadNormaliser(file) — normaliseCampaignJson cut from a viewer page, as in
 // tests/turn-schema.test.js, so the gate renders through the real viewer code.

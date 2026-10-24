@@ -39,6 +39,10 @@
  *     Returns the updated campaign and a list of notes: plain sentences about
  *     anything publish had to decide or could not place, for the DM to read.
  *   deriveFields(campaign)          — recomputes the derived fields in place
+ *   deriveRelationships(campaign)   — rebuilds entity_relationships[] from the
+ *                                     confirmed data, in place (issue #106)
+ *   sessionQueue(plan, ctx)         — the session page's review as the ordered
+ *                                     queue applySession takes (issue #106)
  *   STANDARD_ACTIONS                — the twelve standard action names
  *   sessionChoices(campaign)        — the sessions the session page offers at
  *                                     upload: placeholders first, then the next
@@ -52,8 +56,9 @@
  *
  * WHAT WOULD BREAK IF REMOVED
  * ----------------------------
- * Delta Review's Publish button would have nothing to apply the queue with,
- * and tests/delta-apply.test.js would have nothing to test.
+ * Delta Review's and the session page's Publish buttons would have nothing to
+ * apply the review with, and tests/delta-apply.test.js and
+ * tests/session-publish.test.js would have nothing to test.
  */
 
 (function(root) {
@@ -591,7 +596,12 @@
       mine.special_events = mine.special_events || [];
       for (const ev of et.special_events) if (!mine.special_events.some(x => same(x, ev))) mine.special_events.push(ev);
     }
-    if (Array.isArray(incoming.passages)) existing.passages = [...(existing.passages || []), ...incoming.passages];
+    // A passage already on the round (same text, same session) is not added
+    // again, so publishing the same review twice changes nothing (#106).
+    if (Array.isArray(incoming.passages)) {
+      existing.passages = existing.passages || [];
+      for (const p of incoming.passages) if (!existing.passages.some(x => x.text === p.text && x.session_id === p.session_id)) existing.passages.push(p);
+    }
     ctx.notes.add(`${combat.name || 'A combat'} round ${incoming.n}: merged with the round already recorded (a round split across pages, or published twice).`);
   }
 
@@ -865,7 +875,11 @@
       // duplicate), or one an earlier NEW item in this publish already
       // claimed, is not given a new UUID.
       if (given && (idIndex.has(given) || out[d.array].some(e => e.id === given))) continue;
-      const fresh = ids.newId();
+      // A UUID the session page already gave the entity (ChronicleIds.newId()
+      // in step 3) is kept, so publishing the same review again finds the
+      // entity and skips it instead of creating a second copy (#106). Only a
+      // placeholder (cbt_007, session_008) gets a fresh UUID.
+      const fresh = ids.isOpaqueId(given) ? given : ids.newId();
       if (given) idIndex.set(given, fresh);
       // Only a session keeps its placeholder, as legacy_id: session_NNN is
       // the number the DM gave it at intake. Every other placeholder was
@@ -952,6 +966,10 @@
     // Step 2b — everything else, in queue order.
     for (const d of rest) {
       const arr = d.array;
+      // A campaign without entity_relationships yet (the test fixture) still
+      // takes an approved relationship: applyRelationship creates the array.
+      // Seen in the first Safe Test Mode publish from the session page (#106).
+      if (d.type === 'RELATIONSHIP' && arr === 'entity_relationships' && !out[arr]) out[arr] = [];
       if (!arr || !out[arr]) continue;
       const rawData  = d.rawData ? tr(d.rawData) : d.rawData;
       const targetId = tr(d.targetId);
@@ -984,8 +1002,11 @@
       }
     }
 
-    // Step 3 — derived fields.
+    // Step 3 — derived fields, then the relationships computed from them and
+    // the rest of the confirmed data (#106), so a correction anywhere in the
+    // review reaches the relationships with no other edit.
     deriveFields(out);
+    deriveRelationships(out);
 
     // Step 4a — deferred integrity gaps: workflow records kept with the data
     // so the future campaign scanner can list them. A gap already present
@@ -1069,7 +1090,12 @@
     if (rawData._progress_append) {
       target.mechanics = target.mechanics || {};
       if (!Array.isArray(target.mechanics.progress_log)) target.mechanics.progress_log = [];
-      target.mechanics.progress_log.push(rawData._progress_append);
+      // The same entry from the same session (a repeat publish) is not added
+      // twice (#106).
+      const entry = rawData._progress_append;
+      if (!target.mechanics.progress_log.some(x => x && x.session_id === entry.session_id && x.fact === entry.fact)) {
+        target.mechanics.progress_log.push(clone(entry));
+      }
     } else if (rawData._cohort_session_append) {
       const sid = rawData._cohort_session_append.sessionId;
       if (!sid) return;
@@ -1155,7 +1181,17 @@
     const g = rawData._roster_group_append;
     if (g && g.actor_id) {
       target.mechanics = target.mechanics || {};
-      if (!Array.isArray(target.mechanics.enemies_roster)) target.mechanics.enemies_roster = [];
+      if (!Array.isArray(target.mechanics.enemies_roster)) {
+        // A combat recorded without a roster (the test fixture's) names its
+        // enemy groups only in its rounds. Starting a roster with just the new
+        // group would leave those rounds naming groups the roster lacks, which
+        // the reference check rejects (seen in the first Safe Test Mode
+        // publish, #106), so the groups the rounds name are listed first.
+        const named = [];
+        for (const r of target.rounds || []) for (const t of r.enemy_turns || []) if (t.actor_id && !named.includes(t.actor_id)) named.push(t.actor_id);
+        target.mechanics.enemies_roster = named.map(actor_id => ({ actor_id, type: 'group', mon_ref: null, count: null, count_remaining: null, notes: null }));
+        if (named.length) notes.add(`${label}: had no roster; listed the groups its rounds already name (${named.join(', ')}) before adding "${g.actor_id}".`);
+      }
       if (target.mechanics.enemies_roster.some(x => x.actor_id === g.actor_id)) {
         notes.add(`${label}: already has a roster group "${g.actor_id}"; it was not added again.`);
       } else {
@@ -1165,16 +1201,23 @@
   }
 
   /**
-   * applyRelationship(out, rd, ids) — writes one approved relationship.
+   * applyRelationship(out, rd, ids) — writes one approved significant
+   * relationship (a #105 judgment event the DM approved).
    *
-   * Unchanged from the page's two-tier model (issue #43): a significant
-   * event is always a new entry; a participation edge between the same two
-   * entities is updated rather than duplicated. New ids are UUIDs (#95).
+   * Since #106 the participation tier is computed by deriveRelationships()
+   * on every publish, so an item without significance "significant_event"
+   * is not written here: deriveRelationships would replace it anyway. A
+   * significant event is the DM's approved judgment and is kept by every
+   * regeneration. The same one already recorded (same pair, type and
+   * session) is not added again, so a repeat publish adds nothing.
    */
   function applyRelationship(out, rd, ids) {
     rd = rd || {};
     if (!Array.isArray(out.entity_relationships)) out.entity_relationships = [];
     const sig = rd.significance || 'participation';
+    if (sig !== 'significant_event') return;
+    if (out.entity_relationships.some(r => r.significance === 'significant_event' && r.from_id === rd.from_id &&
+      r.to_id === rd.to_id && r.relationship_type === (rd.relationship_type || 'unknown') && r.established_session === (rd.established_session || ''))) return;
     const entry = (id, significance) => ({
       id,
       from_id: rd.from_id || '',
@@ -1202,6 +1245,327 @@
     } else {
       out.entity_relationships.push(entry(ids.newId(), 'participation'));
     }
+  }
+
+  // ── Computed relationships (issue #106) ──────────────────────────────────
+
+  // The entity type each array holds, for from_type / to_type.
+  const ARRAY_TYPES = { party: 'pc', npc_directory: 'npc', locations: 'location', quest_ledger: 'quest',
+    inventory_and_loot: 'item', world_lore: 'lore', bestiary: 'creature', combat_encounters: 'combat',
+    factions: 'faction', cohorts: 'cohort', session_logs: 'session', character_moments: 'moment' };
+
+  // An entity's own relationship list (npc mechanics.relationships, the
+  // schema's longer relationship_type enum) mapped onto entity_relationships'
+  // seven types (CLAUDE.md). The recorded word is kept in the note, so
+  // "uncle" is not lost when it becomes social_contact.
+  const LIST_TYPES = {
+    resides_in: 'location_inhabitant', based_in: 'location_inhabitant',
+    quest_contact: 'quest_connection', quest_giver: 'quest_connection',
+    family: 'social_contact', uncle: 'social_contact', sibling: 'social_contact', parent: 'social_contact',
+    childhood_friend: 'social_contact', former_party_member: 'social_contact', mentor: 'social_contact',
+    employer: 'social_contact', contact: 'social_contact', escorted_by: 'social_contact',
+  };
+
+  /**
+   * deriveRelationships(campaign) — rebuilds entity_relationships[] in place.
+   *
+   * Relationships are derived, never detected from raw text or kept by hand
+   * (#106, docs/intake-redesign.md "Derived layer"): a name corrected in
+   * step 3 changes its relationships on the next publish with no other edit.
+   * Built from the whole campaign, from confirmed records only:
+   *   - combat participation: the party and each roster group's creature
+   *     (mon_ref), combat_antagonist, one record per pairing (never one per
+   *     PC; "party" is the reserved from_id, as in #43); an NPC with a turn
+   *     of its own in a combat fought alongside the party, allied
+   *   - NPCs met (first_appeared, npcs_met): party → NPC, social_contact,
+   *     carrying the NPC's current disposition as an attribute (the DM: a
+   *     disposition is an attribute of a relationship, not one itself)
+   *   - quests, from the moment they are recorded: the giver, each
+   *     objective's NPC and location, and items and lore that name the quest
+   *     → the quest, quest_connection
+   *   - relationships the data records as discovered facts: an entity's own
+   *     mechanics.relationships list (mapped by LIST_TYPES, else unknown) and
+   *     faction or cohort membership (known_members / members → allied)
+   * Location visits are not relationships (the DM, #106): sessions_visited
+   * and each combat's location already hold them.
+   *
+   * Each record has the first and last session it spans
+   * (established_session / last_updated_session), which #50 needs for edge
+   * weight and the session slider; sessions are ranked by date. A record
+   * keeps the id, prose and flag of the one it replaces (same from, to and
+   * type), so ids stay stable and regenerating twice gives identical data.
+   * Records with significance "significant_event" are the DM's approved
+   * judgments (#105) and are kept exactly as they are.
+   */
+  function deriveRelationships(campaign) {
+    const ids = Ids();
+    const old = Array.isArray(campaign.entity_relationships) ? campaign.entity_relationships : [];
+    const kept = old.filter(r => r && r.significance === 'significant_event');
+    const keyOf = (f, t, ty) => f + '|' + t + '|' + ty;
+    const previous = new Map(old.filter(r => r && r.significance !== 'significant_event')
+      .map(r => [keyOf(r.from_id, r.to_id, r.relationship_type), r]));
+
+    const typeOf = new Map();
+    const nameOf = new Map();
+    for (const [arr, type] of Object.entries(ARRAY_TYPES)) {
+      for (const e of campaign[arr] || []) {
+        if (!e || !e.id) continue;
+        typeOf.set(e.id, type);
+        nameOf.set(e.id, e.name || e.title || e.legacy_id || e.id);
+      }
+    }
+    // Sessions in play order: by date, then by their place in the array.
+    const sessions = (campaign.session_logs || []).map((s, i) => ({ s, i }))
+      .sort((a, b) => String(a.s.date || '').localeCompare(String(b.s.date || '')) || a.i - b.i);
+    const rank = new Map(sessions.map((x, i) => [x.s.id, i]));
+
+    const edges = new Map();
+    // add(from, to, type, sessionIds, note) — one pairing; repeated sources
+    // widen its session span and add their note once.
+    const add = (from, to, type, sessionIds, note) => {
+      if (!from || !to || from === to) return;
+      if (from !== 'party' && !typeOf.has(from)) return;
+      if (!typeOf.has(to)) return;
+      const key = keyOf(from, to, type);
+      let e = edges.get(key);
+      if (!e) { e = { from, to, type, sessions: new Set(), notes: [] }; edges.set(key, e); }
+      for (const s of sessionIds || []) if (rank.has(s)) e.sessions.add(s);
+      if (note && !e.notes.includes(note)) e.notes.push(note);
+    };
+
+    for (const c of campaign.combat_encounters || []) {
+      const sids = (c.mechanics && c.mechanics.sessions) || [];
+      for (const g of (c.mechanics && c.mechanics.enemies_roster) || []) {
+        if (!g || !g.mon_ref) continue;
+        // The sessions of the rounds the group acts or is targeted in: a group
+        // that joined in a later session (the Larkspur Dragon in session_006)
+        // is not dated from the combat's first session. A group no round names
+        // takes the combat's sessions.
+        const named = (c.rounds || []).filter(r => (r.enemy_turns || []).some(t => t.actor_id === g.actor_id) ||
+          JSON.stringify(r.slots || []).includes('"target_id":' + JSON.stringify(g.actor_id))).map(r => r.sid);
+        add('party', g.mon_ref, 'combat_antagonist', named.length ? named : sids, `Fought the party in ${c.name || 'a combat'}.`);
+      }
+      for (const r of c.rounds || []) {
+        for (const slot of r.slots || []) {
+          if (typeOf.get(slot.a) === 'npc') add('party', slot.a, 'allied', [r.sid], `Fought alongside the party in ${c.name || 'a combat'}.`);
+        }
+      }
+    }
+    for (const x of sessions) {
+      for (const n of (x.s.mechanics && x.s.mechanics.npcs_met) || []) add('party', n, 'social_contact', [x.s.id], 'Met by the party.');
+    }
+    for (const n of campaign.npc_directory || []) {
+      const m = n.mechanics || {};
+      if (m.first_appeared) add('party', n.id, 'social_contact', [m.first_appeared, m.last_appeared], 'Met by the party.');
+    }
+    for (const q of campaign.quest_ledger || []) {
+      const m = q.mechanics || {};
+      const at = [m.origin_session];
+      if (m.given_by) add(m.given_by, q.id, 'quest_connection', at, `Gave the quest "${q.title || q.name}".`);
+      for (const o of m.objectives || []) {
+        if (o.npc_ref) add(o.npc_ref, q.id, 'quest_connection', at, `Named in an objective of "${q.title || q.name}".`);
+        if (o.location_ref) add(o.location_ref, q.id, 'quest_connection', at, `Named in an objective of "${q.title || q.name}".`);
+      }
+    }
+    for (const it of campaign.inventory_and_loot || []) {
+      for (const qid of (it.mechanics && it.mechanics.quest_refs) || []) add(it.id, qid, 'quest_connection', [it.mechanics.found_session], 'Tied to the quest.');
+    }
+    for (const l of campaign.world_lore || []) {
+      for (const qid of (l.mechanics && l.mechanics.quest_refs) || []) add(l.id, qid, 'quest_connection', [l.mechanics.first_established], 'Tied to the quest.');
+    }
+    for (const arr of Object.keys(ARRAY_TYPES)) {
+      for (const e of campaign[arr] || []) {
+        const list = e && e.mechanics && e.mechanics.relationships;
+        if (!Array.isArray(list)) continue;
+        // A list entry records no session of its own: it became known when
+        // its entity did (first_appeared, origin_session, first_established).
+        const at = [e.mechanics.first_appeared || e.mechanics.origin_session || e.mechanics.first_established];
+        for (const r of list) {
+          if (!r || !r.entity_id) continue;
+          // Whatever the recorded word (quest_giver, escorted_by, escort_subject),
+          // an entry pointing at a quest ties its entity to that quest.
+          const type = typeOf.get(r.entity_id) === 'quest' ? 'quest_connection' : (LIST_TYPES[r.type] || 'unknown');
+          add(e.id, r.entity_id, type, at, `Recorded on ${nameOf.get(e.id)} as ${r.type || 'a relationship'}.`);
+        }
+      }
+    }
+    for (const arr of ['factions', 'cohorts']) {
+      for (const f of campaign[arr] || []) {
+        const m = f.mechanics || {};
+        for (const member of m.known_members || m.members || []) {
+          add(typeof member === 'string' ? member : member && member.id, f.id, 'allied', [m.origin_session], `Member of ${f.name || 'the group'}.`);
+        }
+      }
+    }
+
+    const byRank = (a, b) => rank.get(a) - rank.get(b);
+    const derived = [...edges.values()]
+      .sort((a, b) => keyOf(a.from, a.to, a.type).localeCompare(keyOf(b.from, b.to, b.type)))
+      .map(e => {
+        const span = [...e.sessions].sort(byRank);
+        const prev = previous.get(keyOf(e.from, e.to, e.type));
+        const last = span.length ? span[span.length - 1] : null;
+        const rec = {
+          id: prev && prev.id ? prev.id : ids.newId(),
+          from_id: e.from, from_type: e.from === 'party' ? 'party' : typeOf.get(e.from),
+          to_id: e.to, to_type: typeOf.get(e.to),
+          relationship_type: e.type, significance: 'participation',
+          established_session: span.length ? span[0] : null, last_updated_session: last,
+          status: 'active',
+        };
+        if (e.from === 'party' && e.type === 'social_contact') {
+          const npc = (campaign.npc_directory || []).find(n => n.id === e.to);
+          if (npc && npc.mechanics && npc.mechanics.disposition) rec.disposition = npc.mechanics.disposition;
+        }
+        const prose = prev && prev.narrative ? prev.narrative.edge_prose ?? null : null;
+        // Prose written for an edge that has since grown a later session is
+        // flagged for regeneration; otherwise the flag carries over as it was.
+        const flagged = !!(prev && prev.narrative && (prev.narrative.regeneration_flagged || (prose && prev.last_updated_session !== last)));
+        rec.narrative = { ground_truth_notes: e.notes.join(' '), edge_prose: prose, regeneration_flagged: flagged };
+        return rec;
+      });
+    campaign.entity_relationships = kept.concat(derived);
+  }
+
+  // ── The session page's queue (issue #106) ────────────────────────────────
+
+  // Working fields toTurnSchema adds to a slot for #104's checks. Not in the
+  // 5.0.0 schema, so publish strips them (README "Shared modules").
+  const WORKING_SLOT_FIELDS = ['source_line', 'note_order'];
+
+  // The quest_progress_type enum (the data file's shared_enums).
+  const PROGRESS_TYPES = ['inciting_event', 'lead_acquired', 'objective_completed', 'setback', 'revelation', 'reward_received'];
+
+  /**
+   * sessionQueue(plan, ctx) → { items, unplaced }
+   *
+   * Turns the session page's reviewed plan into the ordered queue
+   * applySession() takes, so the page's Publish button and
+   * tests/session-publish.test.js run the same code. Order: the session
+   * header (and a replace of a placeholder's header), step 3's
+   * identification items, each combat (a NEW combat for one the notes
+   * started, its new roster groups, then its rounds), passages, quest
+   * progress, loot, accepted text changes, approved judgments.
+   *
+   * plan = the page's publishPlan(): { header, headerReplace, identityItems,
+   *   passageItems, deferredPassages, textItems, judgmentItems,
+   *   combats: [toTurnSchema output + { name }], questProgress, loot }
+   * ctx  = { sessionRef (session_NNN), entityOf(occ) → { id, array } | null,
+   *   actorKey(occ) → the grid row key of an occurrence (an entity id, or a
+   *   roster group's actor_id), newId() }
+   *
+   * Passages #102 deferred land on exactly one object here: a round's
+   * passages, an activity's passages (found by its actor and index), or the
+   * quest progress entry they describe. Anything that cannot be placed is
+   * returned in unplaced, with the reason, for the summary; nothing is
+   * guessed. Held-back grid facts (an actor still unassigned) are never in
+   * the rounds toTurnSchema returns, so they are not written.
+   */
+  function sessionQueue(plan, ctx) {
+    const items = [];
+    const unplaced = [];
+    const ref = ctx.sessionRef;
+    const header = clone(plan.header);
+
+    // Loot: an item found or given to someone records who holds it; lost
+    // clears the holder; used changes nothing (no inventory tracking). A
+    // found item is listed on the session (mechanics.items_found).
+    const lootItems = [];
+    for (const l of plan.loot || []) {
+      const item = l.item != null ? ctx.entityOf(l.item) : null;
+      if (!item || item.array !== 'inventory_and_loot') {
+        unplaced.push({ what: 'Loot: ' + (l.item_text || l.source_line || 'an item'), reason: 'the item is not an item entity; add it in step 3' });
+        continue;
+      }
+      if (l.change === 'found') {
+        header.rawData.mechanics = header.rawData.mechanics || {};
+        header.rawData.mechanics.items_found = (header.rawData.mechanics.items_found || []).concat(item.id);
+      }
+      const holder = l.holder != null ? ctx.entityOf(l.holder) : null;
+      if ((l.change === 'found' || l.change === 'given') && holder) {
+        lootItems.push({ id: 'loot_' + lootItems.length, type: 'MOD', array: 'inventory_and_loot', status: 'approved', targetId: item.id,
+          title: 'Loot: holder', rawData: { id: item.id, _set: { 'mechanics.current_holder': holder.id } } });
+      } else if (l.change === 'lost') {
+        lootItems.push({ id: 'loot_' + lootItems.length, type: 'MOD', array: 'inventory_and_loot', status: 'approved', targetId: item.id,
+          title: 'Loot: lost', rawData: { id: item.id, _set: { 'mechanics.current_holder': null } } });
+      }
+    }
+
+    items.push(header);
+    if (plan.headerReplace) items.push(plan.headerReplace);
+    items.push(...(plan.identityItems || []));
+
+    // Rounds, with their round and activity passages attached.
+    const deferred = (plan.deferredPassages || []).map(d => d.passage).filter(p => p && p.attach);
+    const passageOf = p => { const { attach, ...rest } = p; return rest; };
+    const questPassages = new Map();
+    for (const c of plan.combats || []) {
+      let combatId = c.combat;
+      if (/^new:/.test(String(combatId))) {
+        // A fight the notes started: created here with its new roster groups.
+        const name = String(combatId).slice(4).trim() || c.name || 'New combat';
+        combatId = ctx.newId();
+        items.push({ id: 'combat_' + combatId, type: 'NEW', array: 'combat_encounters', status: 'approved', title: 'Combat: ' + name,
+          rawData: { id: combatId, name, mechanics: { enemies_roster: clone(c.rosterAdds || []) } } });
+      } else {
+        for (const g of c.rosterAdds || []) {
+          items.push({ id: 'roster_' + combatId + '_' + g.actor_id, type: 'MOD', array: 'combat_encounters', status: 'approved', targetId: combatId,
+            title: 'Roster group: ' + g.actor_id, rawData: { id: combatId, _roster_group_append: clone(g) } });
+        }
+      }
+      for (const r of c.rounds || []) {
+        const round = clone(r);
+        for (const slot of round.slots || []) for (const f of WORKING_SLOT_FIELDS) delete slot[f];
+        for (const p of deferred) {
+          const a = p.attach;
+          if (a.combat !== c.combat || Number(a.n) !== round.n) continue;
+          if (a.to === 'round') { (round.passages = round.passages || []).push(passageOf(p)); continue; }
+          if (a.to !== 'activity') continue;
+          const key = ctx.actorKey(a.actor);
+          const turn = (round.slots || []).find(s => s.a === key) || (round.enemy_turns || []).find(t => t.actor_id === key);
+          const act = turn && turn.activities && turn.activities[Number(a.index)];
+          if (act) (act.passages = act.passages || []).push(passageOf(p));
+          else {
+            // The activity moved or went in the grid: the passage stays in its round.
+            (round.passages = round.passages || []).push(passageOf(p));
+            unplaced.push({ what: 'Passage: ' + p.text.slice(0, 60), reason: `its activity is not in round ${round.n} any more; kept on the round` });
+          }
+        }
+        items.push({ id: 'round_' + combatId + '_' + round.n, type: 'ROUND', array: 'combat_encounters', status: 'approved',
+          combatId, combatName: c.name, rawData: round });
+      }
+    }
+    for (const p of deferred) {
+      const a = p.attach;
+      if ((a.to === 'round' || a.to === 'activity') && !(plan.combats || []).some(c => c.combat === a.combat && (c.rounds || []).some(r => r.n === Number(a.n)))) {
+        unplaced.push({ what: 'Passage: ' + p.text.slice(0, 60), reason: `round ${a.n} of its combat is not in the review` });
+      }
+      if (a.to === 'quest_progress') {
+        const list = questPassages.get(Number(a.index)) || [];
+        list.push(passageOf(p));
+        questPassages.set(Number(a.index), list);
+      }
+    }
+    for (const d of plan.deferredPassages || []) {
+      if (!d.passage || !d.passage.attach) unplaced.push({ what: 'Passage: ' + String(d.passage && d.passage.text || '').slice(0, 60), reason: d.reason });
+    }
+
+    items.push(...(plan.passageItems || []));
+
+    (plan.questProgress || []).forEach((q, i) => {
+      const quest = q.quest != null ? ctx.entityOf(q.quest) : null;
+      if (!quest || quest.array !== 'quest_ledger') {
+        unplaced.push({ what: 'Quest progress: ' + (q.entry || q.source_line || ''), reason: 'it names no quest entity; add the quest in step 3' });
+        return;
+      }
+      const entry = { session_id: ref, type: PROGRESS_TYPES.includes(q.type) ? q.type : null, fact: String(q.entry || q.source_line || '').trim(), progress_narrative: null };
+      if (questPassages.has(i)) entry.passages = questPassages.get(i);
+      items.push({ id: 'progress_' + i, type: 'MOD', array: 'quest_ledger', status: 'approved', targetId: quest.id,
+        title: 'Quest progress', rawData: { id: quest.id, _progress_append: entry } });
+    });
+
+    items.push(...lootItems, ...(plan.textItems || []), ...(plan.judgmentItems || []));
+    return { items, unplaced };
   }
 
   // ── Session header (issue #99) ─────────────────────────────────────────────
@@ -1267,7 +1631,7 @@
       rawData: { session_id: legacyId, date } };
   }
 
-  const api = { applySession, deriveFields, STANDARD_ACTIONS, sessionChoices, sessionHeader };
+  const api = { applySession, deriveFields, deriveRelationships, sessionQueue, STANDARD_ACTIONS, sessionChoices, sessionHeader };
 
   // Browser pages read window.ChroniclePublish; Node (tests) requires the
   // file. One source serves both, so the tests run the code the page runs.

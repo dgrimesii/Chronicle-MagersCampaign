@@ -1577,138 +1577,10 @@ Output exactly this format. If a value is unclear, write [?] after it. Session: 
   return steering ? `${steering}\n\n${fullPrompt}` : fullPrompt;
 }
 
-/**
- * buildRelationshipPrompt(allOCRText, sessionId) → string
- *
- * Why it exists: relationship detection is a separate AI pass that runs after
- * OCR is confirmed. It sends all combined OCR text to Sonnet and asks it to
- * identify entity relationships evidenced by the session notes. Keeping the
- * prompt in its own function (mirroring buildOCRSystemPrompt) makes the call
- * site readable and testable without touching the OCR prompt logic.
- *
- * allOCRText — all confirmed OCR pages concatenated with page dividers.
- * sessionId  — current session ID, embedded in the prompt for context.
- *
- * Returns the complete system prompt string ready for ChronicleAI.call().
- */
-function buildRelationshipPrompt(allOCRText, sessionId) {
-  // Controlled vocabulary for relationship_type — from issue #41 schema.
-  const vocab = [
-    'combat_antagonist   — entity was an enemy in a combat',
-    'allied              — fought on the same side or have a standing alliance',
-    'quest_connection    — entity is tied to a quest the source is pursuing',
-    'location_inhabitant — entity lives, works, or is based at a location',
-    'social_contact      — entities know each other; no combat or quest connection',
-    'witnessed           — source entity witnessed the target event or entity',
-    'unknown             — relationship exists but nature is not established',
-  ].join('\n');
-
-  return `You are a D&D session log analyst. Identify entity relationships from combat notes for ${sessionId} using the two-tier model below.
-
-Party roster — use EXACT IDs for PCs:
-${ChronicleAI.PARTY_ROSTER}
-
-"party" is a RESERVED from_id meaning the full active party together (NOT individual PCs).
-
-Relationship types — use ONLY these values for relationship_type:
-${vocab}
-
-━━━ TIER 1 — COMBAT PARTICIPATION ━━━
-Produce EXACTLY ONE entry per combat found in the notes.
-  from_id:           "party"
-  from_type:         "party"
-  to_id:             <NPC group slug, e.g. "npc_goblin_warband">
-  to_type:           "npc"
-  relationship_type: "combat_antagonist"
-  significance:      "participation"
-  ground_truth_notes: one sentence — combat name + session ID only
-
-━━━ TIER 2 — SIGNIFICANT EVENTS ━━━
-Individual entity-pair entries. Use significance: "significant_event".
-Only include an entry if the event meets ONE OR MORE of these criteria:
-  ✓ A PC DIES — this means THREE failed death saves OR instant death from massive damage.
-    "Dying" and "death" in D&D are specific outcomes, not the same as going to 0HP.
-  ✓ A specific NPC kills a PC (three failed saves / instant death) — the NPC is the subject
-  ✓ A PC is revived from actual death (revivify, resurrection — not just healed after going down)
-  ✓ An item changes hands (stolen, gifted, destroyed, discovered)
-  ✓ An NPC changes allegiance (ally→enemy, surrender, hostage freed)
-  ✓ An NPC is individually distinguished from their group by a specific named action
-  ✓ A PC performs an action with consequences beyond this combat
-  ✓ A moment explicitly marked as important in the notes
-
-DO NOT produce a Tier 2 entry for:
-  ✗ A PC going to 0HP — this is NORMAL combat and NOT death.
-    Phrases like "knocked unconscious", "knocked out", "goes down", "was downed",
-    "dropped to 0HP", "at 0 hit points", "falls unconscious" all mean 0HP, NOT death.
-    Unless the notes then say the PC FAILED THREE DEATH SAVES or was INSTANTLY KILLED,
-    going to 0HP is routine and must NOT produce a Tier 2 entry.
-  ✗ Failed death saves that do not result in death (one or two failed saves = still alive)
-  ✗ Being stabilised or healed after going to 0HP — the PC survived; no Tier 2 entry
-  ✗ Standard attack, damage, or spell use
-  ✗ General combat participation (already Tier 1)
-  ✗ Round-by-round mechanical detail
-
-━━━ ID RULES ━━━
-PCs:       exact pc_NNN from roster above
-NPCs:      slug like "npc_goblin_warband" (DM assigns real ID in review)
-Locations: slug like "loc_crossroads"
-
-ground_truth_notes: ONE SENTENCE MAXIMUM — cite the event, not mechanics.
-
-Output ONLY valid JSON — no markdown, no explanation:
-{"relationships_created":[]}
-
-SESSION NOTES:
-${allOCRText}`;
-}
-
-/**
- * detectRelationships(allOCRText, sessionId) → Promise<Array>
- *
- * Why it exists: wraps ChronicleAI.call() (callback-based) in a Promise so
- * sendToAnalysis() can await it cleanly. This is a best-effort enhancement —
- * it always resolves (never rejects), returning [] on any failure so that
- * a missing API key, network error, or unparseable response can never block
- * the DM from proceeding to delta-review.
- *
- * What breaks if removed: relationships_created[] in the envelope will always
- * be empty and entity_relationships[] in the campaign JSON will never be
- * populated by the intake workflow (manual JSON edits remain possible).
- */
-function detectRelationships(allOCRText, sessionId) {
-  return new Promise(function(resolve) {
-    ChronicleAI.call({
-      system: buildRelationshipPrompt(allOCRText, sessionId),
-      messages: [{
-        role:    'user',
-        content: 'Identify all entity relationships from these session notes. Output only the JSON object.',
-      }],
-      onLoading: function() {},
-      onResult: function(text) {
-        try {
-          // Strip markdown fences in case the model wrapped the JSON despite
-          // instructions — defensive parse so the DM isn't blocked by a stray ```.
-          const clean = text
-            .replace(/^```(?:json)?\s*/m, '')
-            .replace(/\s*```$/m,          '')
-            .trim();
-          const parsed = JSON.parse(clean);
-          // Guard: if the response is not the expected shape, return empty array
-          // rather than passing garbage objects to the review queue.
-          resolve(Array.isArray(parsed.relationships_created) ? parsed.relationships_created : []);
-        } catch (_) {
-          // JSON parse failed — empty array is safer than surfacing bad data.
-          resolve([]);
-        }
-      },
-      onError: function() {
-        // No API key, network failure, or API error — resolve empty so the
-        // sendToAnalysis flow completes without error.
-        resolve([]);
-      },
-    });
-  });
-}
+// Relationship detection (buildRelationshipPrompt / detectRelationships,
+// issue #43) was removed by #106: it read uncorrected OCR text before any
+// review, so a misread name gave a wrong relationship. Relationships are now
+// computed at publish from confirmed data (ChroniclePublish.deriveRelationships).
 
 function simulateOCR(idx) {
   if (idx >= pageData.length) { finishOCR(); return; }
@@ -2351,15 +2223,13 @@ function goBackToOCR() {
  * the Step 4 summary panel (issue #30). Navigation to delta-review.html happens
  * when the DM clicks "Proceed to Delta Review →" in that panel.
  *
- * Async since issue #43: after building the base delta items, a second AI pass
- * (detectRelationships) scans all OCR text for entity relationships. The Proceed
- * button is disabled while this runs and re-enabled once the envelope is written.
- * If relationship detection fails or returns nothing the envelope is still written —
- * the feature is additive and must never block the DM from proceeding.
+ * Since #106 there is no relationship AI pass (issue #43's detectRelationships
+ * was removed): relationships are computed at publish from confirmed data.
+ * Still async so callers that await it keep working.
  *
  * What it writes: sessionStorage key 'chronicle_intake_delta' — a JSON envelope
  * containing a metadata block and an items[] array shaped to the delta-review
- * item schema. Written after the relationship AI pass completes. nlRender()
+ * item schema. nlRender()
  * functions cannot be serialised; delta-review rehydrates them from item.type.
  *
  * What breaks if removed / skipped: delta-review sees no sessionStorage key and
@@ -2445,103 +2315,38 @@ async function sendToAnalysis() {
     });
   }
 
-  // ── Transition to step 4 immediately with loading state ──────────────────
-  // Show the panel before the async AI call so the DM sees instant feedback.
-  // The Proceed button stays disabled until the envelope is written below.
+  // ── Write envelope to sessionStorage ────────────────────────────────────
+  // The envelope wraps items[] with metadata so delta-review can show a
+  // meaningful banner without having to inspect the items array itself.
+  // Key must not conflict with 'chronicle_prompt_improvement_log' (issue #29).
+  // There is no relationships_created[] any more (#106): relationships are
+  // computed at publish, never queued for review.
+  const envelope = {
+    source:    'intake',
+    timestamp: new Date().toISOString(),
+    sessionId,
+    pageCount: pageData.length,
+    hasNarrative,
+    items:     deltaItems,
+  };
+  sessionStorage.setItem('chronicle_intake_delta', JSON.stringify(envelope));
+
+  // ── Show the Step 4 summary ─────────────────────────────────────────────
   setStep(4);
   document.getElementById('consolidation-section').classList.remove('visible');
-
-  const proceedBtn = document.getElementById('proceed-btn');
-  if (proceedBtn) {
-    proceedBtn.disabled    = true;
-    proceedBtn.textContent = 'Detecting relationships…';
-  }
-
   const failedCount = pageData.filter(p => p.ocrFailed).length;
   const row = (label, val) =>
     `<div style="display:flex;gap:1rem;padding:0.55rem 0;border-bottom:1px solid var(--border);">
        <span style="min-width:140px;font-size:0.85rem;color:var(--muted);">${label}</span>
        <span style="font-size:0.9rem;">${val}</span>
      </div>`;
-
-  document.getElementById('step4-summary').innerHTML =
-    row('Session',      `<span style="font-family:'JetBrains Mono',monospace;">${escapeHtml(sessionId)}</span>`) +
-    row('Pages confirmed', `${pageData.length}${failedCount ? ` <span style="color:var(--rust);font-size:0.82rem;">(${failedCount} manually entered)</span>` : ''}`) +
-    row('Narrative notes',  hasNarrative ? 'Yes' : '<span style="color:var(--muted);">None</span>') +
-    row('Relationships',    '<span style="color:var(--muted);font-style:italic;">Detecting…</span>');
-
-  document.getElementById('step4-section').classList.add('visible');
-
-  // ── Run relationship detection AI pass (issue #43) ───────────────────────
-  // Combine all confirmed OCR pages into one block and ask Sonnet to identify
-  // entity relationships. detectRelationships() always resolves (never rejects)
-  // so no try/catch is needed — a failed call returns [].
-  const allOCRText = pageData
-    .map((p, i) => `--- Page ${i + 1} ---\n${p.ocrText || '(empty)'}`)
-    .join('\n\n');
-
-  const relArray = await detectRelationships(allOCRText, sessionId);
-
-  // ── Add one RELATIONSHIP item per detected relationship ──────────────────
-  // Each item appears as a reviewable queue entry in delta-review.
-  // NPC/location IDs are placeholders (slug form) — the DM must verify them
-  // against the entity list before approving. The applyDeltasToCampaign()
-  // RELATIONSHIP handler writes approved entries to entity_relationships[].
-  relArray.forEach(function(rel, i) {
-    deltaItems.push({
-      id:        `intake_rel_${i}`,
-      type:      'RELATIONSHIP',
-      array:     'entity_relationships',
-      group:     'Relationships',
-      status:    'pending',
-      flags:     [],
-      title:     `${rel.from_id} → ${rel.to_id} (${rel.relationship_type}) [${rel.significance || 'participation'}]`,
-      sourceRef: 'Relationship detected by intake AI',
-      rawData:   {
-        from_id:             rel.from_id             || '',
-        from_type:           rel.from_type           || 'unknown',
-        to_id:               rel.to_id               || '',
-        to_type:             rel.to_type             || 'unknown',
-        relationship_type:   rel.relationship_type   || 'unknown',
-        // significance distinguishes Tier 1 (participation) from Tier 2 (significant_event).
-        // applyDeltasToCampaign() uses this to decide dedup vs. always-append behaviour.
-        significance:        rel.significance        || 'participation',
-        ground_truth_notes:  rel.ground_truth_notes  || '',
-        // established_session is set here so applyDeltasToCampaign() doesn't
-        // need to read it from the envelope separately — all data travels in rawData
-        established_session: sessionId,
-      },
-    });
-  });
-
-  // ── Write envelope to sessionStorage ────────────────────────────────────
-  // The envelope wraps items[] with metadata so delta-review can show a
-  // meaningful banner without having to inspect the items array itself.
-  // Key must not conflict with 'chronicle_prompt_improvement_log' (issue #29).
-  // relationships_created[] mirrors the RELATIONSHIP items at root level so
-  // applyDeltasToCampaign() can access the raw array without filtering items[].
-  const envelope = {
-    source:                'intake',
-    timestamp:             new Date().toISOString(),
-    sessionId,
-    pageCount:             pageData.length,
-    hasNarrative,
-    relationships_created: relArray,
-    items:                 deltaItems,
-  };
-  sessionStorage.setItem('chronicle_intake_delta', JSON.stringify(envelope));
-
-  // ── Update summary and re-enable Proceed ────────────────────────────────
-  const relCount = relArray.length;
   document.getElementById('step4-summary').innerHTML =
     row('Session',      `<span style="font-family:'JetBrains Mono',monospace;">${escapeHtml(sessionId)}</span>`) +
     row('Pages confirmed', `${pageData.length}${failedCount ? ` <span style="color:var(--rust);font-size:0.82rem;">(${failedCount} manually entered)</span>` : ''}`) +
     row('Narrative notes', hasNarrative ? 'Yes' : '<span style="color:var(--muted);">None</span>') +
-    row('Relationships detected', relCount > 0
-      ? `${relCount} — verify NPC/location IDs in Delta Review before publishing`
-      : '<span style="color:var(--muted);">None detected</span>') +
-    row('Items queued', `${deltaItems.length} — session stub, ${pageData.length} OCR page${pageData.length !== 1 ? 's' : ''}${hasNarrative ? ', narrative' : ''}${relCount > 0 ? `, ${relCount} relationship${relCount !== 1 ? 's' : ''}` : ''}`);
-
+    row('Items queued', `${deltaItems.length} — session stub, ${pageData.length} OCR page${pageData.length !== 1 ? 's' : ''}${hasNarrative ? ', narrative' : ''}`);
+  document.getElementById('step4-section').classList.add('visible');
+  const proceedBtn = document.getElementById('proceed-btn');
   if (proceedBtn) {
     proceedBtn.disabled    = false;
     proceedBtn.textContent = 'Proceed to Delta Review →';

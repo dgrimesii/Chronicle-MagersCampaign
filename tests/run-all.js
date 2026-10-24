@@ -41,6 +41,7 @@ const TEST_FILES = [
   'tests/absence-notes.test.js',
   'tests/entity-pages.test.js',
   'tests/header-draft.test.js',
+  'tests/session-publish.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

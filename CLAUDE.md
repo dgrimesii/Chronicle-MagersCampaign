@@ -163,7 +163,8 @@ async function loadCampaignData() {
 - Safe Test Mode builds on `tests/fixtures/test-campaign.json` and writes only `tests/output/test-campaign.published.json` (git-ignored). It must never write the fixture (the automated tests depend on it) or the real campaign file
 - The file is written as `JSON.stringify(campaign, null, 2) + "\n"`, the format the repo stores, so the VS Code diff shows only what changed
 - Every failure is an error ending "Nothing was written" (or saying the old file is unchanged), never a silent skip
-- `.vscode/settings.json` makes Live Server ignore `data/**`, `tests/**` and `OCR Test Files/**` so a publish, or a test photo or screenshot saved there, does not reload the page and lose the review. Keep those entries, and keep Live Server's defaults in the list, because the setting replaces them
+- The session page's Publish (`publishFromPage()`, #106) follows the same rules as Delta Review's Confirm Publish: `loadPublishBase()` is its first await, and it builds on the file just read, not the copy the page loaded. Its button stays disabled until no decision is pending (the DM's rule), and the pending decisions are listed beside it
+- Live Server must ignore `**/data/**`, `**/tests/**` and `**/OCR Test Files/**` so a publish, or a test photo or screenshot saved there, does not reload the page and lose the review. The list lives in `shared/CampaignLogApp.code-workspace` (the workspace the DM opens; Live Server reads its settings, not the folder's) and in `.vscode/settings.json`; keep the two the same. Write every pattern with a leading `**/`: a relative one (`tests/**`) never matches on Windows (#106). Keep those entries, and keep Live Server's defaults in the list, because the setting replaces them
 
 ## Google Drive is retired (issue #98)
 
@@ -196,7 +197,7 @@ When a page needs all eleven shared modules, load them in this order:
 
 `chronicle-ids.js` exports `window.ChronicleIds` (and `module.exports` under Node): UUID allocation and legacy-ID translation (issue #95). No dependencies. Load it on any page that accepts IDs from outside the data (intake output, AI output, links) and must turn a legacy ID into a UUID, or that creates entities. The two viewers do not load it, because `normaliseCampaignJson` must stay self-contained.
 
-`chronicle-publish.js` exports `window.ChroniclePublish` (and `module.exports` under Node): `applySession()`, the one function that turns approved review items into campaign data (issue #92), plus `sessionChoices()` and `sessionHeader()`, which the session page uses to pick the session ID and date and hand them to `applySession()` (#99). Session choices and the header rule belong here, not in the page, so `tests/session-header.test.js` runs them through the real publish. It needs `chronicle-ids.js` loaded first and touches no DOM, sessionStorage or network; pages pass their state in as options. Any change to what publish writes goes in this module, not in a page, so `tests/delta-apply.test.js` keeps testing the real code. README "Shared modules" lists its round-conversion rules.
+`chronicle-publish.js` exports `window.ChroniclePublish` (and `module.exports` under Node): `applySession()`, the one function that turns approved review items into campaign data (issue #92), plus `sessionChoices()` and `sessionHeader()`, which the session page uses to pick the session ID and date and hand them to `applySession()` (#99). Session choices and the header rule belong here, not in the page, so `tests/session-header.test.js` runs them through the real publish. It needs `chronicle-ids.js` loaded first and touches no DOM, sessionStorage or network; pages pass their state in as options. Any change to what publish writes goes in this module, not in a page, so `tests/delta-apply.test.js` keeps testing the real code. README "Shared modules" lists its round-conversion rules. Since #106 it also holds `sessionQueue()`, which turns the session page's review into the queue (so `tests/session-publish.test.js` tests the real order and placement), and `deriveRelationships()`, run by every `applySession()`.
 
 `chronicle-entities.js` exports `window.ChronicleEntities` (and `module.exports` under Node): the session page's entity identification (#100), meaning the step 2 mention prompt and reply check, the step 3 rows and the DM's actions, and `toQueueItems()`, which turns the answers into publish items. It needs `chronicle-ids.js` loaded first and touches no DOM, storage or network. Matching rules belong here, not in the page, so `tests/entity-identification.test.js` tests the real code. Only an exact name, PC nickname or alias may be bulk-acknowledged; never let the AI's own confidence decide that.
 
@@ -349,6 +350,14 @@ The `relationship_type` field on each entry in `entity_relationships[]` must be 
 | `social_contact` | The entities know each other; no combat or quest connection |
 | `witnessed` | The source entity witnessed the target event or entity in a significant way |
 | `unknown` | A relationship exists but its nature has not been established |
+
+Relationships are computed, never written by hand or detected from raw text (#106). Every publish rebuilds the `participation` records from confirmed data in `ChroniclePublish.deriveRelationships()`; README "Shared modules" lists the sources. Rules the DM set:
+- A record with significance `significant_event` is a judgment the DM approved in step 4 (#105). Rebuilds keep it untouched; never delete or recompute one.
+- Location visits are not relationships: `sessions_visited` and a combat's location already hold them.
+- A disposition is an attribute of a relationship, not one itself: it rides on the party → NPC record as `disposition`.
+- Quests make their relationships when they are recorded; discovered facts (faction membership, an NPC's relationship list) make theirs once they are in the data.
+- Party-level records use `from_id: "party"`, one per pairing, never one per PC.
+To change what relationships exist, change the confirmed data or `deriveRelationships()`, never `entity_relationships[]` itself.
 
 ### Next available IDs
 
