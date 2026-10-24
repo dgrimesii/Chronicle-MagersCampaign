@@ -58,7 +58,7 @@ flowchart TD
     PD -- "no" --> RVW
     PD -- "yes" --> PB["Publish → confirmation panel"]
     PB --> TM{"Safe Test Mode?"}
-    TM -- "yes" --> TF["Read test fixture → apply deltas<br/>→ download test-campaign.json"]
+    TM -- "yes" --> TF["Read test fixture → apply deltas<br/>→ write tests/output/test-campaign.published.json"]
     TM -- "no" --> DR["Drive backup → read Drive copy<br/>→ apply deltas → write Drive"]
     TF --> CL[("sessionStorage cleared")]
     DR --> CL

@@ -3,28 +3,75 @@
   "meta": {
     "campaign_name": "Test Campaign",
     "system": "D&D 5e",
-    "last_updated": "2026-10-23",
-    "note": "Synthetic test data — no real Magers campaign content"
+    "last_updated": "2026-10-24",
+    "note": "Synthetic test data. The six PCs carry the real party's names, nicknames and classes, and session_003–session_007 are placeholders, so a Safe Test Mode publish of real session notes resolves every PC and session (#111). Everything else is invented."
   },
   "party": [
     {
       "id": "51aa5d2f-f926-4498-b34d-da1371d01fdd",
       "legacy_id": "pc_001",
-      "name": "Aldric",
+      "name": "Zragar",
+      "nickname": "Goldie",
       "mechanics": {
-        "class": "Fighter",
+        "class": "Wizard",
         "level": 3,
-        "race": "Human"
+        "race": "Dragonborn (Gold/Fire)"
       },
       "narrative": {
-        "background": "Soldier"
+        "background": "Sage"
       },
       "campaign_notes": "Test PC 1"
     },
     {
       "id": "80441a13-3c7c-4dd1-a20c-871d6bdc8ed7",
       "legacy_id": "pc_002",
-      "name": "Sable",
+      "name": "Malachite",
+      "nickname": "Mal",
+      "mechanics": {
+        "class": "Barbarian",
+        "level": 3,
+        "race": "Aasimar"
+      },
+      "narrative": {
+        "background": "Giant Foundling"
+      },
+      "campaign_notes": "Test PC 2"
+    },
+    {
+      "id": "e2968432-505b-453a-93a4-8376e051e94c",
+      "legacy_id": "pc_003",
+      "name": "Ashton",
+      "nickname": "Ash",
+      "mechanics": {
+        "class": "Warlock",
+        "level": 3,
+        "race": "Tiefling"
+      },
+      "narrative": {
+        "background": "Merchant"
+      },
+      "campaign_notes": "Test PC 3"
+    },
+    {
+      "id": "f9fcfe55-8aea-4d0a-80b4-1a94e21f2fbd",
+      "legacy_id": "pc_004",
+      "name": "Asphodel",
+      "nickname": "Del",
+      "mechanics": {
+        "class": "Monk",
+        "level": 3,
+        "race": "Aasimar"
+      },
+      "narrative": {
+        "background": "Genie Touched"
+      },
+      "campaign_notes": "Test PC 4"
+    },
+    {
+      "id": "f49b6265-cfb6-4fde-b4db-6c281fedffe2",
+      "legacy_id": "pc_005",
+      "name": "Derwin",
+      "nickname": "Goli",
       "mechanics": {
         "class": "Rogue",
         "level": 3,
@@ -33,7 +80,22 @@
       "narrative": {
         "background": "Criminal"
       },
-      "campaign_notes": "Test PC 2"
+      "campaign_notes": "Test PC 5"
+    },
+    {
+      "id": "33ac48bd-1d95-440a-bf08-47b941ca9e49",
+      "legacy_id": "pc_006",
+      "name": "Atticus",
+      "nickname": "Atti",
+      "mechanics": {
+        "class": "Druid",
+        "level": 3,
+        "race": "Human"
+      },
+      "narrative": {
+        "background": "Guide"
+      },
+      "campaign_notes": "Test PC 6"
     }
   ],
   "session_logs": [
@@ -46,10 +108,10 @@
         "tone": "tense",
         "key_moments": [
           {
-            "description": "Aldric defeated the lead goblin"
+            "description": "Zragar defeated the lead goblin"
           },
           {
-            "description": "Sable found a hidden door"
+            "description": "Malachite found a hidden door"
           }
         ]
       },
@@ -83,6 +145,171 @@
           "16ac97da-d817-4607-884e-ca8acec0077e"
         ]
       }
+    },
+    {
+      "_object_type": "session",
+      "id": "5eb5538b-1927-44d5-b90d-2f6a2549a33b",
+      "legacy_id": "session_003",
+      "title": null,
+      "date": "2026-03-03",
+      "mechanics": {
+        "combats": [],
+        "level_ups": [],
+        "items_found": [],
+        "npcs_met": [],
+        "npcs_lost": [],
+        "quests_opened": [],
+        "quests_closed": [],
+        "locations_visited": []
+      },
+      "narrative": {
+        "summary": null,
+        "tone": null,
+        "key_moments": [],
+        "opening_scene": null,
+        "closing_scene": null,
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
+      },
+      "mechanical_notes": [],
+      "notes": "PLACEHOLDER — test session (#111), so a Safe Test Mode publish can use the real session ID."
+    },
+    {
+      "_object_type": "session",
+      "id": "85dc9ca8-b5f5-4eb1-9752-f7979b3ea5f6",
+      "legacy_id": "session_004",
+      "title": null,
+      "date": "2026-03-10",
+      "mechanics": {
+        "combats": [],
+        "level_ups": [],
+        "items_found": [],
+        "npcs_met": [],
+        "npcs_lost": [],
+        "quests_opened": [],
+        "quests_closed": [],
+        "locations_visited": []
+      },
+      "narrative": {
+        "summary": null,
+        "tone": null,
+        "key_moments": [],
+        "opening_scene": null,
+        "closing_scene": null,
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
+      },
+      "mechanical_notes": [],
+      "notes": "PLACEHOLDER — test session (#111), so a Safe Test Mode publish can use the real session ID."
+    },
+    {
+      "_object_type": "session",
+      "id": "4620ecc6-75a2-4749-9fc3-62dda524047e",
+      "legacy_id": "session_005",
+      "title": null,
+      "date": "2026-03-17",
+      "mechanics": {
+        "combats": [],
+        "level_ups": [],
+        "items_found": [],
+        "npcs_met": [],
+        "npcs_lost": [],
+        "quests_opened": [],
+        "quests_closed": [],
+        "locations_visited": []
+      },
+      "narrative": {
+        "summary": null,
+        "tone": null,
+        "key_moments": [],
+        "opening_scene": null,
+        "closing_scene": null,
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
+      },
+      "mechanical_notes": [],
+      "notes": "PLACEHOLDER — test session (#111), so a Safe Test Mode publish can use the real session ID."
+    },
+    {
+      "_object_type": "session",
+      "id": "40b8081e-feca-4aa0-ac9e-66f3e697d119",
+      "legacy_id": "session_006",
+      "title": null,
+      "date": "2026-04-02",
+      "mechanics": {
+        "combats": [],
+        "level_ups": [],
+        "items_found": [],
+        "npcs_met": [],
+        "npcs_lost": [],
+        "quests_opened": [],
+        "quests_closed": [],
+        "locations_visited": []
+      },
+      "narrative": {
+        "summary": null,
+        "tone": null,
+        "key_moments": [],
+        "opening_scene": null,
+        "closing_scene": null,
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
+      },
+      "mechanical_notes": [],
+      "notes": "PLACEHOLDER — test session (#111), so a Safe Test Mode publish can use the real session ID."
+    },
+    {
+      "_object_type": "session",
+      "id": "ea12fc68-ecf0-4f20-9d98-c14bfb9c98d6",
+      "legacy_id": "session_007",
+      "title": null,
+      "date": "2026-04-09",
+      "mechanics": {
+        "combats": [],
+        "level_ups": [],
+        "items_found": [],
+        "npcs_met": [],
+        "npcs_lost": [],
+        "quests_opened": [],
+        "quests_closed": [],
+        "locations_visited": []
+      },
+      "narrative": {
+        "summary": null,
+        "tone": null,
+        "key_moments": [],
+        "opening_scene": null,
+        "closing_scene": null,
+        "chronicle_entry": null,
+        "chronicle_entry_generated_at": null,
+        "chronicle_entry_model": null,
+        "chronicle_entry_version": 0,
+        "narrative_beats": [],
+        "human_guidance": null,
+        "generation_warnings": []
+      },
+      "mechanical_notes": [],
+      "notes": "PLACEHOLDER — test session (#111), so a Safe Test Mode publish can use the real session ID."
     }
   ],
   "combat_encounters": [
@@ -100,7 +327,7 @@
       },
       "narrative": {
         "setup": "Three goblins ambushed the party on the road.",
-        "finale": "Aldric struck down the last goblin.",
+        "finale": "Zragar struck down the last goblin.",
         "aftermath": "The party searched the bodies and found a crude map."
       },
       "rounds": [

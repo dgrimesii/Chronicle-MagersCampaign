@@ -66,7 +66,10 @@ console.log('\nTest H-1 — the session choices: placeholders first, then the ne
   assert('H-1: the last choice is the next new ID, session_008', ids[ids.length - 1] === 'session_008' && !choices[choices.length - 1].placeholder);
   assert('H-1: complete sessions (session_001–005) are not offered', !ids.some(id => /^session_00[1-5]$/.test(id)));
   const fx = ChroniclePublish.sessionChoices(fixture).map(c => c.legacyId);
-  assert('H-1: the fixture (no placeholders) offers only session_003', fx.length === 1 && fx[0] === 'session_003');
+  // The fixture has placeholders session_003–session_007 since #111, so a
+  // Safe Test Mode publish of real notes can use the real session ID.
+  assert('H-1: the fixture offers its placeholders session_003–007, then session_008',
+    JSON.stringify(fx) === JSON.stringify(['session_003', 'session_004', 'session_005', 'session_006', 'session_007', 'session_008']));
 }
 
 // ── H-2 ─────────────────────────────────────────────────────────────────────

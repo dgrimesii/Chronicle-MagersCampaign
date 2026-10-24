@@ -4,8 +4,9 @@
  * Tests the checks added to shared/chronicle-integrity.js: imbalance, source
  * line, ability ownership, action economy, outcome count, state, round
  * order, duplicates and gaps. One test per check on
- * tests/fixtures/test-campaign.json (its combat cbt_001 has three rounds for
- * Aldric and Sable), then the issue's acceptance cases on the real campaign.
+ * tests/fixtures/test-campaign.json's first two PCs, Zragar and Malachite (the
+ * real party's names since #111; before that they were invented test PCs), then
+ * the issue's acceptance cases on the real campaign.
  *   S-1 … S-9  one per check, each with a case that flags and one that does not
  *   S-10       Att's Cure Wounds in Goli's row: ability ownership and source
  *              line both flag, and suggest moving it to Att
@@ -51,7 +52,7 @@ const read = rel => JSON.parse(fs.readFileSync(path.join(__dirname, '..', rel), 
 const fixture = read('tests/fixtures/test-campaign.json');
 const clone = v => JSON.parse(JSON.stringify(v));
 const F = ChronicleIds.buildLegacyIndex(fixture);
-const ALDRIC = F.get('pc_001'), SABLE = F.get('pc_002');
+const ZRAGAR = F.get('pc_001'), MALACHITE = F.get('pc_002');
 
 // Abilities for the two fixture PCs (they have no harvested sheet).
 const fxAbilities = { characters: [
@@ -69,10 +70,10 @@ function combat() {
     mechanics: { enemies_roster: [{ actor_id: 'Goblins', type: 'group', count: 2 }, { actor_id: 'Ogre', type: 'individual', count: 1 }] },
     rounds: [1, 2, 3].map(n => ({ n,
       slots: [
-        { s: 1, a: ALDRIC, activities: [act('action', 'Attack', [hit(8)], { detail: 'Longsword' })] },
-        { s: 2, a: SABLE, activities: [act('action', 'Attack', [hit(11)], { detail: 'Shortsword' })] },
+        { s: 1, a: ZRAGAR, activities: [act('action', 'Attack', [hit(8)], { detail: 'Longsword' })] },
+        { s: 2, a: MALACHITE, activities: [act('action', 'Attack', [hit(11)], { detail: 'Shortsword' })] },
       ],
-      enemy_turns: [{ actor_id: 'Goblins', activities: [act('action', 'Attack', [hit(4, ALDRIC)])] }],
+      enemy_turns: [{ actor_id: 'Goblins', activities: [act('action', 'Attack', [hit(4, ZRAGAR)])] }],
     })),
   };
 }
@@ -88,27 +89,27 @@ console.log('\nTest S-0 — a clean combat raises nothing');
 console.log('\nTest S-1 — imbalance');
 {
   const c = combat();
-  c.rounds[1].slots = [{ s: 1, a: ALDRIC, activities: [act('action', 'Attack', [hit(8)]), act('action', 'Attack', [hit(6)])] }];
+  c.rounds[1].slots = [{ s: 1, a: ZRAGAR, activities: [act('action', 'Attack', [hit(8)]), act('action', 'Attack', [hit(6)])] }];
   const f = CI.imbalance(c, fxCtx());
-  assert('S-1: Aldric with two actions and Sable with none in round 2 is flagged', f.length === 1 && f[0].cell.round === 2 && f[0].cell.s === 1);
-  assert('S-1: it suggests moving one to Sable', f[0].suggestedMove?.to === SABLE);
+  assert('S-1: Zragar with two actions and Malachite with none in round 2 is flagged', f.length === 1 && f[0].cell.round === 2 && f[0].cell.s === 1);
+  assert('S-1: it suggests moving one to Malachite', f[0].suggestedMove?.to === MALACHITE);
   assert('S-1: two actions with nobody missing is not an imbalance', CI.imbalance((() => { const x = combat(); x.rounds[0].slots[0].activities.push(act('action', 'Attack', [hit(2)])); return x; })(), fxCtx()).length === 0);
 }
 
 console.log('\nTest S-2 — source line');
 {
   const c = combat();
-  c.rounds[0].slots[1].source_line = 'Aldric - Longsword hit 8';
+  c.rounds[0].slots[1].source_line = 'Zragar - Longsword hit 8';
   const f = CI.sourceLine(c, fxCtx());
-  assert('S-2: a line naming Aldric in Sable\'s row is flagged', f.length === 1 && f[0].cell.s === 2 && f[0].suggestedMove?.to === ALDRIC);
+  assert('S-2: a line naming Zragar in Malachite\'s row is flagged', f.length === 1 && f[0].cell.s === 2 && f[0].suggestedMove?.to === ZRAGAR);
   const ok = combat();
-  ok.rounds[0].slots[1].source_line = 'Sable - Shortsword hit 11';
+  ok.rounds[0].slots[1].source_line = 'Malachite - Shortsword hit 11';
   ok.rounds[0].slots[0].source_line = 'Ald - hit (8)'; // short form, start of one PC's name
   assert('S-2: a line naming the row\'s own PC (or its short form) is not', CI.sourceLine(ok, fxCtx()).length === 0);
-  // Notes in two columns: one line holds Aldric's turn and Sable's. Sable's
-  // turn must not be flagged for the line starting with Aldric (session 6).
+  // Notes in two columns: one line holds Zragar's turn and Malachite's. Malachite's
+  // turn must not be flagged for the line starting with Zragar (session 6).
   const cols = combat();
-  cols.rounds[0].slots[1].source_line = 'Aldric - Longsword hit 8     Sable - Shortsword hit 11';
+  cols.rounds[0].slots[1].source_line = 'Zragar - Longsword hit 8     Malachite - Shortsword hit 11';
   assert('S-2: a two-column line that also names the row\'s PC is not flagged', CI.sourceLine(cols, fxCtx()).length === 0);
 }
 
@@ -117,7 +118,7 @@ console.log('\nTest S-3 — ability ownership');
   const c = combat();
   c.rounds[0].slots[0].activities = [act('action', 'Magic', [hit(5)], { detail: 'Mage Hand' })];
   const f = CI.abilityOwnership(c, fxCtx());
-  assert('S-3: Mage Hand in Aldric\'s row (only Sable has it) is flagged, suggesting Sable', f.length === 1 && f[0].suggestedMove?.to === SABLE);
+  assert('S-3: Mage Hand in Zragar\'s row (only Malachite has it) is flagged, suggesting Malachite', f.length === 1 && f[0].suggestedMove?.to === MALACHITE);
   const ok = combat();
   ok.rounds[0].slots[0].activities.push(act('bonus_action', 'Second Wind'));
   assert('S-3: an ability on the PC\'s own list is not', CI.abilityOwnership(ok, fxCtx()).length === 0);
@@ -155,15 +156,15 @@ console.log('\nTest S-5 — outcome count');
 
 console.log('\nTest S-6 — state');
 {
-  // The goblins down Aldric in round 1: from round 2 he may only make death saves.
+  // The goblins down Zragar in round 1: from round 2 he may only make death saves.
   const c = combat();
-  c.rounds[0].enemy_turns[0].activities = [act('action', 'Attack', [hit(9, ALDRIC, { effect: 'downed' })])];
+  c.rounds[0].enemy_turns[0].activities = [act('action', 'Attack', [hit(9, ZRAGAR, { effect: 'downed' })])];
   const f = CI.state(c, fxCtx());
-  assert('S-6: Aldric attacking in round 2 after an enemy downed him in round 1 is flagged', f.some(x => x.cell.round === 2 && x.cell.s === 1));
+  assert('S-6: Zragar attacking in round 2 after an enemy downed him in round 1 is flagged', f.some(x => x.cell.round === 2 && x.cell.s === 1));
   assert('S-6: …but not in round 1 itself (enemy effects happen sometime in the round)', !f.some(x => x.cell.round === 1));
   const healed = clone(c);
-  healed.rounds[1].slots[1].activities.push(act('action', 'Magic', [hit(5, ALDRIC)], { detail: 'Cure Wounds', val_type: 'healing' }));
-  healed.rounds[1].slots.reverse().forEach((sl, i) => { sl.s = i + 1; }); // Sable now acts first, healing Aldric before his turn
+  healed.rounds[1].slots[1].activities.push(act('action', 'Magic', [hit(5, ZRAGAR)], { detail: 'Cure Wounds', val_type: 'healing' }));
+  healed.rounds[1].slots.reverse().forEach((sl, i) => { sl.s = i + 1; }); // Malachite now acts first, healing Zragar before his turn
   assert('S-6: a heal before his turn clears it', !CI.state(healed, fxCtx()).some(x => x.cell.round === 2));
   const saves = clone(c);
   saves.rounds[1].slots[0].activities = [act('action', 'Death Save', [{ res: 'success', val: null, target_id: null }])];
@@ -171,8 +172,8 @@ console.log('\nTest S-6 — state');
   assert('S-6: death saves and No Action while downed are fine', CI.state(saves, fxCtx()).length === 0);
   const ogre = combat();
   ogre.rounds[0].slots[1].activities = [act('action', 'Attack', [hit(30, 'Ogre', { effect: 'killed' })])];
-  ogre.rounds[0].enemy_turns.push({ actor_id: 'Ogre', activities: [act('action', 'Attack', [hit(10, ALDRIC)])] });
-  ogre.rounds[1].enemy_turns.push({ actor_id: 'Ogre', activities: [act('action', 'Attack', [hit(10, ALDRIC)])] });
+  ogre.rounds[0].enemy_turns.push({ actor_id: 'Ogre', activities: [act('action', 'Attack', [hit(10, ZRAGAR)])] });
+  ogre.rounds[1].enemy_turns.push({ actor_id: 'Ogre', activities: [act('action', 'Attack', [hit(10, ZRAGAR)])] });
   const of6 = CI.state(ogre, fxCtx());
   assert('S-6: the Ogre acting in round 2 after being killed in round 1 is flagged, its round 1 turn is not',
     of6.some(x => x.cell.round === 2 && x.cell.actor_id === 'Ogre') && !of6.some(x => x.cell.round === 1));
@@ -181,7 +182,7 @@ console.log('\nTest S-6 — state');
   assert('S-6: a released readied action with no Ready is flagged', CI.state(ready, fxCtx()).some(x => /no Ready is recorded/.test(x.message)));
   const late = combat();
   assert('S-6: acting before joining (order says from round 2) is flagged',
-    CI.state(late, Object.assign(fxCtx(), { order: [{ s: 1, a: ALDRIC, from: 2 }, { s: 2, a: SABLE }] })).some(x => x.cell.round === 1 && /before joining/.test(x.message)));
+    CI.state(late, Object.assign(fxCtx(), { order: [{ s: 1, a: ZRAGAR, from: 2 }, { s: 2, a: MALACHITE }] })).some(x => x.cell.round === 1 && /before joining/.test(x.message)));
 }
 
 console.log('\nTest S-7 — round order');
@@ -210,10 +211,10 @@ console.log('\nTest S-8 — duplicates');
 console.log('\nTest S-9 — gaps');
 {
   const c = combat();
-  c.rounds[1].slots = c.rounds[1].slots.filter(sl => sl.a !== SABLE);
+  c.rounds[1].slots = c.rounds[1].slots.filter(sl => sl.a !== MALACHITE);
   const f = CI.gaps(c, fxCtx());
-  assert('S-9: Sable with no turn in round 2 is flagged, worded as possibly fine', f.length === 1 && f[0].cell.round === 2 && /Fine if/.test(f[0].message));
-  assert('S-9: someone outside the confirmed order\'s range is not', CI.gaps(c, Object.assign(fxCtx(), { order: [{ s: 1, a: ALDRIC }, { s: 2, a: SABLE, to: 1 }] })).length === 0);
+  assert('S-9: Malachite with no turn in round 2 is flagged, worded as possibly fine', f.length === 1 && f[0].cell.round === 2 && /Fine if/.test(f[0].message));
+  assert('S-9: someone outside the confirmed order\'s range is not', CI.gaps(c, Object.assign(fxCtx(), { order: [{ s: 1, a: ZRAGAR }, { s: 2, a: MALACHITE, to: 1 }] })).length === 0);
 }
 
 // ── Acceptance on the real campaign ────────────────────────────────────────

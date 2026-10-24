@@ -257,7 +257,7 @@ console.log('\nTest P-6 — a fixture publish passes the reference check');
   catch (e) { text = String(e.stdout || e.message); }
   fs.unlinkSync(tmp);
   assert('P-6: migrate-opaque-ids.js --check prints CHECK PASSED' + (ok ? '' : ' — ' + text.slice(-300)), ok);
-  assert('P-6: the fixture file itself is unchanged', read('tests/fixtures/test-campaign.json') === fs.readFileSync(path.join(ROOT, 'tests/fixtures/test-campaign.json'), 'utf8') && !fixture.session_logs.some(s => s.legacy_id === 'session_003'));
+  assert('P-6: the fixture file itself is unchanged', read('tests/fixtures/test-campaign.json') === fs.readFileSync(path.join(ROOT, 'tests/fixtures/test-campaign.json'), 'utf8') && fixture.session_logs.find(s => s.legacy_id === 'session_003').notes.startsWith('PLACEHOLDER'));
 }
 
 // ── P-6b ────────────────────────────────────────────────────────────────────
@@ -289,6 +289,39 @@ console.log('\nTest P-6b — what the first Safe Test Mode publish showed');
   ChronicleEntities.acknowledge(rows[0]);
   const made = ChronicleEntities.toQueueItems(rows, idx, 'session_008').find(i => i.type === 'NEW');
   assert('P-6b: step 3 gives a new NPC first_appeared = the session', made && made.rawData.mechanics.first_appeared === 'session_008');
+}
+
+// ── P-6c ────────────────────────────────────────────────────────────────────
+console.log('\nTest P-6c — real intake output on the fixture resolves (#111)');
+{
+  // Intake output from a real session names all six PCs by legacy ID and the
+  // session the DM typed. Before #111 the fixture had only pc_001, pc_002 and
+  // two sessions, so pc_003–pc_006 and session_006 were written untranslated
+  // and the test publish failed the reference check.
+  const fixture = JSON.parse(read('tests/fixtures/test-campaign.json'));
+  const F = ChronicleIds.buildLegacyIndex(fixture);
+  assert('P-6c: the fixture has all six PCs, each with a UUID id and its legacy_id',
+    ['pc_001', 'pc_002', 'pc_003', 'pc_004', 'pc_005', 'pc_006'].every(l => ChronicleIds.isOpaqueId(F.get(l))) && fixture.party.length === 6);
+  assert('P-6c: session_006 is a placeholder the publish fills', fixture.session_logs.find(s => s.legacy_id === 'session_006').notes.startsWith('PLACEHOLDER'));
+  const flat = (s, a, act, res, val) => ({ s, a, act, res, val, notes: null, action_type: 'action', target: null, target_effects: [], val_type: null });
+  const items = [
+    { type: 'NEW', array: 'session_logs', rawData: { session_id: 'session_006', date: '2026-04-02', title: 'Test of real output' } },
+    { type: 'ROUND', array: 'combat_encounters', combatId: 'cbt_001', status: 'approved', rawData: { n: 4, session_id: 'session_006',
+      slots: ['pc_001', 'pc_002', 'pc_003', 'pc_004', 'pc_005', 'pc_006'].map((pc, i) => flat(i + 1, pc, 'Dodge', 'neutral', null)), enemy_turns: [] } },
+  ];
+  const res = ChroniclePublish.applySession(fixture, items);
+  const out = res.campaign;
+  const r4 = out.combat_encounters.find(c => c.id === F.get('cbt_001')).rounds.find(r => r.n === 4);
+  assert('P-6c: every slot names a PC by UUID', r4 && r4.slots.length === 6 && r4.slots.every(s => out.party.some(p => p.id === s.a)));
+  assert('P-6c: the round and the combat name session_006 by its UUID', r4.sid === F.get('session_006') && out.combat_encounters[0].mechanics.sessions.includes(F.get('session_006')));
+  assert('P-6c: no session was added (the placeholder was filled)', out.session_logs.length === fixture.session_logs.length);
+  const tmp = path.join(os.tmpdir(), 'chronicle-fixture-111-' + process.pid + '.json');
+  fs.writeFileSync(tmp, JSON.stringify(out, null, 2) + '\n');
+  let ok = false, text = '';
+  try { text = execFileSync(process.execPath, [path.join(ROOT, 'scripts/migrate-opaque-ids.js'), tmp, '--check'], { encoding: 'utf8' }); ok = /CHECK PASSED/.test(text) && /Still a legacy ID: 0/.test(text); }
+  catch (e) { text = String(e.stdout || e.message); }
+  fs.unlinkSync(tmp);
+  assert('P-6c: the result passes migrate-opaque-ids.js --check with no legacy ID left' + (ok ? '' : ' — ' + text.slice(-300)), ok);
 }
 
 // ── P-7 ─────────────────────────────────────────────────────────────────────

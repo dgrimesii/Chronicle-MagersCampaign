@@ -75,7 +75,7 @@ Chronicle-MagersCampaign/
 │   ├── entity-identification.test.js # Tests for shared/chronicle-entities.js (#100): rows, matching, actions, flags, publish items through applySession
 │   ├── fact-extraction.test.js       # Tests for shared/chronicle-facts.js (#101, #102): occurrences not names, self-checks, one combat across a page break, passages attached where they belong
 │   ├── fixtures/
-│   │   └── test-campaign.json        # Minimal v5.0.1 synthetic campaign for automated tests
+│   │   └── test-campaign.json        # Minimal v5.0.1 campaign for automated tests and Safe Test Mode (real PC names, placeholder sessions 003–007, #111)
 │   ├── output/                       # GITIGNORED — test-campaign.published.json, written by a Safe Test Mode publish (#97)
 │   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
 │   └── ai-input-fixtures/            # Captured AI response fixtures for offline test runs
@@ -774,7 +774,7 @@ tests/
 ├── entity-identification.test.js   # Entity identification (#100) — rows, exact/inexact/new, actions, flags, aliases/notes/roster groups through applySession
 ├── fact-extraction.test.js         # Per-page facts (#101) and passages (#102) — references, prompt, validation (occurrences only), checks, merge across pages, passages through applySession
 ├── fixtures/
-│   └── test-campaign.json          # Minimal v5.0.1 synthetic campaign — no real data
+│   └── test-campaign.json          # Minimal v5.0.1 campaign — the real party's names and placeholder sessions (#111), everything else invented
 ├── output/                         # GITIGNORED — test-campaign.published.json from a Safe Test Mode publish (#97)
 ├── ocr-ground-truth/
 │   └── README.md                   # Ground-truth pair format (image + expected JSON)
@@ -809,7 +809,7 @@ Switching test mode on or off requires changing only `config.js`. Older copies o
 
 ### Test fixture
 
-`tests/fixtures/test-campaign.json` is a minimal v5.0.1 campaign with synthetic data (no real Magers campaign content). It contains: 2 party members, 2 sessions, 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. All automated tests run against this fixture. Since #95 its entities have UUID ids with their old typed IDs as `legacy_id`, like the real file; its two quest objectives never had ids and still have none.
+`tests/fixtures/test-campaign.json` is a minimal v5.0.1 campaign. It contains: 6 party members, 7 sessions (session_001 and session_002 with content, session_003–session_007 placeholders), 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. Since #111 the six PCs carry the real party's names, nicknames, classes, levels, species and backgrounds (pc_001 and pc_002 were the invented Aldric and Sable), and the placeholders carry the real sessions' dates, so a Safe Test Mode publish of real session notes resolves every PC and the real session ID (the session page offers session_003–session_007 at upload). Everything else is invented. All automated tests run against this fixture. Since #95 its entities have UUID ids with their old typed IDs as `legacy_id`, like the real file; its two quest objectives never had ids and still have none.
 
 ---
 
