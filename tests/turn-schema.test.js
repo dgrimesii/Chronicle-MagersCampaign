@@ -256,7 +256,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   const ets    = rounds.flatMap(r => r.enemy_turns);
   const counts = countTurns(campaign);
 
-  assert('_schema_version is 5.0.0',                 campaign._schema_version === '5.0.0');
+  // 5.0.1 (#112) keeps the 5.0.0 turn schema and adds narrative.absence_notes.
+  assert('_schema_version is 5.0.1 (the turn schema plus #112)', campaign._schema_version === '5.0.1');
   assert('42 rounds',                                rounds.length === 42);
   assert('249 party slots, all with activities[]',   slots.length === 249 && slots.every(s => Array.isArray(s.activities)));
   assert('34 enemy turns, all with activities[]',    ets.length === 34 && ets.every(e => Array.isArray(e.activities)));

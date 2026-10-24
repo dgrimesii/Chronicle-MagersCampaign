@@ -156,6 +156,9 @@
    * carry  — { combat, round } where the previous page stopped, or null
    * reread — problems found in the first reply, listed so the second read
    *          fixes them (the issue's "re-reads the round once")
+   * recordedAbsences — the session's absence notes already recorded (a
+   *          placeholder's, after #112's migration), so the AI reuses the same
+   *          sentence for the same absence and publish keeps one copy
    * focus  — { combat, n, order } to read one round only, against the
    *          initiative order the DM confirmed: the round grid's
    *          "Re-extract this round" (#103). order is text ("1. Del, 2. Mal").
@@ -163,7 +166,7 @@
    * one outcome per roll; down is an outcome effect; the 2024 rules and the
    * party's action economy are added by ChronicleAI.extractFacts.
    */
-  function factsPrompt({ pageLabel, references, combats, carry, reread, focus }) {
+  function factsPrompt({ pageLabel, references, combats, carry, reread, focus, recordedAbsences }) {
     const refs = references.map(r => `${r.occ} | "${r.asWritten}" = ${r.label} | line: ${r.context}`).join('\n');
     const cmb = combats.length
       ? combats.map(c => `${c.ref} | ${c.name}${c.open ? ' (open' + (c.lastRound ? `, recorded to round ${c.lastRound}` : '') + ')' : ''}`).join('\n')
@@ -188,7 +191,7 @@ RULES:
 7. "Dead", "killed" or "Down" on a roll is that outcome's effect: "killed" or "downed". It is never an activity. A death save is the action "Death Save" with res success or failure.
 8. A sentence that is not a turn (the dragons descend, goblins flee) goes in the round's "events" as written, or in "special_events" of the enemy group it is about (type one of ${ENUMS.special.join(', ')}).
 9. Quest progress and items found, given, lost or used go in "quest_progress" and "loot", each with its occurrence id and source line.
-11. PASSAGES: every piece of narrative on the page that is not a turn — the DM's descriptions and exposition, and what NPCs say — becomes a passage in "passages". Clean each into complete sentences and expand abbreviations, but add no fact the notes do not contain: clean up and flesh out, do not invent.
+11. PASSAGES: every piece of narrative on the page that is not a turn — the DM's descriptions and exposition, and what NPCs say — becomes a passage in "passages". A line about a player being absent is not narrative: it goes only in "absence_notes" (rule 14), never also in passages. Clean each into complete sentences and expand abbreviations, but add no fact the notes do not contain: clean up and flesh out, do not invent.
     - "speaker": "dm" for the DM's own description or exposition (it is fact), or the occurrence id of the NPC who said it (it is testimony). What an NPC tells the party counts as said by that NPC whether the notes quote it or report it ("Rufus says he hasn't slept", "R: will guide for a share"): keep the NPC as speaker, and keep what the NPC said separate from the DM's own description of them.
     - What an NPC says about themselves, their past or what they want goes on that NPC; what they say about something else (a place, a creature, a piece of lore) goes on that thing.
     - "attach": the most specific thing the passage describes, one of:
@@ -202,6 +205,8 @@ RULES:
     - "source_lines": the lines of the notes it came from, copied exactly.
 12. "page_summary": one or two sentences saying what happens on this page, for the DM's reference.
 13. "assignments": for each occurrence listed as "one of: …", propose which of those it is: {"occ":"<occurrence id>","choice":"<one of the names exactly as listed>","reason":"<a few words: spelling, place, who else is there, which combat>"}. The DM confirms these later.
+14. "absence_notes": a line saying a player was absent and someone else ran their character ("Lance out work, played by David") is a note about the session, not a fact about a character and not a turn, event or passage. Write it as one plain sentence with first names only, saying who was out, why if stated, and who played the character ("Malachite piloted by David due to Lance's work schedule."). Leave the list empty when the page has none.${recordedAbsences && recordedAbsences.length ? `
+    This session already records: ${recordedAbsences.map(t => '"' + t + '"').join('; ')}. If the page records the same absence, copy that sentence exactly instead of writing a new one.` : ''}
 10. Before answering, check your own rounds against these sanity checks (issue #104) and re-read the lines behind any that fail:
     - Imbalance: one character with two actions in a round while another listed character has none usually means a line was misread.
     - Source line: every turn's actor is the character its source line names.
@@ -213,7 +218,7 @@ RULES:
     List anything you still cannot resolve in "self_check". These are sanity checks: when the notes really say something unusual, record what they say.
 ${reread && reread.length ? `\nA FIRST READ OF THIS PAGE HAD THESE PROBLEMS. Re-read the page and fix them:\n- ${reread.join('\n- ')}\n` : ''}${focus ? `\nRE-READ ONE ROUND: record only round ${focus.n} of combat ${focus.combat}, as one combat with that one round. The DM has confirmed the initiative order: ${focus.order}. Use it to tell whose turn each line is; still record turns in the order the notes list them. Leave quest_progress, loot, passages and assignments empty.\n` : ''}
 Respond with JSON only, no prose:
-{"combats":[{"combat":"<combat id>","rounds":[{"n":4,"turns":[{"actor":"occ_1_1","source_line":"Asp - Healing Hands","activities":[{"economy":"action","name":"Magic","detail":"Healing Hands","val_type":null,"outcomes":[{"res":"unclear","val":null,"target":null,"target_text":null,"detail":null,"effect":null}],"notes":null}]}],"enemy_turns":[{"actor":"occ_1_4","source_line":"Goblins - Hit Mal (opportunity)","activities":[{"economy":"reaction","name":"Opportunity Attack","outcomes":[{"res":"hit","val":null,"target":"occ_1_5"}]}],"special_events":[]}],"events":[]}]}],"quest_progress":[],"loot":[],"passages":[{"text":"Two Larkspur dragons swooped down on the cart from the ridges and killed everyone at the cart.","speaker":"dm","attach":{"to":"round","combat":"<combat id>","n":4},"source_lines":["Larkspur dragons descend on cart from ridges. Kill all at the cart."]}],"page_summary":"The Goblin Ambush continues through rounds 4 and 5 as Larkspur dragons join the fight.","self_check":[]}`;
+{"combats":[{"combat":"<combat id>","rounds":[{"n":4,"turns":[{"actor":"occ_1_1","source_line":"Asp - Healing Hands","activities":[{"economy":"action","name":"Magic","detail":"Healing Hands","val_type":null,"outcomes":[{"res":"unclear","val":null,"target":null,"target_text":null,"detail":null,"effect":null}],"notes":null}]}],"enemy_turns":[{"actor":"occ_1_4","source_line":"Goblins - Hit Mal (opportunity)","activities":[{"economy":"reaction","name":"Opportunity Attack","outcomes":[{"res":"hit","val":null,"target":"occ_1_5"}]}],"special_events":[]}],"events":[]}]}],"quest_progress":[],"loot":[],"passages":[{"text":"Two Larkspur dragons swooped down on the cart from the ridges and killed everyone at the cart.","speaker":"dm","attach":{"to":"round","combat":"<combat id>","n":4},"source_lines":["Larkspur dragons descend on cart from ridges. Kill all at the cart."]}],"absence_notes":[],"page_summary":"The Goblin Ambush continues through rounds 4 and 5 as Larkspur dragons join the fight.","self_check":[]}`;
   }
 
   /**
@@ -230,7 +235,9 @@ Respond with JSON only, no prose:
     let parsed;
     try { parsed = JSON.parse(body.slice(start, end + 1)); } catch (e) { throw new Error('The AI reply was not valid JSON: ' + e.message); }
     if (!parsed || !Array.isArray(parsed.combats)) throw new Error('The AI reply has no "combats" list.');
-    for (const k of ['quest_progress', 'loot', 'self_check', 'passages', 'assignments']) if (!Array.isArray(parsed[k])) parsed[k] = [];
+    for (const k of ['quest_progress', 'loot', 'self_check', 'passages', 'assignments', 'absence_notes']) if (!Array.isArray(parsed[k])) parsed[k] = [];
+    // Absence notes are plain sentences (#112); anything else is dropped.
+    parsed.absence_notes = parsed.absence_notes.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim());
     if (typeof parsed.page_summary !== 'string') parsed.page_summary = null;
     for (const p of parsed.passages) {
       if (!Array.isArray(p.source_lines)) p.source_lines = p.source_lines ? [String(p.source_lines)] : [];
@@ -407,7 +414,7 @@ Respond with JSON only, no prose:
   function mergePages(pages, references) {
     const combats = new Map();
     const issues = [];
-    const quest_progress = [], loot = [], passages = [], summaries = [], assignments = [];
+    const quest_progress = [], loot = [], passages = [], summaries = [], assignments = [], absence_notes = [];
     for (const p of pages) {
       const f = p.facts;
       for (const c of f.combats) {
@@ -440,12 +447,14 @@ Respond with JSON only, no prose:
       }
       if (f.page_summary) summaries.push({ page: p.page, text: f.page_summary });
       assignments.push(...(f.assignments || []).map(a => Object.assign({ page: p.page }, a)));
+      // One absence written on two pages is kept once (#112).
+      for (const t of f.absence_notes || []) if (!absence_notes.includes(t)) absence_notes.push(t);
       quest_progress.push(...f.quest_progress.map(q => Object.assign({ page: p.page }, q)));
       loot.push(...f.loot.map(l => Object.assign({ page: p.page }, l)));
     }
     return {
       combats: [...combats.values()].map(m => ({ combat: m.combat, rounds: [...m.rounds.values()].sort((a, b) => a.n - b.n) })),
-      quest_progress, loot, passages, summaries, assignments, issues,
+      quest_progress, loot, passages, summaries, assignments, absence_notes, issues,
     };
   }
 

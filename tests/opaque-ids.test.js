@@ -94,7 +94,8 @@ for (const [label, data] of [['campaign', campaign], ['fixture', load('tests/fix
   assert('campaign: 77 entities (72 in the entity arrays + 5 quest objectives)', n === 77);
   const r = checkReferences(campaign);
   assert('campaign: over 700 UUID references checked', r.references > 700);
-  assert('campaign: _schema_version unchanged (5.0.0)', campaign._schema_version === '5.0.0');
+  // #112 raised the version to 5.0.1 (absence notes); #95 itself did not change it.
+  assert('campaign: _schema_version is 5.0.1', campaign._schema_version === '5.0.1');
   assert('campaign: _id_registry says uuid-v4 and keeps the voided list',
     campaign._id_registry?.format === 'uuid-v4' && ['npc_002', 'npc_005', 'npc_006', 'mon_006'].every(v => campaign._id_registry.legacy_voided.includes(v)));
   const again = JSON.parse(JSON.stringify(campaign));

@@ -602,6 +602,11 @@ function normaliseCampaignJson(json) {
                           km => typeof km === 'string' ? km : (km.description ?? '')
                         ),                                           // v4: objects → flatten to strings for renderSessionDetail
         mechanical_notes: s.mechanical_notes || [],
+        // Schema 5.0.1 (#112): who was absent and who ran their character,
+        // as plain sentences. A session note, never a PC fact; [] when the
+        // session records no absence (the field is omitted in the data).
+        // Replaces the old mechanics.player_absences, which no view read.
+        absence_notes:  s.narrative?.absence_notes ?? [],
         // Narrative generation fields — written by Gemini, never hand-edited.
         // Pass through as-is so future chronicle entry UI can read them directly.
         chronicle_entry:              s.narrative?.chronicle_entry              ?? null,
@@ -1065,6 +1070,13 @@ function renderSessionDetail(sess) {
         <div class="section-text" style="margin-top:0.4rem;">${sess.summary}</div>
         ${sess.narrative_vibe ? `<div class="session-vibe">${sess.narrative_vibe}</div>` : ''}
       </div>
+
+      <!-- Attendance (#112): absence notes, shown on the admin view only -->
+      ${sess.absence_notes?.length ? `
+        <div style="margin-bottom:1.25rem;">
+          <div class="section-label">Attendance</div>
+          ${sess.absence_notes.map(t => `<div class="section-text" style="margin-top:0.3rem;font-size:0.92rem;color:var(--muted);">${t}</div>`).join('')}
+        </div>` : ''}
 
       <!-- Key moments -->
       ${sess.key_moments?.length ? `

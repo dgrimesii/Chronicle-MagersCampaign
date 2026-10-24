@@ -1,5 +1,5 @@
 {
-  "_schema_version": "5.0.0",
+  "_schema_version": "5.0.1",
   "_schema_type": "campaign_log_specification",
   "_chronicle_format": true,
   "_about": {
@@ -173,7 +173,6 @@
         "owns"
       ],
       "mechanical_note_type": [
-        "player_absence",
         "rules_clarification",
         "retcon",
         "house_rule_applied"
@@ -317,7 +316,8 @@
         "session_id": "UUID — the session it came from (issue #95; was session_NNN)",
         "speaker": "'dm' or an entity ID — who said it. DM exposition is fact; an NPC's words are testimony.",
         "page": "INTEGER or null — the notes page it came from"
-      }
+      },
+      "absence_notes": "ARRAY of STRING — on session_logs[].narrative only (schema 5.0.1, issue #112). Plain sentences recording that a player was absent and who ran their character, e.g. \"Malachite piloted by David due to Lance's work schedule.\" A session note kept for the record, never a fact about a PC: no pc_id, nothing mechanical reads it. First names only. Omit when a session has no absence."
     },
     "bestiary_ability_fields": {
       "_note": "Issue #94. One entry in bestiary[].mechanics.observed_abilities.",
@@ -1363,8 +1363,7 @@
         "locations_visited": [
           "233f72d8-59df-4928-ae14-27ecfcd4d80b",
           "a86a16e2-6d98-485e-a7a1-1ddfa09d9be6"
-        ],
-        "player_absences": []
+        ]
       },
       "narrative": {
         "summary": "Prologue at age 13 featuring the first Pylon event and a wolf fight; jumps 5 years to age 18. Lifelong childhood friends remain tight-knit.",
@@ -1424,13 +1423,6 @@
         "locations_visited": [
           "daa1cec7-ef00-452c-aa7f-a60993d4e0ae",
           "233f72d8-59df-4928-ae14-27ecfcd4d80b"
-        ],
-        "player_absences": [
-          {
-            "type": "player_absence",
-            "pc_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
-            "note": "Ashton piloted by David due to Frazer being sick."
-          }
         ]
       },
       "narrative": {
@@ -1466,15 +1458,12 @@
         "chronicle_entry_version": 0,
         "narrative_beats": [],
         "human_guidance": null,
-        "generation_warnings": []
+        "generation_warnings": [],
+        "absence_notes": [
+          "Ashton piloted by David due to Frazer being sick."
+        ]
       },
-      "mechanical_notes": [
-        {
-          "type": "player_absence",
-          "pc_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
-          "note": "Ashton piloted by David due to Frazer being sick."
-        }
-      ],
+      "mechanical_notes": [],
       "notes": null
     },
     {
@@ -1519,8 +1508,7 @@
         "quests_closed": [],
         "locations_visited": [
           "daa1cec7-ef00-452c-aa7f-a60993d4e0ae"
-        ],
-        "player_absences": []
+        ]
       },
       "narrative": {
         "summary": "The Pylon defense concluded with the destruction of the monolith. Ched Warmfire was killed in the battle. The party resolved to set out into the world following leads from Blair and Ched's past.",
@@ -1600,13 +1588,6 @@
         "locations_visited": [
           "899e5762-77ff-4034-9620-96b4712e59eb",
           "23024fd5-77fd-4e07-b494-fabc83b89ab5"
-        ],
-        "player_absences": [
-          {
-            "type": "player_absence",
-            "pc_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
-            "note": "Malachite piloted by David due to Lance's work schedule."
-          }
         ]
       },
       "narrative": {
@@ -1651,15 +1632,12 @@
         "chronicle_entry_version": 0,
         "narrative_beats": [],
         "human_guidance": null,
-        "generation_warnings": []
+        "generation_warnings": [],
+        "absence_notes": [
+          "Malachite piloted by David due to Lance's work schedule."
+        ]
       },
-      "mechanical_notes": [
-        {
-          "type": "player_absence",
-          "pc_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
-          "note": "Malachite piloted by David due to Lance's work schedule."
-        }
-      ],
+      "mechanical_notes": [],
       "notes": null
     },
     {
@@ -1690,8 +1668,7 @@
         "locations_visited": [
           "42598c87-c1ea-4b13-ba67-70b3d73da002",
           "23024fd5-77fd-4e07-b494-fabc83b89ab5"
-        ],
-        "player_absences": []
+        ]
       },
       "narrative": {
         "summary": "Finished the ROUS fight at the Quarry. Met travelers and agreed to escort them west to Lake Town due to goblin sightings. A goblin ambush began on the road.",
@@ -1765,13 +1742,6 @@
         ],
         "locations_visited": [
           "eaba1342-500b-4ff5-b9b5-3a2f4dff7185"
-        ],
-        "player_absences": [
-          {
-            "type": "player_absence",
-            "pc_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
-            "note": "Malachite piloted by David due to Lance's work schedule."
-          }
         ]
       },
       "narrative": {
@@ -1786,15 +1756,12 @@
         "chronicle_entry_version": 0,
         "narrative_beats": [],
         "human_guidance": null,
-        "generation_warnings": []
+        "generation_warnings": [],
+        "absence_notes": [
+          "Malachite piloted by David due to Lance's work schedule."
+        ]
       },
-      "mechanical_notes": [
-        {
-          "type": "player_absence",
-          "pc_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
-          "note": "Malachite piloted by David due to Lance's work schedule."
-        }
-      ],
+      "mechanical_notes": [],
       "notes": "PLACEHOLDER — full session data to be entered via Chronicle intake. Combat round data, key moments, and full narrative pending. Level-up milestone recorded here to anchor Phase 11 DnDBeyond sync."
     },
     {
@@ -1811,8 +1778,7 @@
         "npcs_lost": [],
         "quests_opened": [],
         "quests_closed": [],
-        "locations_visited": [],
-        "player_absences": []
+        "locations_visited": []
       },
       "narrative": {
         "summary": null,
@@ -10318,7 +10284,7 @@
     "setting": "Magers Homebrew",
     "dm": "John Magers",
     "started_date": "2026-02-10",
-    "last_updated": "2026-10-21",
+    "last_updated": "2026-10-23",
     "session_count": 5,
     "active": true,
     "notes": null,

@@ -340,6 +340,7 @@
     <div id="facts-flags"></div>
     <!-- Filled by renderReview(): split assignment, the grids, then the
          facts that are not in a grid (quest progress, passages, loot). -->
+    <div id="absence-panel"></div>
     <div id="split-panel"></div>
     <div id="grid-panel"></div>
     <div id="facts-other"></div>
@@ -417,6 +418,7 @@ const session = {
   gridKey:     '',    // factsKey the grids were built from
   selected:    null,  // { gi, round, row|enemy } — the cell in the editor
   eventForm:   null,  // { gi, round, ei } — an event being turned into attacks
+  absenceNotes: [],   // the session's absence notes (#112), as the DM last edited them
   // Context for extraction (#100), loaded now so it is ready by then. Both
   // stay null if their load fails; extraction must cope without them.
   entities:    null,  // { npcs, locations, monsters, combats } name lists
@@ -1246,7 +1248,7 @@ async function readFactsPages() {
     try {
       let reread = null, facts, errors, issues;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const system = ChronicleFacts.factsPrompt({ pageLabel: fp.label, references, combats, carry, reread });
+        const system = ChronicleFacts.factsPrompt({ pageLabel: fp.label, references, combats, carry, reread, recordedAbsences: recordedAbsences() });
         const raw = await ChronicleAI.extractFacts({ system, image: fp.image, text: fp.text });
         facts = ChronicleFacts.parseFacts(raw);
         errors = ChronicleFacts.validateFacts(facts, references, combats);
@@ -1330,6 +1332,9 @@ function renderFacts() {
   // The grids are built once per set of facts; a later redraw keeps edits.
   if (session.gridKey !== session.factsKey) {
     session.gridKey = session.factsKey;
+    // Absence notes (#112) start as the AI read them; the DM edits them below.
+    session.absenceNotes = (merged.absence_notes || []).slice();
+    applyAbsences();
     session.assignList = ChronicleGrid.splitAssignments(refs, merged);
     session.grids = [];
     session.gridsBuilt = false;
@@ -1404,9 +1409,54 @@ function buildGrids() {
 }
 
 function renderReview() {
+  renderAbsences();
   renderSplit();
   renderGrids();
   renderOther();
+}
+
+// ── Session notes: attendance (issue #112) ────────────────────────────────
+// A player's absence ("Lance out work, played by David") is a note about the
+// session, never a fact about a PC: one plain sentence per absence, in
+// session_logs[].narrative.absence_notes. No pc_id is written anywhere.
+
+// recordedAbsences() → the absence notes the chosen session already has (a
+// placeholder's, migrated by #112), so the AI and the DM can reuse them.
+function recordedAbsences() {
+  const s = (session.campaign.session_logs || []).find(x => x.legacy_id === session.legacyId);
+  return (s && s.narrative && Array.isArray(s.narrative.absence_notes)) ? s.narrative.absence_notes : [];
+}
+
+/**
+ * applyAbsences() — puts the notes on the session header publish reads, as
+ * narrative.absence_notes, or removes the field when there are none (a
+ * session with no absence writes no absence_notes). Publish fills a
+ * placeholder's list without repeating a sentence it already has.
+ */
+function applyAbsences() {
+  if (!session.header) return;
+  const notes = (session.absenceNotes || []).map(t => t.trim()).filter(Boolean);
+  const nar = Object.assign({}, session.header.rawData.narrative || {});
+  if (notes.length) nar.absence_notes = notes; else delete nar.absence_notes;
+  if (Object.keys(nar).length) session.header.rawData.narrative = nar; else delete session.header.rawData.narrative;
+}
+
+/**
+ * renderAbsences() — the attendance notes for review and edit, one sentence
+ * per line, with the sentences the session already records shown beside
+ * them so a repeat can be removed (publish keeps an identical sentence once).
+ */
+function renderAbsences() {
+  const el = document.getElementById('absence-panel');
+  const recorded = recordedAbsences();
+  const notes = session.absenceNotes || [];
+  const repeats = notes.filter(t => recorded.includes(t));
+  el.innerHTML = `<div class="fact-combat"><h3>Session notes — attendance</h3>
+    <p class="hint">Who was absent and who played their character: one plain sentence per line, first names only. A note about the session, never about the character. Leave empty when everyone was there.</p>
+    <textarea id="absence-notes" rows="${Math.max(2, notes.length + 1)}" style="width:100%;background:var(--parchment-dark);color:var(--ink);border:1px solid var(--border-strong);border-radius:3px;padding:6px 8px;font-family:'Crimson Pro',Georgia,serif;font-size:0.98rem;"
+      onchange="session.absenceNotes = this.value.split('\\n'); applyAbsences(); renderAbsences();">${escapeHtml(notes.join('\n'))}</textarea>
+    ${recorded.length ? `<p class="fact-line">Already recorded on ${escapeHtml(session.legacyId)} (kept): ${recorded.map(t => '"' + escapeHtml(t) + '"').join('; ')}${repeats.length ? ' — identical lines above are not added twice.' : notes.length ? ' — if a line above is the same absence in other words, delete it.' : ''}</p>` : ''}
+  </div>`;
 }
 
 /**

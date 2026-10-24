@@ -358,6 +358,7 @@ Voided/skipped legacy IDs (never reuse): `npc_002`, `npc_005`, `npc_006`, `mon_0
 - The `normaliseCampaignJson` function in `log-viewer.html` and `player/index.html` applies field renames at runtime. When adding new fields to the JSON, check whether the viewer needs a corresponding mapping. The README "Schema" section lists all current mappings.
 - `class` in the JSON becomes `cls` in the normalised viewer object (reserved word workaround)
 - `current_level` in the JSON becomes `level` in the viewer
+- A player's absence ("Lance out work, played by David") is a session note, never a PC fact: a plain sentence in `session_logs[].narrative.absence_notes`, first names only, with no `pc_id` (#112). Omit the field when a session has no absence. Never add `mechanics.player_absences` or a `player_absence` mechanical note back
 
 ### normaliseCampaignJson — the translation layer
 
@@ -419,7 +420,7 @@ To convert a file that still has 4.x rounds (for example after a pre-#92 publish
 
 ### Schema version
 
-Do not change `_schema_version` without explicit instruction. It lives at the root of the JSON, not inside `meta`. Current version: `5.0.0`, approved by the DM on issue #93 for the turn schema. The test fixture uses the same version.
+Do not change `_schema_version` without explicit instruction. It lives at the root of the JSON, not inside `meta`. Current version: `5.0.1`: 5.0.0 was approved by the DM on issue #93 for the turn schema, and 5.0.1 on issue #112 for player absence as a session note. The test fixture uses the same version.
 
 ---
 

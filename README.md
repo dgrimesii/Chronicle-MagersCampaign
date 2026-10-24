@@ -36,12 +36,13 @@ Chronicle-MagersCampaign/
 │   ├── chronicle-integrity.js  # Gap detection and the nine round sanity checks (#104) — exports window.ChronicleIntegrity
 │   └── chronicle-narrative.js  # Shared Gemini narrative module — exports window.ChronicleNarrative
 ├── data/
-│   ├── magers-campaign.json    # Campaign data — single source of truth, schema version 5.0.0
+│   ├── magers-campaign.json    # Campaign data — single source of truth, schema version 5.0.1
 │   ├── magers-campaign.prev.json # GITIGNORED — the campaign file as it was before the last publish (#97); appears after a first publish
 │   └── pc-abilities.json       # Per-PC ability/spell/action lists harvested from D&D Beyond; used by intake.html OCR prompt enrichment (issue #80). Regenerate with: node scripts/harvest-characters.js
 ├── scripts/
 │   ├── build.js                # STALE — injected EMBEDDED_DATA into HTML files; markers removed in Phase 1, script is now dead code
 │   ├── harvest-characters.js  # Fetches all 6 PC character sheets from D&D Beyond, extracts key ability/spell names, writes data/pc-abilities.json. Run manually after sessions where characters level up.
+│   ├── migrate-absence-notes.js # Moves player absences to session notes and raises the schema to 5.0.1 (issue #112). Dry run by default; --write rewrites the file. Idempotent
 │   ├── migrate-turn-schema.js # Converts combat rounds from 4.x slots to the 5.0.0 turn schema (issue #93). Dry run by default; --write rewrites the file. Idempotent; prints before/after counts and the inconsistencies it found.
 │   └── migrate-opaque-ids.js  # Gives every entity a UUID id and keeps its typed ID as legacy_id (issue #95). Dry run by default; --write rewrites; --check only checks that every reference resolves. Idempotent.
 ├── notes/
@@ -53,6 +54,7 @@ Chronicle-MagersCampaign/
 ├── tests/
 │   ├── run-all.js                    # Test runner — runs all test files, reports pass/fail summary
 │   ├── integrity.test.js             # Tests for shared/chronicle-integrity.js (gap detection)
+│   ├── absence-notes.test.js         # Tests for player absence as a session note (#112): migrated data, the migration, publish, extraction, both viewers
 │   ├── round-grid.test.js            # Tests for shared/chronicle-grid.js (#103): building, order, every move, session 6's misreads, flags with one-click moves, split assignment, output
 │   ├── sanity-checks.test.js         # Tests for the nine round sanity checks (#104): one per check on the fixture, plus the acceptance cases
 │   ├── intake-image.test.js          # Group A — OCR round-data shape validation
@@ -67,7 +69,7 @@ Chronicle-MagersCampaign/
 │   ├── entity-identification.test.js # Tests for shared/chronicle-entities.js (#100): rows, matching, actions, flags, publish items through applySession
 │   ├── fact-extraction.test.js       # Tests for shared/chronicle-facts.js (#101, #102): occurrences not names, self-checks, one combat across a page break, passages attached where they belong
 │   ├── fixtures/
-│   │   └── test-campaign.json        # Minimal v5.0.0 synthetic campaign for automated tests
+│   │   └── test-campaign.json        # Minimal v5.0.1 synthetic campaign for automated tests
 │   ├── output/                       # GITIGNORED — test-campaign.published.json, written by a Safe Test Mode publish (#97)
 │   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
 │   └── ai-input-fixtures/            # Captured AI response fixtures for offline test runs
@@ -159,7 +161,7 @@ If the file changed on disk after Delta Review read it (a `git pull`, a hand edi
 ## Schema
 
 File: `data/magers-campaign.json`  
-Schema version: `5.0.0` (stored as `_schema_version` at root). The change from 4.1.0 to 5.0.0 was approved by the DM on issue #93.
+Schema version: `5.0.1` (stored as `_schema_version` at root). The change from 4.1.0 to 5.0.0 (the turn schema) was approved by the DM on issue #93; 5.0.0 to 5.0.1 (player absence as a session note) on issue #112.
 
 v4 introduced a `mechanics`/`narrative` two-layer pattern on every entity type. Mechanical facts (queryable, structured) live in `mechanics`; prose for human readers lives in `narrative`. v5.0.0 keeps that pattern and replaces each combat slot's fixed action fields with the turn schema below (activities tagged by action economy, each with outcomes). The `normaliseCampaignJson` function translates both into the flat shape the renderers already expect. The file's own `_field_type_reference` (`slot_fields`, `enemy_turn_fields`, `common_optional_fields`) documents every field.
 
@@ -198,6 +200,7 @@ The `normaliseCampaignJson` function (identical copies in `admin/log-viewer.html
 | `session_logs[].narrative.summary` | `sessions[].summary` | was root-level in v3 |
 | `session_logs[].narrative.tone` | `sessions[].narrative_vibe` | was root-level in v3 |
 | `session_logs[].narrative.key_moments[].description` | `sessions[].key_moments[]` (string) | v4 moments are objects; normaliser flattens to string array |
+| `session_logs[].narrative.absence_notes[]` | `sessions[].absence_notes[]` | 5.0.1 (#112): plain sentences, `[]` when absent. Shown as "Attendance" on the admin session card only |
 | `session_logs[].narrative.chronicle_entry` | `sessions[].chronicle_entry` | Gemini-generated prose entry; null until generated |
 | `session_logs[].narrative.chronicle_entry_generated_at` | `sessions[].chronicle_entry_generated_at` | ISO-8601 timestamp of last generation; null until generated |
 | `session_logs[].narrative.chronicle_entry_model` | `sessions[].chronicle_entry_model` | Model ID used for last generation; null until generated |
@@ -295,6 +298,8 @@ Introduced by issue #93 (design: `docs/intake-redesign.md`, "What a turn holds")
 | Outcome (optional) | `effect`, `notes` | `downed` / `killed` (down is an outcome, never an activity); per-roll note such as `Nat 1` or `Bite`. A down or kill matched to its roll lives only here, not also in `special_events` |
 
 **Enemy turns:** `{ actor_id, activities[], special_events[], notes }`. There is one turn per `enemies_roster` group per round, holding every activity of that group. Enemies have no initiative slots, so the 4.x `initiative_position` was dropped (it was null on every recorded turn). Legendary actions and resistances are activities in the boss's turn. Lair actions are their own turn with `actor_id: "lair"`.
+
+**Player absence (5.0.1, issue #112).** A player's absence ("Lance out work, played by David") is a note about the session, never a fact about a PC: `session_logs[].narrative.absence_notes` is an optional list of plain sentences, first names only, with no `pc_id` ("Malachite piloted by David due to Lance's work schedule."). It is omitted when a session has no absence, and nothing mechanical reads it. It replaces `mechanics.player_absences` and the `player_absence` entries of `mechanical_notes` (which stored the same sentence twice); `scripts/migrate-absence-notes.js` moved the three recorded absences (sessions 2, 4 and 6) and removed the old fields. `mechanical_notes` itself stays; `player_absence` is no longer a `mechanical_note_type`.
 
 **New optional fields (5.0.0):**
 - `aliases[]` on every entity: other names the notes use for it.
@@ -413,6 +418,7 @@ Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `def
   - **Flags:** #104's `roundChecks` run on every change; a flagged cell has ⚑ and an amber edge, and the editor lists each flag with its one-click fix ("Move to Att") when it has one. #101's AI self-check notes sit beside the cell they name (✦), on the round, or in the general list
   - **Re-extract this round:** sends that round's page(s) back to the AI with the confirmed order (`factsPrompt`'s `focus`); the reply is validated like the first read and replaces only that round
   - Nothing is published yet: `ChronicleGrid.toTurnSchema()` produces the rounds, the roster groups to add, the held-back facts and the unconverted events for #106
+- **Attendance (#112):** the facts call returns absence lines ("Lance out work, played by David") as `absence_notes`: one plain sentence each, first names only, never a fact about a PC. When the chosen session already records an absence (a placeholder), the prompt shows that sentence and asks the AI to copy it exactly for the same absence. The review's "Session notes — attendance" box lists them one per line for editing, beside the sentences the session already records; they go on the session header as `narrative.absence_notes` (omitted when empty), and publish adds a sentence only if the session does not already have it
 - **Passages (#102):** the same facts call splits the page's narrative (DM description and exposition, and what NPCs say, quoted or reported) into passages, cleaned into complete sentences with abbreviations expanded and no new facts. Each has a speaker (`dm`, which is fact, or the NPC's occurrence, which is testimony) and attaches to the most specific thing it describes: an entity, a combat, a round, an activity, a quest step, or the session. They are shown grouped by attachment with their speaker. `ChronicleFacts.passageItems()` turns those on an entity, combat or the session into publish items; those on a round, activity or quest step wait for the facts to be written (#106). New lore whose passage an NPC spoke is marked `reliability: "rumoured"`, `source_type: "npc_testimony"`. Each page's one-sentence summary, which intake used to discard, is saved as the session summary on the header publish reads (filled only if the session has none)
 - **No saved state:** everything lives in the open tab (no sessionStorage or localStorage; saved drafts wait for Postgres). Once a page or notes file is added, leaving or reloading the page asks first (`beforeunload`)
 
@@ -558,11 +564,11 @@ Loaded by `session.html`; required directly by `tests/fact-extraction.test.js`. 
 | `ENUMS` | The turn schema's economy, result, val_type and special-event values, plus the loot changes |
 | `pageReferences(page, rows, index)` | This page's occurrences, each with what step 3 settled it as (entity, enemy group, or "to be assigned" for a split) and whether it is a group |
 | `combatChoices(campaign, rows, index)` | The combats a page may add rounds to: open combats, recorded combats a page mentions, and combats created in step 3, each with its last recorded round |
-| `factsPrompt({pageLabel, references, combats, carry, reread, focus})` | The system prompt for one page: facts, passages (#102), a page summary, and a proposed assignment for each split occurrence (#103). `focus` = `{ combat, n, order }` reads one round only, against the confirmed order (the grid's re-extract). No fixed slot-to-PC roster; attribute by occurrence, never by slot |
+| `factsPrompt({pageLabel, references, combats, carry, reread, focus, recordedAbsences})` | The system prompt for one page: facts, passages (#102), a page summary, a proposed assignment for each split occurrence (#103), and absence notes as session notes (#112; `recordedAbsences` are the session's recorded sentences, to be copied exactly for the same absence). `focus` = `{ combat, n, order }` reads one round only, against the confirmed order (the grid's re-extract). No fixed slot-to-PC roster; attribute by occurrence, never by slot |
 | `parseFacts(text)` | The reply's JSON with every list present; anything else throws |
 | `validateFacts(facts, references, combats)` | Errors that make a reply unusable: an actor or target that is not an occurrence id of the page, an unknown combat, an economy/result/val_type outside the schema; a passage whose speaker is not `dm` or an occurrence. A passage attached to something the page does not have is not an error: it is moved to the nearest place that exists (activity → round → combat → session) and the move is added to the self-check notes (#103: one misplaced passage threw away a real page) |
 | `checkFacts(facts, references)` | The self-checks from #104: more than one action or bonus action for one character in a round (groups exempt; a reaction recorded separately does not count), and imbalance (two actions for one while another who acts in that combat has no turn) |
-| `mergePages(pages, references)` | The session's facts: rounds merged across pages in page order, each turn tagged with its page; round resets flagged; passages and page summaries gathered |
+| `mergePages(pages, references)` | The session's facts: rounds merged across pages in page order, each turn tagged with its page; round resets flagged; passages, page summaries and absence notes (each once) gathered |
 | `passageItems(merged, references, sessionLegacyId)` | Passages as MOD `_passage_append` items on an entity (a roster group's go on its combat), a combat or the session; those on a round, activity or quest step are returned as `deferred` for #106. Each passage is on one object only |
 | `testimonyUpdates(identityItems, passages, references)` | New lore an NPC told the party gets `reliability: "rumoured"`, `source_type: "npc_testimony"` and the NPC as `source`; existing lore keeps its reliability |
 
@@ -674,7 +680,6 @@ Public API (`window.ChronicleAI`):
 | Passage placement follows the AI | `shared/chronicle-facts.js` | The AI chooses each passage's attachment and speaker; until the review grid and entity pages (#103) can move one, a misplaced passage stays where it landed. In testing an NPC's remark about a pact went on the session because step 2 had not listed the pact as an entity, and a place description began with the party's arrival. |
 | Ability lists are from June | `data/pc-abilities.json` | The ability-ownership and action-economy checks read the sheets harvested on 26 June 2026. Run `node scripts/harvest-characters.js` before the backlog (the DM's step, #104). The sheets show current abilities, so an early session may pass one learned later. |
 | Integrity's round fill keeps the fixed slot roster | `shared/chronicle-ai.js` (`fillRoundsFromText`) | Its prompt still says slot 1 = Goldie … slot 6 = Att, the cause of misplaced turns. The session page does not use it; left until phase 5 retires the old pages (the DM's choice on #101). |
-| A player's absence is not recorded from the notes | `shared/chronicle-facts.js` | A line such as "Lance out work, played by David" is not a turn; the facts call records it as an event at best. Recording it as a session `player_absence` note is not in #101's scope. |
 | Roster groups cannot hold aliases | `shared/chronicle-entities.js` | A spelling linked to a roster group ("Slinge" → Goblin Slingers) is used for this session but not saved, because `aliases` exists only on entities (#93). The same spelling is an inexact match again next session. |
 | Two copies of name matching | `admin/delta-review.html`, `shared/chronicle-entities.js` | Delta Review keeps its own name index and duplicate check (#56) and cohort matching (#62); the session page uses `chronicle-entities.js`. Left so today's workflow does not change mid-rebuild (the DM's choice on #100); Delta Review's copy goes with the page in phase 5. |
 | Identification flags read the AI's tags | `shared/chronicle-entities.js` | Acting twice, two places and ally-and-enemy are worked out from the turn, scene, location and allegiance the AI tags each mention with, because facts do not exist yet at step 3. A mistagged mention can raise or miss a flag; #101 and #104 add checks on the extracted facts. |
@@ -710,6 +715,7 @@ Public API (`window.ChronicleAI`):
 tests/
 ├── run-all.js                      # Runs every test file; exits 1 if any fail
 ├── integrity.test.js               # Tests for shared/chronicle-integrity.js (gap detection)
+├── absence-notes.test.js           # Absence notes (#112) — migrated data, migration script, publish once, extraction, both normalisers
 ├── round-grid.test.js              # Round grid (#103) — building, order, moves, session 6 misreads, flags → "Move to Att", split assignment, output
 ├── sanity-checks.test.js           # Round sanity checks (#104) — one per check on the fixture; Cure Wounds in Goli's row; cbt_002 round 4; never blocks
 ├── intake-image.test.js            # Group A — OCR round-data shape validation
@@ -724,7 +730,7 @@ tests/
 ├── entity-identification.test.js   # Entity identification (#100) — rows, exact/inexact/new, actions, flags, aliases/notes/roster groups through applySession
 ├── fact-extraction.test.js         # Per-page facts (#101) and passages (#102) — references, prompt, validation (occurrences only), checks, merge across pages, passages through applySession
 ├── fixtures/
-│   └── test-campaign.json          # Minimal v5.0.0 synthetic campaign — no real data
+│   └── test-campaign.json          # Minimal v5.0.1 synthetic campaign — no real data
 ├── output/                         # GITIGNORED — test-campaign.published.json from a Safe Test Mode publish (#97)
 ├── ocr-ground-truth/
 │   └── README.md                   # Ground-truth pair format (image + expected JSON)
@@ -759,7 +765,7 @@ Switching test mode on or off requires changing only `config.js`. Older copies o
 
 ### Test fixture
 
-`tests/fixtures/test-campaign.json` is a minimal v5.0.0 campaign with synthetic data (no real Magers campaign content). It contains: 2 party members, 2 sessions, 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. All automated tests run against this fixture. Since #95 its entities have UUID ids with their old typed IDs as `legacy_id`, like the real file; its two quest objectives never had ids and still have none.
+`tests/fixtures/test-campaign.json` is a minimal v5.0.1 campaign with synthetic data (no real Magers campaign content). It contains: 2 party members, 2 sessions, 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. All automated tests run against this fixture. Since #95 its entities have UUID ids with their old typed IDs as `legacy_id`, like the real file; its two quest objectives never had ids and still have none.
 
 ---
 

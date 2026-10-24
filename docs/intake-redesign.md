@@ -384,9 +384,8 @@ Decided on 23 October 2026:
 - **"Save as alias" on Link to existing** (#100): ticked by default. Untick it for words that are right in this session but would match the wrong thing later.
 - **A misread that lands as an event:** extraction sometimes records a line of attacks as an event (session 6: "Hit - Dragon, Dragon, Oregon"). The round grid (#103) can turn an event into attacks as well as move and edit them.
 - **The session page's Publish step** (step 5) is owned by #106, together with the relationships computed at publish. Passages on rounds, activities and quest steps are written there too.
+- **Attendance is a session note** (#112): a player's absence and who ran their character ("Lance out work, played by David") is a note about the session, not a fact about the PC. It is a plain sentence in `session_logs[].narrative.absence_notes`, first names only, with no PC id, omitted when there is no absence. The three absences already recorded in the old PC-fact shape were migrated and `mechanics.player_absences` removed. Schema 5.0.1.
 
 ## Open questions
 
-- **Attendance:** whether a session records players who were absent and who played their character ("Lance out work, played by David"). Tracked in #112; needs a decision on the field before it is built.
-
-New questions that come up during the build belong here.
+None open. New questions that come up during the build belong here.

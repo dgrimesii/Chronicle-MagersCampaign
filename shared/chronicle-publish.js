@@ -600,6 +600,11 @@
    * one, in the order the recorded sessions use. Starting from the full
    * shape means the viewers and the narrative module find every path they
    * read (narrative.key_moments, mechanics.npcs_met) on a new session.
+   *
+   * There is no mechanics.player_absences (removed by schema 5.0.1, #112): a
+   * player's absence is a session note, narrative.absence_notes, which is
+   * optional and so is not created empty; the session header carries it
+   * when the notes record one, and fillSession adds it.
    */
   function blankSession(id, legacy) {
     const s = { _object_type: 'session', id };
@@ -608,7 +613,7 @@
       title: null,
       date: null,
       mechanics: { combats: [], level_ups: [], items_found: [], npcs_met: [], npcs_lost: [],
-        quests_opened: [], quests_closed: [], locations_visited: [], player_absences: [] },
+        quests_opened: [], quests_closed: [], locations_visited: [] },
       narrative: { summary: null, tone: null, key_moments: [], opening_scene: null, closing_scene: null,
         chronicle_entry: null, chronicle_entry_generated_at: null, chronicle_entry_model: null,
         chronicle_entry_version: 0, narrative_beats: [], human_guidance: null, generation_warnings: [] },
