@@ -1,0 +1,151 @@
+{
+  "_about": {
+    "page": 1,
+    "image": "OCR Test Files/Session 6 - page 1.jpg",
+    "session": "session_006",
+    "tests": [
+      "A dense combat page: Goblin Ambush (cbt_005) rounds 4 and 5, continuing from session_005",
+      "Notes written in two columns: each line holds two characters' turns (slots 1 and 4, 2 and 5, 3 and 6)",
+      "Heavy abbreviations: Asp, Mal, Att, Goli, Ash, Gold, Gob, WB, TS, Slinge",
+      "Enemy groups: Goblins, Goblin Slingers, and the Larkspur dragons arriving mid-fight",
+      "A reaction (Gold casts Shield against the dragon), Flurry of Blows, a downing (Asp, round 5)",
+      "DM exposition attached to rounds (the dragons descend; one dragon bloodied)"
+    ],
+    "source_of_truth": "Drafted by Claude from the page image and the #103 / #105 session-page runs on it. session_006 is a placeholder, so nothing is recorded in the campaign yet.",
+    "status": "Confirmed by the DM against the physical page, 2026-10-24",
+    "used_by": "#17 (end-to-end run) and as a regression set for #100, #101, #102"
+  },
+
+  "session": { "legacy_id": "session_006", "fixture": "session_006 (placeholder, #111)", "date": "2026-04-02" },
+
+  "entities": [
+    { "as_written": ["ASP", "Asp"], "kind": "pc", "real": "pc_004 Asphodel (Del)", "fixture": "pc_004" },
+    { "as_written": ["Mal"], "kind": "pc", "real": "pc_002 Malachite (Mal)", "fixture": "pc_002" },
+    { "as_written": ["Att"], "kind": "pc", "real": "pc_006 Atticus (Atti)", "fixture": "pc_006" },
+    { "as_written": ["Goli", "Gole"], "kind": "pc", "real": "pc_005 Derwin (Goli)", "fixture": "pc_005" },
+    { "as_written": ["Ash"], "kind": "pc", "real": "pc_003 Ashton (Ash)", "fixture": "pc_003" },
+    { "as_written": ["Gold"], "kind": "pc", "real": "pc_001 Zragar (Goldie)", "fixture": "pc_001" },
+    { "as_written": ["Goblins", "Goblin", "Gob"], "kind": "creature_group", "real": "cbt_005 roster group \"Goblins\" (mon_004 Goblins)", "fixture": "new", "note": "The fixture has no cbt_005; on the fixture these are new" },
+    { "as_written": ["Slinge"], "kind": "creature_group", "real": "cbt_005 roster group \"Goblin Slingers\" (mon_004 Goblins, role slinger)", "fixture": "new", "note": "A struck-out word precedes it on the page" },
+    { "as_written": ["Lurkspur dragons", "Larkspur Drag", "dragon", "Dragon", "Dragons"], "kind": "creature_group", "real": "new — bestiary \"Larkspur Dragon\", roster group \"Larkspur Dragons\" (2 individuals) added to cbt_005", "fixture": "new", "note": "Every spelling is one group; the page spells it Lurkspur once and Larkspur once" },
+    { "as_written": ["cart"], "kind": "not_an_entity", "real": "none — target_text", "fixture": "none" }
+  ],
+
+  "combats": [
+    {
+      "combat": "cbt_005 Goblin Ambush",
+      "fixture": "new combat (\"new: Goblin Ambush\")",
+      "rounds": [4, 5],
+      "initiative_order": ["pc_004", "pc_002", "pc_006", "pc_005", "pc_003", "pc_001"],
+      "order_note": "The recorded order from session_005 (Del, Mal, Atti, Goli, Ash, Goldie). The page lists turns in two columns, so read top-to-bottom they come in slot order 1, 4, 2, 5, 3, 6",
+      "roster_adds": [ { "actor_id": "Larkspur Dragons", "type": "group", "creature": "Larkspur Dragon (new)", "count": 2 } ]
+    }
+  ],
+
+  "rounds": [
+    {
+      "combat": "cbt_005", "n": 4,
+      "turns": [
+        { "actor": "pc_004", "source_line": "ASP - Healing Hands   (above: Flurry Blows 1 hit 7 (Dead))",
+          "activities": [
+            { "economy": "action", "name": "Magic", "detail": "Healing Hands", "outcomes": [ { "res": "unclear", "val": null, "target": null } ] },
+            { "economy": "bonus_action", "name": "Flurry of Blows", "outcomes": [ { "res": "hit", "val": 7, "target": "Goblins", "effect": "killed" } ], "notes": "The DM: the second strike missed, but it is not written on the page, so the expected read has one outcome" }
+          ] },
+        { "actor": "pc_002", "source_line": "Mal - Hit (Dead)",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": null, "target": "Goblins", "effect": "killed" } ] } ] },
+        { "actor": "pc_006", "source_line": "Att - Acid Splash 1 save 1 fail 4 dmg",
+          "activities": [ { "economy": "action", "name": "Magic", "detail": "Acid Splash", "val_type": "damage",
+            "outcomes": [ { "res": "save", "val": null, "target": "Goblins" }, { "res": "failure", "val": 4, "target": "Goblins" } ], "notes": "4 base damage on the failed save" } ] },
+        { "actor": "pc_005", "source_line": "Goli - 2 Att miss/Hit 8 (dead)",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "miss", "val": null, "target": "Goblins" }, { "res": "hit", "val": 8, "target": "Goblins", "effect": "killed" } ] } ] },
+        { "actor": "pc_003", "source_line": "Ash - WB (dragon) 14",
+          "activities": [ { "economy": "action", "name": "Magic", "detail": "Witch Bolt", "outcomes": [ { "res": "hit", "val": 14, "target": "Larkspur Dragons" } ] } ] },
+        { "actor": "pc_001", "source_line": "Gold - TS Crit (9)  Adv to Asp  Dead",
+          "activities": [ { "economy": "action", "name": "Magic", "detail": "True Strike", "outcomes": [ { "res": "crit", "val": 9, "target": null, "effect": "killed" } ], "notes": "Gold gave Asp advantage (\"Adv to Asp\"); the kill (\"Dead\") is this True Strike's; the target is not written" } ] }
+      ],
+      "enemy_turns": [
+        { "actor": "Goblins", "source_line": "Goblins - Hit Mal (opportunity)",
+          "activities": [ { "economy": "reaction", "name": "Opportunity Attack", "outcomes": [ { "res": "hit", "val": null, "target": "pc_002" } ] } ] },
+        { "actor": "Goblin Slingers", "source_line": "Slinge - Attack dragon 1 hit",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": null, "target": "Larkspur Dragons" } ] } ] },
+        { "actor": "Larkspur Dragons", "source_line": "Lurkspur dragons descend on cart from ridges. Kill all at the cart.",
+          "activities": [], "special_events": [ { "type": "appeared", "description": "The Larkspur dragons descend on the cart from the ridges and kill everyone at the cart" } ] }
+      ]
+    },
+    {
+      "combat": "cbt_005", "n": 5,
+      "turns": [
+        { "actor": "pc_004", "source_line": "ASP - Hit (7) Dead [Gob], Hit (5)",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": 7, "target": "Goblins", "effect": "killed" }, { "res": "hit", "val": 5, "target": "Goblins" } ] } ] },
+        { "actor": "pc_002", "source_line": "Mal - Hit (13) Dead Goblin",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": 13, "target": "Goblins", "effect": "killed" } ] } ] },
+        { "actor": "pc_006", "source_line": "Att - Shillelagh (Dragon) miss, adv to Gole",
+          "activities": [ { "economy": "action", "name": "Attack", "detail": "Shillelagh", "outcomes": [ { "res": "miss", "val": null, "target": "Larkspur Dragons" } ], "notes": "gave Goli advantage (\"adv to Gole\")" } ] },
+        { "actor": "pc_005", "source_line": "Goli - 2 Att miss / Hit (9)",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "miss", "val": null, "target": null }, { "res": "hit", "val": 9, "target": null } ] } ] },
+        { "actor": "pc_003", "source_line": "Ash - WB (11) Activate, chill touch",
+          "activities": [
+            { "economy": "bonus_action", "name": "Witch Bolt", "outcomes": [ { "res": "hit", "val": 11, "target": "Larkspur Dragons" } ] },
+            { "economy": "action", "name": "Magic", "detail": "Chill Touch", "outcomes": [ { "res": "unclear", "val": null, "target": null } ] }
+          ] },
+        { "actor": "pc_001", "source_line": "Gold - True Strike Dragon (12)  (\"1st\" with an arrow: the first dragon attacked Gold)",
+          "activities": [
+            { "economy": "action", "name": "Magic", "detail": "True Strike", "outcomes": [ { "res": "hit", "val": 12, "target": "Larkspur Dragons" } ] },
+            { "economy": "reaction", "name": "Shield", "outcomes": [], "notes": "Cast against the dragon's attack (\"Attack Gold cast shield\")" }
+          ] }
+      ],
+      "enemy_turns": [
+        { "actor": "Larkspur Dragons", "source_line": "Larkspur Drag - Attack Gold cast shield, one miss, one hit & slash & poison (the first dragon) / 2nd Attack Goblins Dead, Dead",
+          "activities": [
+            { "economy": "action", "name": "Attack", "member": "#1", "outcomes": [ { "res": "miss", "val": null, "target": "pc_001" }, { "res": "hit", "val": null, "target": "pc_001" } ], "notes": "One miss (Gold's Shield), one hit with slash and poison damage" },
+            { "economy": "action", "name": "Attack", "member": "#2", "outcomes": [ { "res": "hit", "val": null, "target": "Goblins", "effect": "killed" }, { "res": "hit", "val": null, "target": "Goblins", "effect": "killed" } ], "notes": "\"Dead, Dead\": two goblins killed" }
+          ] },
+        { "actor": "Goblins", "source_line": "Goblin - Hit Asp (4), Mal (1) / Hit dragon, Hit dragon / Hit dragon, Hit Asp (Down)  (the DM: one goblin group, six hits)",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [
+            { "res": "hit", "val": 4, "target": "pc_004" }, { "res": "hit", "val": 1, "target": "pc_002" },
+            { "res": "hit", "val": null, "target": "Larkspur Dragons" }, { "res": "hit", "val": null, "target": "Larkspur Dragons" },
+            { "res": "hit", "val": null, "target": "Larkspur Dragons" }, { "res": "hit", "val": null, "target": "pc_004", "effect": "downed" } ] } ] }
+      ]
+    }
+  ],
+
+  "passages": [
+    { "text": "The Larkspur dragons descended on the cart from the ridges and killed everyone at the cart. The goblins were scared of the dragons.", "speaker": "dm", "attach": { "to": "round", "combat": "cbt_005", "n": 4 } },
+    { "text": "By the end of round 5 one dragon was bloodied.", "speaker": "dm", "attach": { "to": "round", "combat": "cbt_005", "n": 5 } }
+  ],
+
+  "session_notes": { "absence_notes": [] },
+  "quest_progress": [],
+  "loot": [],
+
+  "known_misreads": [
+    { "seen": "\"Iteraling Hinds\" / Healing Hands read as a separate turn", "correct": "Asp's Healing Hands (round 4)" },
+    { "seen": "Gold's \"Adv to Asp Dead\" read as True Strike targeting Asp (Del)", "correct": "Gold's True Strike on a goblin; \"Adv to Asp\" is a note, not the target" },
+    { "seen": "\"Lurkspur dragons\", \"Larkspur Drag\", \"dragon\", \"Dragons\" made into separate new roster groups", "correct": "One group, Larkspur Dragons" },
+    { "seen": "\"Slinge\" made into a new group", "correct": "The recorded Goblin Slingers group" },
+    { "seen": "\"Rect, Dead\" on the second dragon's attack", "correct": "\"Dead, Dead\": the second dragon killed two goblins" },
+    { "seen": "\"one miss, one hit & slash & poison\" given to the second dragon's attack on the goblins", "correct": "The first dragon's two attacks on Gold" },
+    { "seen": "\"1st\" under Gold's True Strike read as part of Gold's turn", "correct": "Marks that the first dragon made the attack on Gold" },
+    { "seen": "Turns placed in the wrong slots because of the two-column layout (#104 flagged the order 1, 4, 2, 5, 3, 6)", "correct": "The initiative order above" }
+  ],
+
+  "answered": {
+    "by": "the DM, 2026-10-24",
+    "answers": [
+      "R4 Asp: Healing Hands is her action and Flurry of Blows her bonus action; Healing Hands' target is not written",
+      "R4 Asp: Flurry's second strike missed; the miss is not written on the page",
+      "R4 Gold: the True Strike crit's target is not written",
+      "R4 Att: Acid Splash on two goblins, one saved, one failed for 4 base damage",
+      "R4 Ash: Witch Bolt hit the dragon for 14",
+      "R5 Att: \"adv to Gole\" means Goli had advantage; the Shillelagh attack is Att's action",
+      "R5 Goli: the targets are not written",
+      "R5: \"1st\" means the attack on Goldie was by the first Larkspur Dragon",
+      "R5: Gold's Shield made that attack miss; \"Rect, Dead\" is \"Dead, Dead\": the second dragon attacked and killed goblins",
+      "R5 Goblins: one goblin group made all six hits",
+      "R4 Gold: \"Adv to Asp\" means Gold gave Asp advantage, and \"Dead\" is a kill by Gold's True Strike",
+      "R5: \"one miss, one hit\" with slash and poison belongs to the first dragon (its attacks on Gold); the second dragon's entry is \"Attack Goblins Dead, Dead\""
+    ]
+  },
+
+  "to_confirm": []
+}

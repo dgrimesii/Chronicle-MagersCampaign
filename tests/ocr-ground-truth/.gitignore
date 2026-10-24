@@ -1,0 +1,7 @@
+# The ground-truth images are real session pages and stay out of git (#15).
+# They live in the git-ignored OCR Test Files/ folder at the repo root; this
+# keeps any copy placed here out of git too.
+*.jpg
+*.jpeg
+*.png
+*.heic

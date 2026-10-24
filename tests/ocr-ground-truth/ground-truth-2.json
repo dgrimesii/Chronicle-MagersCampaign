@@ -1,0 +1,149 @@
+{
+  "_about": {
+    "page": 2,
+    "image": "OCR Test Files/Session 6 - page 2.jpg",
+    "session": "session_006",
+    "tests": [
+      "The combat continuing across the page break: Goblin Ambush (cbt_005) rounds 6 and 7, with no combat name on the page",
+      "Known misreads: \"Hit - Dragon, Dragon, Oregon\" (read as an Ogre) and \"Nat 1\" (read as \"Not 1\")",
+      "An absence note (\"Lance Out Work, Played by David\") that is a session note, never a PC fact (#112)",
+      "Reactions: Mal's opportunity attacks in rounds 6 and 7, recorded under the enemies' headings",
+      "Two individual dragons (#1, #2) in one group; enemies fleeing; empty turns; the combat ending"
+    ],
+    "source_of_truth": "Drafted by Claude from the page image and the #103 / #105 session-page runs on it. The absence sentence is the one recorded on session_006 (#112).",
+    "status": "Confirmed by the DM against the physical page, 2026-10-24",
+    "used_by": "#17 (end-to-end run) and as a regression set for #100, #101, #102"
+  },
+
+  "session": { "legacy_id": "session_006", "fixture": "session_006 (placeholder, #111)", "date": "2026-04-02" },
+
+  "entities": [
+    { "as_written": ["Asp"], "kind": "pc", "real": "pc_004 Asphodel (Del)", "fixture": "pc_004" },
+    { "as_written": ["Mal"], "kind": "pc", "real": "pc_002 Malachite (Mal)", "fixture": "pc_002" },
+    { "as_written": ["Att"], "kind": "pc", "real": "pc_006 Atticus (Atti)", "fixture": "pc_006" },
+    { "as_written": ["Goli"], "kind": "pc", "real": "pc_005 Derwin (Goli)", "fixture": "pc_005" },
+    { "as_written": ["Ash", "Ashton"], "kind": "pc", "real": "pc_003 Ashton (Ash)", "fixture": "pc_003" },
+    { "as_written": ["Gold"], "kind": "pc", "real": "pc_001 Zragar (Goldie)", "fixture": "pc_001" },
+    { "as_written": ["Goblins", "Goblin"], "kind": "creature_group", "real": "cbt_005 roster group \"Goblins\" (mon_004 Goblins)", "fixture": "new" },
+    { "as_written": ["Dragons", "Dragon", "#1", "#2", "#2 Dragon"], "kind": "creature_group", "real": "the roster group \"Larkspur Dragons\" added on page 1; #1 and #2 are its members", "fixture": "new (the same group as page 1)" },
+    { "as_written": ["Lance", "David"], "kind": "player", "real": "not entities — players' first names in the absence note", "fixture": "none", "note": "Must not become NPCs (the #106 run created \"Lance\" as an NPC)" }
+  ],
+
+  "combats": [
+    {
+      "combat": "cbt_005 Goblin Ambush",
+      "fixture": "the combat page 1 started",
+      "rounds": [6, 7],
+      "initiative_order": ["pc_004", "pc_002", "pc_006", "pc_005", "pc_003", "pc_001"],
+      "order_note": "Same as page 1; here the turns are listed in one column, in slot order",
+      "outcome": "victory",
+      "outcome_note": "The goblins and the second dragon fled and the combat ended (the DM, 2026-10-24); \"victory\" is the schema's combat_outcome for enemies that fled",
+      "roster_adds": []
+    }
+  ],
+
+  "rounds": [
+    {
+      "combat": "cbt_005", "n": 6,
+      "turns": [
+        { "actor": "pc_004", "source_line": "Asp - Death ✓",
+          "activities": [ { "economy": "action", "name": "Death Save", "val_type": "death_save_success", "outcomes": [ { "res": "success", "val": null, "target": null } ] } ] },
+        { "actor": "pc_002", "source_line": "Mal - Sword Hit (13) dragon",
+          "activities": [ { "economy": "action", "name": "Attack", "detail": "Sword", "outcomes": [ { "res": "hit", "val": 13, "target": "Larkspur Dragons" } ] } ] },
+        { "actor": "pc_006", "source_line": "Att - Shillelagh miss, HW on Asp (11)",
+          "activities": [
+            { "economy": "action", "name": "Attack", "detail": "Shillelagh", "outcomes": [ { "res": "miss", "val": null, "target": null } ] },
+            { "economy": "bonus_action", "name": "Healing Word", "val_type": "healing", "outcomes": [ { "res": "success", "val": 11, "target": "pc_004" } ] }
+          ] },
+        { "actor": "pc_005", "source_line": "Goli - 2 Att miss, miss",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "miss", "val": null, "target": null }, { "res": "miss", "val": null, "target": null } ] } ] },
+        { "actor": "pc_003", "source_line": "Ash - WB (3), Chill Touch",
+          "activities": [
+            { "economy": "bonus_action", "name": "Witch Bolt", "outcomes": [ { "res": "hit", "val": 3, "target": "Larkspur Dragons" } ] },
+            { "economy": "action", "name": "Magic", "detail": "Chill Touch", "outcomes": [ { "res": "unclear", "val": null, "target": null } ] }
+          ] },
+        { "actor": "pc_001", "source_line": "Gold - True Strike (11) Hit",
+          "activities": [ { "economy": "action", "name": "Magic", "detail": "True Strike", "outcomes": [ { "res": "hit", "val": 11, "target": null } ] } ] },
+        { "actor": "pc_002", "source_line": "(under Goblins) Mal (Opportunity Attack Hit 9) Dead Goblin",
+          "activities": [ { "economy": "reaction", "name": "Opportunity Attack", "outcomes": [ { "res": "hit", "val": 9, "target": "Goblins", "effect": "killed" } ] } ],
+          "note": "Mal's reaction, a second activity in Mal's round-6 slot, not a goblin turn" }
+      ],
+      "enemy_turns": [
+        { "actor": "Goblins", "source_line": "Goblins … Hit - Dragon, Dragon, Dragon",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [
+            { "res": "hit", "val": null, "target": "Larkspur Dragons" }, { "res": "hit", "val": null, "target": "Larkspur Dragons" }, { "res": "hit", "val": null, "target": "Larkspur Dragons" } ] } ] },
+        { "actor": "Larkspur Dragons", "source_line": "Dragons / #1 Beak hit Ashton (5) Con. Save ✓ / #2 Beak dead Goblin Hit, Talon Mal (miss)",
+          "activities": [
+            { "economy": "action", "name": "Attack", "detail": "Beak", "member": "#1", "outcomes": [ { "res": "hit", "val": 5, "target": "pc_003" } ], "notes": "Ash succeeded on a Constitution save" },
+            { "economy": "action", "name": "Attack", "detail": "Beak", "member": "#2", "outcomes": [ { "res": "hit", "val": null, "target": "Goblins", "effect": "killed" } ] },
+            { "economy": "action", "name": "Attack", "detail": "Talon", "member": "#2", "outcomes": [ { "res": "miss", "val": null, "target": "pc_002" } ] }
+          ] }
+      ]
+    },
+    {
+      "combat": "cbt_005", "n": 7,
+      "turns": [
+        { "actor": "pc_004", "source_line": "Asp - 2 Att - Hit (9), Hit (7), Flurry Hit (9) Dead",
+          "activities": [
+            { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": 9, "target": null }, { "res": "hit", "val": 7, "target": null } ] },
+            { "economy": "bonus_action", "name": "Flurry of Blows", "outcomes": [ { "res": "hit", "val": 9, "target": null, "effect": "killed" } ], "notes": "\"Dead\" is messy handwriting under the Flurry hit, not crossed out" }
+          ] },
+        { "actor": "pc_002", "source_line": "Mal - Hit (13), Fire Strike (10)",
+          "activities": [
+            { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": 13, "target": null } ] },
+            { "economy": "free", "name": "Fire Strike", "val_type": "damage", "outcomes": [ { "res": "hit", "val": 10, "target": null } ], "notes": "Fire Strike is an ability of Malachite's, extra damage on the hit" }
+          ] },
+        { "actor": "pc_006", "source_line": "Att -", "activities": [], "note": "The combat ended before this turn: no action, so no slot is written" },
+        { "actor": "pc_005", "source_line": "Goli -", "activities": [], "note": "The combat ended before this turn: no action, so no slot is written" },
+        { "actor": "pc_003", "source_line": "Ash -", "activities": [], "note": "The combat ended before this turn: no action, so no slot is written" },
+        { "actor": "pc_001", "source_line": "Gold -", "activities": [], "note": "The combat ended before this turn: no action, so no slot is written" },
+        { "actor": "pc_002", "source_line": "#2 Dragon … Flee - Opp Att from Mal, Hit 12 + Fire Strike 10",
+          "activities": [ { "economy": "reaction", "name": "Opportunity Attack", "outcomes": [ { "res": "hit", "val": 12, "target": "Larkspur Dragons" } ], "notes": "plus Fire Strike 10, as the second dragon fled" } ],
+          "note": "Mal's reaction, in Mal's round-7 slot" }
+      ],
+      "enemy_turns": [
+        { "actor": "Goblins", "source_line": "Goblins Flee", "activities": [], "special_events": [ { "type": "fled", "description": "The goblins flee" } ] },
+        { "actor": "Larkspur Dragons", "source_line": "#2 Dragon - Nat 1, MISS on Mal / Flee",
+          "activities": [ { "economy": "action", "name": "Attack", "member": "#2", "outcomes": [ { "res": "miss", "val": null, "target": "pc_002" } ], "notes": "Nat 1" } ],
+          "special_events": [ { "type": "fled", "description": "Dragon #2 flees" } ] }
+      ]
+    }
+  ],
+
+  "passages": [
+    { "text": "The goblins fled. The second dragon rolled a natural 1 against Malachite and missed, then fled, and Malachite struck it with an opportunity attack as it went.", "speaker": "dm", "attach": { "to": "round", "combat": "cbt_005", "n": 7 } },
+    { "text": "The combat ended.", "speaker": "dm", "attach": { "to": "combat", "combat": "cbt_005" } }
+  ],
+
+  "session_notes": { "absence_notes": ["Malachite piloted by David due to Lance's work schedule."] },
+  "quest_progress": [],
+  "loot": [],
+
+  "known_misreads": [
+    { "seen": "\"Hit - Dragon, Dragon, Oregon\" read as an Ogre", "correct": "Three hits on the dragons; there is no Ogre on this page" },
+    { "seen": "\"Not 1\"", "correct": "\"Nat 1\" (a natural 1)" },
+    { "seen": "\"Hit 92\"", "correct": "Hit 12 (Mal's opportunity attack on the fleeing dragon)" },
+    { "seen": "Mal's opportunity attack recorded as a goblin turn because it sits under the Goblins heading", "correct": "Mal's reaction" },
+    { "seen": "\"#1\", \"#2\", \"#2 Dragon\", \"Dragons\" made into separate roster groups", "correct": "Members #1 and #2 of the Larkspur Dragons group" },
+    { "seen": "\"Lance\" created as a new NPC from the absence note", "correct": "No entity; the line is an absence note only" },
+    { "seen": "Fire Strike recorded as a note only", "correct": "Malachite's Fire Strike ability, a free-economy damage rider on his hit" },
+    { "seen": "\"Dead\" under Asp's Flurry hit read as crossed out and dropped", "correct": "The Flurry hit killed its target" },
+    { "seen": "Att, Goli, Ash and Gold in round 7 given an empty or guessed turn", "correct": "No turn: the combat ended before they acted" }
+  ],
+
+  "answered": {
+    "by": "the DM, 2026-10-24",
+    "answers": [
+      "R6 Gold: the True Strike's target is not written",
+      "R6 Att: the Shillelagh attack's target is not written",
+      "R6: \"Hit - Dragon, Dragon, Dragon\" is three goblin hits on the dragons",
+      "R7 Asp: no target is written; the word under the Flurry hit is \"Dead\" in messy handwriting",
+      "R7 Mal: no target is written; Fire Strike is an ability of Malachite's",
+      "R7 Mal's opportunity attack on the fleeing dragon: hit 12, plus Fire Strike 10",
+      "R7: the combat ended before Att, Goli, Ash and Gold went; they took no actions",
+      "The combat ended with the goblins and the second dragon fled"
+    ]
+  },
+
+  "to_confirm": []
+}

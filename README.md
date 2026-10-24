@@ -60,6 +60,7 @@ Chronicle-MagersCampaign/
 │   ├── header-draft.test.js          # Tests for the session header's own draft (#74): prompt, reply check, edited header and placeholder replace through applySession
 │   ├── session-publish.test.js       # Tests for the session page's publish (#106): sessionQueue, the review through applySession, republishing, computed relationships
 │   ├── viewer-passages.test.js       # Tests for passages and aliases in the viewers (#107): both normalisers carry them identically, testimony set apart, alias search
+│   ├── ground-truth.test.js          # Checks the ground-truth files (#15): what each tests, legacy ids exist, turn-schema vocabulary, passages, images kept out of git
 │   ├── absence-notes.test.js         # Tests for player absence as a session note (#112): migrated data, the migration, publish, extraction, both viewers
 │   ├── round-grid.test.js            # Tests for shared/chronicle-grid.js (#103): building, order, every move, session 6's misreads, flags with one-click moves, split assignment, output
 │   ├── sanity-checks.test.js         # Tests for the nine round sanity checks (#104): one per check on the fixture, plus the acceptance cases
@@ -77,7 +78,7 @@ Chronicle-MagersCampaign/
 │   ├── fixtures/
 │   │   └── test-campaign.json        # Minimal v5.0.1 campaign for automated tests and Safe Test Mode (real PC names, placeholder sessions 003–007, #111)
 │   ├── output/                       # GITIGNORED — test-campaign.published.json, written by a Safe Test Mode publish (#97)
-│   ├── ocr-ground-truth/             # Ground-truth image+JSON pairs for OCR accuracy testing
+│   ├── ocr-ground-truth/             # Ground-truth set (#15): expected structured output for three real pages (images stay in the git-ignored OCR Test Files/)
 │   └── ai-input-fixtures/            # Captured AI response fixtures for offline test runs
 ├── .vscode/
 │   └── settings.json           # Live Server ignores **/data/**, **/tests/** and **/OCR Test Files/**, so a publish never reloads the page (#97, #106)
@@ -759,6 +760,7 @@ tests/
 ├── header-draft.test.js            # Header draft (#74) — prompt rules, reply check, edited header publishes, placeholder kept unless replace is ticked
 ├── session-publish.test.js         # Session publish (#106) — every reviewed fact lands once, a republish adds nothing, relationships follow confirmed data
 ├── viewer-passages.test.js         # Viewer passages (#107) — passages on every object reach the view, NPC testimony marked, aliases searchable
+├── ground-truth.test.js            # Ground-truth set (#15) — the three expected-output files are well formed and every legacy id in them exists
 ├── absence-notes.test.js           # Absence notes (#112) — migrated data, migration script, publish once, extraction, both normalisers
 ├── round-grid.test.js              # Round grid (#103) — building, order, moves, session 6 misreads, flags → "Move to Att", split assignment, output
 ├── sanity-checks.test.js           # Round sanity checks (#104) — one per check on the fixture; Cure Wounds in Goli's row; cbt_002 round 4; never blocks
@@ -777,7 +779,11 @@ tests/
 │   └── test-campaign.json          # Minimal v5.0.1 campaign — the real party's names and placeholder sessions (#111), everything else invented
 ├── output/                         # GITIGNORED — test-campaign.published.json from a Safe Test Mode publish (#97)
 ├── ocr-ground-truth/
-│   └── README.md                   # Ground-truth pair format (image + expected JSON)
+│   ├── README.md                   # What each page tests and how #17 uses the files
+│   ├── ground-truth-1.json         # Session 6 page 1: Goblin Ambush rounds 4–5 (expected entities, rounds, passages, misreads; confirmed by the DM 2026-10-24)
+│   ├── ground-truth-2.json         # Session 6 page 2: rounds 6–7, the absence note, known misreads
+│   ├── ground-truth-3.json         # Session 4 page 3: Axe Beak & Vespon Ambush rounds 10–11, Menne's Ranch, Helen's testimony
+│   └── .gitignore                  # Keeps any page image copied here out of git
 └── ai-input-fixtures/
     └── README.md                   # AI response fixture naming conventions
 ```
@@ -785,7 +791,7 @@ tests/
 ### Running tests
 
 ```
-node tests/run-all.js          # Full suite (all groups except ground-truth OCR)
+node tests/run-all.js          # Full suite (checks the ground-truth files' structure, not an AI run on them)
 node tests/integrity.test.js   # Individual file
 ```
 

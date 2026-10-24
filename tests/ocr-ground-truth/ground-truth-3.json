@@ -1,0 +1,140 @@
+{
+  "_about": {
+    "page": 3,
+    "image": "OCR Test Files/Session 4 - David - 3.jpg",
+    "session": "session_004",
+    "tests": [
+      "Axe Beak & Vespon Ambush (cbt_003) rounds 10 and 11, already recorded in the campaign",
+      "Round 10 in two columns (Asp, Gold, Mal on the left; Ash, Att, Goli on the right)",
+      "A misspelt PC name in a target (\"Attisus\" for Atticus) and Nat 20s",
+      "A place description (Menne's Ranch) attached to the place",
+      "An NPC's testimony (Helen about the Quarry and its rats), kept as Helen's words, on the thing it describes",
+      "Travel (\"2 days to get to quarry\") and a name with no other text (Krustie Gnome)"
+    ],
+    "source_of_truth": "The page, confirmed by the DM. The real campaign's recorded session_004 (cbt_003 rounds 10–11, Helen npc_007, Menne's Ranch loc_004, The Quarry loc_002, Krustie Gnome npc_003, the Quarry ROUS Problem qst_005) supplied the entities; where the recorded rounds differ from the page, the page is right (record_differences below).",
+    "status": "Confirmed by the DM against the physical page, 2026-10-24",
+    "used_by": "#17 (end-to-end run) and as a regression set for #100, #101, #102"
+  },
+
+  "session": { "legacy_id": "session_004", "fixture": "session_004 (placeholder, #111)", "date": "2026-03-10" },
+
+  "entities": [
+    { "as_written": ["Asp"], "kind": "pc", "real": "pc_004 Asphodel (Del)", "fixture": "pc_004" },
+    { "as_written": ["Gold"], "kind": "pc", "real": "pc_001 Zragar (Goldie)", "fixture": "pc_001" },
+    { "as_written": ["Mal"], "kind": "pc", "real": "pc_002 Malachite (Mal)", "fixture": "pc_002" },
+    { "as_written": ["Ash"], "kind": "pc", "real": "pc_003 Ashton (Ash)", "fixture": "pc_003" },
+    { "as_written": ["Att", "Attisus"], "kind": "pc", "real": "pc_006 Atticus (Atti)", "fixture": "pc_006", "note": "\"Attisus\" is a misspelling of Atticus, the Vespon's target" },
+    { "as_written": ["Goli"], "kind": "pc", "real": "pc_005 Derwin (Goli)", "fixture": "pc_005" },
+    { "as_written": ["Vespon"], "kind": "creature_group", "real": "cbt_003 roster group \"Vespon Swarm\" (mon_003 Vespon Swarm)", "fixture": "new" },
+    { "as_written": ["Menne's Ranch"], "kind": "location", "real": "loc_004 Menne's Ranch", "fixture": "new" },
+    { "as_written": ["Helen"], "kind": "npc", "real": "npc_007 Helen", "fixture": "new" },
+    { "as_written": ["Stone Quarry", "Quarry", "quarry"], "kind": "location", "real": "loc_002 The Quarry", "fixture": "new" },
+    { "as_written": ["ROUS", "Rats"], "kind": "creature", "real": "mon_008 Giant Rat (ROUS)", "fixture": "new" },
+    { "as_written": ["Krustie Gnome"], "kind": "npc", "real": "npc_003 Krustie Gnome", "fixture": "new" },
+    { "as_written": ["Dwarves", "Gnomes", "Humans"], "kind": "not_an_entity", "real": "none — peoples, in Helen's passage", "fixture": "none" },
+    { "as_written": ["Tavern", "Shop", "Main St."], "kind": "not_an_entity", "real": "none — parts of Menne's Ranch, in its passage", "fixture": "none" }
+  ],
+
+  "combats": [
+    {
+      "combat": "cbt_003 Axe Beak & Vespon Ambush",
+      "fixture": "new combat (\"new: Axe Beak & Vespon Ambush\")",
+      "rounds": [10, 11],
+      "initiative_order": ["pc_004", "pc_001", "pc_002", "pc_003", "pc_006", "pc_005"],
+      "order_note": "The recorded order (Del, Goldie, Mal, Ash, Atti, Goli). Round 10 is written in two columns: the left column is slots 1–3, the right column slots 4–6",
+      "roster_adds": []
+    }
+  ],
+
+  "rounds": [
+    {
+      "combat": "cbt_003", "n": 10,
+      "turns": [
+        { "actor": "pc_004", "source_line": "Asp - Miss",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "miss", "val": null, "target": null } ] } ] },
+        { "actor": "pc_001", "source_line": "Gold - FB miss",
+          "activities": [ { "economy": "action", "name": "Magic", "detail": "Fire Bolt", "outcomes": [ { "res": "miss", "val": null, "target": null } ] } ] },
+        { "actor": "pc_002", "source_line": "Mal - Hit (Dead)  (a kill; the target is not written)",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": null, "target": null, "effect": "killed" } ] } ] },
+        { "actor": "pc_003", "source_line": "Ash - Nat 20",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "crit", "val": null, "target": null } ], "notes": "Nat 20: a hit (the DM)" } ] },
+        { "actor": "pc_006", "source_line": "Att - Shil miss",
+          "activities": [ { "economy": "action", "name": "Attack", "detail": "Shillelagh", "outcomes": [ { "res": "miss", "val": null, "target": null } ] } ] },
+        { "actor": "pc_005", "source_line": "Goli - Hit, Sneak 13",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": 13, "target": null } ], "notes": "Sneak Attack" } ] }
+      ],
+      "enemy_turns": [
+        { "actor": "Vespon Swarm", "source_line": "Vespon - Nat 20, Attisus",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "crit", "val": null, "target": "pc_006" } ], "notes": "Nat 20 on Atticus" } ] }
+      ]
+    },
+    {
+      "combat": "cbt_003", "n": 11,
+      "turns": [
+        { "actor": "pc_004", "source_line": "Asp - Hit",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": null, "target": null } ] } ] },
+        { "actor": "pc_001", "source_line": "Gold - FB 10",
+          "activities": [ { "economy": "action", "name": "Magic", "detail": "Fire Bolt", "outcomes": [ { "res": "hit", "val": 10, "target": null } ] } ] },
+        { "actor": "pc_002", "source_line": "Mal - Hit 11 (Dead)  (a kill; the target is not written)",
+          "activities": [ { "economy": "action", "name": "Attack", "outcomes": [ { "res": "hit", "val": 11, "target": null, "effect": "killed" } ] } ] },
+        { "actor": "pc_003", "source_line": "(not written)", "activities": [], "note": "The combat ended before this turn: no action, so no slot is written" },
+        { "actor": "pc_006", "source_line": "(not written)", "activities": [], "note": "The combat ended before this turn: no action, so no slot is written" },
+        { "actor": "pc_005", "source_line": "(not written)", "activities": [], "note": "The combat ended before this turn: no action, so no slot is written" }
+      ],
+      "enemy_turns": []
+    }
+  ],
+
+  "passages": [
+    { "text": "Menne's Ranch sits in prime horse country and has been there for decades. It has a tavern, a shop and a main street.", "speaker": "dm", "attach": { "to": "entity", "entity": "loc_004" } },
+    { "text": "Helen says there is a stone quarry southwest of Menne's Ranch, with ROUS in the area. The mines are run by dwarves, gnomes and humans.", "speaker": "npc_007", "attach": { "to": "entity", "entity": "loc_002" } },
+    { "text": "Helen says the quarry has a work camp of huts and tents, that rats are causing problems there, and that people are still there.", "speaker": "npc_007", "attach": { "to": "entity", "entity": "loc_002" } },
+    { "text": "It took the party two days to get to the quarry, where they met Krustie Gnome.", "speaker": "dm", "attach": { "to": "session" } }
+  ],
+
+  "ignored_lines": [
+    { "line": "(a struck-out word) In tavern", "why": "The DM cannot say what it means; the expected output holds nothing for it, and #17 should not count a passage or fact from it either way" }
+  ],
+
+  "session_notes": { "absence_notes": [] },
+  "quest_progress": [],
+  "quests_initiated": [
+    { "quest": "qst_005 The Quarry ROUS Problem", "given_by": "npc_007", "fixture": "new (a quest created in step 3)", "note": "Helen's report starts the quest (the DM: the initiation, not a progress entry). The record already has origin_session session_004 and given_by Helen" }
+  ],
+  "loot": [],
+  "new_lore_if_any": "None expected. If the AI makes lore from Helen's words, it must be reliability \"rumoured\", source_type \"npc_testimony\", source npc_007 (#102)",
+
+  "known_misreads": [
+    { "seen": "\"Attisus\" left as an unknown name", "correct": "Atticus (pc_006), the target of the Vespon's crit" },
+    { "seen": "Round 10's right column (Ash, Att, Goli) read as a second set of turns or as slots 1–3", "correct": "Slots 4–6 of the same round" },
+    { "seen": "Helen's words stated as fact about the Quarry", "correct": "Testimony: Helen as speaker" },
+    { "seen": "Ash's \"Nat 20\" read as a death save", "correct": "A critical hit" },
+    { "seen": "Helen's report made a quest progress entry", "correct": "The start of the Quarry ROUS Problem, not a progress entry" }
+  ],
+
+  "record_differences": {
+    "note": "Where the campaign's recorded cbt_003 rounds 10–11 disagree with this confirmed page. The page is right; correcting the record is a separate task.",
+    "items": [
+      "R10 Asp: the page has one miss; the record has two missed melee attacks",
+      "R11 Asp: the page has one hit; the record has two hits",
+      "R10 Ash: a critical hit (Nat 20); the record has a Death Save success",
+      "R10 and R11 Mal: each hit killed (\"Dead\"); the record has no kill",
+      "R11 Ash, Att, Goli: the combat ended before their turns; the record has a No Action slot for each"
+    ]
+  },
+
+  "answered": {
+    "by": "the DM, 2026-10-24",
+    "answers": [
+      "R10 and R11 Mal: the targets of the kills are not written",
+      "Asp: one miss in round 10 and one hit in round 11 are right",
+      "R10 Ash: the Nat 20 was a hit",
+      "R11: the combat ended; Ash, Att and Goli took no actions",
+      "\"In tavern\": the DM is not sure what it says; ignore it",
+      "\"2 days to get to quarry / Krustie Gnome\": the travel time and how they met Krustie",
+      "Helen's report is not a progress entry but the start of the Quarry ROUS Problem"
+    ]
+  },
+
+  "to_confirm": []
+}

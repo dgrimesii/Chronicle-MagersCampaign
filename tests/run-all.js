@@ -43,6 +43,7 @@ const TEST_FILES = [
   'tests/header-draft.test.js',
   'tests/session-publish.test.js',
   'tests/viewer-passages.test.js',
+  'tests/ground-truth.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────
