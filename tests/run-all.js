@@ -39,6 +39,7 @@ const TEST_FILES = [
   'tests/sanity-checks.test.js',
   'tests/round-grid.test.js',
   'tests/absence-notes.test.js',
+  'tests/entity-pages.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

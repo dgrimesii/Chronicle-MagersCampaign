@@ -204,6 +204,22 @@
   .edit-act { border-top:1px solid var(--border); padding-top:0.4rem; margin-top:0.4rem; }
   .outcome-edit { margin-left:1.2rem; }
 
+  /* ── Step 4: entity pages, judgment events, header, approval (#105) ── */
+  .passage.testimony { border-left:2px solid var(--c-npc); padding-left:8px; }
+  .passage select, .field textarea, .field input { background:var(--parchment-dark); color:var(--ink); border:1px solid var(--border-strong); border-radius:3px; color-scheme:dark; }
+  .text-change { border-top:1px solid var(--border); margin-top:6px; padding-top:6px; }
+  .text-change.accepted { border-left:3px solid var(--teal); padding-left:8px; }
+  .text-change.rejected { opacity:0.55; }
+  .diff { display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.92rem; }
+  .diff .before { color:var(--muted); }
+  .diff textarea { width:100%; background:var(--parchment-dark); color:var(--ink); border:1px solid var(--border-strong); border-radius:3px; padding:4px 6px; font-family:'Crimson Pro',Georgia,serif; font-size:0.95rem; }
+  .judgment.approved { border-left:3px solid var(--teal); padding-left:6px; }
+  .judgment.dropped { opacity:0.55; }
+  .approval-list { display:flex; flex-wrap:wrap; gap:6px 18px; margin:0.4rem 0 0.6rem; }
+  .approval-item { font-size:0.95rem; cursor:pointer; }
+  .plan { margin-left:1.2rem; font-size:0.95rem; }
+  @media (max-width: 640px) { .diff { grid-template-columns:1fr; } }
+
   @media (max-width: 640px) {
     .session-pick { grid-template-columns:1fr; }
     .ident-head { grid-template-columns:1fr; gap:2px; }
@@ -338,12 +354,15 @@
     <div class="notice" id="identity-summary"></div>
     <div id="facts-list"></div>
     <div id="facts-flags"></div>
-    <!-- Filled by renderReview(): split assignment, the grids, then the
-         facts that are not in a grid (quest progress, passages, loot). -->
-    <div id="absence-panel"></div>
+    <!-- Filled by renderReview(): split assignment, the grids, the entity
+         pages and judgment events (#105), quest progress and loot, the
+         session header (with attendance, #112), then approval. -->
     <div id="split-panel"></div>
     <div id="grid-panel"></div>
+    <div id="pages-panel"></div>
     <div id="facts-other"></div>
+    <div id="header-panel"></div>
+    <div id="approval-panel"></div>
     <div class="notice" id="facts-next" style="display:none;">
       <strong>Publishing from this page is the next step and is not built yet</strong> (issue #106). Nothing has been saved.
     </div>
@@ -370,6 +389,8 @@
 <script src="../shared/chronicle-facts.js"></script>
 <!-- chronicle-grid.js: the round grid's model and every direct move (issue #103). -->
 <script src="../shared/chronicle-grid.js"></script>
+<!-- chronicle-pages.js: entity pages, judgment events and the header draft (issue #105). -->
+<script src="../shared/chronicle-pages.js"></script>
 <!-- chronicle-integrity.js: the nine sanity checks (#104) the grid shows as flags. -->
 <script src="../shared/chronicle-integrity.js"></script>
 <!-- chronicle-ai.js sends each page to the AI (extractMentions #100, extractFacts #101). -->
@@ -419,6 +440,11 @@ const session = {
   selected:    null,  // { gi, round, row|enemy } — the cell in the editor
   eventForm:   null,  // { gi, round, ei } — an event being turned into attacks
   absenceNotes: [],   // the session's absence notes (#112), as the DM last edited them
+  // Entity pages (#105):
+  draft:        null, // { status, error, changes, judgments, dropped } from ChroniclePages
+  headerEdit:   null, // { title?, summary?, titleDraft?, summaryDraft? }
+  passageMoves: {},   // passage index → attach, the DM's moves
+  approvals:    null, // Set of approved section keys
   // Context for extraction (#100), loaded now so it is ready by then. Both
   // stay null if their load fails; extraction must cope without them.
   entities:    null,  // { npcs, locations, monsters, combats } name lists
@@ -1312,6 +1338,12 @@ function renderFacts() {
   }
   const refs = session.facts.flatMap(fp => fp.references);
   const merged = ChronicleFacts.mergePages(session.facts.map(fp => ({ page: fp.page, facts: fp.facts })), refs);
+  // The DM's passage moves (#105) are applied to the merged list, whose order
+  // is the same on every redraw, before passage items are built from it.
+  // Moves made against an earlier read are not applied to a new one.
+  if (session.passageMovesKey === session.factsKey) {
+    for (const [i, attach] of Object.entries(session.passageMoves || {})) if (merged.passages[i]) merged.passages[i].attach = attach;
+  }
   session.mergedFacts = merged;
   session.refs = refs;
   // Passages (#102): turned into publish items now; those that belong to a
@@ -1325,10 +1357,8 @@ function renderFacts() {
   // The page summaries used to be discarded. They are saved as the session
   // summary on the header publish reads, which fills it only if the session
   // has none (a placeholder's recorded summary is kept).
-  if (session.header) {
-    const summary = merged.summaries.map(x => x.text).join(' ');
-    if (summary) session.header.rawData.summary = summary; else delete session.header.rawData.summary;
-  }
+  // Since #105 the summary is the DM's edit, else the AI draft, else these.
+  applyHeaderEdits();
   // The grids are built once per set of facts; a later redraw keeps edits.
   if (session.gridKey !== session.factsKey) {
     session.gridKey = session.factsKey;
@@ -1338,9 +1368,14 @@ function renderFacts() {
     session.assignList = ChronicleGrid.splitAssignments(refs, merged);
     session.grids = [];
     session.gridsBuilt = false;
+    session.draft = null;
+    session.headerEdit = null;
+    session.approvals = new Set();
     if (!session.assignList.length) buildGrids();
   }
   renderReview();
+  // The draft (#105) runs once the grids exist, so it can read their rounds.
+  if (session.gridsBuilt && !session.draft) startDraft();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1409,10 +1444,12 @@ function buildGrids() {
 }
 
 function renderReview() {
-  renderAbsences();
   renderSplit();
   renderGrids();
+  renderEntityPages();
   renderOther();
+  renderHeader();
+  renderApproval();
 }
 
 // ── Session notes: attendance (issue #112) ────────────────────────────────
@@ -1448,10 +1485,11 @@ function applyAbsences() {
  */
 function renderAbsences() {
   const el = document.getElementById('absence-panel');
+  if (!el) return; // drawn inside the session header (#105)
   const recorded = recordedAbsences();
   const notes = session.absenceNotes || [];
   const repeats = notes.filter(t => recorded.includes(t));
-  el.innerHTML = `<div class="fact-combat"><h3>Session notes — attendance</h3>
+  el.innerHTML = `<div class="fact-round" style="margin-top:0.6rem;"><h4>Attendance</h4>
     <p class="hint">Who was absent and who played their character: one plain sentence per line, first names only. A note about the session, never about the character. Leave empty when everyone was there.</p>
     <textarea id="absence-notes" rows="${Math.max(2, notes.length + 1)}" style="width:100%;background:var(--parchment-dark);color:var(--ink);border:1px solid var(--border-strong);border-radius:3px;padding:6px 8px;font-family:'Crimson Pro',Georgia,serif;font-size:0.98rem;"
       onchange="session.absenceNotes = this.value.split('\\n'); applyAbsences(); renderAbsences();">${escapeHtml(notes.join('\n'))}</textarea>
@@ -1483,7 +1521,7 @@ function renderSplit() {
     ${list.map((a, i) => `<div class="fact-turn"><span class="who">p.${escapeHtml(String(a.page))} "${escapeHtml(a.asWritten)}"</span>
       <span><select onchange="session.assignList[${i}].assigned = this.value || null">${optionsFor(a, a.assigned)}</select>
       ${a.reason ? `<span class="fact-line"> AI: ${escapeHtml(a.reason)}</span>` : ''}<div class="fact-line">${escapeHtml(a.context || '')}</div></span></div>`).join('')}
-    <div class="actions"><button class="btn btn-primary" onclick="buildGrids(); renderReview();">${session.gridsBuilt ? 'Rebuild the grids (discards grid edits)' : 'Build the grids'}</button></div>
+    <div class="actions"><button class="btn btn-primary" onclick="buildGrids(); session.draft = null; renderReview(); startDraft();">${session.gridsBuilt ? 'Rebuild the grids (discards grid edits)' : 'Build the grids'}</button></div>
   </div>`;
 }
 
@@ -1621,6 +1659,7 @@ function gridDo(gi, fn) {
     session.gridError = err.message;
   }
   renderGrids();
+  renderApproval();
 }
 
 // targetOptions(gi, selected) → <option>s for an outcome's target: the
@@ -1882,38 +1921,301 @@ function renderOther() {
   };
   document.getElementById('facts-other').innerHTML =
     (merged.quest_progress.length ? `<div class="fact-combat"><h3>Quest progress</h3>${merged.quest_progress.map(q => `<div class="fact-turn"><span class="who">${escapeHtml(who(q.quest))}</span><span>${escapeHtml(q.entry || '')}<div class="fact-line">p.${escapeHtml(String(q.page))}: ${escapeHtml(q.source_line || '')}</div></span></div>`).join('')}</div>` : '')
-    + renderPassages(merged, byOcc, combatLabel, who)
     + (merged.loot.length ? `<div class="fact-combat"><h3>Loot</h3>${merged.loot.map(l => `<div class="fact-turn"><span class="who">${escapeHtml(l.item ? who(l.item) : l.item_text || '(item not named)')}</span><span>${escapeHtml(l.change || '')}${l.holder ? ' — ' + escapeHtml(who(l.holder)) : ''}<div class="fact-line">p.${escapeHtml(String(l.page))}: ${escapeHtml(l.source_line || '')}</div></span></div>`).join('')}</div>` : '');
 }
 
+// ══════════════════════════════════════════════════════
+// Step 4 — entity pages, judgment events, header, approval (issue #105)
+// ══════════════════════════════════════════════════════
+
 /**
- * renderPassages(merged, byOcc, combatName, who) → HTML for the passages,
- * grouped by what each attaches to, each with its speaker (DM exposition is
- * fact, an NPC's words are testimony), then the page summaries. Read-only;
- * re-attaching a passage is part of the review grid and entity pages (#103).
+ * passageTarget(p) → the entity or combat id a passage's page is, or null
+ * for the session (and quest steps, shown with the header). An occurrence of
+ * a roster group belongs to its combat; a round or activity to its combat.
  */
-function renderPassages(merged, byOcc, combatName, who) {
-  if (!merged.passages.length && !merged.summaries.length) return '';
-  const targetOf = a => a.to === 'entity' ? who(a.occ)
-    : a.to === 'combat' ? combatName(a.combat)
-    : a.to === 'round' ? `${combatName(a.combat)}, round ${a.n}`
-    : a.to === 'activity' ? `${combatName(a.combat)}, round ${a.n}, ${byOcc.get(a.actor)?.asWritten || a.actor}'s activity ${Number(a.index) + 1}`
-    : a.to === 'quest_progress' ? `quest step ${Number(a.index) + 1}: ${who(merged.quest_progress[a.index]?.quest)}`
-    : 'The session';
-  const groups = new Map();
-  for (const p of merged.passages) {
-    const t = targetOf(p.attach);
-    if (!groups.has(t)) groups.set(t, []);
-    groups.get(t).push(p);
+function passageTarget(p) {
+  const a = p.attach || {};
+  if (a.to === 'entity') {
+    const ref = session.refs.find(r => r.occ === a.occ);
+    const id = ref && ref.entityId;
+    const m = /^roster:([^:]+):/.exec(id || '');
+    return m ? m[1] : (id || null);
   }
-  const deferred = (session.deferredPassages || []).length;
-  return `<div class="fact-combat"><h3>Passages</h3>
-    ${deferred ? `<p class="fact-event">${deferred} passage${deferred === 1 ? '' : 's'} attach to a round, activity or quest step and are written with the facts at publish (#106).</p>` : ''}
-    ${[...groups].map(([t, list]) => `<div class="fact-round"><h4>${escapeHtml(t)}</h4>${list.map(p => `
-      <div class="passage"><span class="speaker${p.speaker === 'dm' ? '' : ' npc'}">${p.speaker === 'dm' ? 'DM' : escapeHtml(who(p.speaker)) + ' — testimony'}</span>
-        <div class="passage-text">${escapeHtml(p.text)}</div>
-        <div class="fact-line">p.${escapeHtml(String(p.page))}: ${escapeHtml((p.source_lines || []).join(' / '))}</div></div>`).join('')}</div>`).join('')}
-    ${merged.summaries.length ? `<div class="fact-round"><h4>Page summaries — saved as the session summary</h4>${merged.summaries.map(x => `<div class="passage-text">${escapeHtml(x.text)}</div>`).join('')}</div>` : ''}
+  if (a.to === 'combat' || a.to === 'round' || a.to === 'activity') return a.combat || null;
+  return null;
+}
+
+// speakerLabel(p) → "DM", or the speaking NPC's name.
+function speakerLabel(p) {
+  if (p.speaker === 'dm') return 'DM';
+  const ref = session.refs.find(r => r.occ === p.speaker);
+  return ref && ref.entityId ? labelOf(ref.entityId) : String(p.speaker);
+}
+
+// whereLabel(a) → where a passage sits, for its page ("round 4").
+function whereLabel(a) {
+  if (a.to === 'round') return 'round ' + a.n;
+  if (a.to === 'activity') return 'round ' + a.n + ', one action';
+  if (a.to === 'combat') return 'the combat';
+  return '';
+}
+
+/**
+ * buildPages() — one page per entity or event the session touched
+ * (ChroniclePages.touchedPages), from the settled names, the combats and the
+ * passages as they now sit (after any move).
+ */
+function buildPages() {
+  const passages = session.mergedFacts.passages.map(p => Object.assign({}, p, { targetId: passageTarget(p), speakerLabel: speakerLabel(p) }));
+  return ChroniclePages.touchedPages({
+    campaign: session.campaign, refs: session.refs, passages,
+    combats: session.grids.map(g => g.combat).filter(c => !/^new:/.test(c)),
+    newEntities: ChronicleEntities.newEntities(session.rows), nameOf: labelOf,
+  });
+}
+
+// factsText() → one line per round of every grid, for the draft prompt.
+function factsText() {
+  return session.grids.flatMap(g => ChronicleGrid.toTurnSchema(g).rounds.map(r =>
+    `${g.name} round ${r.n}: ` + r.slots.concat(r.enemy_turns).map(t => `${labelOf(t.a || t.actor_id)}: ${t.activities.map(activityLine).join('; ')}`).join(' | '))).join('\n');
+}
+
+/**
+ * startDraft() — the one AI call that proposes text changes, judgment
+ * events and the session header (ChronicleAI.draftPages). Runs once when the
+ * grids are first built; "Redraft" runs it again and replaces the
+ * proposals (the DM's decisions on the old ones are lost, so it asks first
+ * in the button's wording rather than a dialog).
+ */
+async function startDraft() {
+  const pages = buildPages();
+  const rec = (session.campaign.session_logs || []).find(s => s.legacy_id === session.legacyId);
+  const knownIds = new Set(pages.map(p => p.id).concat(session.campaign.party.map(p => p.id), session.refs.map(r => r.entityId).filter(Boolean)));
+  const names = [...knownIds].filter(id => !/^roster:/.test(id)).map(id => `${id} = ${labelOf(id)}`).join('; ');
+  session.draft = { status: 'drafting', error: '', changes: [], judgments: [], dropped: [] };
+  renderEntityPages();
+  try {
+    const system = ChroniclePages.draftPrompt({
+      sessionLabel: `${session.legacyId}, played ${session.date}`, pages, facts: factsText(),
+      sessionPassages: session.mergedFacts.passages.filter(p => !passageTarget(p)).map(p => ({ text: p.text, speaker: p.speaker, speakerLabel: speakerLabel(p) })),
+      header: rec ? { title: rec.title, summary: rec.narrative && rec.narrative.summary } : null, names,
+    });
+    const draft = ChroniclePages.parseDraft(await ChronicleAI.draftPages({ system }));
+    const ok = ChroniclePages.validateDraft(draft, pages, { knownIds });
+    session.draft = { status: 'done', error: '', dropped: ok.dropped,
+      changes: ok.changes.map(c => Object.assign(c, { decision: 'pending', final: c.text })),
+      judgments: ok.judgments.map(j => Object.assign(j, { decision: 'pending' })) };
+    // The drafted header fills the header fields the DM has not edited.
+    session.headerEdit = session.headerEdit || {};
+    if (draft.header.title && session.headerEdit.title == null) session.headerEdit.titleDraft = draft.header.title;
+    if (draft.header.summary && session.headerEdit.summary == null) session.headerEdit.summaryDraft = draft.header.summary;
+    applyHeaderEdits();
+  } catch (err) {
+    session.draft = { status: 'error', error: err.message || String(err), changes: [], judgments: [], dropped: [] };
+  }
+  renderReview();
+}
+
+/**
+ * applyHeaderEdits() — puts the header's title and summary on the session
+ * header item publish reads: the DM's own text if edited, else the AI's
+ * draft, else (summary only) the joined page summaries. Publish fills a
+ * placeholder's recorded title or summary only when it has none, and
+ * reports a difference, so a drafted header never overwrites the DM's.
+ */
+function applyHeaderEdits() {
+  if (!session.header) return;
+  const h = session.headerEdit || {};
+  const title = h.title != null ? h.title : (h.titleDraft || '');
+  const summary = h.summary != null ? h.summary : (h.summaryDraft || session.mergedFacts.summaries.map(x => x.text).join(' '));
+  if (title.trim()) session.header.rawData.title = title.trim(); else delete session.header.rawData.title;
+  if (summary.trim()) session.header.rawData.summary = summary.trim(); else delete session.header.rawData.summary;
+}
+
+/**
+ * movePassage(i, value) — puts passage i on another page: an entity
+ * ("entity:<occ>"), a combat ("combat:<id>"), a round ("round:<id>:<n>") or
+ * the session. Kept in session.passageMoves so a redraw of the facts keeps
+ * it; the passage publish items follow.
+ */
+function movePassage(i, value) {
+  const [kind, a, b] = value.split('|');
+  const attach = kind === 'entity' ? { to: 'entity', occ: a } : kind === 'combat' ? { to: 'combat', combat: a }
+    : kind === 'round' ? { to: 'round', combat: a, n: Number(b) } : { to: 'session' };
+  if (session.passageMovesKey !== session.factsKey) { session.passageMoves = {}; session.passageMovesKey = session.factsKey; }
+  session.passageMoves[i] = attach;
+  renderFacts();
+}
+
+// passageOptions(current) → <option>s for "move to": every settled entity
+// (by one of its occurrences), every combat and round in the grids, the session.
+function passageOptions() {
+  const seen = new Set();
+  const opts = ['<option value="">move to…</option>'];
+  for (const r of session.refs) {
+    const id = r.entityId;
+    if (!id || seen.has(id) || /^roster:/.test(id)) continue;
+    seen.add(id);
+    opts.push(`<option value="entity|${escapeHtml(r.occ)}">${escapeHtml(labelOf(id))}</option>`);
+  }
+  for (const g of session.grids) {
+    opts.push(`<option value="combat|${escapeHtml(g.combat)}">${escapeHtml(g.name)}</option>`);
+    for (const r of g.rounds) opts.push(`<option value="round|${escapeHtml(g.combat)}|${r.n}">${escapeHtml(g.name)}, round ${r.n}</option>`);
+  }
+  opts.push('<option value="session">The session</option>');
+  return opts.join('');
+}
+
+// passageHtml(p) — one passage, DM exposition and NPC testimony shown apart.
+function passageHtml(p) {
+  return `<div class="passage${p.speaker === 'dm' ? '' : ' testimony'}">
+    <span class="speaker${p.speaker === 'dm' ? '' : ' npc'}">${p.speaker === 'dm' ? 'DM — fact' : escapeHtml(speakerLabel(p)) + ' — testimony'}${whereLabel(p.attach) ? ' · ' + escapeHtml(whereLabel(p.attach)) : ''}</span>
+    <div class="passage-text">${escapeHtml(p.text)}</div>
+    <div class="fact-line">p.${escapeHtml(String(p.page))}: ${escapeHtml((p.source_lines || []).join(' / '))}
+      <select onchange="if (this.value) movePassage(${p.index}, this.value)">${passageOptions()}</select></div></div>`;
+}
+
+/**
+ * renderEntityPages() — the entity pages (named apart from the upload step's renderPages): each touched entity or event with its
+ * passages, and the AI's proposed text changes shown against what exists,
+ * each to accept, edit or reject; then the judgment events to approve or drop.
+ */
+function renderEntityPages() {
+  const el = document.getElementById('pages-panel');
+  if (!session.gridsBuilt) { el.innerHTML = ''; return; }
+  const pages = buildPages();
+  const d = session.draft || { status: 'idle', changes: [], judgments: [], dropped: [] };
+  const changesFor = id => d.changes.map((c, i) => Object.assign({ i }, c)).filter(c => c.id === id);
+  const status = d.status === 'drafting' ? '<span class="state">drafting proposals…</span>'
+    : d.status === 'error' ? `<span class="state error">${escapeHtml(d.error)}</span>`
+    : d.status === 'done' ? `<span class="state done">${d.changes.length} text change${d.changes.length === 1 ? '' : 's'}, ${d.judgments.length} judgment event${d.judgments.length === 1 ? '' : 's'} proposed</span>` : '';
+  const pageHtml = p => {
+    const ch = changesFor(p.id);
+    if (!p.passages.length && !ch.length) return '';
+    return `<div class="fact-round entity-page"><h4>${escapeHtml(p.name)} <span class="fact-line">${escapeHtml(p.array)}${p.isNew ? ' · new' : ''}</span></h4>
+      ${p.passages.map(passageHtml).join('')}
+      ${ch.map(c => `<div class="text-change ${c.decision}">
+        <div class="fact-line">Proposed ${escapeHtml(c.field)}${c.reason ? ' — ' + escapeHtml(c.reason) : ''}</div>
+        <div class="diff"><div class="before"><span class="fact-line">now</span> ${c.before ? escapeHtml(c.before) : '<em>(empty)</em>'}</div>
+          <div class="after"><span class="fact-line">proposed</span>
+            <textarea id="tc-${c.i}" rows="3" ${c.decision === 'pending' ? '' : 'disabled'}>${escapeHtml(c.final)}</textarea></div></div>
+        <div class="ident-actions">${c.decision === 'pending'
+          ? `<button class="btn btn-primary" onclick="decideChange(${c.i}, 'accepted')">Accept</button><button class="btn" onclick="decideChange(${c.i}, 'rejected')">Reject</button>`
+          : `<span class="fact-line">${c.decision}</span> <button class="btn" onclick="decideChange(${c.i}, 'pending')">Change</button>`}</div></div>`).join('')}
+    </div>`;
+  };
+  const jText = j => j.kind === 'moment' ? `Character moment (${j.type.replace(/_/g, ' ')}): ${j.description} — ${j.character_ids.map(labelOf).join(', ')}`
+    : j.kind === 'relationship' ? `Relationship: ${labelOf(j.from_id)} → ${labelOf(j.to_id)} (${j.relationship_type.replace(/_/g, ' ')})${j.note ? ' — ' + j.note : ''}`
+    : j.kind === 'death' ? `Death: ${labelOf(j.id)}${j.cause ? ' — ' + j.cause : ''}`
+    : j.kind === 'revival' ? `Revival: ${labelOf(j.id)}${j.cause ? ' — ' + j.cause : ''}`
+    : j.kind === 'allegiance' ? `Allegiance: ${labelOf(j.id)} becomes ${j.disposition}${j.note ? ' — ' + j.note : ''}`
+    : `Item holder: ${labelOf(j.id)} is held by ${j.holder_id === 'party' ? 'the party' : labelOf(j.holder_id)}`;
+  el.innerHTML = `<div class="fact-combat"><h3>Entity pages</h3>
+    <div class="ident-toolbar"><span>${status}</span>
+      ${d.status !== 'drafting' ? `<button class="btn" onclick="startDraft()">${d.status === 'idle' ? 'Draft proposals' : 'Redraft (replaces the proposals and your decisions on them)'}</button>` : ''}</div>
+    ${pages.map(pageHtml).join('') || '<p class="hint">No passages or proposals for any entity.</p>'}
+    ${d.dropped && d.dropped.length ? `<div class="flag-box"><strong>Proposals that could not be used:</strong><ul>${d.dropped.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>` : ''}
+  </div>
+  <div class="fact-combat"><h3>Judgment events</h3>
+    <p class="hint">Approve or drop each. A death needs the notes to say so: 0 HP is never death.</p>
+    ${d.judgments.map((j, i) => `<div class="fact-turn judgment ${j.decision}"><span class="who">${escapeHtml(j.kind)}</span>
+      <span>${escapeHtml(jText(j))}<div class="fact-line">${escapeHtml(j.source)}</div>
+      <div class="ident-actions">${j.decision === 'pending'
+        ? `<button class="btn btn-primary" onclick="decideJudgment(${i}, 'approved')">Approve</button><button class="btn" onclick="decideJudgment(${i}, 'dropped')">Drop</button>`
+        : `<span class="fact-line">${j.decision}</span> <button class="btn" onclick="decideJudgment(${i}, 'pending')">Change</button>`}</div></span></div>`).join('') || '<p class="hint">None proposed.</p>'}
+  </div>`;
+}
+
+function decideChange(i, decision) {
+  const c = session.draft.changes[i];
+  if (decision === 'accepted') c.final = document.getElementById('tc-' + i).value.trim() || c.text;
+  c.decision = decision;
+  renderReview();
+}
+function decideJudgment(i, decision) {
+  session.draft.judgments[i].decision = decision;
+  renderReview();
+}
+
+/**
+ * renderHeader() — the session header: title and summary (drafted from the
+ * passages, editable), the passages that belong to the session itself, and
+ * the attendance notes (#112), all for review before publish.
+ */
+function renderHeader() {
+  const el = document.getElementById('header-panel');
+  if (!session.gridsBuilt) { el.innerHTML = ''; return; }
+  applyHeaderEdits();
+  const rec = (session.campaign.session_logs || []).find(s => s.legacy_id === session.legacyId);
+  const h = session.header.rawData;
+  const sessionPassages = session.mergedFacts.passages.map((p, index) => Object.assign({ index }, p)).filter(p => !passageTarget(p));
+  el.innerHTML = `<div class="fact-combat"><h3>Session header</h3>
+    <div class="field"><label for="hd-title">Title</label>
+      <input id="hd-title" value="${escapeHtml(h.title || '')}" onchange="(session.headerEdit = session.headerEdit || {}).title = this.value; renderReview();"></div>
+    <div class="field" style="margin-top:0.5rem;"><label for="hd-summary">Summary</label>
+      <textarea id="hd-summary" rows="4" style="width:100%;" onchange="(session.headerEdit = session.headerEdit || {}).summary = this.value; renderReview();">${escapeHtml(h.summary || '')}</textarea></div>
+    ${rec && (rec.title || rec.narrative?.summary) ? `<p class="fact-line">${escapeHtml(session.legacyId)} already records ${rec.title ? 'the title "' + escapeHtml(rec.title) + '"' : ''}${rec.title && rec.narrative?.summary ? ' and ' : ''}${rec.narrative?.summary ? 'a summary' : ''}; publish keeps what is recorded and lists any difference.</p>` : ''}
+    ${sessionPassages.length ? `<div class="fact-round" style="margin-top:0.6rem;"><h4>Passages on the session</h4>${sessionPassages.map(passageHtml).join('')}</div>` : ''}
+    <div id="absence-panel"></div>
+  </div>`;
+  renderAbsences();
+}
+
+// SECTIONS — what the DM approves before publish (#105), one click each.
+function sections() {
+  return [{ key: 'identify', label: 'Entity list (step 3)' }]
+    .concat(session.grids.map((g, gi) => ({ key: 'combat:' + gi, label: g.name })))
+    .concat([{ key: 'pages', label: 'Entity pages and judgment events' }, { key: 'header', label: 'Session header' }]);
+}
+
+/**
+ * publishPlan() → everything the review will publish (#106 sends it): the
+ * session header, identification items, passage items, accepted text
+ * changes, approved judgment events and each combat's rounds, with the
+ * counts the summary shows.
+ */
+function publishPlan() {
+  const pages = buildPages();
+  const d = session.draft || { changes: [], judgments: [] };
+  const made = ChronicleEntities.newEntities(session.rows);
+  const arrayOf = id => session.index.entities.get(id)?.array || made.get(id)?.array || (session.campaign.party.some(p => p.id === id) ? 'party' : null);
+  const textItems = ChroniclePages.textItems(pages, d.changes.filter(c => c.decision === 'accepted').map(c => ({ id: c.id, field: c.field, text: c.final })));
+  const judgmentItems = ChroniclePages.judgmentItems(d.judgments.filter(j => j.decision === 'approved'), { sessionRef: session.legacyId, arrayOf, newId: ChronicleIds.newId });
+  const combats = session.grids.map(g => ChronicleGrid.toTurnSchema(g, session.legacyId));
+  return { header: session.header, identityItems: session.identityItems, passageItems: session.passageItems, deferredPassages: session.deferredPassages,
+    textItems, judgmentItems, combats,
+    pending: d.changes.filter(c => c.decision === 'pending').length + d.judgments.filter(j => j.decision === 'pending').length };
+}
+
+/**
+ * renderApproval() — one click per section to confirm it was reviewed, and
+ * the summary of what publish will write, which replaces the old
+ * confirmation panel (#37). Publish itself is #106.
+ */
+function renderApproval() {
+  const el = document.getElementById('approval-panel');
+  if (!session.gridsBuilt) { el.innerHTML = ''; return; }
+  session.approvals = session.approvals || new Set();
+  const plan = publishPlan();
+  session.publishPlan = plan;
+  const secs = sections();
+  const all = secs.every(s => session.approvals.has(s.key));
+  const n = (list, one, many) => `${list.length} ${list.length === 1 ? one : many}`;
+  const rounds = plan.combats.reduce((a, c) => a + c.rounds.length, 0);
+  const held = plan.combats.reduce((a, c) => a + c.held.length, 0);
+  el.innerHTML = `<div class="fact-combat approval"><h3>Approve and publish</h3>
+    <div class="approval-list">${secs.map(s => `<label class="approval-item"><input type="checkbox" ${session.approvals.has(s.key) ? 'checked' : ''}
+      onchange="this.checked ? session.approvals.add('${s.key}') : session.approvals.delete('${s.key}'); renderApproval();"> ${escapeHtml(s.label)} reviewed</label>`).join('')}</div>
+    <ul class="plan">
+      <li>Session ${escapeHtml(session.legacyId)}${plan.header.rawData.title ? ' — "' + escapeHtml(plan.header.rawData.title) + '"' : ''}, played ${escapeHtml(session.date)}</li>
+      <li>${n(plan.identityItems.filter(i => i.type === 'NEW'), 'new entity', 'new entities')}, ${n(plan.identityItems.filter(i => i.type === 'MOD'), 'alias, note or roster change', 'alias, note or roster changes')}</li>
+      <li>${rounds} round${rounds === 1 ? '' : 's'} in ${n(plan.combats, 'combat', 'combats')}${held ? `, ${held} fact${held === 1 ? '' : 's'} held back` : ''}</li>
+      <li>${n(plan.passageItems, 'passage', 'passages')} on entities and the session, ${n(plan.deferredPassages, 'passage', 'passages')} on rounds and quest steps</li>
+      <li>${n(plan.textItems, 'text change', 'text changes')} accepted, ${n(plan.judgmentItems, 'judgment event', 'judgment events')} approved${plan.pending ? `, ${plan.pending} still undecided` : ''}</li>
+      ${(plan.header.rawData.narrative?.absence_notes || []).length ? `<li>${plan.header.rawData.narrative.absence_notes.length} attendance note${plan.header.rawData.narrative.absence_notes.length === 1 ? '' : 's'}</li>` : ''}
+    </ul>
+    <div class="actions"><button class="btn btn-primary" disabled title="Publishing from this page is issue #106">Publish (not built yet, #106)</button></div>
+    <p class="hint">${all ? 'Every section is approved.' : `${secs.filter(s => !session.approvals.has(s.key)).length} section(s) not yet approved.`} Nothing has been saved.</p>
   </div>`;
 }
 

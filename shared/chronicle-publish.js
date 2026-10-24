@@ -27,7 +27,9 @@
  *                carry _alias_append, _note_append or _roster_group_append
  *                from the session page's entity identification (#100), or
  *                _passage_append from its narrative passages (#102); those
- *                add to the object instead of replacing fields.
+ *                add to the object instead of replacing fields. _set (#105)
+ *                sets single fields by dotted path (an accepted text change,
+ *                an approved judgment event).
  *     options  — { deferredGaps, promptLog, spellNames, now }, all optional:
  *                deferredGaps — integrity gaps the DM deferred (gap_NNN records)
  *                promptLog    — prompt-improvement entries captured at intake
@@ -1052,6 +1054,18 @@
       return;
     }
     const target = out[arr][idx];
+    // _set (#105): { 'narrative.description': text, 'mechanics.disposition': … }
+    // sets single fields by path, so an accepted text change or an approved
+    // judgment changes that one field and nothing else on the entity (a
+    // whole-object MOD would replace all of narrative or mechanics). It may
+    // come with _passage_append (an allegiance change and its passage).
+    if (rawData._set && typeof rawData._set === 'object') {
+      for (const [path, value] of Object.entries(rawData._set)) setPath(target, path, value);
+      const rest = Object.keys(rawData).filter(k => k !== 'id' && k !== '_set');
+      if (!rest.length) return;
+      rawData = Object.assign({}, rawData);
+      delete rawData._set;
+    }
     if (rawData._progress_append) {
       target.mechanics = target.mechanics || {};
       if (!Array.isArray(target.mechanics.progress_log)) target.mechanics.progress_log = [];
@@ -1083,6 +1097,23 @@
     } else {
       Object.assign(target, rawData);
     }
+  }
+
+  /**
+   * setPath(target, 'a.b.c', value) — sets one field by a dotted path,
+   * creating the objects on the way. Used by _set (#105). Only plain object
+   * paths: a path through an array or a non-object stops without writing.
+   */
+  function setPath(target, path, value) {
+    const keys = String(path).split('.').filter(Boolean);
+    if (!keys.length) return;
+    let o = target;
+    for (const k of keys.slice(0, -1)) {
+      if (o[k] == null) o[k] = {};
+      if (typeof o[k] !== 'object' || Array.isArray(o[k])) return;
+      o = o[k];
+    }
+    o[keys[keys.length - 1]] = clone(value);
   }
 
   /**

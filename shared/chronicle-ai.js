@@ -1423,6 +1423,28 @@ ${contextStr}${scopeNote}`,
     return readPage({ system: full, image, text, ask: 'Record the facts', maxTokens: FACTS_MAX_TOKENS });
   }
 
+  // Output limit for the session's entity-page draft (#105): every touched
+  // entity's proposed text, the judgment events and the header.
+  const DRAFT_MAX_TOKENS = 16000;
+
+  /**
+   * draftPages({ system }) → Promise<string>
+   *
+   * Session page step 4 (#105): one text-only call that proposes text
+   * changes for each entity page, flags judgment events and drafts the
+   * session header. system comes from ChroniclePages.draftPrompt(), which
+   * already holds the pages, passages and facts; no images are sent.
+   * Streamed like the page reads, with the same cut-off rule: a reply that
+   * hits the output limit is retried once, then rejected.
+   */
+  async function draftPages({ system }) {
+    const once = () => callStream({ system, messages: [{ role: 'user', content: 'Draft the entity page changes, judgment events and session header as JSON.' }], maxTokens: DRAFT_MAX_TOKENS });
+    let r = await once();
+    if (r.stopReason === 'max_tokens') r = await once();
+    if (r.stopReason === 'max_tokens') throw new Error('The draft was cut off at the output limit twice.');
+    return r.text;
+  }
+
   // ─────────────────────────────────────────────────────────
   // Public API
   // ─────────────────────────────────────────────────────────
@@ -1445,9 +1467,10 @@ ${contextStr}${scopeNote}`,
     sendCorrectionToAI,
     demoCorrectionResponse,
 
-    // Session page (issues #100, #101)
+    // Session page (issues #100, #101, #105)
     extractMentions,
     extractFacts,
+    draftPages,
   };
 
 })();

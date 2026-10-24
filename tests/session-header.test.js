@@ -128,11 +128,17 @@ console.log('\nTest H-5 — the session page and the nav bar');
   // through the store and does not fetch the campaign JSON itself.
   const scripts = [...page.matchAll(/<script src="\.\.\/shared\/([a-z-]+\.js)"/g)].map(m => m[1]);
   // chronicle-entities.js and chronicle-ai.js joined with step 2 and 3 (#100), chronicle-facts.js with step 4 (#101), chronicle-grid.js and chronicle-integrity.js with the round grid (#103).
-  assert('H-5: loads config, store, ids, publish, entities, facts, grid, integrity, ai in that order',
-    JSON.stringify(scripts) === JSON.stringify(['config.js', 'chronicle-store.js', 'chronicle-ids.js', 'chronicle-publish.js', 'chronicle-entities.js', 'chronicle-facts.js', 'chronicle-grid.js', 'chronicle-integrity.js', 'chronicle-ai.js']));
+  assert('H-5: loads config, store, ids, publish, entities, facts, grid, pages, integrity, ai in that order',
+    JSON.stringify(scripts) === JSON.stringify(['config.js', 'chronicle-store.js', 'chronicle-ids.js', 'chronicle-publish.js', 'chronicle-entities.js', 'chronicle-facts.js', 'chronicle-grid.js', 'chronicle-pages.js', 'chronicle-integrity.js', 'chronicle-ai.js']));
   assert('H-5: no direct fetch of the campaign file', !/fetch\([^)]*magers-campaign/.test(page));
   assert('H-5: warns before leaving with unpublished work', /addEventListener\('beforeunload'/.test(page));
   assert('H-5: no sessionStorage or localStorage', !/sessionStorage|localStorage/.test(page.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '')));
+  // Every step adds functions to one page script; a second function with the
+  // same name silently replaces the first (#105's renderPages once replaced
+  // the upload list's, leaving Continue disabled).
+  const names = [...page.matchAll(/^function ([A-Za-z0-9_$]+)\s*\(/gm)].map(m => m[1]);
+  const twice = names.filter((n, i) => names.indexOf(n) !== i);
+  assert('H-5: no function name is defined twice in the page' + (twice.length ? ' — ' + twice.join(', ') : ''), twice.length === 0);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
