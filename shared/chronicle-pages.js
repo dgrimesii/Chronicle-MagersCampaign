@@ -13,7 +13,9 @@
  * and shown against what exists. Judgment calls (a character moment, a
  * significant relationship, a death, a change of allegiance, who holds an
  * item) are flagged for the DM to approve or drop, never written silently.
- * The session header's title and summary are drafted from the passages.
+ * The session header's title and summary are drafted from the passages,
+ * by the big draft and again on demand by the header's own Draft button
+ * (#74, a smaller call: headerPrompt / parseHeader).
  *
  * One AI call drafts all of it for the session (ChronicleAI.draftPages);
  * the prompt, the reply check and the publish items it produces live here,
@@ -33,6 +35,11 @@
  *                                    judgment events and the header
  *   textItems(pages, decisions)    — accepted text changes as publish items
  *   judgmentItems(judgments, ctx)  — approved judgment events as publish items
+ *   headerPrompt(ctx) / parseHeader(text) — the header's own draft call (#74)
+ *   headerReplaceItem(rec, header) — the MOD that replaces a placeholder's
+ *                                    recorded title / summary when the DM asks
+ *   headerForPublish(header, replace) — the header item without the fields
+ *                                    that MOD replaces
  *
  * No dependencies. No DOM, storage or network access.
  *
@@ -357,8 +364,131 @@ Respond with JSON only: {"changes":[],"judgments":[],"header":{"title":"","summa
     return items;
   }
 
+  /**
+   * headerPrompt(ctx) → the system prompt for the session header's own
+   * draft (#74): a title and a summary, nothing else.
+   *
+   * ctx = { sessionLabel ("session_008, played 2026-04-16"), roster (the
+   *         party's names), passages: [{ text, speakerLabel }] (every
+   *         passage of the session, wherever it sits), combats: [{ name,
+   *         rounds, outcome }], facts (one line per round) }
+   *
+   * Why a separate call when the big draft (draftPrompt) also returns a
+   * header: the DM asks for a header on its own, after moving passages or
+   * correcting rounds, without redrafting every entity page and losing the
+   * decisions made on them. Why only passages and confirmed data: the
+   * header is the session's record, so it may say nothing the notes and the
+   * DM's corrections do not.
+   */
+  function headerPrompt(ctx) {
+    const combats = (ctx.combats || []).map(c =>
+      `- ${c.name}: ${c.rounds} round${c.rounds === 1 ? '' : 's'}${c.outcome ? ', outcome ' + c.outcome : ''}`).join('\n');
+    const passages = (ctx.passages || []).map(p => `- [${p.speakerLabel || p.speaker || 'DM'}] ${p.text}`).join('\n');
+    return `You write the title and summary of one D&D session for a Dungeon Master's campaign record. The DM edits what you write before it is saved.
+
+SESSION: ${ctx.sessionLabel}
+PARTY: ${ctx.roster || '(not given)'}
+
+COMBATS THIS SESSION:
+${combats || '(none)'}
+
+WHAT HAPPENED IN COMBAT (confirmed, one line per round):
+${ctx.facts || '(no combat)'}
+
+PASSAGES (the session's narrative; [DM] is fact, a named speaker is that NPC's claim):
+${passages || '(none)'}
+
+WRITE:
+- "title": 5 to 10 words, flavourful but factual: name what actually happened, not a mood.
+- "summary": 2 to 4 sentences, past tense, naming the PCs by name, covering the session in order.
+RULES:
+- Use only what the passages and combats above say. Add no event, name, motive or outcome they do not contain.
+- An NPC's words are their claim: "Rufus warned that…", never stated as fact.
+- A creature at 0 HP or "downed" is not dead unless the passages or combat lines say it was killed.
+
+Respond with JSON only: {"title":"","summary":""}`;
+  }
+
+  /**
+   * parseHeader(text) → { title, summary, warnings }
+   *
+   * Reads the header draft's JSON. Throws when the reply has no JSON or
+   * leaves either field empty, so the page shows an error and keeps the
+   * fields as they were (#74) rather than filling one and blanking the
+   * other. A title outside 5–10 words or a summary outside 2–4 sentences is
+   * kept but warned about: the DM is editing it anyway, and refusing a
+   * usable draft over one word would only cost another call.
+   */
+  function parseHeader(text) {
+    const str = String(text || '');
+    const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(str);
+    const body = fenced ? fenced[1] : str;
+    const a = body.indexOf('{'), b = body.lastIndexOf('}');
+    if (a < 0 || b <= a) throw new Error('The AI reply had no JSON in it.');
+    let parsed;
+    try { parsed = JSON.parse(body.slice(a, b + 1)); } catch (e) { throw new Error('The AI reply was not valid JSON: ' + e.message); }
+    const title = String((parsed && parsed.title) || '').trim();
+    const summary = String((parsed && parsed.summary) || '').trim();
+    if (!title || !summary) throw new Error('The AI reply left the ' + (!title ? 'title' : 'summary') + ' empty.');
+    const warnings = [];
+    const words = title.split(/\s+/).length;
+    if (words < 5 || words > 10) warnings.push(`The title has ${words} words; the aim is 5 to 10.`);
+    // Sentences end at . ! or ? followed by a space or the end; good enough
+    // for a warning, which is all this count drives.
+    const sentences = (summary.match(/[.!?]+(\s|$)/g) || []).length || 1;
+    if (sentences < 2 || sentences > 4) warnings.push(`The summary has ${sentences} sentence${sentences === 1 ? '' : 's'}; the aim is 2 to 4.`);
+    return { title, summary, warnings };
+  }
+
+  /**
+   * headerReplaceItem(rec, header) → a MOD publish item, or null.
+   *
+   * rec is the recorded session (a placeholder such as session_006) and
+   * header { title, summary, replaceTitle, replaceSummary } what the DM has
+   * on the page. Publish fills a placeholder's title and summary only when
+   * they are empty and keeps the recorded ones otherwise (fillSession), so
+   * the DM's own header is never overwritten by a stub. When the DM ticks
+   * "replace" for a field whose text differs, this MOD sets that one field
+   * (title, narrative.summary) with _set. Null when there is nothing to
+   * replace, so an untouched placeholder publishes exactly as before.
+   */
+  function headerReplaceItem(rec, header) {
+    if (!rec || !header) return null;
+    const set = {};
+    const recSummary = (rec.narrative && rec.narrative.summary) || '';
+    if (header.replaceTitle && header.title && header.title !== (rec.title || '')) set.title = header.title;
+    if (header.replaceSummary && header.summary && header.summary !== recSummary) set['narrative.summary'] = header.summary;
+    if (!Object.keys(set).length) return null;
+    return { id: 'header_replace_' + rec.id, type: 'MOD', array: 'session_logs', status: 'approved', targetId: rec.id,
+      title: (rec.legacy_id || 'Session') + ': replace the recorded ' + Object.keys(set).map(k => k === 'title' ? 'title' : 'summary').join(' and '),
+      rawData: { id: rec.id, _set: set } };
+  }
+
+  /**
+   * headerForPublish(header, replace) → the session header item to publish.
+   *
+   * With no replace item it is the header itself. With one, it is a copy
+   * without the fields the replace item sets (title, summary), because
+   * publish fills a placeholder first and would otherwise report "kept the
+   * recorded title" for a title the MOD then replaces: a note that says the
+   * opposite of what happened (seen on session 6, #74). The page's own
+   * header is not changed, so the fields still show the DM's text.
+   */
+  function headerForPublish(header, replace) {
+    if (!header || !replace) return header;
+    const set = replace.rawData._set || {};
+    const out = Object.assign({}, header, { rawData: Object.assign({}, header.rawData) });
+    if ('title' in set) delete out.rawData.title;
+    if ('narrative.summary' in set) {
+      delete out.rawData.summary;
+      if (out.rawData.narrative) { out.rawData.narrative = Object.assign({}, out.rawData.narrative); delete out.rawData.narrative.summary; }
+    }
+    return out;
+  }
+
   const api = { TEXT_FIELDS, MOMENT_TYPES, RELATIONSHIP_TYPES, DISPOSITIONS, JUDGMENT_KINDS,
-    touchedPages, draftPrompt, parseDraft, validateDraft, textItems, judgmentItems };
+    touchedPages, draftPrompt, parseDraft, validateDraft, textItems, judgmentItems,
+    headerPrompt, parseHeader, headerReplaceItem, headerForPublish };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ChroniclePages = api;

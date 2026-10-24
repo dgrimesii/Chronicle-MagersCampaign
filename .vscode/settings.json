@@ -5,6 +5,7 @@
     "**/*.sass",
     "**/*.ts",
     "data/**",
-    "tests/**"
+    "tests/**",
+    "OCR Test Files/**"
   ]
 }

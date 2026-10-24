@@ -442,7 +442,8 @@ const session = {
   absenceNotes: [],   // the session's absence notes (#112), as the DM last edited them
   // Entity pages (#105):
   draft:        null, // { status, error, changes, judgments, dropped } from ChroniclePages
-  headerEdit:   null, // { title?, summary?, titleDraft?, summaryDraft? }
+  headerEdit:   null, // { title?, summary?, titleDraft?, summaryDraft?, replaceTitle?, replaceSummary? }
+  headerDraft:  null, // the header's own draft (#74): { status: 'drafting'|'done'|'error', error, warnings }
   passageMoves: {},   // passage index → attach, the DM's moves
   approvals:    null, // Set of approved section keys
   // Context for extraction (#100), loaded now so it is ready by then. Both
@@ -1370,6 +1371,7 @@ function renderFacts() {
     session.gridsBuilt = false;
     session.draft = null;
     session.headerEdit = null;
+    session.headerDraft = null;
     session.approvals = new Set();
     if (!session.assignList.length) buildGrids();
   }
@@ -2033,6 +2035,78 @@ function applyHeaderEdits() {
 }
 
 /**
+ * draftHeader() — the header's "Draft title and summary" button (#74): one
+ * small AI call (ChronicleAI.draftHeader) from every passage of the
+ * session, the combats with their rounds and recorded outcome, the session
+ * ID and date, and the party. On success both fields take the draft as if
+ * the DM had typed it, so a later Redraft of the entity pages does not
+ * replace it and the DM edits it from there. On failure the fields are not
+ * touched and the error is shown; never demo text (CLAUDE.md).
+ */
+async function draftHeader() {
+  session.headerDraft = { status: 'drafting', error: '', warnings: [] };
+  renderHeader();
+  try {
+    const system = ChroniclePages.headerPrompt({
+      sessionLabel: `${session.legacyId}, played ${session.date}`,
+      roster: ChronicleAI.PARTY_ROSTER,
+      // Every passage, wherever it now sits (after the DM's moves): the
+      // header covers the whole session, not only its session-level lines.
+      passages: session.mergedFacts.passages.map(p => ({ text: p.text, speakerLabel: speakerLabel(p) })),
+      combats: session.grids.map(g => {
+        // A new combat has no record yet, so no outcome; the rounds still say how it went.
+        const rec = (session.campaign.combat_encounters || []).find(c => c.id === g.combat);
+        return { name: g.name, rounds: ChronicleGrid.toTurnSchema(g).rounds.length, outcome: rec?.mechanics?.outcome || null };
+      }),
+      facts: factsText(),
+    });
+    const h = ChroniclePages.parseHeader(await ChronicleAI.draftHeader({ system }));
+    session.headerEdit = Object.assign(session.headerEdit || {}, { title: h.title, summary: h.summary });
+    session.headerDraft = { status: 'done', error: '', warnings: h.warnings };
+  } catch (err) {
+    session.headerDraft = { status: 'error', error: err.message || String(err), warnings: [] };
+  }
+  renderReview();
+}
+
+/**
+ * editHeader(field, value) — the DM typing in the title or summary. Keeps
+ * the text and refreshes the approval summary, but does not redraw the
+ * header: a redraw on blur replaced the Draft button under the mouse, so
+ * the click that caused the blur was lost.
+ */
+function editHeader(field, value) {
+  (session.headerEdit = session.headerEdit || {})[field] = value;
+  applyHeaderEdits();
+  // Only the replace boxes depend on the text; redrawing just them keeps the
+  // field being typed in, and the Draft button, in place.
+  const box = document.getElementById('hd-replace');
+  if (box) box.innerHTML = headerReplaceHtml();
+  renderApproval();
+}
+
+/**
+ * headerReplaceHtml() → the "Replace the recorded title / summary" boxes
+ * for a placeholder (#74), or ''. A placeholder's recorded title or summary
+ * wins at publish unless the DM ticks replace for it
+ * (ChroniclePages.headerReplaceItem); a box only appears when the text on
+ * the page differs from what is recorded. Kept apart from renderHeader so
+ * editHeader can refresh it while the DM types.
+ */
+function headerReplaceHtml() {
+  const rec = (session.campaign.session_logs || []).find(s => s.legacy_id === session.legacyId);
+  const h = session.header.rawData;
+  const he = session.headerEdit || {};
+  const busy = (session.headerDraft || {}).status === 'drafting';
+  const recSummary = rec?.narrative?.summary || '';
+  const titleDiffers = rec && rec.title && h.title && h.title !== rec.title;
+  const summaryDiffers = rec && recSummary && h.summary && h.summary !== recSummary;
+  const replaceBox = (key, label) => `<label class="approval-item"><input type="checkbox" ${he[key] ? 'checked' : ''} ${busy ? 'disabled' : ''}
+      onchange="(session.headerEdit = session.headerEdit || {}).${key} = this.checked; renderApproval();"> ${label}</label>`;
+  return titleDiffers || summaryDiffers ? `<div class="approval-list">${titleDiffers ? replaceBox('replaceTitle', 'Replace the recorded title with the one above') : ''}${summaryDiffers ? replaceBox('replaceSummary', 'Replace the recorded summary with the one above') : ''}</div>` : '';
+}
+
+/**
  * movePassage(i, value) — puts passage i on another page: an entity
  * ("entity:<occ>"), a combat ("combat:<id>"), a round ("round:<id>:<n>") or
  * the session. Kept in session.passageMoves so a redraw of the facts keeps
@@ -2149,12 +2223,20 @@ function renderHeader() {
   const rec = (session.campaign.session_logs || []).find(s => s.legacy_id === session.legacyId);
   const h = session.header.rawData;
   const sessionPassages = session.mergedFacts.passages.map((p, index) => Object.assign({ index }, p)).filter(p => !passageTarget(p));
+  const hd = session.headerDraft || {};
+  const busy = hd.status === 'drafting';
+  const recSummary = rec?.narrative?.summary || '';
   el.innerHTML = `<div class="fact-combat"><h3>Session header</h3>
+    <div class="actions"><button class="btn" onclick="draftHeader()" ${busy ? 'disabled' : ''}>${busy ? 'Drafting title and summary…' : 'Draft title and summary'}</button>
+      ${busy ? '<span class="state">drafting from the passages and combats…</span>' : ''}</div>
+    ${hd.status === 'error' ? `<div class="error-box">The header draft failed: ${escapeHtml(hd.error)} The title and summary were left as they were.</div>` : ''}
+    ${hd.status === 'done' && hd.warnings.length ? `<p class="hint warn">${hd.warnings.map(escapeHtml).join(' ')}</p>` : ''}
     <div class="field"><label for="hd-title">Title</label>
-      <input id="hd-title" value="${escapeHtml(h.title || '')}" onchange="(session.headerEdit = session.headerEdit || {}).title = this.value; renderReview();"></div>
+      <input id="hd-title" value="${escapeHtml(h.title || '')}" ${busy ? 'disabled' : ''} oninput="editHeader('title', this.value)"></div>
     <div class="field" style="margin-top:0.5rem;"><label for="hd-summary">Summary</label>
-      <textarea id="hd-summary" rows="4" style="width:100%;" onchange="(session.headerEdit = session.headerEdit || {}).summary = this.value; renderReview();">${escapeHtml(h.summary || '')}</textarea></div>
-    ${rec && (rec.title || rec.narrative?.summary) ? `<p class="fact-line">${escapeHtml(session.legacyId)} already records ${rec.title ? 'the title "' + escapeHtml(rec.title) + '"' : ''}${rec.title && rec.narrative?.summary ? ' and ' : ''}${rec.narrative?.summary ? 'a summary' : ''}; publish keeps what is recorded and lists any difference.</p>` : ''}
+      <textarea id="hd-summary" rows="4" style="width:100%;" ${busy ? 'disabled' : ''} oninput="editHeader('summary', this.value)">${escapeHtml(h.summary || '')}</textarea></div>
+    ${rec && (rec.title || recSummary) ? `<p class="fact-line">${escapeHtml(session.legacyId)} already records ${rec.title ? 'the title "' + escapeHtml(rec.title) + '"' : ''}${rec.title && recSummary ? ' and ' : ''}${recSummary ? 'a summary' : ''}. Publish keeps what is recorded unless you tick replace below.</p>` : ''}
+    <div id="hd-replace">${headerReplaceHtml()}</div>
     ${sessionPassages.length ? `<div class="fact-round" style="margin-top:0.6rem;"><h4>Passages on the session</h4>${sessionPassages.map(passageHtml).join('')}</div>` : ''}
     <div id="absence-panel"></div>
   </div>`;
@@ -2182,7 +2264,14 @@ function publishPlan() {
   const textItems = ChroniclePages.textItems(pages, d.changes.filter(c => c.decision === 'accepted').map(c => ({ id: c.id, field: c.field, text: c.final })));
   const judgmentItems = ChroniclePages.judgmentItems(d.judgments.filter(j => j.decision === 'approved'), { sessionRef: session.legacyId, arrayOf, newId: ChronicleIds.newId });
   const combats = session.grids.map(g => ChronicleGrid.toTurnSchema(g, session.legacyId));
-  return { header: session.header, identityItems: session.identityItems, passageItems: session.passageItems, deferredPassages: session.deferredPassages,
+  // A placeholder keeps its recorded header unless the DM ticked replace (#74).
+  const rec = (session.campaign.session_logs || []).find(s => s.legacy_id === session.legacyId);
+  const he = session.headerEdit || {};
+  const headerReplace = ChroniclePages.headerReplaceItem(rec, { title: session.header.rawData.title, summary: session.header.rawData.summary,
+    replaceTitle: he.replaceTitle, replaceSummary: he.replaceSummary });
+  // The header publish gets leaves out what headerReplace sets, so publish
+  // does not report keeping a recorded field it then replaces.
+  return { header: ChroniclePages.headerForPublish(session.header, headerReplace), headerReplace, identityItems: session.identityItems, passageItems: session.passageItems, deferredPassages: session.deferredPassages,
     textItems, judgmentItems, combats,
     pending: d.changes.filter(c => c.decision === 'pending').length + d.judgments.filter(j => j.decision === 'pending').length };
 }
@@ -2207,7 +2296,7 @@ function renderApproval() {
     <div class="approval-list">${secs.map(s => `<label class="approval-item"><input type="checkbox" ${session.approvals.has(s.key) ? 'checked' : ''}
       onchange="this.checked ? session.approvals.add('${s.key}') : session.approvals.delete('${s.key}'); renderApproval();"> ${escapeHtml(s.label)} reviewed</label>`).join('')}</div>
     <ul class="plan">
-      <li>Session ${escapeHtml(session.legacyId)}${plan.header.rawData.title ? ' — "' + escapeHtml(plan.header.rawData.title) + '"' : ''}, played ${escapeHtml(session.date)}</li>
+      <li>Session ${escapeHtml(session.legacyId)}${session.header.rawData.title ? ' — "' + escapeHtml(session.header.rawData.title) + '"' : ''}, played ${escapeHtml(session.date)}${plan.headerReplace ? ' (' + escapeHtml(plan.headerReplace.title.replace(/^[^:]*: /, '')) + ')' : ''}</li>
       <li>${n(plan.identityItems.filter(i => i.type === 'NEW'), 'new entity', 'new entities')}, ${n(plan.identityItems.filter(i => i.type === 'MOD'), 'alias, note or roster change', 'alias, note or roster changes')}</li>
       <li>${rounds} round${rounds === 1 ? '' : 's'} in ${n(plan.combats, 'combat', 'combats')}${held ? `, ${held} fact${held === 1 ? '' : 's'} held back` : ''}</li>
       <li>${n(plan.passageItems, 'passage', 'passages')} on entities and the session, ${n(plan.deferredPassages, 'passage', 'passages')} on rounds and quest steps</li>

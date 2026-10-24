@@ -163,7 +163,7 @@ async function loadCampaignData() {
 - Safe Test Mode builds on `tests/fixtures/test-campaign.json` and writes only `tests/output/test-campaign.published.json` (git-ignored). It must never write the fixture (the automated tests depend on it) or the real campaign file
 - The file is written as `JSON.stringify(campaign, null, 2) + "\n"`, the format the repo stores, so the VS Code diff shows only what changed
 - Every failure is an error ending "Nothing was written" (or saying the old file is unchanged), never a silent skip
-- `.vscode/settings.json` makes Live Server ignore `data/**` and `tests/**` so a publish does not reload the page and lose the review. Keep those entries, and keep Live Server's defaults in the list, because the setting replaces them
+- `.vscode/settings.json` makes Live Server ignore `data/**`, `tests/**` and `OCR Test Files/**` so a publish, or a test photo or screenshot saved there, does not reload the page and lose the review. Keep those entries, and keep Live Server's defaults in the list, because the setting replaces them
 
 ## Google Drive is retired (issue #98)
 
@@ -206,7 +206,7 @@ Passages (#102) come from the same call. Each is `{ text, session_id, speaker, p
 
 `chronicle-grid.js` exports `window.ChronicleGrid` (and `module.exports` under Node): the session page's round grid (#103), meaning split assignment, the initiative order and every direct move, each a function on the grid model, plus `toTurnSchema()`, the rounds publish (#106) will write. No dependencies, DOM, storage or network. Every correction in the grid is a direct move; do not add an AI call to a move (only "Re-extract this round" calls the AI, through the page). Moves and their rules belong here, not in the page, so `tests/round-grid.test.js` tests the real code.
 
-`chronicle-pages.js` exports `window.ChroniclePages` (and `module.exports` under Node): the session page's entity pages (#105), meaning the touched pages, the one AI draft of text changes, judgment events and the header, its checks, and the publish items approvals produce. No dependencies, DOM, storage or network. Every proposal waits for the DM's decision; never write one unapproved. A death needs the notes to say so: 0 HP or "downed" is never death. An NPC's words stay attributed. A text change is written with `_set` on its one field, never as a whole-object MOD.
+`chronicle-pages.js` exports `window.ChroniclePages` (and `module.exports` under Node): the session page's entity pages (#105), meaning the touched pages, the one AI draft of text changes, judgment events and the header, its checks, and the publish items approvals produce. No dependencies, DOM, storage or network. Every proposal waits for the DM's decision; never write one unapproved. A death needs the notes to say so: 0 HP or "downed" is never death. An NPC's words stay attributed. A text change is written with `_set` on its one field, never as a whole-object MOD. A placeholder session's recorded title and summary are replaced only when the DM ticks replace (`headerReplaceItem`), never by a draft on its own (#74).
 
 In `admin/session.html` every step's functions share one script, so a new function must not reuse an existing name (a second `renderPages` once broke the upload step); `tests/session-header.test.js` checks this.
 
@@ -279,6 +279,7 @@ When to use which method:
 - `.fillRoundsFromText()` — round fill from typed description (integrity)
 - `.sendCorrectionToAI()` — delta item correction chat (delta-review only)
 - `.extractMentions()` — one page's entity mentions for the session page (#100). It streams, because a dense page takes minutes; keep long calls streamed
+- `.draftPages()` — the session page's entity-page draft (#105); `.draftHeader()` — the session header's own title and summary draft (#74). A failed header draft leaves the fields as they were
 - `.extractFacts()` — one page's facts for the session page (#101), against the occurrence ids from step 3. Never add a fixed slot-to-PC roster to its prompt
 - Never show demo data (`demoRoundProposals`, `demoCorrectionResponse`) in place of a real reply. A failed call shows its error (#101)
 

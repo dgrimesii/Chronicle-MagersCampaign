@@ -1445,6 +1445,29 @@ ${contextStr}${scopeNote}`,
     return r.text;
   }
 
+  // The header draft (#74) is a title and a few sentences; a small limit
+  // keeps a runaway reply short, and 2,000 tokens is still ten times what a
+  // good reply needs.
+  const HEADER_MAX_TOKENS = 2000;
+
+  /**
+   * draftHeader({ system }) → Promise<string>
+   *
+   * Session page step 4 (#74): the session header's own "Draft title and
+   * summary" call. system comes from ChroniclePages.headerPrompt(), which
+   * holds the passages, combats, session ID, date and party; no images.
+   * Streamed like the other session page calls, with the same cut-off
+   * rule: a reply that hits the output limit is retried once, then rejected,
+   * so the page shows an error rather than half a summary.
+   */
+  async function draftHeader({ system }) {
+    const once = () => callStream({ system, messages: [{ role: 'user', content: 'Draft the session title and summary as JSON.' }], maxTokens: HEADER_MAX_TOKENS });
+    let r = await once();
+    if (r.stopReason === 'max_tokens') r = await once();
+    if (r.stopReason === 'max_tokens') throw new Error('The header draft was cut off at the output limit twice.');
+    return r.text;
+  }
+
   // ─────────────────────────────────────────────────────────
   // Public API
   // ─────────────────────────────────────────────────────────
@@ -1467,10 +1490,11 @@ ${contextStr}${scopeNote}`,
     sendCorrectionToAI,
     demoCorrectionResponse,
 
-    // Session page (issues #100, #101, #105)
+    // Session page (issues #100, #101, #105, #74)
     extractMentions,
     extractFacts,
     draftPages,
+    draftHeader,
   };
 
 })();

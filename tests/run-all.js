@@ -40,6 +40,7 @@ const TEST_FILES = [
   'tests/round-grid.test.js',
   'tests/absence-notes.test.js',
   'tests/entity-pages.test.js',
+  'tests/header-draft.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────
