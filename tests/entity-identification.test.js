@@ -12,6 +12,9 @@
  *   I-5   flags: acting twice in a round, two places at once, ally and enemy
  *   I-6   publish items through the real applySession
  *   I-7   the AI prompt and the reply check
+ *   I-8   linking rows to an entity another row creates
+ *   I-9   correcting a row's kind (#114): matched again, merged, refused
+ *         when settled; a corrected creature is created in the bestiary
  *
  * WHY THIS FILE EXISTS
  * --------------------
@@ -327,6 +330,57 @@ console.log('\nTest I-8 — linking rows to an entity another row creates');
   assert('I-8: a link with saveAlias false saves no alias', num.resolution.alias === null && num.resolution.entityId === id);
   const back = E.reopen(lark, rows);
   assert('I-8: reopening the creating row reopens the rows linked to it', back.length === 3 && rows.every(r => r.status === 'pending'));
+}
+
+console.log('\nTest I-9 — correcting a row\'s kind (#114)');
+{
+  // The #17 gate: "Vespon" was read as an NPC, so the only way to settle it
+  // was to create an NPC, which then took a party slot.
+  const index = E.buildIndex(campaign);
+  const vesponSwarm = campaign.bestiary.find(b => b.legacy_id === 'mon_003').id;
+  const pages = () => [{ page: 1, mentions: [
+    { kind: 'npc', as_written: 'Vespon Swarm', context: 'Vespon Swarm - Nat 20, Attisus' },
+    { kind: 'npc', as_written: 'Vespon', context: 'Vespon - Nat 20' },
+    { kind: 'npc', as_written: 'Ogre', context: 'Ogre bursts from the trees' },
+    { kind: 'creature', as_written: 'Ogre', context: 'Ogre - Hit Mal' },
+    { kind: 'npc', as_written: 'Helen', context: 'Helen' },
+  ] }];
+  let rows = E.buildRows(pages(), index);
+  const row = (w, k) => rows.find(r => r.asWritten === w && r.kind === k);
+  assert('I-9: as read, "Vespon Swarm" is an NPC with no match', row('Vespon Swarm', 'npc').matchType === 'new');
+  rows = E.setKind(rows, row('Vespon Swarm', 'npc'), 'creature', index);
+  const vs = row('Vespon Swarm', 'creature');
+  assert('I-9: corrected to a creature, it is matched again: exact, to the Vespon Swarm', vs && vs.matchType === 'exact' && vs.matchId === vesponSwarm && vs.key === 'creature|vespon swarm');
+  assert('I-9: no NPC row is left for it', !row('Vespon Swarm', 'npc'));
+  rows = E.setKind(rows, row('Vespon', 'npc'), 'creature', index);
+  const v = row('Vespon', 'creature');
+  E.acknowledge(v, 'Vespon Swarm (second)');
+  assert('I-9: a corrected new creature is created in the bestiary, not the NPC directory', v.resolution.array === 'bestiary');
+  const items = E.toQueueItems(rows.filter(r => r.status === 'settled'), index, 'session_008');
+  assert('I-9: its publish item is a NEW bestiary entry', items.some(i => i.type === 'NEW' && i.array === 'bestiary' && i.rawData.name === 'Vespon Swarm (second)'));
+  const before = rows.length;
+  const ogreOccs = row('Ogre', 'npc').occurrences.length + row('Ogre', 'creature').occurrences.length;
+  rows = E.setKind(rows, row('Ogre', 'npc'), 'creature', index);
+  assert('I-9: the same words already held as the new kind are merged into one row', rows.length === before - 1 && !row('Ogre', 'npc') && row('Ogre', 'creature').occurrences.length === ogreOccs);
+  assert('I-9: the merged occurrences keep reading order', row('Ogre', 'creature').occurrences.map(o => o.id).join() === 'occ_1_3,occ_1_4');
+  E.acknowledge(row('Helen', 'npc'));
+  assert('I-9: a settled row is refused until reopened', throws(() => E.setKind(rows, row('Helen', 'npc'), 'place', index)) && row('Helen', 'npc').kind === 'npc');
+  E.reopen(row('Helen', 'npc'), rows);
+  rows = E.setKind(rows, row('Helen', 'npc'), 'place', index);
+  assert('I-9: reopened, it can be corrected', !!row('Helen', 'place') && row('Helen', 'place').status === 'pending');
+  const same = rows.slice();
+  assert('I-9: the same kind changes nothing', E.setKind(same, row('Helen', 'place'), 'place', index) === same);
+  assert('I-9: an unknown kind is refused', throws(() => E.setKind(rows, row('Helen', 'place'), 'dragon', index)));
+  // Downstream: the facts read treats the corrected creature as a group,
+  // so the grid gives it an enemy row, not a party slot (the #17 failure).
+  const F = require('../shared/chronicle-facts.js');
+  const ref = F.pageReferences(1, rows, index).find(r => r.asWritten === 'Vespon');
+  assert('I-9: the facts read sees the corrected creature as a group (an enemy row, not a party slot)', ref && ref.group === true && ref.array === 'bestiary');
+  assert('I-9: every kind has a label for the list', Object.values(E.KINDS).every(k => typeof k.label === 'string' && k.label.length));
+  const page = fs.readFileSync(path.join(__dirname, '..', 'admin', 'session.html'), 'utf8');
+  assert('I-9: an unsettled row shows a kind dropdown that calls changeKind; a settled row shows its label',
+    /onchange="changeKind\('\$\{k\}', this\.value\)">\$\{kindOptions\(r\.kind\)\}<\/select>/.test(page) && /<span class="ident-kind">\$\{escapeHtml\(kind\.label\)\}<\/span>/.test(page));
+  assert('I-9: changeKind replaces the rows with setKind\'s result', /session\.rows = ChronicleEntities\.setKind\(session\.rows, rowOf\(key\), kind, session\.index\)/.test(page));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

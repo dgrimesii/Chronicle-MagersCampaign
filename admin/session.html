@@ -138,6 +138,8 @@
   .ident-row.flagged { box-shadow:0 0 0 1px var(--amber-dim); }
   .ident-head { display:grid; grid-template-columns:130px 1fr 1.3fr 110px; gap:10px; align-items:baseline; }
   .ident-kind { font-family:'Cinzel',serif; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+  /* The kind can be corrected on an unsettled row (#114). */
+  .ident-kind-select { background:var(--parchment-dark); color:var(--ink); border:1px solid var(--border-strong); border-radius:3px; font-size:0.78rem; color-scheme:dark; }
   .ident-words { font-size:1.05rem; }
   .ident-match .new { color:var(--rust); }
   .ident-status { font-size:0.82rem; text-align:right; color:var(--muted); }
@@ -1054,7 +1056,9 @@ function renderIdentify() {
  * renderRow(row, flagged) — one row: kind, words, match, every occurrence
  * with its page and line, status, and the actions. An action that needs
  * input (Link, Separate, Split, Sub-type, a new entity's name) opens an
- * inline form under the row instead of a dialog.
+ * inline form under the row instead of a dialog. On an unsettled row the
+ * kind is a dropdown the DM can correct (#114); a settled row shows it as
+ * text, since its answer was made for that kind.
  */
 function renderRow(r, flagged) {
   const kind = ChronicleEntities.KINDS[r.kind];
@@ -1080,7 +1084,9 @@ function renderRow(r, flagged) {
   }
   return `<div class="ident-row m-${r.matchType}${r.status === 'settled' ? ' settled' : ''}${flagged ? ' flagged' : ''}">
     <div class="ident-head">
-      <span class="ident-kind">${escapeHtml(kind.group)}</span>
+      ${r.status === 'settled'
+        ? `<span class="ident-kind">${escapeHtml(kind.label)}</span>`
+        : `<select class="ident-kind-select" title="The kind the read gave this mention; correct it if it is wrong" onchange="changeKind('${k}', this.value)">${kindOptions(r.kind)}</select>`}
       <span class="ident-words">"${escapeHtml(r.asWritten)}"</span>
       <span class="ident-match">${match}</span>
       <span class="ident-status${r.status === 'settled' ? ' done' : ''}">${r.status === 'settled' ? 'settled' : r.occurrences.length + ' occurrence' + (r.occurrences.length === 1 ? '' : 's')}</span>
@@ -1146,6 +1152,25 @@ function renderForm(r, action) {
       <input id="f-role" placeholder="Role, e.g. slinger" size="12">${go('Add group')}</div>`;
   }
   return '';
+}
+
+// kindOptions(selected) → <option>s for every kind, by its label (#114).
+function kindOptions(selected) {
+  return Object.entries(ChronicleEntities.KINDS).map(([k, v]) =>
+    `<option value="${k}" ${k === selected ? 'selected' : ''}>${escapeHtml(v.label)}</option>`).join('');
+}
+
+/**
+ * changeKind(key, kind) — the DM corrects a row's kind (#114). The row is
+ * matched again for the new kind, or merged into a row that already holds
+ * the same words as that kind; any open form is closed, since its options
+ * belonged to the old kind. A refusal (a settled row) shows under the row.
+ */
+function changeKind(key, kind) {
+  attempt(key, () => {
+    session.rows = ChronicleEntities.setKind(session.rows, rowOf(key), kind, session.index);
+    session.openForm = null;
+  });
 }
 
 // openForm(key, action) — opens one row's inline form (closing any other).

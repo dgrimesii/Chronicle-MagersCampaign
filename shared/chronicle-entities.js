@@ -74,19 +74,24 @@
    * `create: null` means a new entity of that kind cannot be made here: a PC
    * the notes name but the party does not have is a misreading, so the DM
    * must link it to a party member.
+   *
+   * `label` is what step 3 shows and offers when the DM corrects a row's
+   * kind (setKind, #114). The group alone ("Person or creature") hid
+   * whether the read called a mention an NPC or a creature, which decides
+   * where it is created and whether it takes a party slot or an enemy row.
    */
   const KINDS = {
-    pc:       { group: 'Person or creature', arrays: ['party'],                   create: null },
-    npc:      { group: 'Person or creature', arrays: ['npc_directory', 'party'],  create: 'npc_directory' },
-    creature: { group: 'Person or creature', arrays: ['enemies_roster', 'bestiary', 'cohorts'], create: 'bestiary' },
-    faction:  { group: 'Person or creature', arrays: ['factions', 'cohorts'],     create: 'factions' },
-    cohort:   { group: 'Person or creature', arrays: ['cohorts', 'factions'],     create: 'cohorts' },
-    place:    { group: 'Place',              arrays: ['locations'],               create: 'locations' },
-    thing:    { group: 'Thing',              arrays: ['inventory_and_loot'],      create: 'inventory_and_loot' },
-    combat:   { group: 'Event',              arrays: ['combat_encounters'],       create: 'combat_encounters' },
-    quest:    { group: 'Event',              arrays: ['quest_ledger'],            create: 'quest_ledger' },
-    moment:   { group: 'Event',              arrays: ['character_moments'],       create: 'character_moments' },
-    lore:     { group: 'Knowledge',          arrays: ['world_lore'],              create: 'world_lore' },
+    pc:       { group: 'Person or creature', label: 'Player character', arrays: ['party'],                   create: null },
+    npc:      { group: 'Person or creature', label: 'NPC',              arrays: ['npc_directory', 'party'],  create: 'npc_directory' },
+    creature: { group: 'Person or creature', label: 'Creature',         arrays: ['enemies_roster', 'bestiary', 'cohorts'], create: 'bestiary' },
+    faction:  { group: 'Person or creature', label: 'Faction',          arrays: ['factions', 'cohorts'],     create: 'factions' },
+    cohort:   { group: 'Person or creature', label: 'Cohort',           arrays: ['cohorts', 'factions'],     create: 'cohorts' },
+    place:    { group: 'Place',              label: 'Place',            arrays: ['locations'],               create: 'locations' },
+    thing:    { group: 'Thing',              label: 'Thing',            arrays: ['inventory_and_loot'],      create: 'inventory_and_loot' },
+    combat:   { group: 'Event',              label: 'Combat',           arrays: ['combat_encounters'],       create: 'combat_encounters' },
+    quest:    { group: 'Event',              label: 'Quest',            arrays: ['quest_ledger'],            create: 'quest_ledger' },
+    moment:   { group: 'Event',              label: 'Character moment', arrays: ['character_moments'],       create: 'character_moments' },
+    lore:     { group: 'Knowledge',          label: 'Lore',             arrays: ['world_lore'],              create: 'world_lore' },
   };
 
   // _object_type for an entity created in each array, as the data writes it.
@@ -259,28 +264,74 @@
         rows.get(key).occurrences.push(occ);
       });
     }
-    for (const row of rows.values()) {
-      const exact = exactMatch(row.asWritten, row.kind, index);
-      // The AI's most frequent candidate across the row's occurrences, kept
-      // only if it names an entity of an allowed array.
-      const cand = mostCommon(row.occurrences.map(o => o.candidateId).filter(Boolean));
-      const candEntry = cand && index.entities.get(cand);
-      const allowed = KINDS[row.kind].arrays;
-      if (exact) {
-        row.matchType = 'exact';
-        row.matchId = exact.id;
-      } else if (candEntry && allowed.includes(candEntry.array)) {
-        row.matchType = 'inexact';
-        row.matchId = candEntry.id;
-        row.reason = row.occurrences.find(o => o.candidateId === cand)?.candidateReason || '';
-      } else {
-        row.matchType = 'new';
-        row.matchId = null;
-      }
-      row.status = 'pending';
-      row.resolution = null;
-    }
+    for (const row of rows.values()) matchRow(row, index);
     return sortRows([...rows.values()]);
+  }
+
+  /**
+   * matchRow(row, index) — decides one row's match from its kind and words,
+   * and leaves it pending. Used by buildRows and, when the DM corrects a
+   * row's kind, by setKind, so a corrected row is matched by exactly the
+   * rules the read used:
+   *   exact   — the words equal one entity's name or alias among the arrays
+   *             the kind allows
+   *   inexact — the AI's most frequent candidate across the occurrences,
+   *             kept only if it is in an allowed array
+   *   new     — neither
+   */
+  function matchRow(row, index) {
+    const exact = exactMatch(row.asWritten, row.kind, index);
+    const cand = mostCommon(row.occurrences.map(o => o.candidateId).filter(Boolean));
+    const candEntry = cand && index.entities.get(cand);
+    const allowed = KINDS[row.kind].arrays;
+    delete row.reason;
+    if (exact) {
+      row.matchType = 'exact';
+      row.matchId = exact.id;
+    } else if (candEntry && allowed.includes(candEntry.array)) {
+      row.matchType = 'inexact';
+      row.matchId = candEntry.id;
+      row.reason = row.occurrences.find(o => o.candidateId === cand)?.candidateReason || '';
+    } else {
+      row.matchType = 'new';
+      row.matchId = null;
+    }
+    row.status = 'pending';
+    row.resolution = null;
+  }
+
+  /**
+   * setKind(rows, row, kind, index) → the rows, sorted again.
+   *
+   * The DM corrects the kind the read gave a row (#114): "Vespon" read as an
+   * NPC is a creature. The row is matched again for the new kind (matchRow),
+   * so its match, its Acknowledge (which creates in the kind's array) and
+   * its Link list all follow the correction. Without it the only way to
+   * settle such a row was to create an NPC, which then took a party slot in
+   * the grid and gave the party a wrong "allied" relationship (#17, F2).
+   *
+   * Only a pending row: a settled row's answer was made for its old kind,
+   * so the DM reopens it first. If another row already holds the same words
+   * as the new kind, the two are one mention and are merged: the other row
+   * gains these occurrences and keeps its own answer if it has one (a
+   * pending one is matched again with every occurrence's candidate).
+   */
+  function setKind(rows, row, kind, index) {
+    if (!KINDS[kind]) throw new Error(`"${kind}" is not a kind.`);
+    if (row.status === 'settled') throw new Error('Reopen the row (Change) before correcting its kind: its answer was made for the old kind.');
+    if (row.kind === kind) return rows;
+    const key = kind + '|' + norm(row.asWritten);
+    const other = rows.find(r => r !== row && r.key === key);
+    if (other) {
+      const byPage = (a, b) => String(a.page).localeCompare(String(b.page), undefined, { numeric: true }) || a.id.localeCompare(b.id, undefined, { numeric: true });
+      other.occurrences = other.occurrences.concat(row.occurrences).sort(byPage);
+      if (other.status !== 'settled') matchRow(other, index);
+      return sortRows(rows.filter(r => r !== row));
+    }
+    row.kind = kind;
+    row.key = key;
+    matchRow(row, index);
+    return sortRows(rows);
   }
 
   function num(v) {
@@ -704,7 +755,7 @@ Respond with JSON only, no prose:
 
   const api = {
     KINDS, norm, buildIndex, entityListForPrompt, mentionPrompt, parseMentions, buildRows, sortRows,
-    newEntities, acknowledge, linkToExisting, separateAsNew, split, markSubType, reopen,
+    newEntities, acknowledge, linkToExisting, separateAsNew, split, markSubType, reopen, setKind,
     bulkAcknowledgeExact, allSettled, resolveOccurrences, flags, toQueueItems,
   };
 
