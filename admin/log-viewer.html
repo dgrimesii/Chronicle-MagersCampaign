@@ -1289,6 +1289,31 @@ const PARTY_LOOKUP = {
   'pc_005':{nick:'Goli',cls:'Rogue'}, 'pc_006':{nick:'Att',cls:'Druid'},
 };
 
+// A UUID, the form every entity id takes since #95. Used only to keep a raw
+// id off the page when an actor cannot be named.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * slotActor(id) → { nick, cls, linkable } — how a combat slot's actor is
+ * shown in the round view and the initiative legend (#118).
+ *
+ * Why: slots used to be named only from PARTY_LOOKUP, so any actor who is
+ * not one of the six PCs (an NPC fighting alongside the party, or a creature
+ * group wrongly placed in a party slot) showed as its raw UUID. A PC keeps
+ * its nickname and class; any other entity shows by name (getName); a roster
+ * label ("Goblins") is already a name and shows as it is. An id the data
+ * cannot name shows "Unknown actor", never the UUID. linkable is true only
+ * for an entity the viewer can open, so a click never leads nowhere.
+ * Removing this brings the raw UUIDs back.
+ */
+function slotActor(id) {
+  const pc = PARTY_LOOKUP[id];
+  if (pc) return { nick: pc.nick, cls: pc.cls, linkable: true };
+  const e = ENTITIES[id];
+  if (e) return { nick: getName(id), cls: e.cls || '', linkable: true };
+  return { nick: UUID_RE.test(String(id)) ? 'Unknown actor' : String(id ?? ''), cls: '', linkable: false };
+}
+
 function resultClass(res) {
   if (!res) return 'result-neutral';
   const r = res.toLowerCase();
@@ -1336,6 +1361,10 @@ function renderCombatDetail(cbt) {
   const filteredRounds = combatSessionFilter
     ? (cbt.rounds||[]).filter(r=>r.sid===combatSessionFilter)
     : (cbt.rounds||[]);
+  // The initiative legend: the six PCs, then anyone else holding a slot in
+  // this combat (an NPC ally, #118), named the same way as the slots.
+  const legendActors = Object.keys(PARTY_LOOKUP).concat(
+    [...new Set((cbt.rounds||[]).flatMap(r=>(r.slots||[]).map(s=>s.a)))].filter(a=>a && !PARTY_LOOKUP[a]));
 
   const totalHits = filteredRounds.flatMap(r=>r.slots).filter(s=>s.res==='hit').length;
   const totalCrits = filteredRounds.flatMap(r=>r.slots).filter(s=>['crit','critical-hit'].includes(s.res)).length;
@@ -1392,12 +1421,12 @@ function renderCombatDetail(cbt) {
       <!-- Initiative slots legend -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0.85rem;padding:0.6rem 0.85rem;background:var(--parchment-mid);border-radius:3px;border:1px solid var(--border);">
         <span style="font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-right:4px;">Initiative</span>
-        ${Object.entries(PARTY_LOOKUP).map(([pid,pc],i)=>`
+        ${legendActors.map(pid=>{const pc=slotActor(pid);return`
           <span style="font-size:0.78rem;display:flex;align-items:center;gap:4px;">
             <span style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:var(--muted-light);">—</span>
-            <span style="font-family:'Cinzel',serif;font-size:0.72rem;font-weight:600;cursor:pointer;" onclick="selectEntity('${pid}')">${pc.nick}</span>
+            <span style="font-family:'Cinzel',serif;font-size:0.72rem;font-weight:600;${pc.linkable?'cursor:pointer;':''}" ${pc.linkable?`onclick="selectEntity('${pid}')"`:''}>${pc.nick}</span>
             <span style="font-size:0.72rem;color:var(--muted);">${pc.cls}</span>
-          </span>`).join('')}
+          </span>`;}).join('')}
         <span style="font-size:0.75rem;color:var(--muted-light);font-style:italic;margin-left:auto;">Initiative order varies per encounter — slot numbers shown</span>
       </div>
 
@@ -1502,12 +1531,17 @@ function renderRoundBlock(round, cbtId) {
 }
 
 function slotHTML(slot) {
-  const pc = PARTY_LOOKUP[slot.a] || {nick:slot.a,cls:''};
+  // Named through slotActor (#118): a non-PC actor shows by name, never as
+  // its UUID, and is a link only when the viewer can open it.
+  const pc = slotActor(slot.a);
   const rClass = resultClass(slot.res);
   const rLabel = resultLabel(slot.res);
+  const actor = pc.linkable
+    ? `<span class="slot-actor" style="cursor:pointer;" onclick="event.stopPropagation();selectEntity('${slot.a}')">${pc.nick}</span>`
+    : `<span class="slot-actor">${pc.nick}</span>`;
   return `
     <span class="slot-num-badge">${slot.s}</span>
-    <span class="slot-actor" style="cursor:pointer;" onclick="event.stopPropagation();selectEntity('${slot.a}')">${pc.nick}</span>
+    ${actor}
     <div class="slot-action">
       <div>${slot.act}${slot.val?`<span class="slot-value">${slot.val}</span>`:''}</div>
       ${slot.notes?`<div class="slot-notes">${slot.notes}</div>`:''}

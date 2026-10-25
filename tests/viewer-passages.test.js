@@ -13,6 +13,9 @@
  *   V-4  the admin log viewer: aliases searchable, passages on the session,
  *        the combat, each round and its activities, quest steps, and linked
  *        events for places and people
+ *   V-5  combat slot actors (#118, cut from the admin log viewer): a PC by
+ *        nickname, any other entity by name, a roster label as written, an
+ *        unknown id as "Unknown actor", never a raw UUID; the legend too
  *
  * WHY THIS FILE EXISTS
  * --------------------
@@ -147,6 +150,33 @@ console.log('\nTest V-4 — the admin log viewer');
   assert('V-4: other entities show passages and linked events', /passagesSection\(ent\.passages\) \+ linkedEventsSection\(ent\)/.test(cutFunction(src, 'renderDetail')));
   assert('V-4: testimony has its own style', /\.passage\.testimony\{/.test(src));
   assert('V-4: the player view renders no passages yet (#110)', !/passageListHtml/.test(read('player/index.html')));
+}
+
+// ── V-5 ─────────────────────────────────────────────────────────────────────
+// #118: a slot actor who is not a PC showed as its raw UUID in the combat
+// round view (#17 Run A, the Vespon Swarm in slot 7). slotActor and slotHTML
+// are cut from the admin log viewer and run against stand-in data.
+console.log('\nTest V-5 — combat slot actors in the admin log viewer (#118)');
+{
+  const src = read('admin/log-viewer.html');
+  const PC = '11111111-1111-4111-8111-111111111111', NPC = '22222222-2222-4222-8222-222222222222', GONE = '26710597-b79c-488e-a34f-7925ba433dab';
+  const PARTY_LOOKUP = { [PC]: { nick: 'Del', cls: 'Monk' } };
+  const ENTITIES = { [PC]: { _name: 'Asphodel' }, [NPC]: { _name: 'Rufus' } };
+  const uuidRe = /const UUID_RE = (\/[^\n]+\/i);/.exec(src);
+  assert('V-5: the viewer defines UUID_RE', !!uuidRe);
+  const make = new Function('PARTY_LOOKUP', 'ENTITIES', 'getName', 'resultClass', 'resultLabel',
+    'const UUID_RE = ' + uuidRe[1] + ';\n' + cutFunction(src, 'slotActor') + '\n' + cutFunction(src, 'slotHTML') + '\nreturn { slotActor, slotHTML };');
+  const { slotActor, slotHTML } = make(PARTY_LOOKUP, ENTITIES, id => ENTITIES[id]?._name || id, () => '', () => '');
+  assert('V-5: a PC keeps its nickname and class', slotActor(PC).nick === 'Del' && slotActor(PC).cls === 'Monk' && slotActor(PC).linkable);
+  assert('V-5: an NPC in a slot shows by name and is a link', slotActor(NPC).nick === 'Rufus' && slotActor(NPC).linkable);
+  assert('V-5: a roster label shows as written and is not a link', slotActor('Vespon Swarm').nick === 'Vespon Swarm' && !slotActor('Vespon Swarm').linkable);
+  assert('V-5: an id the data cannot name shows "Unknown actor", not the UUID', slotActor(GONE).nick === 'Unknown actor' && !slotActor(GONE).linkable);
+  const html = slotHTML({ s: 7, a: GONE, act: 'Attack', res: 'crit', val: null, notes: null });
+  assert('V-5: the slot never prints a raw UUID as its actor', />Unknown actor</.test(html) && !/>\s*26710597/.test(html) && !/selectEntity/.test(html));
+  assert('V-5: an NPC slot links to the NPC', /selectEntity\('22222222-2222-4222-8222-222222222222'\)">Rufus</.test(slotHTML({ s: 3, a: NPC, act: 'Attack', res: 'hit', val: 5, notes: null })));
+  const detail = cutFunction(src, 'renderCombatDetail');
+  assert('V-5: the initiative legend lists the PCs and any other slot actor, named by slotActor',
+    /const legendActors = Object\.keys\(PARTY_LOOKUP\)\.concat\(/.test(detail) && /legendActors\.map\(pid=>\{const pc=slotActor\(pid\)/.test(detail));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
