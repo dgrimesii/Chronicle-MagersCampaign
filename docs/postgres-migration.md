@@ -2,7 +2,7 @@
 
 Oct 25, 2026 · David Grimes
 
-*Plan for phase 7 (epic #121): moving campaign storage from the repo to Postgres. Hosting and the player rollout are phase 8 (#6). Exported from the working plan doc on 25 October 2026; updated the same day with the phase 7 definition of done, server-side API keys, and what phase 7 does to be ready for IAM. Open questions are at the end.*
+*Plan for phase 7 (epic #121): moving campaign storage from the repo to Postgres. Hosting and the player rollout are phase 8 (#6). Exported from the working plan doc on 25 October 2026; updated the same day with the phase 7 definition of done, server-side API keys, and what phase 7 does to be ready for the shared IAM. Open questions are at the end.*
 
 ## Summary
 
@@ -21,7 +21,7 @@ It rests on decisions already made in #6 and the Malvasia [Hosting.md](https://g
 
 **Phase 7 is complete when the session intake is fully migrated to Postgres and could be moved to Render as it stands, with its API keys safe in a hosted space.** All three parts are spelled out under "Definition of done" at the end of the work breakdown.
 
-Out of scope here, and left to phase 8 (#6): deploying to Render, the IAM setup (accounts, roles, sign-in and infrastructure access), and the player rollout. The plan is shaped so they follow without rework.
+Out of scope here, and left to phase 8 (#6): deploying to Render, Chronicle's place in the shared IAM (its roles, entitlements and sign-in, plus infrastructure access), and the player rollout. The plan is shaped so they follow without rework.
 
 ## Where storage stands today
 
@@ -107,10 +107,10 @@ Today the Anthropic key sits in `shared/config.js` and the browser sends it stra
 
 ### Ready for IAM
 
-Phase 8 sets up IAM: one account per person, shared with Storyteller, as the Malvasia [Two-Observer-Model](https://github.com/dgrimesii/Malvasia-Plays-DCC/blob/main/_design/Two-Observer-Model.md) settles (a password hash and a login; no signup, invitations or admin screens), plus roles and infrastructure access. Phase 7 builds three things so IAM slots in without reworking data or code:
+**Chronicle and Storyteller share one IAM system** (DM, 25 October). Once Storyteller goes live, Chronicle's access is just new roles and entitlements in it: for example, capturing and publishing sessions for a campaign, and reading a campaign as a player. Accounts follow the Malvasia [Two-Observer-Model](https://github.com/dgrimesii/Malvasia-Plays-DCC/blob/main/_design/Two-Observer-Model.md): one account per person, a password hash and a login, with no signup, invitations or admin screens. Phase 8 (#6) adds Chronicle to it. Phase 7 builds three things so that happens without reworking data or code:
 
 - **Every write records its author.** `publishes.author` and `review_drafts.updated_by` are set on every write. Until IAM, the value is the DM's configured identity (`DM_IDENTITY`), never blank or "someone". The Two-Observer-Model is explicit that a shared credential loses who asserted each fact, permanently, so this cannot wait for accounts.
-- **Access is checked in one place.** One server check answers "who is this request, and may they do this?" for every `/api` route. In phase 7 it accepts the DM token; in phase 8 it reads a signed-in session instead, and no route changes.
+- **Access is checked in one place.** One server check answers "who is this request, and may they do this?" for every `/api` route. In phase 7 it accepts the DM token; in phase 8 it asks the shared IAM whether the signed-in account holds the Chronicle entitlement the route needs, and no route changes.
 - **Two database roles from the first migration.** An owner role runs `npm run db:migrate`; the server connects as an application role that can read and write rows but cannot change the schema. Render's managed Postgres can carry the same split.
 
 ## Database schema
@@ -228,7 +228,7 @@ Eight phase 7 issues, children of #121, each ending with a gate you can run, in 
 - **Keys safe to host.** API keys exist only in the server's environment; the browser calls Anthropic through `/api/ai/messages` and never sees a key; the proxy and every write need the DM token in production mode; each key has a spend limit; and rotation is documented.
 - **Could move to Render.** Issue 8's rehearsal passes. The server needs only environment variables, migrations run as their own command, the health endpoint answers, a backup restores, and the intake needs no write access to the repo.
 - **Ready for IAM.** Every publish and draft records its author; access is decided by one server check; the server runs as an application role that cannot change the schema.
-- **What stays for phase 8, by design:** the Render service and databases themselves, the IAM setup (accounts, roles, sign-in and infrastructure access, replacing the DM token), and ending the mirror and repo storage once hosted backups exist.
+- **What stays for phase 8, by design:** the Render service and databases themselves, Chronicle's roles and entitlements in the shared IAM (replacing the DM token), infrastructure access, and ending the mirror and repo storage once hosted backups exist.
 
 Phase 8 (#6) follows without changing this design: the Render service and databases, IAM, ending repo storage, player rollout, and #51, which can reuse the drafts table's pattern.
 
@@ -255,7 +255,8 @@ The largest risk is switching stores in the middle of the backlog, so the cutove
 - [ ] **When does this start?** #6 originally said after the backlog. Issues 1 to 3 touch no data and could run between backlog sessions, and drafts (issue 5) would help the backlog most.
 - [ ] **Chronicle's own database, or Storyteller's shared store?** This plan assumes Chronicle's own, as #6 does. Hosting.md leaves the timing of Chronicle's write path into the shared store open (question 4).
 - [ ] **A DM access token until IAM?** It guards the AI proxy and all writes in production mode until phase 8's accounts. The alternative is moving DM sign-in into phase 7.
-- [ ] **One account system with Storyteller?** The Two-Observer-Model says Chronicle and Storyteller share accounts. If so, phase 8's IAM is built once for both tools, and its timing ties to Storyteller's.
+- [x] **One account system with Storyteller?** Yes (DM, 25 October): one shared IAM system; Chronicle's access becomes roles and entitlements in it once Storyteller is live.
+- [ ] **If Chronicle is hosted before Storyteller is live,** does it wait for the shared IAM, or is the shared IAM's first slice built for Chronicle, to Storyteller's design?
 - [ ] **Retire Live Server** in favour of `npm run dev`? Recommended.
 - [ ] **Keep the mirror file** until hosted backups exist? Recommended.
 - [ ] **Stack for the ADR:** Fastify, `pg` and `node-pg-migrate`, or something you prefer?
