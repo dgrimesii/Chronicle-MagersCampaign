@@ -1,0 +1,454 @@
+{
+  "generated_at": "2026-10-25T22:46:18.244Z",
+  "source": "D&D Beyond character service v5",
+  "characters": [
+    {
+      "nickname": "Ashton",
+      "pc_id": "pc_003",
+      "full_name": "Ashton, Scion of Hadar",
+      "race": "Tiefling",
+      "classes": [
+        {
+          "name": "Warlock",
+          "level": 5,
+          "subclass": "Great Old One Patron"
+        }
+      ],
+      "feats": [
+        "Lucky",
+        "Tough"
+      ],
+      "actions": [
+        "Magical Cunning",
+        "Awakened Mind",
+        "Initiate a Circle Spell",
+        "Circle Spell: Augment",
+        "Circle Spell: Distribute",
+        "Circle Spell: Expand",
+        "Circle Spell: Prolong",
+        "Circle Spell: Safeguard",
+        "Circle Spell: Supplant",
+        "Pact of the Blade: Conjure",
+        "Pact of the Blade: Bond",
+        "Luck Points"
+      ],
+      "spells": [
+        "Arms of Hadar",
+        "Chill Touch",
+        "Clairvoyance",
+        "Detect Thoughts",
+        "Dissonant Whispers",
+        "Eldritch Blast",
+        "False Life",
+        "Hunger of Hadar",
+        "Mage Armor",
+        "Mage Hand",
+        "Phantasmal Force",
+        "Ray of Enfeeblement",
+        "Tasha's Hideous Laughter",
+        "Thaumaturgy",
+        "Umbral Tendril",
+        "Water Breathing",
+        "Witch Bolt"
+      ],
+      "action_economy": [
+        {
+          "ability": "Magical Cunning",
+          "action_type": "action",
+          "note": "Warlock: recovering expended spell slots via Magical Cunning uses an action"
+        },
+        {
+          "ability": "Pact of the Blade: Conjure",
+          "action_type": "action",
+          "note": "Warlock: summoning the pact weapon to hand uses an action"
+        },
+        {
+          "ability": "Pact of the Blade: Bond",
+          "action_type": "action",
+          "note": "Warlock: bonding with a non-magical weapon uses an action"
+        }
+      ]
+    },
+    {
+      "nickname": "Asphodel",
+      "pc_id": "pc_004",
+      "full_name": "Asphodel",
+      "race": "Aasimar",
+      "classes": [
+        {
+          "name": "Monk",
+          "level": 5,
+          "subclass": "Warrior of Shadow"
+        }
+      ],
+      "feats": [
+        "Magic Initiate (Wizard)",
+        "Dark Bargain"
+      ],
+      "actions": [
+        "Unarmed Strike",
+        "Unarmed Strike (Dex.)",
+        "Focus Points",
+        "Flurry of Blows",
+        "Patient Defense",
+        "Step of the Wind",
+        "Uncanny Metabolism",
+        "Deflect Attack",
+        "Deflect Attack: Redirect Attack",
+        "Slow Fall",
+        "Stunning Strike",
+        "Healing Hands",
+        "Celestial Revelation"
+      ],
+      "spells": [
+        "Chill Touch",
+        "Darkness",
+        "Light",
+        "Minor Illusion",
+        "Toll the Dead",
+        "Witch Bolt"
+      ],
+      "action_economy": [
+        {
+          "ability": "Flurry of Blows",
+          "action_type": "bonus_action",
+          "note": "Monk: spend 1 Focus Point after the Attack action to make 2 bonus unarmed strikes"
+        },
+        {
+          "ability": "Patient Defense",
+          "action_type": "bonus_action",
+          "note": "Monk: spend 1 Focus Point as a bonus action to take the Dodge action"
+        },
+        {
+          "ability": "Step of the Wind",
+          "action_type": "bonus_action",
+          "note": "Monk: spend 1 Focus Point as a bonus action to Dash or Disengage"
+        },
+        {
+          "ability": "Deflect Attack",
+          "action_type": "reaction",
+          "note": "Monk: reaction to reduce damage from an attack that hits"
+        }
+      ]
+    },
+    {
+      "nickname": "Atticus",
+      "pc_id": "pc_006",
+      "full_name": "Atticus",
+      "race": "Human",
+      "classes": [
+        {
+          "name": "Druid",
+          "level": 5,
+          "subclass": "Circle of the Stars"
+        }
+      ],
+      "feats": [
+        "Inspiring Leader",
+        "Magic Initiate (Druid)",
+        "Magic Initiate (Wizard)",
+        "Dark Bargain"
+      ],
+      "actions": [
+        "Leave Druidic Message",
+        "Wild Shape",
+        "Wild Resurgence: Regain Wild Shape",
+        "Wild Resurgence: Regain Spell Slot",
+        "Star Map: Ceremony",
+        "Assume Starry Form",
+        "Initiate a Circle Spell",
+        "Circle Spell: Augment",
+        "Circle Spell: Distribute",
+        "Circle Spell: Expand",
+        "Circle Spell: Prolong",
+        "Circle Spell: Safeguard",
+        "Circle Spell: Supplant",
+        "Chalice: Restore HP",
+        "Bolstering Performance"
+      ],
+      "spells": [
+        "Acid Splash",
+        "Barkskin",
+        "Conjure Animals",
+        "Find Familiar",
+        "Goodberry",
+        "Guidance",
+        "Guiding Bolt",
+        "Gust of Wind",
+        "Healing Word",
+        "Lesser Restoration",
+        "Light",
+        "Mold Earth",
+        "Moonbeam",
+        "Shape Water",
+        "Shield",
+        "Shillelagh",
+        "Speak with Animals",
+        "Spike Growth",
+        "Starry Wisp",
+        "Syluné’s Viper",
+        "Thorn Whip",
+        "Thunderclap",
+        "Wither and Bloom"
+      ],
+      "action_economy": [
+        {
+          "ability": "Wild Shape",
+          "action_type": "bonus_action",
+          "note": "2024 D&D rules: Wild Shape costs a bonus action for all Druids at level 2+"
+        },
+        {
+          "ability": "Assume Starry Form",
+          "action_type": "bonus_action",
+          "note": "Circle of the Stars: expend a Wild Shape use as a bonus action to assume Starry Form instead of transforming"
+        },
+        {
+          "ability": "Healing Word",
+          "action_type": "bonus_action",
+          "note": "Healing Word costs a bonus action (unlike Cure Wounds which costs an action)"
+        },
+        {
+          "ability": "Shield",
+          "action_type": "reaction",
+          "note": "Reaction to an incoming hit — raises AC by 5 until the start of next turn"
+        }
+      ]
+    },
+    {
+      "nickname": "Goli",
+      "pc_id": "pc_005",
+      "full_name": "Derwin \"Goli\" Warmfire",
+      "race": "Halfling",
+      "classes": [
+        {
+          "name": "Rogue",
+          "level": 5,
+          "subclass": "Arcane Trickster"
+        }
+      ],
+      "feats": [
+        "Alert",
+        "Dual Wielder",
+        "Weapon Mastery",
+        "Dark Bargain"
+      ],
+      "actions": [
+        "Sneak Attack",
+        "Cunning Action",
+        "Steady Aim",
+        "Sneak Attack: Poison (Cost: 1d6)",
+        "Sneak Attack: Trip (Cost: 1d6)",
+        "Sneak Attack: Withdraw (Cost: 1d6)",
+        "Uncanny Dodge",
+        "Initiate a Circle Spell",
+        "Circle Spell: Augment",
+        "Circle Spell: Distribute",
+        "Circle Spell: Expand",
+        "Circle Spell: Prolong",
+        "Circle Spell: Safeguard",
+        "Circle Spell: Supplant",
+        "Enhanced Dual Wielding",
+        "Vex (Shortsword)",
+        "Nick (Dagger)"
+      ],
+      "spells": [
+        "Feather Fall",
+        "Fire Bolt",
+        "Mage Hand",
+        "Message",
+        "Shield",
+        "Silvery Barbs",
+        "Thunderwave"
+      ],
+      "action_economy": [
+        {
+          "ability": "Cunning Action",
+          "action_type": "bonus_action",
+          "note": "Rogue: use a bonus action each turn to Dash, Disengage, or Hide"
+        },
+        {
+          "ability": "Steady Aim",
+          "action_type": "bonus_action",
+          "note": "Rogue: spend a bonus action to gain Advantage on next attack; cannot move this turn"
+        },
+        {
+          "ability": "Nick (Dagger)",
+          "action_type": "action",
+          "note": "Nick weapon mastery: the off-hand attack from Nick costs the main Action, not a Bonus Action"
+        },
+        {
+          "ability": "Shield",
+          "action_type": "reaction",
+          "note": "Reaction to an incoming hit — raises AC by 5 until the start of next turn"
+        },
+        {
+          "ability": "Silvery Barbs",
+          "action_type": "reaction",
+          "note": "Reaction to a successful d20 roll — forces a reroll and can redirect advantage"
+        }
+      ]
+    },
+    {
+      "nickname": "Malachite",
+      "pc_id": "pc_002",
+      "full_name": "Malachite",
+      "race": "Aasimar",
+      "classes": [
+        {
+          "name": "Barbarian",
+          "level": 5,
+          "subclass": "Path of the World Tree"
+        }
+      ],
+      "feats": [
+        "Strike of the Giants (Fire Strike)",
+        "Weapon Mastery",
+        "4: Weapon Mastery",
+        "Polearm Master",
+        "Dark Bargain"
+      ],
+      "actions": [
+        "Rage (Enter)",
+        "Extend Rage",
+        "Rage: Primal Knowledge",
+        "Healing Hands",
+        "Celestial Revelation",
+        "Strike of the Giants: Fire Strike",
+        "Pole Strike",
+        "Reactive Strike",
+        "Sap (Longsword)",
+        "Topple (Trident)",
+        "Cleave (Halberd)"
+      ],
+      "spells": [
+        "Light"
+      ],
+      "action_economy": [
+        {
+          "ability": "Rage (Enter)",
+          "action_type": "bonus_action",
+          "note": "Entering Rage costs a bonus action (2024 D&D rules)"
+        },
+        {
+          "ability": "Pole Strike",
+          "action_type": "bonus_action",
+          "note": "Polearm Master feat: bonus action attack with the butt of the polearm after hitting with the main attack"
+        },
+        {
+          "ability": "Reactive Strike",
+          "action_type": "reaction",
+          "note": "Polearm Master feat: opportunity attack reaction when a creature enters your reach"
+        }
+      ]
+    },
+    {
+      "nickname": "Goldie",
+      "pc_id": "pc_001",
+      "full_name": "Zragar \"Goldie\" Aurtesh",
+      "race": "Dragonborn",
+      "classes": [
+        {
+          "name": "Wizard",
+          "level": 5,
+          "subclass": "Bladesinger"
+        }
+      ],
+      "feats": [
+        "Magic Initiate (Wizard)",
+        "War Caster",
+        "Dark Bargain",
+        "Circle Magic (Intelligence)"
+      ],
+      "actions": [
+        "Arcane Recovery",
+        "Bladesong (Invoke)",
+        "Initiate a Circle Spell",
+        "Circle Spell: Augment",
+        "Circle Spell: Distribute",
+        "Circle Spell: Expand",
+        "Circle Spell: Prolong",
+        "Circle Spell: Safeguard",
+        "Circle Spell: Supplant",
+        "Draconic Flight",
+        "Breath Weapon (Fire)",
+        "Reactive Spell"
+      ],
+      "spells": [
+        "Absorb Elements",
+        "Aganazzar's Scorcher",
+        "Arcane Lock",
+        "Comprehend Languages",
+        "Concussive Burst",
+        "Counterspell",
+        "Detect Magic",
+        "Dispel Magic",
+        "Feather Fall",
+        "Find Familiar",
+        "Fire Bolt",
+        "Fireball",
+        "Fly",
+        "Fog Cloud",
+        "Glyph of Warding",
+        "Haste",
+        "Hold Person",
+        "Hypnotic Pattern",
+        "Identify",
+        "Invisibility",
+        "Knock",
+        "Leomund's Tiny Hut",
+        "Mage Armor",
+        "Mage Hand",
+        "Magic Missile",
+        "Major Image",
+        "Mind Sliver",
+        "Mirror Image",
+        "Misty Step",
+        "Mold Earth",
+        "Ray of Frost",
+        "Rope Trick",
+        "Scorching Ray",
+        "Shatter",
+        "Shield",
+        "Silvery Barbs",
+        "Sleep",
+        "Slow",
+        "Snilloc's Snowball Swarm",
+        "Spider Climb",
+        "Spirit Shroud",
+        "Suggestion",
+        "Thunder Step",
+        "True Strike",
+        "Vortex Warp",
+        "Web",
+        "Witch Bolt"
+      ],
+      "action_economy": [
+        {
+          "ability": "Bladesong (Invoke)",
+          "action_type": "bonus_action",
+          "note": "Bladesinger Wizard: invoke Bladesong as a bonus action (not an action)"
+        },
+        {
+          "ability": "Reactive Spell",
+          "action_type": "reaction",
+          "note": "War Caster feat: cast a spell as your opportunity attack reaction when a creature leaves reach"
+        },
+        {
+          "ability": "Absorb Elements",
+          "action_type": "reaction",
+          "note": "Reaction to incoming elemental damage — reduces damage and stores energy for next melee attack"
+        },
+        {
+          "ability": "Shield",
+          "action_type": "reaction",
+          "note": "Reaction to an incoming hit — raises AC by 5 until the start of next turn"
+        },
+        {
+          "ability": "Silvery Barbs",
+          "action_type": "reaction",
+          "note": "Reaction to a successful d20 roll — forces a reroll and can redirect advantage"
+        }
+      ]
+    }
+  ]
+}
