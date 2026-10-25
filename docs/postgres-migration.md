@@ -2,7 +2,7 @@
 
 Oct 25, 2026 · David Grimes
 
-*Plan for phase 7 (#6): moving campaign storage from the repo to Postgres. Exported from the working plan doc on 25 October 2026. Open questions are at the end.*
+*Plan for phase 7 (epic #121): moving campaign storage from the repo to Postgres. Hosting and the player rollout are phase 8 (#6). Exported from the working plan doc on 25 October 2026; updated the same day with the phase 7 definition of done. Open questions are at the end.*
 
 ## Summary
 
@@ -18,7 +18,9 @@ What this plan delivers, in order:
 
 It rests on decisions already made in #6 and the Malvasia [Hosting.md](https://github.com/dgrimesii/Malvasia-Plays-DCC/blob/main/_delivery/Hosting.md): PostgreSQL with JSONB, Render later for hosting, the opaque UUIDs from #95, and the storage module as the single seam.
 
-Out of scope here, and left to the other #6 children: deploying to Render, sign-in, the server-side AI proxy and the player rollout. The plan is shaped so they follow without rework.
+**Phase 7 is complete when the session intake is fully migrated to Postgres and could be moved to Render as it stands.** Both halves are spelled out under "Definition of done" at the end of the work breakdown.
+
+Out of scope here, and left to phase 8 (#6): deploying to Render, sign-in, the server-side AI proxy and the player rollout. The plan is shaped so they follow without rework.
 
 ## Where storage stands today
 
@@ -75,7 +77,8 @@ flowchart LR
 - **The API keeps the store's contract.** `loadCampaign()` still returns the raw 5.0.1 JSON, so no page changes how it reads or normalises data.
 - **Stage 1 still applies publishes in the browser.** The page sends the new campaign and the version it was built on. The server writes the difference in one transaction, or refuses with 409 if the version moved, which replaces the "file changed on disk" check.
 - **Stage 2, later and optional, applies them on the server.** The page sends the approved queue items and the server runs `applySession()` on the current data. This removes the whole-document upload; with one DM it is not urgent.
-- **AI calls stay in the browser while Chronicle is local.** The keys stay in `config.js` until the AI proxy child of #6 moves them server-side for hosting.
+- **AI calls stay in the browser while Chronicle is local.** The keys stay in `config.js` until phase 8's AI proxy (#6) moves them server-side for hosting.
+- **Configured only by environment variables.** `DATABASE_URL`, `PORT` and a mirror switch, as Render supplies them; nothing reads a path outside the repo, so the same server moves to Render unchanged.
 
 | Endpoint | What it does | Replaces |
 | --- | --- | --- |
@@ -118,7 +121,7 @@ A one-way import loads the campaign file into Postgres, and the move counts only
 4. **Verify.** Export and deep-compare with the file; compare counts per collection; run `--check` on the export; open the log viewer, player view and session page against the API and against the file, and compare.
 5. **Switch.** Set the store to the API (`storage: 'api'` in `config.js`). Publishes now go to Postgres.
 6. **Mirror while local.** After each publish the local server writes the export to `data/magers-campaign.json`, and you commit it as you do now. Git stays a second history, and `storage: 'file'` restores the old behaviour.
-7. **End the mirror** once hosted production has its backups (Render point-in-time restore and the weekly R2 export in Hosting.md). The file is then archived as the last pre-database copy.
+7. **End the mirror** once hosted production has its backups (Render point-in-time restore and the weekly R2 export in Hosting.md). The file is then archived as the last pre-database copy. This step is phase 8.
 
 Not imported: `data/magers-campaign.json.old` (archive or delete it), `data/magers-campaign.prev.json` (git-ignored), and `tests/fixtures/test-campaign.json`, which stays in the repo as the seed for the test and sandbox databases. The `scripts/migrate-*.js` files have already run and stay as history. Future data migrations run against the database and are logged as `publishes` of kind `migration`.
 
@@ -174,7 +177,7 @@ Docker Desktop on Windows runs through WSL 2. Given the `D:` drive history, conf
 
 ## Work breakdown
 
-Seven issues, each ending with a gate you can run, in the roadmap's style. Each ships its own tests; the page keeps working in file mode until the cutover in issue 4.
+Seven phase 7 issues, children of #121, each ending with a gate you can run, in the roadmap's style. Each ships its own tests; the page keeps working in file mode until the cutover in issue 4.
 
 1. **Retire `intake.html` and `delta-review.html`.** Already next on #52, with no issue yet. It leaves the session page as the only writer, so there is one publish path to port.
     - Gate: only the session page can publish; Delta Review's Accept/Defer and `deferred_gaps` are moved or dropped by your decision.
@@ -188,10 +191,16 @@ Seven issues, each ending with a gate you can run, in the roadmap's style. Each 
     - Gate: a reload in the middle of step 4, after grid and passage edits, comes back exactly as it was.
 6. **Scripts and docs.** The harvest script writes snapshots; `--check` runs on the export; `build.js` and `magers-campaign.json.old` go; README and CLAUDE.md describe the database.
     - Gate: no page or script reads `data/` directly (a search proves it), except the mirror writer.
-7. **End repo storage.** Delete file mode and the mirror, and archive the file. This waits for hosted production with backups, a separate #6 child.
-    - Gate: the hosted database is the only record, and restoring a backup has been rehearsed once.
+7. **Render rehearsal.** Prove the intake could move to Render as it stands, using only the local machine: a fresh, empty database; `npm ci`; `npm run db:migrate`; the import from the frozen file; then `npm start` with `NODE_ENV=production`, the mirror off, and only environment variables for configuration. Add the server to `docker-compose.yml` as a second service for this, so it runs without anything installed on Windows.
+    - Gate: that run passes a Safe Test Mode session end to end (upload to publish, a draft restored after a reload, the result in the log viewer); `/api/health` answers as Render's health check would expect; a `pg_dump` restores into another empty database and exports deep-equal; and a search finds no runtime read or write outside the database except the switchable mirror.
 
-The other #6 children follow from here without changing this design: the Render service and databases, sign-in, the AI proxy, player rollout, and #51, which can reuse the drafts table's pattern.
+**Definition of done for phase 7**
+
+- **Fully migrated to Postgres.** Every read and write the session intake makes goes through the API to Postgres: the campaign, publishes, saved drafts and the ability sheets. No page or script reads `data/` at runtime. The repo file is only the switchable mirror.
+- **Could move to Render.** Issue 7's rehearsal passes. The server needs only environment variables, migrations run as their own command, the health endpoint answers, a backup restores, and the intake needs no write access to the repo.
+- **What stays for phase 8, by design:** the Render service and databases themselves, sign-in, the AI proxy (the Anthropic and Gemini keys are still in the browser's `config.js`, which must not be served from a public host), and ending the mirror and repo storage once hosted backups exist.
+
+Phase 8 (#6) follows without changing this design: the Render service and databases, sign-in, the AI proxy, ending repo storage, player rollout, and #51, which can reuse the drafts table's pattern.
 
 ## Risks and open questions
 
@@ -202,6 +211,7 @@ The largest risk is switching stores in the middle of the backlog, so the cutove
 | Cutover during the backlog | A session reviewed against one store and published to the other | Cut over only between sessions, with nothing under review |
 | The local container is the only record before hosting | A lost Docker volume loses publishes | The mirror file committed after every publish, plus `db:backup` |
 | The old pages still write the file | Two records drift apart | Retire them first (issue 1); in API mode file publishing is refused |
+| Something only works on your machine | The move to Render stalls in phase 8 | Issue 7's rehearsal: a clean container, environment variables only, mirror off |
 | JSONB reorders keys | Noisy mirror diffs | Export with sorted keys; one reformat commit at cutover |
 | Drafts restore only part of the state | Review edits lost without warning | Explicit save and restore for every field, with tests; keep the leave-page warning until proven |
 | First npm dependencies | Install trouble on Windows, upkeep | A small set, lockfile committed, Node scripts only |
@@ -209,7 +219,7 @@ The largest risk is switching stores in the middle of the backlog, so the cutove
 
 **Open questions for you**
 
-- [ ] **When does this start?** #6 says after the backlog. Issues 1 to 3 touch no data and could run between backlog sessions, and drafts (issue 5) would help the backlog most.
+- [ ] **When does this start?** #6 originally said after the backlog. Issues 1 to 3 touch no data and could run between backlog sessions, and drafts (issue 5) would help the backlog most.
 - [ ] **Chronicle's own database, or Storyteller's shared store?** This plan assumes Chronicle's own, as #6 does. Hosting.md leaves the timing of Chronicle's write path into the shared store open (question 4).
 - [ ] **Retire Live Server** in favour of `npm run dev`? Recommended.
 - [ ] **Keep the mirror file** until hosted backups exist? Recommended.
