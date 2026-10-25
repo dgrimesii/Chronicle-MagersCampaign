@@ -18,6 +18,9 @@
  *   I-10  "Not an entity" (#113): no publish item, no flag; downstream a
  *         target keeps its words, an actor is held, a passage about it goes
  *         on the session; Change undoes it
+ *   I-11  adding an entity the read missed (#115): on every page, matched
+ *         like a read row, settled as usual, usable by the facts read and
+ *         by quest progress at publish; removed while unsettled
  *
  * WHY THIS FILE EXISTS
  * --------------------
@@ -442,6 +445,65 @@ console.log('\nTest I-10 — "Not an entity" (#113)');
   assert('I-10: every unsettled row has a "Not an entity" button that calls dismiss',
     /onclick="rowAction\('\$\{k\}','dismiss'\)"[^>]*>Not an entity</.test(html) && /if \(action === 'dismiss'\) ChronicleEntities\.dismiss\(r\)/.test(html));
   assert('I-10: a dismissed row says what it means', /case 'dismiss':\s+return 'Not an entity — no entry is made/.test(html));
+}
+
+console.log('\nTest I-11 — adding an entity the read missed (#115)');
+{
+  // The #17 gate: the read missed "ROUS" and the Quarry ROUS Problem, and
+  // step 3 offered no way to add them.
+  const F = require('../shared/chronicle-facts.js');
+  const P = require('../shared/chronicle-publish.js');
+  const index = E.buildIndex(campaign);
+  const quest = campaign.quest_ledger.find(q => q.legacy_id === 'qst_005');
+  let rows = E.buildRows([{ page: 1, mentions: [{ kind: 'npc', as_written: 'Helen', context: 'Helen' }] },
+                          { page: 2, mentions: [{ kind: 'pc', as_written: 'Mal', context: 'Mal - Hit' }] }], index);
+  rows = E.addRow(rows, { kind: 'quest', words: 'The Quarry ROUS Problem', pages: [1, 2] }, index);
+  const q = rows.find(r => r.added && r.kind === 'quest');
+  assert('I-11: the added row is on every page, with ids the read never uses', q.occurrences.map(o => o.id).join() === 'occ_1_dm1,occ_2_dm1' && q.occurrences.every(o => o.asWritten === 'The Quarry ROUS Problem'));
+  assert('I-11: it is matched like a read row: exact, to the recorded quest', q.matchType === 'exact' && q.matchId === quest.id && q.status === 'pending');
+  rows = E.addRow(rows, { kind: 'quest', words: 'Rat Trouble', pages: [1, 2] }, index);
+  const fresh = rows.find(r => r.asWritten === 'Rat Trouble');
+  assert('I-11: a second added row takes the next number', fresh.occurrences[0].id === 'occ_1_dm2' && fresh.matchType === 'new');
+  assert('I-11: the same words already a row of that kind are refused', throws(() => E.addRow(rows, { kind: 'quest', words: 'rat trouble', pages: [1] }, index)));
+  assert('I-11: no kind, no name, or no pages is refused',
+    throws(() => E.addRow(rows, { kind: 'dragon', words: 'X', pages: [1] }, index)) && throws(() => E.addRow(rows, { kind: 'npc', words: '  ', pages: [1] }, index)) && throws(() => E.addRow(rows, { kind: 'npc', words: 'X', pages: [] }, index)));
+  // Settled as usual: the new quest is created, starting this session.
+  E.bulkAcknowledgeExact(rows);
+  E.acknowledge(fresh, 'Rat Trouble');
+  E.acknowledge(rows.find(r => r.asWritten === 'Helen'));
+  assert('I-11: every row settled lets step 3 continue', E.allSettled(rows));
+  const items = E.toQueueItems(rows, index, 'session_008');
+  const made = items.find(i => i.type === 'NEW' && i.array === 'quest_ledger');
+  assert('I-11: an added new quest is created, its origin this session (the quest\'s start)', made && made.rawData.title === 'Rat Trouble' && made.rawData.mechanics.origin_session === 'session_008');
+  // Each page's facts read lists it.
+  const refs1 = F.pageReferences(1, rows, index), refs2 = F.pageReferences(2, rows, index);
+  const r1 = refs1.find(r => r.occ === 'occ_1_dm1');
+  assert('I-11: every page\'s facts read lists the added entity, as what it was settled as',
+    r1 && r1.entityId === quest.id && /Quarry ROUS Problem/.test(r1.label) && refs2.some(r => r.occ === 'occ_2_dm1' && r.entityId === quest.id));
+  assert('I-11: the prompt line says the DM added it', /Added by the DM/.test(r1.context));
+  // A quest progress fact naming it is valid and is placed at publish.
+  const facts = { combats: [], quest_progress: [{ quest: 'occ_1_dm1', entry: 'Helen told the party rats plague the quarry.', page: 1 }], loot: [], passages: [], self_check: [], assignments: [], absence_notes: [] };
+  assert('I-11: a fact naming the added occurrence passes the facts check', F.validateFacts(facts, refs1, []).length === 0);
+  const byOcc = new Map(refs1.concat(refs2).map(r => [r.occ, r]));
+  const queue = P.sessionQueue({ header: P.sessionHeader('session_008', '2026-04-16'), identityItems: items, passageItems: [], deferredPassages: [],
+    textItems: [], judgmentItems: [], combats: [], questProgress: facts.quest_progress, loot: [] },
+    { sessionRef: 'session_008', newId: () => 'x', actorKey: () => null,
+      entityOf: occ => { const r = byOcc.get(occ); return r && r.entityId ? { id: r.entityId, array: r.array } : null; } });
+  assert('I-11: publish places that quest progress on the quest', queue.items.some(i => i.targetId === quest.id && i.rawData._progress_append) && !queue.unplaced.length);
+  // Removing.
+  let r2 = E.addRow(rows, { kind: 'creature', words: 'ROUS', pages: [1, 2] }, index);
+  const rous = r2.find(r => r.asWritten === 'ROUS' && r.added);
+  r2 = E.removeAddedRow(r2, rous);
+  assert('I-11: an unsettled added row can be removed', !r2.some(r => r.asWritten === 'ROUS'));
+  assert('I-11: a settled added row must be reopened first', throws(() => E.removeAddedRow(r2, fresh)));
+  assert('I-11: a read row cannot be removed', throws(() => E.removeAddedRow(r2, r2.find(r => r.asWritten === 'Helen'))));
+  const again = E.addRow(r2, { kind: 'creature', words: 'ROUS', pages: [1] }, index);
+  const ids = again.flatMap(r => r.occurrences.map(o => o.id));
+  assert('I-11: a new added id never collides with one in use', new Set(ids).size === ids.length);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'session.html'), 'utf8');
+  assert('I-11: step 3 has an "Add an entity the read missed" form that adds to every page',
+    />\+ Add an entity the read missed</.test(html) && /pages: session\.extract\.map\(ex => ex\.page\)/.test(html) && /onclick="addEntityRow\(\)">Add</.test(html));
+  assert('I-11: an added row says so and offers Remove', /Added by you, on every page/.test(html) && /removeEntityRow\('\$\{k\}'\)">Remove</.test(html));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

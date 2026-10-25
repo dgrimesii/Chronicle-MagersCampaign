@@ -350,5 +350,22 @@ console.log('\nTest P-3 — the DM edits and drops passages (#116)');
   assert('P-3: dropped passages are listed as not written', /list\('Passages you dropped', droppedPassages\)/.test(page));
 }
 
+console.log('\nTest P-4 — quest progress and loot shapes (#115)');
+{
+  // The real session 4 read wrote quest progress as { occ, detail }, so
+  // publish found no quest and left it unplaced (#17, #115).
+  const x = F.parseFacts(JSON.stringify({ combats: [],
+    quest_progress: [{ occ: 'occ_1_dm1', detail: 'Helen asked the party to clear the rats.' }, { quest: 'occ_1_2', entry: 'kept as written', occ: 'ignored' }],
+    loot: [{ occ: 'occ_1_3', change: 'found', detail: 'a map' }] }));
+  assert('P-4: occ/detail are read as quest/entry', x.quest_progress[0].quest === 'occ_1_dm1' && x.quest_progress[0].entry === 'Helen asked the party to clear the rats.');
+  assert('P-4: a reply already in the right shape is left alone', x.quest_progress[1].quest === 'occ_1_2' && x.quest_progress[1].entry === 'kept as written');
+  assert('P-4: loot occ/detail are read as item/item_text', x.loot[0].item === 'occ_1_3' && x.loot[0].item_text === 'a map');
+  const prompt = F.factsPrompt({ pageLabel: 'page 1', references: [], combats: [], abilities: '' });
+  assert('P-4: the prompt spells out the quest progress shape, with the progress types',
+    prompt.includes('{"quest":"<occurrence id of the quest>","entry":') && prompt.includes('"lead_acquired"') && prompt.includes('a quest that is merely named is not progress'));
+  assert('P-4: the prompt spells out the loot shape', prompt.includes('{"item":"<occurrence id of the item, or null>"') && prompt.includes('"found", "given", "lost", "used"'));
+  assert('P-4: the prompt says an added occurrence has no line of its own', /"Added by the DM" has no line of its own/.test(prompt) && /never copy that text as a source line/.test(prompt));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -340,7 +340,10 @@
     <div class="ident-toolbar">
       <span class="ident-counts" id="ident-counts"></span>
       <button class="btn" id="bulk-btn" onclick="bulkAcknowledge()">Bulk acknowledge exact matches</button>
+      <button class="btn" onclick="session.addForm = !session.addForm; renderIdentify();" title="The notes name something the read did not list">+ Add an entity the read missed</button>
     </div>
+    <!-- The add form (#115), drawn by renderIdentify when open. -->
+    <div id="ident-add"></div>
     <div id="ident-flags"></div>
     <div id="ident-list"></div>
     <div class="actions">
@@ -447,6 +450,7 @@ const session = {
   draft:        null, // { status, error, changes, judgments, dropped } from ChroniclePages
   headerEdit:   null, // { title?, summary?, titleDraft?, summaryDraft?, replaceTitle?, replaceSummary? }
   headerDraft:  null, // the header's own draft (#74): { status: 'drafting'|'done'|'error', error, warnings }
+  addForm:      false, // the step 3 "add an entity the read missed" form is open (#115)
   passageMoves: {},   // passage index → attach, the DM's moves
   passageEdits: {},   // passage index → { text?, dropped? }, the DM's corrections (#116)
   passageEditing: null, // index of the passage being edited in place, or null
@@ -1049,6 +1053,13 @@ function renderIdentify() {
     ? `<div class="flag-box"><strong>Possible merges — one name may be two entities:</strong><ul>${flags.map(f => `<li>${escapeHtml(f.name)} ${escapeHtml(f.detail)}</li>`).join('')}</ul>Split the row if so.</div>`
     : '';
 
+  document.getElementById('ident-add').innerHTML = session.addForm ? `<div class="ident-row m-new"><div class="ident-form">
+      <label>Kind <select id="add-kind">${kindOptions('npc')}</select></label>
+      <label>Name as the notes write it <input id="add-words" placeholder="e.g. Quarry ROUS Problem"></label>
+      <button class="btn btn-primary" onclick="addEntityRow()">Add</button>
+      <button class="btn" onclick="session.addForm = false; renderIdentify();">Cancel</button>
+      <div class="ident-context">It is added to every page, so each page's facts read can use it. Settle it like any other row.</div>
+      <div class="ident-error" id="add-error"></div></div></div>` : '';
   document.getElementById('ident-list').innerHTML = rows.map(r => renderRow(r, r.occurrences.some(o => flaggedOcc.has(o.id)))).join('');
   document.getElementById('identify-done-btn').disabled = !ChronicleEntities.allSettled(rows);
 }
@@ -1066,8 +1077,12 @@ function renderRow(r, flagged) {
   const match = r.matchId
     ? `${escapeHtml(entityLabel(r.matchId))} <span style="color:var(--muted);font-size:0.8rem;">${r.matchType}${r.reason ? ' — ' + escapeHtml(r.reason) : ''}</span>`
     : '<span class="new">New</span>';
-  const occ = r.occurrences.map(o =>
-    `<div>p.${escapeHtml(String(o.page))}${o.round != null ? ' r' + o.round : ''}: ${escapeHtml(o.context || o.asWritten)}</div>`).join('');
+  // A row the DM added (#115) is on every page; one line says so instead of
+  // repeating it per page.
+  const occ = r.added
+    ? `<div>Added by you, on every page (${r.occurrences.map(o => 'p.' + escapeHtml(String(o.page))).join(', ')})</div>`
+    : r.occurrences.map(o =>
+      `<div>p.${escapeHtml(String(o.page))}${o.round != null ? ' r' + o.round : ''}: ${escapeHtml(o.context || o.asWritten)}</div>`).join('');
   const k = escapeHtml(r.key).replace(/'/g, '&#39;');
   let actions = '';
   if (r.status === 'settled') {
@@ -1082,6 +1097,7 @@ function renderRow(r, flagged) {
       ${kind.create ? `<button class="btn" onclick="openForm('${k}','split')">Split</button>` : ''}
       ${isCreature ? `<button class="btn" onclick="openForm('${k}','subtype')">Mark as sub-type</button>` : ''}
       <button class="btn" onclick="rowAction('${k}','dismiss')" title="These words are not a person, creature, place, thing, event or piece of knowledge (Tavern in a description, Dwarves in what someone said)">Not an entity</button>
+      ${r.added ? `<button class="btn" onclick="removeEntityRow('${k}')">Remove</button>` : ''}
     </div>${session.openForm?.key === r.key ? renderForm(r, session.openForm.action) : ''}`;
   }
   return `<div class="ident-row m-${r.matchType}${r.status === 'settled' ? ' settled' : ''}${flagged ? ' flagged' : ''}">
@@ -1154,6 +1170,31 @@ function renderForm(r, action) {
       <input id="f-role" placeholder="Role, e.g. slinger" size="12">${go('Add group')}</div>`;
   }
   return '';
+}
+
+/**
+ * addEntityRow() — adds the entity the DM typed as a row on every page
+ * (ChronicleEntities.addRow, #115), then closes the form. A refusal (no
+ * name, the same words already a row) shows under the form.
+ */
+function addEntityRow() {
+  try {
+    session.rows = ChronicleEntities.addRow(session.rows, {
+      kind: document.getElementById('add-kind').value,
+      words: document.getElementById('add-words').value,
+      pages: session.extract.map(ex => ex.page),
+    }, session.index);
+  } catch (err) {
+    document.getElementById('add-error').textContent = err.message;
+    return;
+  }
+  session.addForm = false;
+  renderIdentify();
+}
+
+// removeEntityRow(key) — removes a row the DM added and has not settled (#115).
+function removeEntityRow(key) {
+  attempt(key, () => { session.rows = ChronicleEntities.removeAddedRow(session.rows, rowOf(key)); });
 }
 
 // kindOptions(selected) → <option>s for every kind, by its label (#114).

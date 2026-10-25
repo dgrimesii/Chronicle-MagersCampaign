@@ -77,6 +77,10 @@
     loot: ['found', 'given', 'lost', 'used'],
   };
 
+  // The quest_progress_type enum (the data file's shared_enums), for the
+  // prompt's quest progress shape (#115). Publish keeps a type only from it.
+  const PROGRESS_TYPES = ['inciting_event', 'lead_acquired', 'objective_completed', 'setback', 'revelation', 'reward_received'];
+
   /**
    * pageReferences(page, rows, index) → [{ occ, asWritten, context, label,
    *   entityId, group, kind, array }]
@@ -195,7 +199,11 @@ RULES:
 6. One outcome per attack roll or per spell target, even when the target repeats ("2 Att miss/Hit" is two outcomes). res is one of ${ENUMS.res.join(', ')}; val is the number written, or null. Never infer a number or a result that is not written; use "unclear" when the result is not stated.
 7. "Dead", "killed" or "Down" on a roll is that outcome's effect: "killed" or "downed". It is never an activity. A death save is the action "Death Save" with res success or failure.
 8. A sentence that is not a turn (the dragons descend, goblins flee) goes in the round's "events" as written, or in "special_events" of the enemy group it is about (type one of ${ENUMS.special.join(', ')}).
-9. Quest progress and items found, given, lost or used go in "quest_progress" and "loot", each with its occurrence id and source line.
+9. Quest progress and items found, given, lost or used go in "quest_progress" and "loot", written exactly in these shapes:
+   {"quest":"<occurrence id of the quest>","entry":"what happened at this step of the quest, from the page","type":one of ${PROGRESS_TYPES.map(t => '"' + t + '"').join(', ')} or null,"source_line":"<the line, copied exactly>"}
+   {"item":"<occurrence id of the item, or null>","item_text":"<the item as written, when it has no occurrence>","change":one of ${ENUMS.loot.map(t => '"' + t + '"').join(', ')},"holder":"<occurrence id of who has it now, or null>","source_line":"<the line, copied exactly>"}
+   Record quest progress only for something that happens at the quest on this page; a quest that is merely named is not progress.
+   An occurrence whose line reads "Added by the DM" has no line of its own: the DM added it because the notes name it and the first read missed it. Use it wherever a line of this page refers to it, and never copy that text as a source line.
 11. PASSAGES: every piece of narrative on the page that is not a turn — the DM's descriptions and exposition, and what NPCs say — becomes a passage in "passages". A line about a player being absent is not narrative: it goes only in "absence_notes" (rule 14), never also in passages. Clean each into complete sentences and expand abbreviations, but add no fact the notes do not contain: clean up and flesh out, do not invent.
     - "speaker": "dm" for the DM's own description or exposition (it is fact), or the occurrence id of the NPC who said it (it is testimony). What an NPC tells the party counts as said by that NPC whether the notes quote it or report it ("Rufus says he hasn't slept", "R: will guide for a share"): keep the NPC as speaker, and keep what the NPC said separate from the DM's own description of them.
     - What an NPC says about themselves, their past or what they want goes on that NPC; what they say about something else (a place, a creature, a piece of lore) goes on that thing.
@@ -241,6 +249,21 @@ Respond with JSON only, no prose:
     try { parsed = JSON.parse(body.slice(start, end + 1)); } catch (e) { throw new Error('The AI reply was not valid JSON: ' + e.message); }
     if (!parsed || !Array.isArray(parsed.combats)) throw new Error('The AI reply has no "combats" list.');
     for (const k of ['quest_progress', 'loot', 'self_check', 'passages', 'assignments', 'absence_notes']) if (!Array.isArray(parsed[k])) parsed[k] = [];
+    // Quest progress and loot (#115): the reply on the real session 4 page
+    // wrote the quest under "occ" and the text under "detail", so publish
+    // found no quest and the progress was left unplaced (#17 too). The
+    // names an AI plausibly uses are read into the ones publish uses; the
+    // prompt now spells the shapes out.
+    for (const q of parsed.quest_progress) {
+      if (!q || typeof q !== 'object') continue;
+      if (q.quest == null) q.quest = q.occ ?? q.quest_occ ?? q.quest_id ?? null;
+      if (q.entry == null) q.entry = q.detail ?? q.fact ?? q.text ?? q.description ?? null;
+    }
+    for (const l of parsed.loot) {
+      if (!l || typeof l !== 'object') continue;
+      if (l.item == null && l.occ != null) l.item = l.occ;
+      if (l.item_text == null && typeof l.detail === 'string') l.item_text = l.detail;
+    }
     // Absence notes are plain sentences (#112); anything else is dropped.
     parsed.absence_notes = parsed.absence_notes.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim());
     if (typeof parsed.page_summary !== 'string') parsed.page_summary = null;

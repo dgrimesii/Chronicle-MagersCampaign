@@ -482,6 +482,62 @@
   }
 
   /**
+   * addRow(rows, opts, index) → the rows with one more, sorted again.
+   *
+   * An entity the notes name but the mention read missed (#115): in #17 the
+   * read missed "ROUS", the rats and the Quarry ROUS Problem, so the quest's
+   * start could not be captured, and step 3 only offered the rows the read
+   * produced. opts = { kind, words, pages }:
+   *   kind  — one of KINDS
+   *   words — the name as the notes write it (what the facts read is shown)
+   *   pages — every page of the session; the row gets one occurrence on each
+   *           (occ_<page>_dm<n>), so every page's facts read lists it and
+   *           can name it as an actor, a target, a quest or a passage's
+   *           subject. Occurrence ids never collide with the read's
+   *           (occ_<page>_<number>).
+   * The row is matched like a read row (matchRow), so words that name an
+   * existing entity match it, and it is settled with the usual actions. It
+   * is marked added, so the page can say so and offer Remove. The same
+   * words already a row of that kind are refused: settle that row instead.
+   */
+  function addRow(rows, opts, index) {
+    const o = opts || {};
+    const kind = o.kind;
+    const words = String(o.words || '').trim();
+    if (!KINDS[kind]) throw new Error('Pick what kind of entity it is.');
+    if (!words) throw new Error('Type the name as the notes write it.');
+    if (!Array.isArray(o.pages) || !o.pages.length) throw new Error('There are no pages to add it to.');
+    const key = kind + '|' + norm(words);
+    if (rows.some(r => r.key === key)) throw new Error(`"${words}" is already a ${KINDS[kind].label} row: settle that one.`);
+    // The next number above every added occurrence still in use, so a new
+    // id never collides with one a row holds. A removed row's number may be
+    // used again: nothing can still point at it, because any change in
+    // step 3 makes the facts be read again (identityKey).
+    const used = rows.flatMap(r => r.occurrences.map(x => /_dm(\d+)$/.exec(x.id))).filter(Boolean).map(m => Number(m[1]));
+    const n = (used.length ? Math.max(...used) : 0) + 1;
+    const row = { key, kind, asWritten: words, added: true, occurrences: o.pages.map(page => ({
+      id: `occ_${page}_dm${n}`, page, asWritten: words,
+      // Worded so the facts read cannot mistake it for a line of the notes
+      // (the first real run copied it as a source line, #115).
+      context: 'Added by the DM (no line of its own): the notes name it but the first read missed it',
+      round: null, scene: null, location: null, allegiance: null, turnRound: null, combatRef: null,
+      candidateId: null, candidateReason: '' })) };
+    matchRow(row, index);
+    return sortRows(rows.concat(row));
+  }
+
+  /**
+   * removeAddedRow(rows, row) → the rows without it (#115). Only a row the
+   * DM added, and only while it is unsettled: a settled one may have
+   * created an entity other rows link to, so it is reopened first.
+   */
+  function removeAddedRow(rows, row) {
+    if (!row.added) throw new Error('Only a row you added can be removed; mark a read row Not an entity instead.');
+    if (row.status === 'settled') throw new Error('Reopen the row (Change) before removing it.');
+    return rows.filter(r => r !== row);
+  }
+
+  /**
    * dismiss(row) — the words are not an entity (#113): Tavern, Shop and Main
    * St. in a place's description, Dwarves, Gnomes and Humans in what an NPC
    * said. The row is settled with no entity, so it makes no publish item
@@ -777,7 +833,7 @@ Respond with JSON only, no prose:
 
   const api = {
     KINDS, norm, buildIndex, entityListForPrompt, mentionPrompt, parseMentions, buildRows, sortRows,
-    newEntities, acknowledge, linkToExisting, separateAsNew, split, markSubType, reopen, setKind, dismiss,
+    newEntities, acknowledge, linkToExisting, separateAsNew, split, markSubType, reopen, setKind, dismiss, addRow, removeAddedRow,
     bulkAcknowledgeExact, allSettled, resolveOccurrences, flags, toQueueItems,
   };
 
