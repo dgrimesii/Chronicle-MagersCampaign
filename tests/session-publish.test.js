@@ -18,6 +18,9 @@
  *        scripts/migrate-opaque-ids.js --check
  *   P-7  the pages: Publish button, pending decisions, store order; no
  *        relationship detection left in intake, Delta Review or the viewer
+ *   P-8  quest progress review and a quest's start (#120): dropped facts not
+ *        written, an inciting event sets given_by only when empty, a second
+ *        start is not written, the real qst_005 keeps its fields
  *
  * WHY THIS FILE EXISTS
  * --------------------
@@ -348,6 +351,67 @@ console.log('\nTest P-7 — the pages');
   const viewer = read('admin/log-viewer.html');
   assert('P-7: the log viewer builds RELS from entity_relationships, with no hardcoded map',
     /function buildRels\(\)/.test(viewer) && /DATA\.entity_relationships/.test(viewer) && !/'pc_001':\[/.test(viewer));
+}
+
+// ── P-8 ─────────────────────────────────────────────────────────────────────
+console.log('\nTest P-8 — reviewing quest progress, and a quest\'s start (#120)');
+{
+  const HELEN = C.get('npc_007'), QST5 = C.get('qst_005');
+  const base = { header: ChroniclePublish.sessionHeader('session_008', '2026-04-16'), identityItems: [], passageItems: [], deferredPassages: [], textItems: [], judgmentItems: [], combats: [], loot: [] };
+  const occs = { occ_q: { id: QST5, array: 'quest_ledger' }, occ_h: { id: HELEN, array: 'npc_directory' }, occ_m: { id: MAP, array: 'inventory_and_loot' }, occ_d: { id: DEL, array: 'party' } };
+  const qctx = Object.assign({}, ctx, { sessionRef: 'session_008', entityOf: o => occs[o] || null });
+  const start = (extra) => Object.assign({ quest: 'occ_q', entry: 'Helen told the party rats plague the quarry work camp.', type: 'inciting_event', giver: 'occ_h', page: 1 }, extra);
+  // Dropped facts are not written.
+  const dq = ChroniclePublish.sessionQueue(Object.assign({}, base, { questProgress: [start({ dropped: true })], loot: [{ item: 'occ_m', change: 'given', holder: 'occ_d', dropped: true }] }), qctx);
+  assert('P-8: a dropped quest progress fact and a dropped loot fact are not written', !dq.items.some(i => i.rawData && (i.rawData._progress_append || i.rawData._set)) && !dq.unplaced.length);
+  // The real qst_005 already has origin_session and given_by.
+  const q = ChroniclePublish.sessionQueue(Object.assign({}, base, { questProgress: [start()] }), qctx);
+  const item = q.items.find(i => i.rawData && i.rawData._progress_append);
+  assert('P-8: a quest start carries its giver to publish', item && item.rawData._giver === HELEN && item.rawData._progress_append.type === 'inciting_event' && item.title === 'Quest start');
+  const real = campaign.quest_ledger.find(x => x.id === QST5);
+  const res = ChroniclePublish.applySession(campaign, q.items);
+  const after = res.campaign.quest_ledger.find(x => x.id === QST5);
+  assert('P-8: on the real qst_005 the start is added', after.mechanics.progress_log.some(e => e.type === 'inciting_event' && /rats plague/.test(e.fact)));
+  assert('P-8: and its origin_session and given_by are unchanged', after.mechanics.origin_session === real.mechanics.origin_session && after.mechanics.given_by === real.mechanics.given_by);
+  assert('P-8: the differing origin is reported', res.notes.some(n => /kept the recorded origin_session/.test(n)));
+  // A second start is not written.
+  const twice = ChroniclePublish.applySession(res.campaign, ChroniclePublish.sessionQueue(Object.assign({}, base, { questProgress: [start({ entry: 'Another telling of the start.' })] }), qctx).items);
+  const t = twice.campaign.quest_ledger.find(x => x.id === QST5);
+  assert('P-8: a second inciting event on one quest is reported and not written',
+    t.mechanics.progress_log.filter(e => e.type === 'inciting_event').length === 1 && twice.notes.some(n => /already records an inciting event/.test(n)));
+  const repeat = ChroniclePublish.applySession(res.campaign, q.items).campaign.quest_ledger.find(x => x.id === QST5);
+  assert('P-8: publishing the same start again adds nothing', repeat.mechanics.progress_log.length === after.mechanics.progress_log.length);
+  // On the fixture the quest is new this session: the start sets given_by.
+  const fixture = JSON.parse(read('tests/fixtures/test-campaign.json'));
+  const FX = ChronicleIds.buildLegacyIndex(fixture);
+  const NEWQ = 'ffffffff-6666-4fff-8fff-ffffffffffff', NEWH = 'ffffffff-7777-4fff-8fff-ffffffffffff';
+  const fxItems = [ChroniclePublish.sessionHeader('session_004', '2026-03-10'),
+    { type: 'NEW', array: 'quest_ledger', rawData: { _object_type: 'quest', id: NEWQ, title: 'The Quarry ROUS Problem', mechanics: { origin_session: 'session_004' }, narrative: {}, notes: null } },
+    { type: 'NEW', array: 'npc_directory', rawData: { _object_type: 'npc', id: NEWH, name: 'Helen', mechanics: { first_appeared: 'session_004' }, narrative: {}, notes: null } }];
+  const fxOccs = { occ_q: { id: NEWQ, array: 'quest_ledger' }, occ_h: { id: NEWH, array: 'npc_directory' } };
+  const fxQueue = ChroniclePublish.sessionQueue(Object.assign({}, base, { header: fxItems[0], identityItems: fxItems.slice(1), questProgress: [start()] }),
+    Object.assign({}, ctx, { sessionRef: 'session_004', entityOf: o => fxOccs[o] || null }));
+  const fxOut = ChroniclePublish.applySession(fixture, fxQueue.items).campaign;
+  const fq = fxOut.quest_ledger.find(x => x.id === NEWQ);
+  const s4 = FX.get('session_004');
+  assert('P-8: on the fixture the new quest gets its start and given_by Helen', fq.mechanics.given_by === NEWH && fq.mechanics.progress_log.length === 1 && fq.mechanics.progress_log[0].type === 'inciting_event');
+  assert('P-8: its origin_session is session_004 (set when created)', fq.mechanics.origin_session === s4 && fq.mechanics.progress_log[0].session_id === s4);
+  const tmp = path.join(os.tmpdir(), 'chronicle-120-' + process.pid + '.json');
+  fs.writeFileSync(tmp, JSON.stringify(fxOut, null, 2) + '\n');
+  let ok = false, text = '';
+  try { text = execFileSync(process.execPath, [path.join(ROOT, 'scripts/migrate-opaque-ids.js'), tmp, '--check'], { encoding: 'utf8' }); ok = /CHECK PASSED/.test(text); }
+  catch (e) { text = String(e.stdout || e.message); }
+  fs.unlinkSync(tmp);
+  assert('P-8: the fixture output passes migrate-opaque-ids.js --check' + (ok ? '' : ' — ' + text.slice(-200)), ok);
+  // The page.
+  const page = read('admin/session.html');
+  assert('P-8: step 4 applies quest progress and loot edits with the passage edits',
+    /ChronicleFacts\.applyFactEdits\(merged\.quest_progress, session\.questEdits\)/.test(page) && /ChronicleFacts\.applyFactEdits\(merged\.loot, session\.lootEdits\)/.test(page));
+  assert('P-8: each quest progress fact has quest, type and giver dropdowns, Edit and Drop',
+    /setFact\('quest', \$\{i\}, 'quest'/.test(page) && /setFact\('quest', \$\{i\}, 'type'/.test(page) && /setFact\('quest', \$\{i\}, 'giver'/.test(page) && /dropFact\('quest', \$\{i\}, true\)">Drop</.test(page) && /saveFactText\(\$\{i\}\)">Save</.test(page));
+  assert('P-8: each loot fact has change and holder dropdowns and Drop', /setFact\('loot', \$\{i\}, 'change'/.test(page) && /setFact\('loot', \$\{i\}, 'holder'/.test(page) && /dropFact\('loot', \$\{i\}, true\)">Drop</.test(page));
+  assert('P-8: a second start is flagged in review, and dropped facts are listed as not written',
+    /already records its start; publish will not add a second/.test(page) && /list\('Facts you dropped', droppedFacts\)/.test(page));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

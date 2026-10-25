@@ -367,5 +367,31 @@ console.log('\nTest P-4 — quest progress and loot shapes (#115)');
   assert('P-4: the prompt says an added occurrence has no line of its own', /"Added by the DM" has no line of its own/.test(prompt) && /never copy that text as a source line/.test(prompt));
 }
 
+console.log('\nTest P-5 — reviewing quest progress and loot (#120)');
+{
+  const qp = () => [{ quest: 'occ_1_dm1', entry: 'The Stone Quarry has ROUS. That is causing problems.', type: 'lead_acquired', giver: null, source_line: 'Stone Quarry sw of here', page: 1 },
+                    { quest: 'occ_1_2', entry: 'A second step.', type: null, source_line: 'x', page: 1 }];
+  const list = F.applyFactEdits(qp(), { 0: { type: 'inciting_event', giver: 'occ_1_5', entry: '  Helen told the party rats plague the quarry work camp.  ' }, 1: { dropped: true } });
+  assert('P-5: a fact can be retyped and given a giver, keeping the AI\'s values', list[0].type === 'inciting_event' && list[0].giver === 'occ_1_5' && list[0].original.type === 'lead_acquired' && list[0].original.giver === null);
+  assert('P-5: its text is edited, trimmed, with the AI\'s reading kept', list[0].entry === 'Helen told the party rats plague the quarry work camp.' && /That is causing problems/.test(list[0].original.entry));
+  assert('P-5: a dropped fact is marked and stays in the list', list[1].dropped === true && list.length === 2);
+  const moved = F.applyFactEdits(qp(), { 0: { quest: 'occ_1_2' } });
+  assert('P-5: a fact can be moved to another quest', moved[0].quest === 'occ_1_2' && moved[0].original.quest === 'occ_1_dm1');
+  const same = F.applyFactEdits(qp(), { 0: { type: 'lead_acquired', entry: '   ' } });
+  assert('P-5: the AI\'s own value, or an empty text, changes nothing', !same[0].original && same[0].entry === qp()[0].entry);
+  const cleared = F.applyFactEdits(qp(), { 0: { type: null } });
+  assert('P-5: null clears a field', cleared[0].type === null && cleared[0].original.type === 'lead_acquired');
+  const loot = F.applyFactEdits([{ item: 'occ_1_3', change: 'found', holder: null }], { 0: { change: 'given', holder: 'occ_1_4' } });
+  assert('P-5: a loot fact\'s change and holder can be corrected', loot[0].change === 'given' && loot[0].holder === 'occ_1_4' && loot[0].original.change === 'found');
+  const parsed = F.parseFacts(JSON.stringify({ combats: [], quest_progress: [{ occ: 'occ_1_dm1', detail: 'start', type: 'inciting_event', given_by: 'occ_1_5' }] }));
+  assert('P-5: a giver written as given_by is read as giver', parsed.quest_progress[0].giver === 'occ_1_5');
+  const refs = [{ occ: 'occ_1_dm1' }, { occ: 'occ_1_5' }];
+  assert('P-5: a giver must be an occurrence id', F.validateFacts({ combats: [], quest_progress: [{ quest: 'occ_1_dm1', giver: 'Helen' }], loot: [], passages: [] }, refs, []).some(e => /giver/.test(e))
+    && F.validateFacts({ combats: [], quest_progress: [{ quest: 'occ_1_dm1', giver: 'occ_1_5' }], loot: [], passages: [] }, refs, []).length === 0);
+  const prompt = F.factsPrompt({ pageLabel: 'page 1', references: [], combats: [], abilities: '' });
+  assert('P-5: the prompt asks for the giver and proposes inciting_event for a quest\'s start',
+    prompt.includes('"giver":"<occurrence id of who gave the party the quest, or null>"') && /that is the quest's start: type "inciting_event"/.test(prompt) && /A quest has one start/.test(prompt));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

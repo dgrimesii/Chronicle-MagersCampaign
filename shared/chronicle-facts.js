@@ -200,9 +200,10 @@ RULES:
 7. "Dead", "killed" or "Down" on a roll is that outcome's effect: "killed" or "downed". It is never an activity. A death save is the action "Death Save" with res success or failure.
 8. A sentence that is not a turn (the dragons descend, goblins flee) goes in the round's "events" as written, or in "special_events" of the enemy group it is about (type one of ${ENUMS.special.join(', ')}).
 9. Quest progress and items found, given, lost or used go in "quest_progress" and "loot", written exactly in these shapes:
-   {"quest":"<occurrence id of the quest>","entry":"what happened at this step of the quest, from the page","type":one of ${PROGRESS_TYPES.map(t => '"' + t + '"').join(', ')} or null,"source_line":"<the line, copied exactly>"}
+   {"quest":"<occurrence id of the quest>","entry":"what happened at this step of the quest, from the page","type":one of ${PROGRESS_TYPES.map(t => '"' + t + '"').join(', ')} or null,"giver":"<occurrence id of who gave the party the quest, or null>","source_line":"<the line, copied exactly>"}
    {"item":"<occurrence id of the item, or null>","item_text":"<the item as written, when it has no occurrence>","change":one of ${ENUMS.loot.map(t => '"' + t + '"').join(', ')},"holder":"<occurrence id of who has it now, or null>","source_line":"<the line, copied exactly>"}
    Record quest progress only for something that happens at the quest on this page; a quest that is merely named is not progress.
+   When the page shows the party being given a quest or first learning of it, that is the quest's start: type "inciting_event", with "giver" the occurrence of whoever gave it or told them (null if the notes do not say). A quest has one start.
    An occurrence whose line reads "Added by the DM" has no line of its own: the DM added it because the notes name it and the first read missed it. Use it wherever a line of this page refers to it, and never copy that text as a source line.
 11. PASSAGES: every piece of narrative on the page that is not a turn — the DM's descriptions and exposition, and what NPCs say — becomes a passage in "passages". A line about a player being absent is not narrative: it goes only in "absence_notes" (rule 14), never also in passages. Clean each into complete sentences and expand abbreviations, but add no fact the notes do not contain: clean up and flesh out, do not invent.
     - "speaker": "dm" for the DM's own description or exposition (it is fact), or the occurrence id of the NPC who said it (it is testimony). What an NPC tells the party counts as said by that NPC whether the notes quote it or report it ("Rufus says he hasn't slept", "R: will guide for a share"): keep the NPC as speaker, and keep what the NPC said separate from the DM's own description of them.
@@ -258,6 +259,8 @@ Respond with JSON only, no prose:
       if (!q || typeof q !== 'object') continue;
       if (q.quest == null) q.quest = q.occ ?? q.quest_occ ?? q.quest_id ?? null;
       if (q.entry == null) q.entry = q.detail ?? q.fact ?? q.text ?? q.description ?? null;
+      // Who gave the quest, for an inciting event (#120).
+      if (q.giver == null) q.giver = q.given_by ?? q.giver_occ ?? null;
     }
     for (const l of parsed.loot) {
       if (!l || typeof l !== 'object') continue;
@@ -324,7 +327,10 @@ Respond with JSON only, no prose:
         }
       }
     });
-    for (const q of facts.quest_progress) if (q.quest != null && !occ.has(q.quest)) errors.push(`Quest progress names "${q.quest}" instead of an occurrence id.`);
+    for (const q of facts.quest_progress) {
+      if (q.quest != null && !occ.has(q.quest)) errors.push(`Quest progress names "${q.quest}" instead of an occurrence id.`);
+      if (q.giver != null && !occ.has(q.giver)) errors.push(`Quest progress giver "${q.giver}" is not an occurrence id.`);
+    }
     // Passages (#102): the speaker must be "dm" or an occurrence; a speaker
     // named instead is an error (testimony must point at the NPC). An
     // attachment the reply cannot back up is not an error: it is moved to
@@ -606,7 +612,42 @@ Respond with JSON only, no prose:
     return passages;
   }
 
-  const api = { ENUMS, pageReferences, combatChoices, factsPrompt, parseFacts, validateFacts, checkFacts, mergePages, passageItems, testimonyUpdates, applyPassageEdits };
+  /**
+   * applyFactEdits(list, edits) → list, changed in place.
+   *
+   * The DM's corrections to quest progress and loot facts in step 4 (#120),
+   * the same pattern as passages (#116). edits is { index: { field: value,
+   * dropped? } }, keyed by position in the merged list:
+   *   field   — quest progress: entry, type, quest, giver; loot: change,
+   *             holder. The AI's value is kept in original[field], so the
+   *             review can show what changed. A value equal to the AI's, or
+   *             an empty entry, changes nothing; null clears a field.
+   *   dropped — the fact is not written (ChroniclePublish.sessionQueue
+   *             skips it); it stays in the list so the DM can restore it.
+   * Why: step 4 showed these facts read-only, so a wrong one (Helen's
+   * report recorded as "lead_acquired" when it starts the quest, with the
+   * "Rats" misread in its text) would be published as read.
+   */
+  function applyFactEdits(list, edits) {
+    for (const [i, e] of Object.entries(edits || {})) {
+      const p = list[i];
+      if (!p || !e) continue;
+      for (const [k, raw] of Object.entries(e)) {
+        if (k === 'dropped') continue;
+        const v = typeof raw === 'string' ? raw.trim() : raw;
+        if (k === 'entry' && !v) continue;
+        const ai = p.original && k in p.original ? p.original[k] : p[k];
+        if ((v ?? null) === (ai ?? null)) continue;
+        p.original = p.original || {};
+        if (!(k in p.original)) p.original[k] = p[k] ?? null;
+        p[k] = v ?? null;
+      }
+      if (e.dropped) p.dropped = true;
+    }
+    return list;
+  }
+
+  const api = { ENUMS, PROGRESS_TYPES, pageReferences, combatChoices, factsPrompt, parseFacts, validateFacts, checkFacts, mergePages, passageItems, testimonyUpdates, applyPassageEdits, applyFactEdits };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ChronicleFacts = api;

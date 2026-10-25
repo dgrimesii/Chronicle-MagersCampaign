@@ -1093,8 +1093,28 @@
       // The same entry from the same session (a repeat publish) is not added
       // twice (#106).
       const entry = rawData._progress_append;
-      if (!target.mechanics.progress_log.some(x => x && x.session_id === entry.session_id && x.fact === entry.fact)) {
-        target.mechanics.progress_log.push(clone(entry));
+      const log = target.mechanics.progress_log;
+      const label = target.title || target.name || target.legacy_id || 'A quest';
+      const again = log.some(x => x && x.session_id === entry.session_id && x.fact === entry.fact);
+      // A quest has one start (#120): a second inciting event is reported,
+      // not written.
+      if (!again && entry.type === 'inciting_event' && log.some(x => x && x.type === 'inciting_event')) {
+        notes.add(`${label}: already records an inciting event; the second one was not written.`);
+      } else if (!again) {
+        log.push(clone(entry));
+      }
+      if (entry.type === 'inciting_event') {
+        // The start fills who gave the quest and when it began, only where
+        // the quest has nothing yet; a recorded value is kept and any
+        // difference reported, as a placeholder's header is (#74). A quest
+        // created this session already has origin_session (#106).
+        const m = target.mechanics;
+        if (rawData._giver) {
+          if (!m.given_by) m.given_by = rawData._giver;
+          else if (m.given_by !== rawData._giver) notes.add(`${label}: kept the recorded given_by; the review named a different giver.`);
+        }
+        if (!m.origin_session) m.origin_session = entry.session_id;
+        else if (m.origin_session !== entry.session_id) notes.add(`${label}: kept the recorded origin_session; the review's quest start is from a different session.`);
       }
     } else if (rawData._cohort_session_append) {
       const sid = rawData._cohort_session_append.sessionId;
@@ -1472,6 +1492,8 @@
     // found item is listed on the session (mechanics.items_found).
     const lootItems = [];
     for (const l of plan.loot || []) {
+      // A loot fact the DM dropped in review (#120) is not written.
+      if (l.dropped) continue;
       const item = l.item != null ? ctx.entityOf(l.item) : null;
       if (!item || item.array !== 'inventory_and_loot') {
         unplaced.push({ what: 'Loot: ' + (l.item_text || l.source_line || 'an item'), reason: 'the item is not an item entity; add it in step 3' });
@@ -1553,6 +1575,8 @@
     items.push(...(plan.passageItems || []));
 
     (plan.questProgress || []).forEach((q, i) => {
+      // A quest progress fact the DM dropped in review (#120) is not written.
+      if (q.dropped) return;
       const quest = q.quest != null ? ctx.entityOf(q.quest) : null;
       if (!quest || quest.array !== 'quest_ledger') {
         unplaced.push({ what: 'Quest progress: ' + (q.entry || q.source_line || ''), reason: 'it names no quest entity; add the quest in step 3' });
@@ -1560,8 +1584,13 @@
       }
       const entry = { session_id: ref, type: PROGRESS_TYPES.includes(q.type) ? q.type : null, fact: String(q.entry || q.source_line || '').trim(), progress_narrative: null };
       if (questPassages.has(i)) entry.passages = questPassages.get(i);
+      const rawData = { id: quest.id, _progress_append: entry };
+      // A quest's start names who gave it (#120); applyMod sets given_by from
+      // it only when the quest has none.
+      const giver = entry.type === 'inciting_event' && q.giver != null ? ctx.entityOf(q.giver) : null;
+      if (giver && giver.id) rawData._giver = giver.id;
       items.push({ id: 'progress_' + i, type: 'MOD', array: 'quest_ledger', status: 'approved', targetId: quest.id,
-        title: 'Quest progress', rawData: { id: quest.id, _progress_append: entry } });
+        title: entry.type === 'inciting_event' ? 'Quest start' : 'Quest progress', rawData });
     });
 
     items.push(...lootItems, ...(plan.textItems || []), ...(plan.judgmentItems || []));

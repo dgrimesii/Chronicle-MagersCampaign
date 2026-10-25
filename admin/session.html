@@ -453,6 +453,9 @@ const session = {
   addForm:      false, // the step 3 "add an entity the read missed" form is open (#115)
   passageMoves: {},   // passage index → attach, the DM's moves
   passageEdits: {},   // passage index → { text?, dropped? }, the DM's corrections (#116)
+  questEdits:   {},   // quest progress index → { entry?, type?, quest?, giver?, dropped? } (#120)
+  lootEdits:    {},   // loot index → { change?, holder?, dropped? } (#120)
+  factEditing:  null, // the quest progress entry whose text is open for editing (#120)
   passageEditing: null, // index of the passage being edited in place, or null
   passagesChangedSinceDraft: false, // a passage edit or drop after the draft ran (#116)
   approvals:    null, // Set of approved section keys
@@ -1425,6 +1428,9 @@ function renderFacts() {
     for (const [i, attach] of Object.entries(session.passageMoves || {})) if (merged.passages[i]) merged.passages[i].attach = attach;
     // The DM's text edits and drops (#116), kept and reset exactly like moves.
     ChronicleFacts.applyPassageEdits(merged.passages, session.passageEdits);
+    // Quest progress and loot corrections (#120), kept the same way.
+    ChronicleFacts.applyFactEdits(merged.quest_progress, session.questEdits);
+    ChronicleFacts.applyFactEdits(merged.loot, session.lootEdits);
   }
   session.mergedFacts = merged;
   session.refs = refs;
@@ -2002,9 +2008,66 @@ function renderOther() {
     const r = byOcc.get(occ);
     return r ? `${r.asWritten} → ${r.label.replace(/ \([^)]*\)$/, '')}` : String(occ);
   };
+  // Quest progress and loot are reviewed here (#120): each fact's quest,
+  // type and giver (or change and holder) can be changed, its text edited,
+  // and the fact dropped or restored. People are NPCs and PCs.
+  const PEOPLE = ['npc_directory', 'party'];
+  const changed = (x, k) => x.original && k in x.original;
+  const questHtml = (q, i) => {
+    const editing = session.factEditing === i;
+    const typeSel = `<select onchange="setFact('quest', ${i}, 'type', this.value)" ${q.dropped ? 'disabled' : ''}><option value="">(no type)</option>${ChronicleFacts.PROGRESS_TYPES.map(t =>
+      `<option value="${t}" ${q.type === t ? 'selected' : ''}>${t.replace(/_/g, ' ')}</option>`).join('')}</select>`;
+    const giver = q.type === 'inciting_event'
+      ? ` given by <select onchange="setFact('quest', ${i}, 'giver', this.value)" ${q.dropped ? 'disabled' : ''}>${entityRefOptions(PEOPLE, q.giver)}</select>` : '';
+    const text = editing
+      ? `<textarea id="fe-${i}" rows="2" style="width:100%;">${escapeHtml(q.entry || '')}</textarea>
+         <div class="ident-actions"><button class="btn btn-primary" onclick="saveFactText(${i})">Save</button><button class="btn" onclick="session.factEditing = null; renderFacts();">Cancel</button></div>`
+      : `<div class="passage-text">${escapeHtml(q.entry || '')}</div>`;
+    const marks = (changed(q, 'entry') || changed(q, 'type') || changed(q, 'quest') || changed(q, 'giver') ? ' <span class="edited">edited</span>' : '') + (q.dropped ? ' · dropped — not written' : '');
+    // The quest dropdown sits in the row, not the narrow left column: in that
+    // column a quest name such as "The Quarry ROUS Problem" was cut off.
+    const questSel = `<select onchange="setFact('quest', ${i}, 'quest', this.value)" ${q.dropped ? 'disabled' : ''}>${entityRefOptions(['quest_ledger'], q.quest)}</select>`;
+    return `<div class="fact-turn passage${q.dropped ? ' dropped' : ''}"><span class="who">quest</span>
+      <span>${questSel} ${typeSel}${giver}${marks}${text}
+        ${changed(q, 'entry') && !editing ? `<div class="fact-line">AI read: ${escapeHtml(q.original.entry || '')}</div>` : ''}
+        ${/* Spaces, not underscores, so the AI's type reads like the dropdown's labels. */ ''}
+        ${changed(q, 'type') ? `<div class="fact-line">AI type: ${escapeHtml((q.original.type || 'none').replace(/_/g, ' '))}</div>` : ''}
+        <div class="fact-line">p.${escapeHtml(String(q.page))}: ${escapeHtml(q.source_line || '')}</div>
+        <div class="ident-actions">${q.dropped ? `<button class="btn" onclick="dropFact('quest', ${i}, false)">Restore</button>`
+          : `${editing ? '' : `<button class="btn" onclick="session.factEditing = ${i}; renderFacts();">Edit</button>`}<button class="btn" onclick="dropFact('quest', ${i}, true)">Drop</button>`}</div></span></div>`;
+  };
+  const lootHtml = (l, i) => {
+    const changeSel = `<select onchange="setFact('loot', ${i}, 'change', this.value)" ${l.dropped ? 'disabled' : ''}>${ChronicleFacts.ENUMS.loot.map(c =>
+      `<option value="${c}" ${l.change === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`;
+    const holderSel = ` held by <select onchange="setFact('loot', ${i}, 'holder', this.value)" ${l.dropped ? 'disabled' : ''}>${entityRefOptions(PEOPLE, l.holder)}</select>`;
+    const marks = (changed(l, 'change') || changed(l, 'holder') ? ' <span class="edited">edited</span>' : '') + (l.dropped ? ' · dropped — not written' : '');
+    return `<div class="fact-turn passage${l.dropped ? ' dropped' : ''}"><span class="who">${escapeHtml(l.item ? who(l.item) : l.item_text || '(item not named)')}</span>
+      <span>${changeSel}${holderSel}${marks}
+        <div class="fact-line">p.${escapeHtml(String(l.page))}: ${escapeHtml(l.source_line || '')}</div>
+        <div class="ident-actions">${l.dropped ? `<button class="btn" onclick="dropFact('loot', ${i}, false)">Restore</button>`
+          : `<button class="btn" onclick="dropFact('loot', ${i}, true)">Drop</button>`}</div></span></div>`;
+  };
+  // One start per quest (#120): flag a second inciting event in this
+  // session's facts, or one for a quest that already records its start.
+  const startFlags = [];
+  const startsBy = new Map();
+  merged.quest_progress.forEach(q => {
+    if (q.dropped || q.type !== 'inciting_event') return;
+    const id = byOcc.get(q.quest) && byOcc.get(q.quest).entityId;
+    if (!id) return;
+    startsBy.set(id, (startsBy.get(id) || 0) + 1);
+  });
+  for (const [id, n] of startsBy) {
+    const rec = (session.campaign.quest_ledger || []).find(x => x.id === id);
+    if (n > 1) startFlags.push(`${labelOf(id)} has ${n} quest starts in these facts; publish writes only the first.`);
+    else if (rec && (rec.mechanics?.progress_log || []).some(e => e.type === 'inciting_event')) startFlags.push(`${labelOf(id)} already records its start; publish will not add a second.`);
+  }
   document.getElementById('facts-other').innerHTML =
-    (merged.quest_progress.length ? `<div class="fact-combat"><h3>Quest progress</h3>${merged.quest_progress.map(q => `<div class="fact-turn"><span class="who">${escapeHtml(who(q.quest))}</span><span>${escapeHtml(q.entry || '')}<div class="fact-line">p.${escapeHtml(String(q.page))}: ${escapeHtml(q.source_line || '')}</div></span></div>`).join('')}</div>` : '')
-    + (merged.loot.length ? `<div class="fact-combat"><h3>Loot</h3>${merged.loot.map(l => `<div class="fact-turn"><span class="who">${escapeHtml(l.item ? who(l.item) : l.item_text || '(item not named)')}</span><span>${escapeHtml(l.change || '')}${l.holder ? ' — ' + escapeHtml(who(l.holder)) : ''}<div class="fact-line">p.${escapeHtml(String(l.page))}: ${escapeHtml(l.source_line || '')}</div></span></div>`).join('')}</div>` : '');
+    (merged.quest_progress.length ? `<div class="fact-combat"><h3>Quest progress</h3>
+      <p class="hint">Change the quest, the type or (for a quest's start) who gave it; edit the text; drop a fact that is wrong.</p>
+      ${startFlags.length ? `<div class="flag-box">${startFlags.map(escapeHtml).join('<br>')}</div>` : ''}
+      ${merged.quest_progress.map(questHtml).join('')}</div>` : '')
+    + (merged.loot.length ? `<div class="fact-combat"><h3>Loot</h3>${merged.loot.map(lootHtml).join('')}</div>` : '');
 }
 
 // ══════════════════════════════════════════════════════
@@ -2205,7 +2268,7 @@ function movePassage(i, value) {
   const [kind, a, b] = value.split('|');
   const attach = kind === 'entity' ? { to: 'entity', occ: a } : kind === 'combat' ? { to: 'combat', combat: a }
     : kind === 'round' ? { to: 'round', combat: a, n: Number(b) } : { to: 'session' };
-  if (session.passageMovesKey !== session.factsKey) { session.passageMoves = {}; session.passageEdits = {}; session.passageMovesKey = session.factsKey; }
+  resetStaleEdits();
   session.passageMoves[i] = attach;
   renderFacts();
 }
@@ -2261,12 +2324,82 @@ function passageHtml(p) {
 }
 
 /**
+ * resetStaleEdits() — the DM's moves and edits (passages, quest progress,
+ * loot) belong to one read of the pages; a new read starts with none.
+ */
+function resetStaleEdits() {
+  if (session.passageMovesKey === session.factsKey) return;
+  session.passageMoves = {}; session.passageEdits = {}; session.questEdits = {}; session.lootEdits = {};
+  session.passageMovesKey = session.factsKey;
+}
+
+/**
+ * factEdit(kind, i) → the DM's edit record for quest progress or loot fact
+ * i (#120), created when needed. kind is 'quest' or 'loot'.
+ */
+function factEdit(kind, i) {
+  resetStaleEdits();
+  const all = kind === 'quest' ? session.questEdits : session.lootEdits;
+  return (all[i] = all[i] || {});
+}
+
+/**
+ * setFact(kind, i, field, value) — a dropdown change on a quest progress or
+ * loot fact (#120): its quest, type or giver, or a loot change or holder.
+ * '' clears the field. renderFacts reapplies every edit to a fresh merge.
+ */
+function setFact(kind, i, field, value) {
+  factEdit(kind, i)[field] = value === '' ? null : value;
+  renderFacts();
+}
+
+// dropFact(kind, i, drop) — drops a fact so it is not written, or restores it (#120).
+function dropFact(kind, i, drop) {
+  const e = factEdit(kind, i);
+  if (drop) e.dropped = true; else delete e.dropped;
+  renderFacts();
+}
+
+/**
+ * saveFactText(i) — keeps the edited text of quest progress entry i (#120).
+ * The AI's own text, or nothing, removes the edit.
+ */
+function saveFactText(i) {
+  const el = document.getElementById('fe-' + i);
+  const text = el ? el.value.trim() : '';
+  const q = session.mergedFacts.quest_progress[i];
+  const ai = q.original && 'entry' in q.original ? q.original.entry : q.entry;
+  const e = factEdit('quest', i);
+  if (!text || text === ai) delete e.entry; else e.entry = text;
+  session.factEditing = null;
+  renderFacts();
+}
+
+/**
+ * entityRefOptions(arrays, selected) → <option>s for one occurrence of each
+ * entity settled in those arrays, by name, for the quest, giver and holder
+ * dropdowns (#120). The value is an occurrence id, as the facts use.
+ */
+function entityRefOptions(arrays, selected) {
+  const seen = new Set();
+  const sel = session.refs.find(r => r.occ === selected);
+  const opts = ['<option value="">(none)</option>'];
+  for (const r of session.refs) {
+    if (!r.entityId || seen.has(r.entityId) || !arrays.includes(r.array)) continue;
+    seen.add(r.entityId);
+    const on = sel && sel.entityId === r.entityId;
+    opts.push(`<option value="${escapeHtml(r.occ)}" ${on ? 'selected' : ''}>${escapeHtml(labelOf(r.entityId))}</option>`);
+  }
+  return opts.join('');
+}
+
+/**
  * passageEdit(i) → the DM's edit record for passage i, created when needed.
  * Edits are kept against the read they were made on, as moves are: a new
  * read of the pages starts with none.
  */
 function passageEdit(i) {
-  if (session.passageMovesKey !== session.factsKey) { session.passageMoves = {}; session.passageEdits = {}; session.passageMovesKey = session.factsKey; }
+  resetStaleEdits();
   return (session.passageEdits[i] = session.passageEdits[i] || {});
 }
 
@@ -2512,11 +2645,15 @@ function heldHtml(plan) {
   const unplaced = (plan.queuePreview || []).map(u => `${u.what} — ${u.reason}`);
   // Passages the DM dropped (#116).
   const droppedPassages = session.mergedFacts.passages.filter(p => p.dropped).map(p => p.text);
+  // Quest progress and loot facts the DM dropped (#120).
+  const droppedFacts = session.mergedFacts.quest_progress.filter(q => q.dropped).map(q => 'Quest progress: ' + (q.entry || q.source_line || ''))
+    .concat(session.mergedFacts.loot.filter(l => l.dropped).map(l => 'Loot: ' + (l.item_text || l.source_line || '')));
   const list = (title, rows) => rows.length ? `<div class="fact-round"><h4>${title}</h4><ul>${rows.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>` : '';
   const body = list('Facts held back (an actor not yet assigned or settled)', held)
     + list('Round events not turned into attacks (their lines stay as passages)', events)
     + list('Not placed', unplaced)
-    + list('Passages you dropped', droppedPassages);
+    + list('Passages you dropped', droppedPassages)
+    + list('Facts you dropped', droppedFacts);
   return body ? `<div class="fact-combat"><h4>Not written by this publish</h4>${body}</div>` : '';
 }
 
