@@ -2,7 +2,7 @@
 
 Oct 25, 2026 · David Grimes
 
-*Plan for phase 7 (epic #121): moving campaign storage from the repo to Postgres. Hosting and the player rollout are phase 8 (#6). Exported from the working plan doc on 25 October 2026; updated the same day with the phase 7 definition of done and server-side API keys. Open questions are at the end.*
+*Plan for phase 7 (epic #121): moving campaign storage from the repo to Postgres. Hosting and the player rollout are phase 8 (#6). Exported from the working plan doc on 25 October 2026; updated the same day with the phase 7 definition of done, server-side API keys, and what phase 7 does to be ready for IAM. Open questions are at the end.*
 
 ## Summary
 
@@ -21,7 +21,7 @@ It rests on decisions already made in #6 and the Malvasia [Hosting.md](https://g
 
 **Phase 7 is complete when the session intake is fully migrated to Postgres and could be moved to Render as it stands, with its API keys safe in a hosted space.** All three parts are spelled out under "Definition of done" at the end of the work breakdown.
 
-Out of scope here, and left to phase 8 (#6): deploying to Render, player accounts and sign-in, and the player rollout. The plan is shaped so they follow without rework.
+Out of scope here, and left to phase 8 (#6): deploying to Render, the IAM setup (accounts, roles, sign-in and infrastructure access), and the player rollout. The plan is shaped so they follow without rework.
 
 ## Where storage stands today
 
@@ -79,7 +79,7 @@ flowchart LR
 - **Stage 1 still applies publishes in the browser.** The page sends the new campaign and the version it was built on. The server writes the difference in one transaction, or refuses with 409 if the version moved, which replaces the "file changed on disk" check.
 - **Stage 2, later and optional, applies them on the server.** The page sends the approved queue items and the server runs `applySession()` on the current data. This removes the whole-document upload; with one DM it is not urgent.
 - **AI calls go through the server.** The browser stops calling Anthropic directly; see "API keys" below.
-- **Configured only by environment variables.** `DATABASE_URL`, `PORT`, `ANTHROPIC_API_KEY`, `DM_ACCESS_TOKEN` and a mirror switch, as Render supplies them; nothing reads a path outside the repo, so the same server moves to Render unchanged.
+- **Configured only by environment variables.** `DATABASE_URL`, `PORT`, `ANTHROPIC_API_KEY`, `DM_ACCESS_TOKEN`, `DM_IDENTITY` and a mirror switch, as Render supplies them; nothing reads a path outside the repo, so the same server moves to Render unchanged.
 
 | Endpoint | What it does | Replaces |
 | --- | --- | --- |
@@ -100,10 +100,18 @@ Today the Anthropic key sits in `shared/config.js` and the browser sends it stra
 - **Keys live only in the server's environment.** `ANTHROPIC_API_KEY` in `.env` locally (already git-ignored) and in a Render secret environment group per environment later. Test and production get different keys, so the test environment never holds a production credential (Hosting.md, rule 1).
 - **The browser never receives a key.** `chronicle-ai.js` posts to `/api/ai/messages`; the direct-browser header and `anthropicApiKey` leave `config.js`. No API response, page or served file contains a key.
 - **The proxy is narrow, not a pass-through.** It accepts only the Messages call, only the models Chronicle uses, a capped `max_tokens` and a capped request size (photos included), forwards no client headers, and streams the reply back as it arrives (the facts read needs streaming).
-- **The proxy and every write are guarded.** In production mode, the AI proxy and all `/api` writes (publish, drafts) need a DM access token, set as the `DM_ACCESS_TOKEN` environment variable and entered once per browser session. Without it they answer 401, so a deployed server cannot be used to spend the key or change the campaign. Phase 8's sign-in replaces the token with accounts. In development the server binds to `localhost` only.
+- **The proxy and every write are guarded.** In production mode, the AI proxy and all `/api` writes (publish, drafts) need a DM access token, set as the `DM_ACCESS_TOKEN` environment variable and entered once per browser session. Without it they answer 401, so a deployed server cannot be used to spend the key or change the campaign. Phase 8's IAM replaces the token with accounts. In development the server binds to `localhost` only.
 - **Spend is capped and logs stay clean.** Each key gets a monthly spend limit in the Anthropic Console. Logs record the model, token counts and status, never a key, a photo or note text.
 - **Rotation is one step:** create a new key, change the environment variable, restart, delete the old key. The README records the steps.
 - **Gemini:** only `intake.html` and `delta-review.html` call it (`chronicle-narrative.js`), and P7-1 retires them. When narrative generation (#45) returns, it uses the same proxy pattern with `GEMINI_API_KEY`.
+
+### Ready for IAM
+
+Phase 8 sets up IAM: one account per person, shared with Storyteller, as the Malvasia [Two-Observer-Model](https://github.com/dgrimesii/Malvasia-Plays-DCC/blob/main/_design/Two-Observer-Model.md) settles (a password hash and a login; no signup, invitations or admin screens), plus roles and infrastructure access. Phase 7 builds three things so IAM slots in without reworking data or code:
+
+- **Every write records its author.** `publishes.author` and `review_drafts.updated_by` are set on every write. Until IAM, the value is the DM's configured identity (`DM_IDENTITY`), never blank or "someone". The Two-Observer-Model is explicit that a shared credential loses who asserted each fact, permanently, so this cannot wait for accounts.
+- **Access is checked in one place.** One server check answers "who is this request, and may they do this?" for every `/api` route. In phase 7 it accepts the DM token; in phase 8 it reads a signed-in session instead, and no route changes.
+- **Two database roles from the first migration.** An owner role runs `npm run db:migrate`; the server connects as an application role that can read and write rows but cannot change the schema. Render's managed Postgres can carry the same split.
 
 ## Database schema
 
@@ -113,8 +121,8 @@ Each campaign object gets its own row with its body in JSONB, beside a version c
 | --- | --- | --- | --- |
 | `campaigns` | Campaign (one today) | `id`, `slug`, `name`, `schema_version`, `meta` jsonb, `spec` jsonb (the four `_` documentation blocks), `version`, `updated_at` | The document's top level. `version` is the publish concurrency check |
 | `campaign_objects` | Entry in any collection | `campaign_id`, `collection`, `id` uuid, `legacy_id`, `name`, `position`, `body` jsonb, `updated_at`, `publish_id` | Every PC, NPC, session, combat (rounds inside its body), relationship, gap and prompt-log entry. Unique legacy id per collection; `position` keeps array order |
-| `publishes` | Publish, import or correction | `id`, `campaign_id`, `kind`, `session_ref`, `base_version`, `new_version`, `summary` jsonb, `label`, `changes` jsonb, `snapshot` jsonb, `created_at` | Replaces git history and `.prev.json`. `changes` lists ids added, changed and removed; `snapshot` is the campaign after, so any publish can be inspected or restored |
-| `review_drafts` | Session under review | `campaign_id`, `session_ref`, `state` jsonb, `base_version`, `updated_at` | Saved review state, deleted when that session publishes |
+| `publishes` | Publish, import or correction | `id`, `campaign_id`, `kind`, `session_ref`, `base_version`, `new_version`, `summary` jsonb, `label`, `changes` jsonb, `snapshot` jsonb, `author`, `created_at` | Replaces git history and `.prev.json`. `changes` lists ids added, changed and removed; `snapshot` is the campaign after, so any publish can be inspected or restored |
+| `review_drafts` | Session under review | `campaign_id`, `session_ref`, `state` jsonb, `base_version`, `updated_by`, `updated_at` | Saved review state, deleted when that session publishes |
 | `draft_pages` | Photo in a draft | `draft_id`, `page`, `mime`, `bytes` bytea | Keeps the compressed photos out of the JSON state |
 | `reference_snapshots` | Captured reference file | `kind`, `label`, `body` jsonb, `captured_at`, `active` | The level 4 and level 5 ability sheets, one marked active |
 
@@ -154,7 +162,7 @@ The browser changes sit mostly in two modules: `chronicle-store.js` for data and
 | `admin/intake.html`, `admin/delta-review.html` | Not ported. Retire them before the switch (the roadmap's next step anyway). Until then they must refuse to publish in API mode, or two stores drift apart |
 | Log viewer and player view | No change beyond the store. The player view on GitHub Pages keeps reading the repo file, which the mirror keeps current, until hosting |
 | `scripts/` | `migrate-opaque-ids.js --check` runs on the export. `harvest-characters.js` gains `--label level-6` and writes a reference snapshot. `build.js` is deleted |
-| Docs | README data architecture, run instructions and key rotation; the storage and key rules in CLAUDE.md; `.env.example` gains `DATABASE_URL_TEST`, `DATABASE_URL_SANDBOX`, `ANTHROPIC_API_KEY` and `DM_ACCESS_TOKEN` (names only, never values) |
+| Docs | README data architecture, run instructions and key rotation; the storage and key rules in CLAUDE.md; `.env.example` gains `DATABASE_URL_TEST`, `DATABASE_URL_SANDBOX`, `ANTHROPIC_API_KEY`, `DM_ACCESS_TOKEN`, `DM_IDENTITY` and the migration role's `DATABASE_URL_OWNER` (names only, never values) |
 
 ## Local development and testing
 
@@ -185,6 +193,7 @@ The existing container holds three databases: your working copy of the real camp
     - drafts save, load, and are deleted by a publish
     - a sandbox request leaves `chronicle_dev` untouched
     - switching the active ability snapshot
+    - every publish and draft write records its author; the application role cannot alter the schema
     - the AI proxy streams a reply, refuses another model, an oversized request and, in production mode, a missing token (401); no response body or header contains the key
 - **One real-code test end to end:** a session publishes through the API with the real `applySession()`, and the result renders through the viewers' own normalisers, as G-8 did for phase 1.
 - **No silent skips.** `run-all.js` runs the database tests when `DATABASE_URL_TEST` is set. When it isn't, it prints that they did not run, rather than passing quietly.
@@ -200,7 +209,7 @@ Eight phase 7 issues, children of #121, each ending with a gate you can run, in 
     - Gate: only the session page can publish; Delta Review's Accept/Defer and `deferred_gaps` are moved or dropped by your decision.
 2. **ADR and server skeleton.** `package.json`, `server/`, the static pages and `/api/health` served by one Node process, `npm run dev`, `npm run db:setup`, the compose healthcheck.
     - Gate: every page works under `npm run dev` exactly as under Live Server, still in file mode; health reports all three databases; the 20 existing tests pass.
-3. **Schema, import and export.** The migrations, `import-campaign.js`, the export, the ability snapshots, and the round-trip tests.
+3. **Schema, import and export.** The migrations (run by the owner role; the server uses the application role), `import-campaign.js`, the export, the ability snapshots, and the round-trip tests.
     - Gate: import then export is deep-equal for the real file and the fixture, and `--check` passes on the export.
 4. **Read and write through the API.** The read endpoints, publish with its version check, the `publishes` log, the mirror, the sandbox and `db:backup`. Then the cutover, steps 1 to 6 of Data migration.
     - Gate: a #17-style Safe Test Mode run publishes to the sandbox and leaves `chronicle_dev` untouched; a stale publish is refused; the next backlog session publishes for real, and its mirror diff is reviewed and committed.
@@ -208,7 +217,7 @@ Eight phase 7 issues, children of #121, each ending with a gate you can run, in 
     - Gate: a reload in the middle of step 4, after grid and passage edits, comes back exactly as it was.
 6. **Scripts and docs.** The harvest script writes snapshots; `--check` runs on the export; `build.js` and `magers-campaign.json.old` go; README and CLAUDE.md describe the database.
     - Gate: no page or script reads `data/` directly (a search proves it), except the mirror writer.
-7. **API keys on the server.** `/api/ai/messages` with its limits, `chronicle-ai.js` switched to it, keys out of `config.js`, the DM access token on the proxy and all writes in production mode, the secret-scan test, spend limits, and the rotation steps in the README.
+7. **API keys on the server.** `/api/ai/messages` with its limits, `chronicle-ai.js` switched to it, keys out of `config.js`, the single access check with the DM access token on the proxy and all writes in production mode, the author recorded on every write, the secret-scan test, spend limits, and the rotation steps in the README.
     - Gate: a full session read runs with no key in the browser (DevTools shows no request to `api.anthropic.com` and no key in any response); the proxy refuses a missing token, another model and an oversized request; the secret-scan test passes.
 8. **Render rehearsal.** Prove the intake could move to Render as it stands, using only the local machine: a fresh, empty database; `npm ci`; `npm run db:migrate`; the import from the frozen file; then `npm start` with `NODE_ENV=production`, the mirror off, and only environment variables for configuration. Add the server to `docker-compose.yml` as a second service for this, so it runs without anything installed on Windows.
     - Gate: that run passes a Safe Test Mode session end to end (upload to publish, a draft restored after a reload, the result in the log viewer); `/api/health` answers as Render's health check would expect; a `pg_dump` restores into another empty database and exports deep-equal; a search finds no runtime read or write outside the database except the switchable mirror; and without the DM token the AI proxy, publish and drafts all answer 401.
@@ -218,9 +227,10 @@ Eight phase 7 issues, children of #121, each ending with a gate you can run, in 
 - **Fully migrated to Postgres.** Every read and write the session intake makes goes through the API to Postgres: the campaign, publishes, saved drafts and the ability sheets. No page or script reads `data/` at runtime. The repo file is only the switchable mirror.
 - **Keys safe to host.** API keys exist only in the server's environment; the browser calls Anthropic through `/api/ai/messages` and never sees a key; the proxy and every write need the DM token in production mode; each key has a spend limit; and rotation is documented.
 - **Could move to Render.** Issue 8's rehearsal passes. The server needs only environment variables, migrations run as their own command, the health endpoint answers, a backup restores, and the intake needs no write access to the repo.
-- **What stays for phase 8, by design:** the Render service and databases themselves, player accounts and sign-in (replacing the DM token), and ending the mirror and repo storage once hosted backups exist.
+- **Ready for IAM.** Every publish and draft records its author; access is decided by one server check; the server runs as an application role that cannot change the schema.
+- **What stays for phase 8, by design:** the Render service and databases themselves, the IAM setup (accounts, roles, sign-in and infrastructure access, replacing the DM token), and ending the mirror and repo storage once hosted backups exist.
 
-Phase 8 (#6) follows without changing this design: the Render service and databases, sign-in, ending repo storage, player rollout, and #51, which can reuse the drafts table's pattern.
+Phase 8 (#6) follows without changing this design: the Render service and databases, IAM, ending repo storage, player rollout, and #51, which can reuse the drafts table's pattern.
 
 ## Risks and open questions
 
@@ -234,6 +244,7 @@ The largest risk is switching stores in the middle of the backlog, so the cutove
 | Something only works on your machine | The move to Render stalls in phase 8 | Issue 8's rehearsal: a clean container, environment variables only, mirror off |
 | A deployed server is used by someone else | Spend on your Anthropic key, or changes to the campaign | The DM token on the proxy and all writes, model and size limits, a spend limit per key |
 | A key leaks into the repo or a page | Anyone can use it | Keys only in environment variables, the secret-scan test, rotation in one step |
+| Publishes before IAM have no real author | Provenance lost for the whole backlog | `author` recorded from the first publish (`DM_IDENTITY`), mapped to the DM's account when IAM arrives |
 | JSONB reorders keys | Noisy mirror diffs | Export with sorted keys; one reformat commit at cutover |
 | Drafts restore only part of the state | Review edits lost without warning | Explicit save and restore for every field, with tests; keep the leave-page warning until proven |
 | First npm dependencies | Install trouble on Windows, upkeep | A small set, lockfile committed, Node scripts only |
@@ -243,7 +254,8 @@ The largest risk is switching stores in the middle of the backlog, so the cutove
 
 - [ ] **When does this start?** #6 originally said after the backlog. Issues 1 to 3 touch no data and could run between backlog sessions, and drafts (issue 5) would help the backlog most.
 - [ ] **Chronicle's own database, or Storyteller's shared store?** This plan assumes Chronicle's own, as #6 does. Hosting.md leaves the timing of Chronicle's write path into the shared store open (question 4).
-- [ ] **A DM access token until sign-in?** It guards the AI proxy and all writes in production mode until phase 8's accounts. The alternative is moving DM sign-in into phase 7.
+- [ ] **A DM access token until IAM?** It guards the AI proxy and all writes in production mode until phase 8's accounts. The alternative is moving DM sign-in into phase 7.
+- [ ] **One account system with Storyteller?** The Two-Observer-Model says Chronicle and Storyteller share accounts. If so, phase 8's IAM is built once for both tools, and its timing ties to Storyteller's.
 - [ ] **Retire Live Server** in favour of `npm run dev`? Recommended.
 - [ ] **Keep the mirror file** until hosted backups exist? Recommended.
 - [ ] **Stack for the ADR:** Fastify, `pg` and `node-pg-migrate`, or something you prefer?
