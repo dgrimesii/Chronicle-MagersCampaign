@@ -82,7 +82,10 @@ Chronicle-MagersCampaign/
 │   └── ai-input-fixtures/            # Captured AI response fixtures for offline test runs
 ├── .vscode/
 │   └── settings.json           # Live Server ignores **/data/**, **/tests/** and **/OCR Test Files/**, so a publish never reloads the page (#97, #106)
-├── .gitignore                  # Ignores shared/config.js, data/magers-campaign.prev.json, tests/output/
+├── docker-compose.yml          # Local Postgres 16 (container local_postgres, port 5432) for rebuild phase 7; nothing reads it yet
+├── .env                        # GITIGNORED — Postgres connection settings (DATABASE_URL, PG*); docker-compose.yml reads PGUSER, PGPASSWORD, PGDATABASE
+├── .env.example                # Tracked template listing the variables .env must set
+├── .gitignore                  # Ignores shared/config.js, .env, data/magers-campaign.prev.json, tests/output/
 ├── CLAUDE.md                   # Behavioural instructions for Claude Code
 └── README.md                   # This file
 ```
@@ -701,6 +704,7 @@ Public API (`window.ChronicleAI`):
 - **Deploy trigger:** Automatic on push to `main`. A Delta Review publish writes only the local file (#97), so Pages shows it once the DM commits and pushes from VS Code
 - **Local:** the DM runs the admin pages from VS Code with Live Server (`http://127.0.0.1:5500/admin/…`). Publishing needs this, in Chrome or Edge
 - `shared/config.js` is gitignored and must be present locally on each admin machine — it is never deployed to Pages. Without it the admin pages still load campaign data, but cannot call the Anthropic or Gemini API, and Safe Test Mode is off.
+- **Local Postgres (phase 7 groundwork):** `docker compose up -d` starts `local_postgres` from `docker-compose.yml`, with credentials taken from `.env`. Copy `.env.example` to `.env` first; compose stops with an error if a value is missing. Postgres reads the credentials only when it creates the `pgdata` volume, so changing `.env` later needs the volume removed (`docker compose down -v`, which deletes the data). No page or script uses the database yet.
 
 ---
 

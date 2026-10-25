@@ -12,3 +12,6 @@ tests/output/
 
 # Photos of real session notes used to test AI extraction (#100); personal, never commit
 OCR Test Files/
+
+# Local Postgres credentials read by docker-compose.yml; .env.example stays tracked
+.env
