@@ -464,20 +464,37 @@
   }
 
   /**
-   * markSubType(row, opts, index) — the same creature in a different role in
-   * one combat (goblins with slings). Adds a roster group to that combat,
-   * labelled `label`, with `role`, pointing at the creature's bestiary entry,
-   * so the bestiary keeps one entry (#94). opts = { combatId, creatureId,
-   * label, role }.
+   * markSubType(row, opts, index, rows) — the same creature in a different
+   * role in one combat (goblins with slings). Adds a roster group to that
+   * combat, labelled `label`, with `role`, pointing at the creature's bestiary
+   * entry, so the bestiary keeps one entry (#94). opts = { combatId,
+   * creatureId, label, role }.
+   *
+   * The combat and the creature may be ones the campaign already has, or ones
+   * another row of this step 3 creates (#119): in a fight that starts in the
+   * session under review, the Goblin Ambush and the Goblins are both new, and
+   * refusing them lost the slinger role (#17, F7). rows is needed to see those
+   * new entities; without it only campaign entities are accepted. The row
+   * itself cannot supply either: a sub-type row creates nothing.
+   *
+   * toNew marks an answer that leans on a new entity, so reopen() reopens it
+   * when the row that created that entity is reopened, as it does for a link.
    */
-  function markSubType(row, opts, index) {
+  function markSubType(row, opts, index, rows) {
     const o = opts || {};
-    const combat = index.entities.get(o.combatId);
-    const creature = index.entities.get(o.creatureId);
-    if (!combat || combat.array !== 'combat_encounters') throw new Error('Pick the combat the sub-type fights in.');
-    if (!creature || creature.array !== 'bestiary') throw new Error('Pick the creature it is a sub-type of.');
+    const made = newEntities((rows || []).filter(r => r !== row));
+    // An entity of the right array, from the campaign or made in this step 3.
+    const find = (id, array) => {
+      const e = index.entities.get(id) || made.get(id);
+      return e && e.array === array ? e : null;
+    };
+    const combat = find(o.combatId, 'combat_encounters');
+    const creature = find(o.creatureId, 'bestiary');
+    if (!combat) throw new Error('Pick the combat the sub-type fights in.');
+    if (!creature) throw new Error('Pick the creature it is a sub-type of.');
     if (!o.label || !o.label.trim() || !o.role || !o.role.trim()) throw new Error('Give the group a label and a role.');
     row.resolution = { action: 'subtype', combatId: combat.id, creatureId: creature.id, label: o.label.trim(), role: o.role.trim() };
+    if (made.has(combat.id) || made.has(creature.id)) row.resolution.toNew = true;
     row.status = 'settled';
   }
 
@@ -568,8 +585,12 @@
     row.status = 'pending';
     row.resolution = null;
     const reopened = [row.key];
+    // A link names its new entity in entityId; a sub-type (#119) may lean on
+    // a new combat, a new creature or both. Either way the answer no longer
+    // makes sense once the entity it points at is gone, so it reopens too.
+    const leansOnMade = res => res?.toNew && [res.entityId, res.combatId, res.creatureId].some(id => id && made.has(id));
     for (const r of rows || []) {
-      if (r !== row && r.resolution?.toNew && made.has(r.resolution.entityId)) reopened.push(...reopen(r, rows));
+      if (r !== row && leansOnMade(r.resolution)) reopened.push(...reopen(r, rows));
     }
     return reopened;
   }
@@ -691,7 +712,9 @@
    *                                  and the words as an alias when they differ
    *   acknowledge (inexact) / link → MOD _alias_append on the entity
    *   separate                     → MOD _note_append on the look-alike
-   *   subtype                      → MOD _roster_group_append on the combat
+   *   subtype                      → MOD _roster_group_append on the combat,
+   *                                  or the group in the NEW combat's roster
+   *                                  when this step 3 creates the combat (#119)
    * Exact acknowledgements write nothing: the data already says it.
    * One alias item per entity, so two spellings linked to Belfar add both.
    */
@@ -704,6 +727,7 @@
       if (!aliases.get(id).some(x => norm(x) === norm(a))) aliases.get(id).push(a);
     };
     const created = new Map(); // id → its NEW item's rawData, for aliases linked to it
+    const subtypes = []; // sub-type answers, written after every NEW item (#119)
     const newEntity = (array, id, name, asWritten) => {
       const rawData = { _object_type: OBJECT_TYPE[array], id };
       created.set(id, rawData);
@@ -732,11 +756,26 @@
       } else if (res.action === 'split') {
         for (const p of res.parts) if (!p.existing) newEntity(p.array, p.entityId, p.name, null);
       } else if (res.action === 'subtype') {
-        items.push({ id: 'ident_roster_' + res.combatId + '_' + norm(res.label), type: 'MOD', array: 'combat_encounters', status: 'approved',
-          targetId: res.combatId, title: `Roster group ${res.label}`,
-          rawData: { id: res.combatId, _roster_group_append: { actor_id: res.label, type: 'group', mon_ref: res.creatureId,
-            count: null, count_remaining: null, notes: null, role: res.role } } });
+        subtypes.push(res);
       }
+    }
+    // Sub-types go last, once every NEW item exists: the combat a sub-type
+    // fights in may be created by a row sorted after it (#119).
+    for (const res of subtypes) {
+      const group = { actor_id: res.label, type: 'group', mon_ref: res.creatureId, count: null, count_remaining: null, notes: null, role: res.role };
+      const freshCombat = created.get(res.combatId);
+      if (freshCombat) {
+        // A combat this step 3 creates gets the group in its NEW item's
+        // roster, so the combat is written whole in one item rather than
+        // created and then changed by a MOD that must find it.
+        freshCombat.mechanics = freshCombat.mechanics || {};
+        const roster = freshCombat.mechanics.enemies_roster = freshCombat.mechanics.enemies_roster || [];
+        if (!roster.some(g => g.actor_id === group.actor_id)) roster.push(group);
+        continue;
+      }
+      items.push({ id: 'ident_roster_' + res.combatId + '_' + norm(res.label), type: 'MOD', array: 'combat_encounters', status: 'approved',
+        targetId: res.combatId, title: `Roster group ${res.label}`,
+        rawData: { id: res.combatId, _roster_group_append: group } });
     }
     for (const [id, list] of aliases) {
       // Words linked to an entity this session creates go on its NEW item.

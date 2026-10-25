@@ -1165,11 +1165,24 @@ function renderForm(r, action) {
   }
   if (action === 'subtype') {
     const g = session.index.entities.get(r.matchId);
-    const creature = g?.array === 'enemies_roster' ? g.monRef : (g?.array === 'bestiary' ? g.id : '');
-    const combat = g?.array === 'enemies_roster' ? g.combatId : [...session.index.entities.values()].find(e => e.open)?.id;
+    // A combat or creature another row of this step 3 creates can be picked
+    // too (#119): in a fight that starts this session, both are new.
+    const made = [...ChronicleEntities.newEntities(session.rows).values()].filter(e => e.rowKey !== r.key);
+    const madeOf = array => made.filter(e => e.array === array);
+    const freshOptions = (array, selected) => madeOf(array).length ? `<optgroup label="Created in this session">${madeOf(array).map(e =>
+      `<option value="${escapeHtml(e.id)}" ${e.id === selected ? 'selected' : ''}>${escapeHtml(e.name)} (new)</option>`).join('')}</optgroup>` : '';
+    // The creature is preselected from the row's match; failing that, a new
+    // creature with the same name as the words (a "Goblins" row created this
+    // session) is the likely base.
+    const creature = g?.array === 'enemies_roster' ? g.monRef : (g?.array === 'bestiary' ? g.id
+      : madeOf('bestiary').find(e => e.name.toLowerCase() === r.asWritten.toLowerCase())?.id || '');
+    // The combat is the row's own, else an open campaign combat, else the one
+    // combat this session creates if there is exactly one.
+    const combat = g?.array === 'enemies_roster' ? g.combatId
+      : [...session.index.entities.values()].find(e => e.open)?.id || (madeOf('combat_encounters').length === 1 ? madeOf('combat_encounters')[0].id : undefined);
     return `<div class="ident-form">
-      <select id="f-combat">${entityOptions(['combat_encounters'], combat)}</select>
-      <select id="f-creature">${entityOptions(['bestiary'], creature)}</select>
+      <select id="f-combat">${freshOptions('combat_encounters', combat)}<optgroup label="In the campaign">${entityOptions(['combat_encounters'], combat)}</optgroup></select>
+      <select id="f-creature">${freshOptions('bestiary', creature)}<optgroup label="In the campaign">${entityOptions(['bestiary'], creature)}</optgroup></select>
       <input id="f-label" placeholder="Group label, e.g. Goblin Slingers" value="${escapeHtml(r.asWritten)}" size="22">
       <input id="f-role" placeholder="Role, e.g. slinger" size="12">${go('Add group')}</div>`;
   }
@@ -1260,7 +1273,8 @@ function submitForm(key, action) {
       for (const o of document.getElementById('f-split-existing').selectedOptions) parts.push({ linkId: o.value });
       ChronicleEntities.split(r, parts, session.index);
     }
-    if (action === 'subtype') ChronicleEntities.markSubType(r, { combatId: val('f-combat'), creatureId: val('f-creature'), label: val('f-label'), role: val('f-role') }, session.index);
+    // session.rows lets the sub-type use a combat or creature this step 3 creates (#119).
+    if (action === 'subtype') ChronicleEntities.markSubType(r, { combatId: val('f-combat'), creatureId: val('f-creature'), label: val('f-label'), role: val('f-role') }, session.index, session.rows);
     session.openForm = null;
   });
 }
@@ -1513,15 +1527,31 @@ function gridContext(combatRef, assignments) {
     // which otherwise discards grid edits.
     newName: session.combatNames ? session.combatNames.get(combatRef) : undefined,
     recordedOrder: last ? last.slots.slice().sort((a, b) => a.s - b.s).map(s => s.a) : null,
-    rosterLabels: new Set(((cbt && cbt.mechanics && cbt.mechanics.enemies_roster) || []).map(g => g.actor_id)),
+    // A sub-type group step 3 added (#119) counts as on the roster: step 3's
+    // publish item already writes it with its role, so the grid must not
+    // offer it again as a new group without one.
+    rosterLabels: new Set(((cbt && cbt.mechanics && cbt.mechanics.enemies_roster) || []).concat(subtypeGroups(combatRef)).map(g => g.actor_id)),
   };
 }
 
-// rosterOf(grid) → the combat's recorded roster, for the action-economy
-// check's starting counts.
+/**
+ * subtypeGroups(combatRef) → the roster groups step 3's "mark as sub-type"
+ * answers add to that combat, in roster shape. Exists because those groups
+ * are not in the campaign until publish, yet the grid and the round checks
+ * must treat them as part of the roster (#119): otherwise the grid would add
+ * each one a second time, without its role.
+ */
+function subtypeGroups(combatRef) {
+  return (session.rows || []).map(r => r.resolution)
+    .filter(res => res && res.action === 'subtype' && res.combatId === combatRef)
+    .map(res => ({ actor_id: res.label, type: 'group', mon_ref: res.creatureId, count: null, count_remaining: null, notes: null, role: res.role }));
+}
+
+// rosterOf(grid) → the combat's recorded roster, plus the sub-type groups
+// step 3 adds to it (#119), for the action-economy check's starting counts.
 function rosterOf(grid) {
   const cbt = session.campaign.combat_encounters.find(c => c.id === grid.combat);
-  return (cbt && cbt.mechanics && cbt.mechanics.enemies_roster) || [];
+  return ((cbt && cbt.mechanics && cbt.mechanics.enemies_roster) || []).concat(subtypeGroups(grid.combat));
 }
 
 /**

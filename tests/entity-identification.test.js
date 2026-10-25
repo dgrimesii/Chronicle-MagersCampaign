@@ -21,6 +21,9 @@
  *   I-11  adding an entity the read missed (#115): on every page, matched
  *         like a read row, settled as usual, usable by the facts read and
  *         by quest progress at publish; removed while unsettled
+ *   I-12  a sub-type in a combat and of a creature both created this step 3
+ *         (#119): accepted, written in the new combat's roster with its role,
+ *         reopened with the row that created either
  *
  * WHY THIS FILE EXISTS
  * --------------------
@@ -504,6 +507,67 @@ console.log('\nTest I-11 — adding an entity the read missed (#115)');
   assert('I-11: step 3 has an "Add an entity the read missed" form that adds to every page',
     />\+ Add an entity the read missed</.test(html) && /pages: session\.extract\.map\(ex => ex\.page\)/.test(html) && /onclick="addEntityRow\(\)">Add</.test(html));
   assert('I-11: an added row says so and offers Remove', /Added by you, on every page/.test(html) && /removeEntityRow\('\$\{k\}'\)">Remove</.test(html));
+}
+
+// ── I-12 ────────────────────────────────────────────────────────────────────
+// #119: in #17 Run B the Goblin Ambush and the Goblins were both new in the
+// session under review, so "Slinge" could not be marked a sub-type and the
+// slinger role was lost. A sub-type may now lean on a combat and a creature
+// another row of the same step 3 creates.
+console.log('\nTest I-12 — a sub-type of a creature in a combat both created this session (#119)');
+{
+  const rows = E.buildRows([{ page: 1, mentions: [
+    { kind: 'creature', as_written: 'Kobold Slingers' },
+    { kind: 'combat', as_written: 'Bridge Ambush' },
+    { kind: 'creature', as_written: 'Mire Kobolds' }] }], index);
+  const slingers = row(rows, 'Kobold Slingers'), fight = row(rows, 'Bridge Ambush'), kobolds = row(rows, 'Mire Kobolds');
+  assert('I-12: all three are new to the campaign', [slingers, fight, kobolds].every(r => r.matchType === 'new'));
+  E.acknowledge(fight, 'Bridge Ambush');
+  E.acknowledge(kobolds, 'Mire Kobolds');
+  const opts = { combatId: fight.resolution.entityId, creatureId: kobolds.resolution.entityId, label: 'Kobold Slingers', role: 'slinger' };
+  assert('I-12: without the rows, new entities are still refused (campaign only)', throws(() => E.markSubType(slingers, opts, index)));
+  assert('I-12: a new combat used as the creature is refused',
+    throws(() => E.markSubType(slingers, Object.assign({}, opts, { creatureId: fight.resolution.entityId }), index, rows)));
+  E.markSubType(slingers, opts, index, rows);
+  assert('I-12: the sub-type is accepted against the new combat and creature',
+    slingers.status === 'settled' && slingers.resolution.combatId === opts.combatId && slingers.resolution.creatureId === opts.creatureId && slingers.resolution.toNew === true);
+  const occ = E.resolveOccurrences(rows, index).get(slingers.occurrences[0].id);
+  assert('I-12: its occurrences are the new combat\'s roster group, pointing at the new creature',
+    occ.roster && occ.roster.combatId === opts.combatId && occ.roster.label === 'Kobold Slingers' && occ.entityId === opts.creatureId);
+
+  // The sub-type row sorts before the combat row; the group must still land.
+  const items = E.toQueueItems(rows, index, 'session_008');
+  const newCombat = items.find(i => i.type === 'NEW' && i.array === 'combat_encounters');
+  const group = newCombat && (newCombat.rawData.mechanics?.enemies_roster || []).find(g => g.actor_id === 'Kobold Slingers');
+  assert('I-12: the group is in the new combat\'s NEW item, with its role and the creature as mon_ref',
+    group && group.role === 'slinger' && group.mon_ref === opts.creatureId && group.type === 'group');
+  assert('I-12: no separate roster MOD is queued for a combat that does not exist yet', !items.some(i => i.rawData && i.rawData._roster_group_append));
+  const out = ChroniclePublish.applySession(campaign, items).campaign;
+  const written = out.combat_encounters.find(c => c.id === opts.combatId);
+  assert('I-12: publish writes the combat with the slinger group and its role',
+    written && written.mechanics.enemies_roster.some(g => g.actor_id === 'Kobold Slingers' && g.role === 'slinger' && g.mon_ref === opts.creatureId));
+  assert('I-12: the base creature is written to the bestiary once, with no slinger entry',
+    out.bestiary.filter(b => b.id === opts.creatureId).length === 1 && !out.bestiary.some(b => b.name === 'Kobold Slingers'));
+
+  // A campaign combat with a new creature still uses a roster MOD.
+  const mixed = E.buildRows([{ page: 1, mentions: [{ kind: 'creature', as_written: 'Ridge Kobolds' }, { kind: 'creature', as_written: 'Ridge Slingers' }] }], index);
+  E.acknowledge(row(mixed, 'Ridge Kobolds'), 'Ridge Kobolds');
+  E.markSubType(row(mixed, 'Ridge Slingers'), { combatId: ID.ambush, creatureId: row(mixed, 'Ridge Kobolds').resolution.entityId, label: 'Ridge Slingers', role: 'slinger' }, index, mixed);
+  const mod = E.toQueueItems(mixed, index, 'session_008').find(i => i.rawData && i.rawData._roster_group_append);
+  assert('I-12: a sub-type in a campaign combat is still a roster MOD on that combat, with its role',
+    mod && mod.targetId === ID.ambush && mod.rawData._roster_group_append.role === 'slinger');
+
+  // Reopening the row that created the creature or the combat reopens the sub-type.
+  const reopened = E.reopen(kobolds, rows);
+  assert('I-12: reopening the new creature reopens the sub-type that leaned on it',
+    reopened.includes(slingers.key) && slingers.status === 'pending' && fight.status === 'settled');
+  E.acknowledge(kobolds, 'Mire Kobolds');
+  E.markSubType(slingers, Object.assign({}, opts, { creatureId: kobolds.resolution.entityId }), index, rows);
+  assert('I-12: reopening the new combat reopens it too', E.reopen(fight, rows).includes(slingers.key) && slingers.status === 'pending');
+
+  const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'session.html'), 'utf8');
+  assert('I-12: the page passes its rows to markSubType and lists new combats and creatures in the form',
+    /markSubType\([^;]*session\.index, session\.rows\)/.test(html) && /freshOptions\('combat_encounters'/.test(html) && /freshOptions\('bestiary'/.test(html));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
