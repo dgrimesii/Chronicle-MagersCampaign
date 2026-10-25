@@ -1,0 +1,217 @@
+# Chronicle Phase 7 — Postgres migration plan
+
+Oct 25, 2026 · David Grimes
+
+*Plan for phase 7 (#6): moving campaign storage from the repo to Postgres. Exported from the working plan doc on 25 October 2026. Open questions are at the end.*
+
+## Summary
+
+Phase 7 moves the campaign data out of `data/magers-campaign.json` and into Postgres, behind a small Node API, without changing how the pages behave. Every page already reads and writes through one module, `shared/chronicle-store.js` (#96), so the browser side changes in that file and almost nowhere else. Every step is built and tested against the local Postgres container before anything is hosted.
+
+What this plan delivers, in order:
+
+- A Node server that serves the pages and an `/api`, replacing Live Server.
+- A schema and an import that loads the current campaign, proven by exporting it back to identical JSON.
+- Reads, then publishes, through the API, with each publish recorded in the database instead of in git.
+- Saved review drafts, so a reload no longer loses review work.
+- Automated tests against a throwaway test database, and Safe Test Mode against a sandbox database.
+
+It rests on decisions already made in #6 and the Malvasia [Hosting.md](https://github.com/dgrimesii/Malvasia-Plays-DCC/blob/main/_delivery/Hosting.md): PostgreSQL with JSONB, Render later for hosting, the opaque UUIDs from #95, and the storage module as the single seam.
+
+Out of scope here, and left to the other #6 children: deploying to Render, sign-in, the server-side AI proxy and the player rollout. The plan is shaped so they follow without rework.
+
+## Where storage stands today
+
+All campaign data is one 343 KB JSON file at schema 5.0.1, and every page reaches it through `ChronicleStore`. Nothing reads Postgres yet. As of `4a31b0c`:
+
+| What | Lives in | Read by | Written by |
+| --- | --- | --- | --- |
+| Campaign data | `data/magers-campaign.json` | `ChronicleStore.loadCampaign()` on 7 pages: session, intake, delta review, integrity, log editor, log viewer, player view | `ChronicleStore.publishSession()` through the File System Access API; the `scripts/migrate-*.js` migrations; hand edits |
+| Publish base | The same file, read from disk in your clone | `loadPublishBase()` | Publish stops if the file changed on disk since it was loaded |
+| History and undo | Git history; `data/magers-campaign.prev.json` (git-ignored, one step back) | You, in VS Code | `publishSession()` keeps the previous file before overwriting |
+| Safe Test Mode | `tests/fixtures/test-campaign.json` in, `tests/output/test-campaign.published.json` out | `loadCampaign()` in test mode | `publishSession()` in test mode; the fixture is never written |
+| PC ability sheets | `data/pc-abilities.json` (level 4, live) and the level 4 and level 5 snapshots | Direct `fetch()` in session, intake and delta review pages and `chronicle-ai.js`, not through the store | `scripts/harvest-characters.js` |
+| Review drafts | Page memory only | `loadDraft()` is a stub that rejects | `saveDraft()` is a stub that rejects |
+| Settings and keys | `shared/config.js` (git-ignored): `safeTestMode`, Anthropic and Gemini keys | `chronicle-store.js`, `chronicle-ai.js` | You |
+| Postgres | `local_postgres` container, `postgres:16-alpine`, port 5432, credentials from `.env` (`a1799f8`) | Nothing | Nothing |
+
+The file holds 10 populated collections (party 6, session_logs 7, npc_directory 11, bestiary 7, locations 13, inventory_and_loot 11, quest_ledger 5, combat_encounters 6, character_moments 3, world_lore 3), 4 empty ones (entity_relationships, factions, cohorts, prompt_improvement_log), `meta`, and the schema documentation blocks (`_about`, `_design_principles`, `_field_type_reference`, `_id_registry`). Publish can also create `deferred_gaps`.
+
+Three things matter for the move:
+
+- **Publish replaces the whole document.** `applySession()` runs in the browser and returns a new campaign; the store writes it whole.
+- **The repo has no `package.json`.** Every test runs on plain Node with no dependencies, so the server is the project's first npm dependency set.
+- **Leftovers to retire:** `scripts/build.js` still rebuilds an `EMBEDDED_DATA` block that neither viewer contains any more, and `data/magers-campaign.json.old` is still tracked.
+
+## Target architecture
+
+One Node server serves the pages and a JSON API, and it is the only thing that talks to Postgres; the browser never connects to the database. Locally it runs beside the Postgres container. On Render the same server runs against managed Postgres.
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    Pages["Pages<br/>session page, viewers,<br/>player view, integrity"] --> Store["ChronicleStore<br/>the only data access<br/>file mode or API mode"]
+  end
+  subgraph Server["Node server"]
+    Static["Static files<br/>admin/, player/, shared/<br/>replaces Live Server"]
+    API["/api<br/>campaign, publish,<br/>drafts, history, export"] --> Shared["Shared modules<br/>ChroniclePublish,<br/>ChronicleIds, checks"]
+  end
+  subgraph PG["Postgres 16 in Docker"]
+    Dev["chronicle_dev<br/>the real campaign,<br/>record until hosting"]
+    Sandbox["chronicle_sandbox<br/>Safe Test Mode,<br/>reset from the fixture"]
+    Test["chronicle_test<br/>automated tests,<br/>emptied every run"]
+  end
+  Static -- pages --> Pages
+  Store <-- JSON --> API
+  API <-- SQL --> PG
+  Browser -. while local .-> Anthropic["Anthropic API<br/>reads; key in config.js"]
+  Server -. after each publish .-> Mirror["data/magers-campaign.json<br/>mirror until hosting"]
+```
+
+`/api` is the new seam. The dotted links are temporary: the mirror file ends when hosted backups exist, and AI calls move behind the server with hosting.
+
+- **The server serves the pages too.** One origin means no CORS, the pages' relative paths keep working, and Live Server's reload problems go away. `npm run dev` replaces Live Server.
+- **Node, because the shared modules already run on it.** The tests `require` them today, so the server can reuse `ChroniclePublish`, `ChronicleIds` and the integrity checks. Suggested stack, to be ratified in an ADR as Hosting.md asks: Fastify, `pg` and `node-pg-migrate`, in a new `server/` folder.
+- **The API keeps the store's contract.** `loadCampaign()` still returns the raw 5.0.1 JSON, so no page changes how it reads or normalises data.
+- **Stage 1 still applies publishes in the browser.** The page sends the new campaign and the version it was built on. The server writes the difference in one transaction, or refuses with 409 if the version moved, which replaces the "file changed on disk" check.
+- **Stage 2, later and optional, applies them on the server.** The page sends the approved queue items and the server runs `applySession()` on the current data. This removes the whole-document upload; with one DM it is not urgent.
+- **AI calls stay in the browser while Chronicle is local.** The keys stay in `config.js` until the AI proxy child of #6 moves them server-side for hosting.
+
+| Endpoint | What it does | Replaces |
+| --- | --- | --- |
+| `GET /api/health` | Server up, database reachable, schema version | — |
+| `GET /api/campaign` | The assembled campaign JSON, with its version as the ETag | Fetching `data/magers-campaign.json` |
+| `GET /api/campaign/base` | The same, for a publish to build on | `loadPublishBase()` reading the file from disk |
+| `POST /api/campaign/publish` | Body: base version, new campaign, summary, session. One transaction; 409 if the version moved; returns the new version and publish id | The File System Access write and `.prev.json` |
+| `GET /api/publishes`, `GET /api/publishes/:id` | Publish history, and the campaign as it stood after any publish | `git log` and `git show` on the data file |
+| `GET`, `PUT`, `DELETE /api/drafts/:session` | Saved review state for one session | The `saveDraft()` and `loadDraft()` stubs |
+| `GET /api/reference/pc-abilities` | The active ability snapshot; others by label (`level-4`, `level-5`) | Fetching `data/pc-abilities.json` |
+| `GET /api/export` | The campaign as a JSON file with stable key order | The repo copy as the backup |
+
+## Database schema
+
+Each campaign object gets its own row with its body in JSONB, beside a version counter and a publish log; the API reassembles the 5.0.1 document from those rows. Turns, outcomes and passages stay JSON-shaped inside their objects, as #6 decided.
+
+| Table | One row per | Main columns | Why |
+| --- | --- | --- | --- |
+| `campaigns` | Campaign (one today) | `id`, `slug`, `name`, `schema_version`, `meta` jsonb, `spec` jsonb (the four `_` documentation blocks), `version`, `updated_at` | The document's top level. `version` is the publish concurrency check |
+| `campaign_objects` | Entry in any collection | `campaign_id`, `collection`, `id` uuid, `legacy_id`, `name`, `position`, `body` jsonb, `updated_at`, `publish_id` | Every PC, NPC, session, combat (rounds inside its body), relationship, gap and prompt-log entry. Unique legacy id per collection; `position` keeps array order |
+| `publishes` | Publish, import or correction | `id`, `campaign_id`, `kind`, `session_ref`, `base_version`, `new_version`, `summary` jsonb, `label`, `changes` jsonb, `snapshot` jsonb, `created_at` | Replaces git history and `.prev.json`. `changes` lists ids added, changed and removed; `snapshot` is the campaign after, so any publish can be inspected or restored |
+| `review_drafts` | Session under review | `campaign_id`, `session_ref`, `state` jsonb, `base_version`, `updated_at` | Saved review state, deleted when that session publishes |
+| `draft_pages` | Photo in a draft | `draft_id`, `page`, `mime`, `bytes` bytea | Keeps the compressed photos out of the JSON state |
+| `reference_snapshots` | Captured reference file | `kind`, `label`, `body` jsonb, `captured_at`, `active` | The level 4 and level 5 ability sheets, one marked active |
+
+- **Rows, not one blob.** A single JSONB document would do for stage 1, but every later need is per object: one NPC's history, relationships computed in a query (#106 made them derived), and filtering what players see inside the query (Hosting.md C5). Rows now avoid a second data migration later.
+- **JSONB, not fully relational.** The turn schema moved from 5.0.0 to 5.0.1 in a week. A field becomes a column only when a query needs it.
+- **IDs.** The #95 UUIDs become primary keys unchanged. New ids still come from `ChronicleIds.newId()` in the browser; Hosting.md C15 wants the store to allocate them, which fits stage 2.
+- **Key order.** JSONB does not keep key order, so round trips are checked by deep equality, not text. The first export writes sorted keys once: one large diff with no meaning.
+- **Snapshot size.** About 0.35 MB per publish, so roughly 10 MB for the backlog. Prune later if it ever matters.
+- **Schema migrations** are numbered SQL files run by `npm run db:migrate` as their own step, never on server start (Hosting.md, Pipeline).
+
+## Data migration
+
+A one-way import loads the campaign file into Postgres, and the move counts only when exporting it back gives a deep-equal document. Until hosted backups exist, the file stays current as a mirror, so switching back is one setting.
+
+1. **Freeze.** Choose the commit to import from: the tip after the last session published to the file. Run the test suite and `node scripts/migrate-opaque-ids.js data/magers-campaign.json --check` on it, and note the file's hash.
+2. **Import the campaign.** `node server/scripts/import-campaign.js data/magers-campaign.json` creates the `campaigns` row (meta, documentation blocks, schema version), one `campaign_objects` row per entry with its position, and a `publishes` row of kind `import` holding the whole file and its hash. It refuses if the campaign already exists, unless run with `--replace`.
+3. **Import the ability sheets** as `reference_snapshots`: `level-4` active and `level-5` inactive. Confirm `data/pc-abilities.json` is byte-identical to the level 4 file first, so it needs no row of its own.
+4. **Verify.** Export and deep-compare with the file; compare counts per collection; run `--check` on the export; open the log viewer, player view and session page against the API and against the file, and compare.
+5. **Switch.** Set the store to the API (`storage: 'api'` in `config.js`). Publishes now go to Postgres.
+6. **Mirror while local.** After each publish the local server writes the export to `data/magers-campaign.json`, and you commit it as you do now. Git stays a second history, and `storage: 'file'` restores the old behaviour.
+7. **End the mirror** once hosted production has its backups (Render point-in-time restore and the weekly R2 export in Hosting.md). The file is then archived as the last pre-database copy.
+
+Not imported: `data/magers-campaign.json.old` (archive or delete it), `data/magers-campaign.prev.json` (git-ignored), and `tests/fixtures/test-campaign.json`, which stays in the repo as the seed for the test and sandbox databases. The `scripts/migrate-*.js` files have already run and stay as history. Future data migrations run against the database and are logged as `publishes` of kind `migration`.
+
+## Application changes
+
+The browser changes sit almost entirely in `chronicle-store.js`. Pages change only where they bypass the store (the ability-sheet fetches) and where saved drafts add new behaviour.
+
+| Where | Change |
+| --- | --- |
+| `shared/chronicle-store.js` | A `storage` setting in `config.js`: `'file'` until cutover, then `'api'`. In API mode `loadCampaign()` and `loadPublishBase()` call the API, and `publishSession()` posts with the base version. A 409 shows the same "the campaign changed since you loaded it" error as today. It returns the version and publish id in place of a file path. `saveDraft()`, `loadDraft()` and a new `loadReference('pc-abilities')` are implemented. The file-mode code is deleted when the mirror ends |
+| Safe Test Mode | Still decided only in the store. In API mode every call carries a sandbox header, and the server uses the sandbox database and never opens the real one for that request. `npm run db:sandbox:reset` reseeds it from the fixture. This replaces `tests/output/` |
+| Ability-sheet fetches in `session.html`, `intake.html`, `delta-review.html` and `chronicle-ai.js` | Go through `ChronicleStore.loadReference('pc-abilities')`, which returns the active snapshot |
+| `admin/session.html` | Saves the review state on every change (debounced): rows, facts, grids, passage and fact edits, decisions, combat names. Photos upload once to `draft_pages`. On load it offers to resume a saved review, and publish deletes the draft. Several state fields are `Map`s (`combatNames`, assignments), so drafts need an explicit save-and-restore pair with its own tests. Keep the leave-page warning until restore is proven |
+| `admin/intake.html`, `admin/delta-review.html` | Not ported. Retire them before the switch (the roadmap's next step anyway). Until then they must refuse to publish in API mode, or two stores drift apart |
+| Log viewer and player view | No change beyond the store. The player view on GitHub Pages keeps reading the repo file, which the mirror keeps current, until hosting |
+| `scripts/` | `migrate-opaque-ids.js --check` runs on the export. `harvest-characters.js` gains `--label level-6` and writes a reference snapshot. `build.js` is deleted |
+| Docs | README data architecture and run instructions, the storage rule in CLAUDE.md, and `.env.example` gains `DATABASE_URL_TEST` and `DATABASE_URL_SANDBOX` |
+
+## Local development and testing
+
+The existing container holds three databases: your working copy of the real campaign, a sandbox for Safe Test Mode, and a test database the automated tests wipe on every run. Nothing local ever points at a hosted database.
+
+| Database | Holds | Reset | Used by |
+| --- | --- | --- | --- |
+| `chronicle_dev` | The imported real campaign; the record until hosting | Never automatically; backed up before every import or migration | `npm run dev`, real publishes |
+| `chronicle_sandbox` | The test fixture | `npm run db:sandbox:reset` | Safe Test Mode and gate runs like #17 |
+| `chronicle_test` | The fixture and test data | Emptied before each test file | `npm run test:db` |
+
+**Setup**
+
+- `.env` gains `DATABASE_URL_TEST` and `DATABASE_URL_SANDBOX`: the same container, different database names.
+- The `pgdata` volume already exists, so Postgres's first-start init scripts will not run. `npm run db:setup`, a Node script, creates any missing database and runs the migrations on each. Node rather than shell also avoids Windows line endings breaking a script inside the Linux container.
+- Add a `pg_isready` healthcheck to `docker-compose.yml`, so `npm run dev` waits for the database instead of failing at start.
+- Keep the image on the same major version as Render's managed Postgres (16 today).
+- `npm run db:backup` writes a `pg_dump` to a git-ignored `backups/` folder. Run it before an import or a migration; it is cheap enough to run after every publish.
+
+**Tests**
+
+- **The 20 existing test files stay database-free.** They test pure modules in seconds and need no container.
+- **New API tests** in `tests/api/` run the server against `chronicle_test`:
+    - import then export, deep-equal, for the real campaign file and the fixture
+    - a publish, and a publish with a stale version (409, nothing written)
+    - a publish that fails mid-transaction leaves the previous version intact
+    - the publish snapshot equals the export
+    - drafts save, load, and are deleted by a publish
+    - a sandbox request leaves `chronicle_dev` untouched
+    - switching the active ability snapshot
+- **One real-code test end to end:** a session publishes through the API with the real `applySession()`, and the result renders through the viewers' own normalisers, as G-8 did for phase 1.
+- **No silent skips.** `run-all.js` runs the database tests when `DATABASE_URL_TEST` is set. When it isn't, it prints that they did not run, rather than passing quietly.
+- **Browser checks.** Each issue's gate is run in Chrome against `npm run dev`, as #17 was, with Safe Test Mode on the sandbox.
+
+Docker Desktop on Windows runs through WSL 2. Given the `D:` drive history, confirm where the volume lives, and keep npm scripts calling `node` rather than shell utilities.
+
+## Work breakdown
+
+Seven issues, each ending with a gate you can run, in the roadmap's style. Each ships its own tests; the page keeps working in file mode until the cutover in issue 4.
+
+1. **Retire `intake.html` and `delta-review.html`.** Already next on #52, with no issue yet. It leaves the session page as the only writer, so there is one publish path to port.
+    - Gate: only the session page can publish; Delta Review's Accept/Defer and `deferred_gaps` are moved or dropped by your decision.
+2. **ADR and server skeleton.** `package.json`, `server/`, the static pages and `/api/health` served by one Node process, `npm run dev`, `npm run db:setup`, the compose healthcheck.
+    - Gate: every page works under `npm run dev` exactly as under Live Server, still in file mode; health reports all three databases; the 20 existing tests pass.
+3. **Schema, import and export.** The migrations, `import-campaign.js`, the export, the ability snapshots, and the round-trip tests.
+    - Gate: import then export is deep-equal for the real file and the fixture, and `--check` passes on the export.
+4. **Read and write through the API.** The read endpoints, publish with its version check, the `publishes` log, the mirror, the sandbox and `db:backup`. Then the cutover, steps 1 to 6 of Data migration.
+    - Gate: a #17-style Safe Test Mode run publishes to the sandbox and leaves `chronicle_dev` untouched; a stale publish is refused; the next backlog session publishes for real, and its mirror diff is reviewed and committed.
+5. **Saved review drafts.** Autosave and resume on the session page, photos in `draft_pages`, the draft deleted on publish.
+    - Gate: a reload in the middle of step 4, after grid and passage edits, comes back exactly as it was.
+6. **Scripts and docs.** The harvest script writes snapshots; `--check` runs on the export; `build.js` and `magers-campaign.json.old` go; README and CLAUDE.md describe the database.
+    - Gate: no page or script reads `data/` directly (a search proves it), except the mirror writer.
+7. **End repo storage.** Delete file mode and the mirror, and archive the file. This waits for hosted production with backups, a separate #6 child.
+    - Gate: the hosted database is the only record, and restoring a backup has been rehearsed once.
+
+The other #6 children follow from here without changing this design: the Render service and databases, sign-in, the AI proxy, player rollout, and #51, which can reuse the drafts table's pattern.
+
+## Risks and open questions
+
+The largest risk is switching stores in the middle of the backlog, so the cutover happens only between sessions.
+
+| Risk | Effect | Mitigation |
+| --- | --- | --- |
+| Cutover during the backlog | A session reviewed against one store and published to the other | Cut over only between sessions, with nothing under review |
+| The local container is the only record before hosting | A lost Docker volume loses publishes | The mirror file committed after every publish, plus `db:backup` |
+| The old pages still write the file | Two records drift apart | Retire them first (issue 1); in API mode file publishing is refused |
+| JSONB reorders keys | Noisy mirror diffs | Export with sorted keys; one reformat commit at cutover |
+| Drafts restore only part of the state | Review edits lost without warning | Explicit save and restore for every field, with tests; keep the leave-page warning until proven |
+| First npm dependencies | Install trouble on Windows, upkeep | A small set, lockfile committed, Node scripts only |
+| Drift from Storyteller's shared core | A second migration later | UUID-keyed rows map onto shared entities; settle convergence before hosting |
+
+**Open questions for you**
+
+- [ ] **When does this start?** #6 says after the backlog. Issues 1 to 3 touch no data and could run between backlog sessions, and drafts (issue 5) would help the backlog most.
+- [ ] **Chronicle's own database, or Storyteller's shared store?** This plan assumes Chronicle's own, as #6 does. Hosting.md leaves the timing of Chronicle's write path into the shared store open (question 4).
+- [ ] **Retire Live Server** in favour of `npm run dev`? Recommended.
+- [ ] **Keep the mirror file** until hosted backups exist? Recommended.
+- [ ] **Stack for the ADR:** Fastify, `pg` and `node-pg-migrate`, or something you prefer?
+- [ ] **Delta Review's `deferred_gaps`:** carry them into the session page, or drop them when it retires?
