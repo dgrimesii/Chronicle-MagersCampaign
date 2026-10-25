@@ -15,6 +15,9 @@
  *   I-8   linking rows to an entity another row creates
  *   I-9   correcting a row's kind (#114): matched again, merged, refused
  *         when settled; a corrected creature is created in the bestiary
+ *   I-10  "Not an entity" (#113): no publish item, no flag; downstream a
+ *         target keeps its words, an actor is held, a passage about it goes
+ *         on the session; Change undoes it
  *
  * WHY THIS FILE EXISTS
  * --------------------
@@ -381,6 +384,64 @@ console.log('\nTest I-9 — correcting a row\'s kind (#114)');
   assert('I-9: an unsettled row shows a kind dropdown that calls changeKind; a settled row shows its label',
     /onchange="changeKind\('\$\{k\}', this\.value\)">\$\{kindOptions\(r\.kind\)\}<\/select>/.test(page) && /<span class="ident-kind">\$\{escapeHtml\(kind\.label\)\}<\/span>/.test(page));
   assert('I-9: changeKind replaces the rows with setKind\'s result', /session\.rows = ChronicleEntities\.setKind\(session\.rows, rowOf\(key\), kind, session\.index\)/.test(page));
+}
+
+console.log('\nTest I-10 — "Not an entity" (#113)');
+{
+  // The #17 gate: Tavern, Shop, Main St., Dwarves, Gnomes and Humans could
+  // only be created as entities, so publish wrote junk bestiary entries.
+  const F = require('../shared/chronicle-facts.js');
+  const G = require('../shared/chronicle-grid.js');
+  const index = E.buildIndex(campaign);
+  const page = { page: 1, mentions: [
+    { kind: 'place', as_written: 'Tavern', context: 'Tavern, Shop, Main St.' },
+    { kind: 'creature', as_written: 'Dwarves', context: 'Mines run by Dwarves, Gnomes, Humans' },
+    { kind: 'creature', as_written: 'Dwarves', context: 'Dwarves - hit Mal' },
+    { kind: 'pc', as_written: 'Mal', context: 'Mal - Hit Dwarves' },
+    { kind: 'npc', as_written: 'Helen', context: 'Helen' },
+  ] };
+  const rows = E.buildRows([page], index);
+  const row = w => rows.find(r => r.asWritten === w);
+  E.dismiss(row('Tavern')); E.dismiss(row('Dwarves'));
+  E.bulkAcknowledgeExact(rows);
+  assert('I-10: a dismissed row is settled, with no entity', row('Tavern').status === 'settled' && row('Tavern').resolution.action === 'dismiss' && !row('Tavern').resolution.entityId);
+  assert('I-10: every row settled lets step 3 continue', E.allSettled(rows));
+  const items = E.toQueueItems(rows, index, 'session_008');
+  assert('I-10: no publish item for a dismissed row', !items.some(i => /Tavern|Dwarves/.test(JSON.stringify(i))));
+  assert('I-10: it creates no entity', ![...E.newEntities(rows).values()].some(e => /Tavern|Dwarves/.test(e.name)));
+  assert('I-10: it raises no flag', !E.flags(rows, index).some(x => /Tavern|Dwarves/.test(x.name)));
+  const resolved = E.resolveOccurrences(rows, index);
+  assert('I-10: its occurrences resolve as dismissed', row('Dwarves').occurrences.every(o => resolved.get(o.id).dismissed === true));
+  const refs = F.pageReferences(1, rows, index);
+  const dw = refs.filter(r => r.asWritten === 'Dwarves');
+  assert('I-10: the facts read is told the words are not an entity, never an actor', dw.length === 2 && dw.every(r => r.dismissed && !r.entityId && /never an actor/.test(r.label)));
+  // A fact that still uses the words: as a target they are kept as
+  // target_text; as an actor the turn is held back, not guessed.
+  const occ = w => refs.find(r => r.asWritten === w).occ;
+  const malOcc = refs.find(r => r.asWritten === 'Mal').occ;
+  const dwarvesActor = refs.filter(r => r.asWritten === 'Dwarves')[1].occ;
+  const grid = G.buildGrid({ combat: ID.ambush, rounds: [{ n: 8, pages: [1], events: [], turns: [
+    { actor: malOcc, source_line: 'Mal - Hit Dwarves', activities: [{ economy: 'action', name: 'Attack', outcomes: [{ res: 'hit', val: 6, target: occ('Dwarves') }] }] },
+    { actor: dwarvesActor, source_line: 'Dwarves - hit Mal', activities: [{ economy: 'action', name: 'Attack', outcomes: [{ res: 'hit', val: 3, target: malOcc }] }] }],
+    enemy_turns: [] }] }, { refs, name: 'Goblin Ambush', isParty: id => campaign.party.some(p => p.id === id), nameOf: id => id });
+  const out = G.toTurnSchema(grid, 'session_008');
+  const malHit = out.rounds[0].slots[0].activities[0].outcomes[0];
+  assert('I-10: as a target, the words are kept as target_text', malHit.target_id === null && malHit.target_text === 'Dwarves');
+  assert('I-10: as an actor, the turn is held back and says why', grid.held.length === 1 && /marked not an entity/.test(grid.held[0].reason));
+  // Passages.
+  const merged = { passages: [
+    { text: 'The tavern is loud and smoky.', speaker: 'dm', attach: { to: 'entity', occ: occ('Tavern') }, page: 1 },
+    { text: 'The dwarves say the mine is cursed.', speaker: occ('Dwarves'), attach: { to: 'session' }, page: 1 },
+  ] };
+  const pi = F.passageItems(merged, refs, 'session_008');
+  assert('I-10: a passage about dismissed words goes on the session', pi.items.length === 1 && pi.items[0].array === 'session_logs' && pi.items[0].targetId === 'session_008');
+  assert('I-10: a passage spoken by dismissed words waits, saying why', pi.deferred.length === 1 && /marked not an entity/.test(pi.deferred[0].reason));
+  E.reopen(row('Dwarves'), rows);
+  assert('I-10: Change undoes it', row('Dwarves').status === 'pending' && !row('Dwarves').resolution);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'session.html'), 'utf8');
+  assert('I-10: every unsettled row has a "Not an entity" button that calls dismiss',
+    /onclick="rowAction\('\$\{k\}','dismiss'\)"[^>]*>Not an entity</.test(html) && /if \(action === 'dismiss'\) ChronicleEntities\.dismiss\(r\)/.test(html));
+  assert('I-10: a dismissed row says what it means', /case 'dismiss':\s+return 'Not an entity — no entry is made/.test(html));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

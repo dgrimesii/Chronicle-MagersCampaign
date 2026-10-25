@@ -106,6 +106,10 @@
           group = true;
         } else if (res.needsAssignment) {
           label = 'one of: ' + res.needsAssignment.map(nameOf).join(' / ') + ' (to be assigned later)';
+        } else if (res.dismissed) {
+          // The DM marked the words not an entity (#113). The AI is told so,
+          // so it keeps them as target_text and never makes them an actor.
+          label = 'not an entity: keep the words as target_text; never an actor or a speaker';
         } else if (entityId) {
           const arr = arrayOf(entityId);
           label = `${nameOf(entityId)} (${arr === 'party' ? 'player character' : arr})`;
@@ -117,7 +121,7 @@
         // so a passage attached to it can be published to the right list.
         // candidates: for an occurrence of a split row, the entities it must
         // be assigned between (the round grid's split assignment, #103).
-        out.push({ occ: o.id, asWritten: o.asWritten, context: o.context, label, entityId, group, kind: r.kind,
+        out.push({ occ: o.id, asWritten: o.asWritten, context: o.context, label, entityId, group, kind: r.kind, dismissed: !!res.dismissed,
           array: res.roster ? 'enemies_roster' : (entityId ? arrayOf(entityId) : null),
           candidates: res.needsAssignment ? res.needsAssignment.map(id => ({ id, name: nameOf(id) })) : null });
       }
@@ -490,18 +494,27 @@ Respond with JSON only, no prose:
       const m = /^roster:([^:]+):/.exec(r.entityId);
       return m ? { array: 'combat_encounters', id: m[1] } : { array: r.array, id: r.entityId };
     };
+    // isDismissed(occ) — the DM marked those words not an entity (#113).
+    const isDismissed = occ => !!(byOcc.get(occ) && byOcc.get(occ).dismissed);
     merged.passages.forEach((p, i) => {
       if (p.dropped) return;
       let speaker = 'dm';
       if (p.speaker !== 'dm') {
         const sp = entityOf(p.speaker);
-        if (!sp) { deferred.push({ passage: p, reason: 'its speaker is waiting for a split assignment' }); return; }
+        if (!sp) {
+          deferred.push({ passage: p, reason: isDismissed(p.speaker)
+            ? 'its speaker was marked not an entity; reopen that row in step 3, or drop the passage'
+            : 'its speaker is waiting for a split assignment' });
+          return;
+        }
         speaker = sp.id;
       }
       const passage = { text: String(p.text).trim(), session_id: sessionLegacyId, speaker, page: typeof p.page === 'number' ? p.page : null };
       const a = p.attach || { to: 'session' };
       let target = null;
-      if (a.to === 'entity') target = entityOf(a.occ);
+      // A passage about words marked not an entity (#113) belongs to nothing
+      // narrower than the session, so it goes there rather than waiting.
+      if (a.to === 'entity') target = isDismissed(a.occ) ? { array: 'session_logs', id: sessionLegacyId } : entityOf(a.occ);
       else if (a.to === 'combat') target = { array: 'combat_encounters', id: a.combat };
       else if (a.to === 'session') target = { array: 'session_logs', id: sessionLegacyId };
       if (a.to === 'round' || a.to === 'activity' || a.to === 'quest_progress') {

@@ -134,7 +134,7 @@
       }
       const m = /^roster:[^:]+:(.+)$/.exec(r.entityId || '');
       if (m) return { roster: m[1], asWritten: r.asWritten, monRef: null };
-      return r.entityId ? { entityId: r.entityId, asWritten: r.asWritten, group: r.group } : { none: true, asWritten: r.asWritten };
+      return r.entityId ? { entityId: r.entityId, asWritten: r.asWritten, group: r.group } : { none: true, dismissed: !!r.dismissed, asWritten: r.asWritten };
     };
     return { resolve, byOcc };
   }
@@ -186,7 +186,8 @@
       const place = t => {
         const a = resolve(t.actor);
         if (a.unassigned) { grid.held.push({ round: r.n, asWritten: a.asWritten, source_line: t.source_line || '', reason: 'its actor is not yet assigned' }); return; }
-        if (a.none) { grid.held.push({ round: r.n, asWritten: a.asWritten || t.actor, source_line: t.source_line || '', reason: 'its actor is not a settled name' }); return; }
+        // An actor the DM marked not an entity (#113) is held, not guessed, and says why.
+        if (a.none) { grid.held.push({ round: r.n, asWritten: a.asWritten || t.actor, source_line: t.source_line || '', reason: a.dismissed ? 'its actor was marked not an entity in step 3' : 'its actor is not a settled name' }); return; }
         // A creature group (a roster group, or a bestiary, cohort or faction
         // entry) is an enemy row; a person is a party row, whichever list the
         // AI put the turn in.

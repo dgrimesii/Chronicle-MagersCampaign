@@ -482,6 +482,26 @@
   }
 
   /**
+   * dismiss(row) — the words are not an entity (#113): Tavern, Shop and Main
+   * St. in a place's description, Dwarves, Gnomes and Humans in what an NPC
+   * said. The row is settled with no entity, so it makes no publish item
+   * (toQueueItems, newEntities and flags all pass it by) and the words stay
+   * only in the passage they came from.
+   *
+   * Why: every row had to become an entity or link to one, so words like
+   * these could only be acknowledged as new entities, and publish created
+   * junk bestiary entries (#17, F1). A dismissed occurrence a fact still
+   * names is not guessed at: as a target its words are kept as target_text,
+   * as an actor its facts are held back (the round grid), and a passage
+   * attached to it goes on the session (ChronicleFacts.passageItems).
+   * Change (reopen) undoes it like any other answer.
+   */
+  function dismiss(row) {
+    row.resolution = { action: 'dismiss' };
+    row.status = 'settled';
+  }
+
+  /**
    * reopen(row, rows) → keys of every row reopened.
    * Undoes the row's answer so it can be settled again. If the row created
    * an entity that other rows link to, those rows are reopened too: their
@@ -523,6 +543,8 @@
       const res = r.resolution;
       for (const o of r.occurrences) {
         if (!res) out.set(o.id, { pending: true });
+        // Not an entity (#113): settled, but nothing for a fact to point at.
+        else if (res.action === 'dismiss') out.set(o.id, { dismissed: true });
         else if (res.action === 'split') out.set(o.id, { needsAssignment: res.parts.map(p => p.entityId) });
         else if (res.action === 'subtype') out.set(o.id, { roster: { combatId: res.combatId, label: res.label }, entityId: res.creatureId });
         else {
@@ -755,7 +777,7 @@ Respond with JSON only, no prose:
 
   const api = {
     KINDS, norm, buildIndex, entityListForPrompt, mentionPrompt, parseMentions, buildRows, sortRows,
-    newEntities, acknowledge, linkToExisting, separateAsNew, split, markSubType, reopen, setKind,
+    newEntities, acknowledge, linkToExisting, separateAsNew, split, markSubType, reopen, setKind, dismiss,
     bulkAcknowledgeExact, allSettled, resolveOccurrences, flags, toQueueItems,
   };
 

@@ -1023,6 +1023,7 @@ function resolutionText(r) {
     case 'separate':    return `New entity "${res.name}", noted as not to be confused with ${entityLabel(res.notConfusedWith)}`;
     case 'split':       return 'Split into ' + res.parts.map(p => p.name + (p.existing ? '' : ' (new)')).join(', ') + ' — each occurrence is assigned in step 4';
     case 'subtype':     return `Sub-type: group "${res.label}" (role ${res.role}) in ${entityLabel(res.combatId)}`;
+    case 'dismiss':     return 'Not an entity — no entry is made; the words stay in the passages they came from';
   }
   return '';
 }
@@ -1080,6 +1081,7 @@ function renderRow(r, flagged) {
       ${r.matchId ? `<button class="btn" onclick="openForm('${k}','separate')">Separate as new</button>` : ''}
       ${kind.create ? `<button class="btn" onclick="openForm('${k}','split')">Split</button>` : ''}
       ${isCreature ? `<button class="btn" onclick="openForm('${k}','subtype')">Mark as sub-type</button>` : ''}
+      <button class="btn" onclick="rowAction('${k}','dismiss')" title="These words are not a person, creature, place, thing, event or piece of knowledge (Tavern in a description, Dwarves in what someone said)">Not an entity</button>
     </div>${session.openForm?.key === r.key ? renderForm(r, session.openForm.action) : ''}`;
   }
   return `<div class="ident-row m-${r.matchType}${r.status === 'settled' ? ' settled' : ''}${flagged ? ' flagged' : ''}">
@@ -1192,6 +1194,8 @@ function rowAction(key, action) {
   if (action === 'acknowledge' && r.matchType === 'new') return openForm(key, 'new');
   attempt(key, () => {
     if (action === 'acknowledge') ChronicleEntities.acknowledge(r);
+    // Not an entity (#113): settled with no entry.
+    if (action === 'dismiss') ChronicleEntities.dismiss(r);
     // Rows linked to an entity this row created are reopened with it.
     if (action === 'reopen') ChronicleEntities.reopen(r, session.rows);
   });
