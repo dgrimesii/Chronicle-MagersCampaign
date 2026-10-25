@@ -140,6 +140,16 @@ console.log('\nTest G-2 — pass 1: the initiative order');
   // A fresh combat with no recorded order follows the notes' first round.
   const fresh = G.buildGrid(Object.assign(mergedFacts(), { combat: 'new: Test' }), Object.assign(ctxFor(), { recordedOrder: null }));
   assert('G-2: without a recorded order, the notes\' order of the first round', fresh.rows.map(r => r.key).join() === [PC.asp, PC.mal, PC.att, PC.goli, PC.ash, PC.gold].join());
+  // #117: a new combat is created under a name the DM can change; a page that
+  // starts mid-fight gives "new: Round 10", which must not be the only option.
+  assert('G-2: a new combat starts with the name the notes gave it', fresh.newName === 'Test');
+  assert('G-2: a recorded combat has no new-combat name', g.newName === undefined);
+  G.renameNewCombat(fresh, '  Axe Beak & Vespon Ambush ');
+  assert('G-2: the DM can rename a new combat (trimmed)', fresh.newName === 'Axe Beak & Vespon Ambush');
+  assert('G-2: a blank name is refused and the old one kept', throws(() => G.renameNewCombat(fresh, '   ')) && fresh.newName === 'Axe Beak & Vespon Ambush');
+  assert('G-2: a recorded combat cannot be renamed here', throws(() => G.renameNewCombat(g, 'Something Else')));
+  const kept = G.buildGrid(Object.assign(mergedFacts(), { combat: 'new: Round 10' }), Object.assign(ctxFor(), { recordedOrder: null, newName: 'Axe Beak & Vespon Ambush' }));
+  assert('G-2: a name the DM typed survives a grid rebuild', kept.newName === 'Axe Beak & Vespon Ambush');
   G.moveRow(g, 0, 2);
   assert('G-2: dragging a row changes every round\'s slot numbers',
     G.toTurnSchema(g).rounds.find(r => r.n === 4).slots.find(s => s.a === recordedOrder[0]).s === 3);

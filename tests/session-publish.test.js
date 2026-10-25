@@ -146,6 +146,18 @@ const q = ChroniclePublish.sessionQueue(makePlan(DRAGON), ctx);
   assert('P-1: a combat the notes started is a NEW combat with its roster, then its rounds',
     nc && nc.rawData.name === 'Bridge Fight' && nc.rawData.mechanics.enemies_roster.length === 1 &&
     fresh.items.some(i => i.type === 'ROUND' && i.combatId === nc.rawData.id));
+  // #117: a page that starts mid-fight gives "new: Round 10"; the name the DM
+  // typed in review is the one the combat is created under, and its rounds
+  // report the same name.
+  const renamed = ChroniclePublish.sessionQueue(Object.assign(makePlan(DRAGON), { combats: [Object.assign(makePlan(DRAGON).combats[0],
+    { combat: 'new: Round 10', name: 'Round 10 (new combat)', newName: 'Axe Beak & Vespon Ambush' })] }), ctx);
+  const rc = renamed.items.find(i => i.type === 'NEW' && i.array === 'combat_encounters');
+  assert('P-1: a new combat the DM renamed is created under the DM\'s name', rc && rc.rawData.name === 'Axe Beak & Vespon Ambush');
+  assert('P-1: its rounds carry the DM\'s name too', renamed.items.filter(i => i.type === 'ROUND').every(i => i.combatName === 'Axe Beak & Vespon Ambush'));
+  const blank = ChroniclePublish.sessionQueue(Object.assign(makePlan(DRAGON), { combats: [Object.assign(makePlan(DRAGON).combats[0],
+    { combat: 'new: Round 10', name: 'Round 10 (new combat)', newName: '  ' })] }), ctx);
+  assert('P-1: without a name from the DM, the notes\' name is used, never the display label',
+    blank.items.find(i => i.type === 'NEW' && i.array === 'combat_encounters').rawData.name === 'Round 10');
 }
 
 // ── P-2 ─────────────────────────────────────────────────────────────────────

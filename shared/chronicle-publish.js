@@ -1469,7 +1469,8 @@
    *
    * plan = the page's publishPlan(): { header, headerReplace, identityItems,
    *   passageItems, deferredPassages, textItems, judgmentItems,
-   *   combats: [toTurnSchema output + { name }], questProgress, loot }
+   *   combats: [toTurnSchema output + { name, newName }], questProgress, loot }
+   *   (newName: the name a new combat is created under, set by the DM, #117)
    * ctx  = { sessionRef (session_NNN), entityOf(occ) → { id, array } | null,
    *   actorKey(occ) → the grid row key of an occurrence (an entity id, or a
    *   roster group's actor_id), newId() }
@@ -1523,9 +1524,15 @@
     const questPassages = new Map();
     for (const c of plan.combats || []) {
       let combatId = c.combat;
+      let combatName = c.name;
       if (/^new:/.test(String(combatId))) {
         // A fight the notes started: created here with its new roster groups.
-        const name = String(combatId).slice(4).trim() || c.name || 'New combat';
+        // The name the DM set in review (c.newName, #117) wins over the facts
+        // read's "new: <name>", which on a page that starts mid-fight is only
+        // "Round 10". c.name is not used first: on the page it is the grid's
+        // display label, which carries a "(new combat)" suffix.
+        const name = String(c.newName ?? '').trim() || String(combatId).slice(4).trim() || c.name || 'New combat';
+        combatName = name;
         combatId = ctx.newId();
         items.push({ id: 'combat_' + combatId, type: 'NEW', array: 'combat_encounters', status: 'approved', title: 'Combat: ' + name,
           rawData: { id: combatId, name, mechanics: { enemies_roster: clone(c.rosterAdds || []) } } });
@@ -1554,7 +1561,9 @@
           }
         }
         items.push({ id: 'round_' + combatId + '_' + round.n, type: 'ROUND', array: 'combat_encounters', status: 'approved',
-          combatId, combatName: c.name, rawData: round });
+          // combatName is the name the combat is (or is created) under, so a
+          // renamed new combat's rounds report the same name as the combat.
+          combatId, combatName, rawData: round });
       }
     }
     for (const p of deferred) {

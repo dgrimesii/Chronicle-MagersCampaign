@@ -43,6 +43,8 @@
  *   buildGrid(combatFacts, ctx)          — the grid for one combat of #101's merged facts
  *   proposeOrder(...)                    — the order: the recorded one when the
  *                                          combat continues, else the notes' order
+ *   renameNewCombat(grid, name)          — the name a combat the notes started
+ *                                          is created under (#117)
  *   the moves: moveRow, setJoinLeave, setOverride, moveTurn, moveActivity,
  *   moveOutcome, setEconomy, editActivity, editOutcome, addActivity, addOutcome,
  *   removeActivity, removeOutcome, eventToActivity, applySuggestedMove
@@ -173,6 +175,13 @@
   function buildGrid(combatFacts, ctx) {
     const { resolve } = resolver(ctx);
     const grid = { combat: combatFacts.combat, name: ctx.name || combatFacts.combat, rows: [], enemyRows: [], rounds: [], held: [] };
+    // A combat the notes started ("new: <name>") gets the name publish will
+    // create it under (#117). The facts read takes it from the notes, so a page
+    // that never names its fight gives something like "Round 10"; the DM can
+    // change it with renameNewCombat. ctx.newName is a name the DM already
+    // typed, kept by the page across a grid rebuild. A recorded combat has no
+    // newName: it already has its name in the campaign.
+    if (isNewCombat(grid.combat)) grid.newName = ctx.newName || String(grid.combat).replace(/^new:\s*/, '').trim() || null;
     const rowSeen = new Map(), enemySeen = new Map(), firstRound = new Map(), listed = [];
     const addRow = (id, label, n) => {
       if (!rowSeen.has(id)) { rowSeen.set(id, { key: id, entityId: id, label, from: null, to: null }); listed.push(id); firstRound.set(id, n); }
@@ -255,6 +264,29 @@
     if (!r) throw new Error('No such row.');
     r.from = from == null || from === '' ? null : Number(from);
     r.to = to == null || to === '' ? null : Number(to);
+  }
+
+  // isNewCombat(ref) → true for the facts read's "new: <name>" reference, a
+  // fight the notes started that has no campaign record yet.
+  function isNewCombat(ref) {
+    return /^new:/.test(String(ref));
+  }
+
+  /**
+   * renameNewCombat(grid, name) — the DM names or renames a combat the notes
+   * started (#117). Exists because a page that starts mid-fight ("Round 10")
+   * never names it, and publish would create a combat called "Round 10".
+   * Only a new combat can be renamed here: a recorded combat's name is
+   * campaign data, changed on its own page, not by a session review. A blank
+   * name is refused rather than saved, so publish never creates a nameless
+   * combat; removing this would leave the DM no way to fix the name before
+   * publish.
+   */
+  function renameNewCombat(grid, name) {
+    if (!isNewCombat(grid.combat)) throw new Error('Only a new combat can be renamed here; a recorded combat keeps its name.');
+    const clean = String(name ?? '').trim();
+    if (!clean) throw new Error('A combat needs a name.');
+    grid.newName = clean;
   }
 
   /**
@@ -592,7 +624,7 @@
 
   const api = {
     splitAssignments, assignWhere, buildGrid, proposeOrder,
-    moveRow, setJoinLeave, setOverride, orderFor,
+    moveRow, setJoinLeave, setOverride, orderFor, renameNewCombat,
     moveTurn, moveActivity, moveOutcome, setEconomy, editActivity, editOutcome,
     addActivity, addOutcome, removeActivity, removeOutcome, eventToActivity, applySuggestedMove,
     toTurnSchema, checkCombat, checkOrder, mapFlags, attachSelfCheck, replaceRound,

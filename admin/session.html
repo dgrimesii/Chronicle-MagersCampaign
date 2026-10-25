@@ -179,6 +179,7 @@
 
   /* ── Step 4: the round grid (#103) ── */
   .grid-combat h3 { margin-bottom:0.75rem; }
+  .grid-combat h3 .combat-name { font:inherit; color:var(--ink); background:transparent; border:1px solid var(--amber); border-radius:3px; padding:2px 6px; min-width:16em; }
   .order-pass { margin:0.5rem 0 1rem; }
   .order-pass summary { cursor:pointer; font-size:0.95rem; }
   .order-row { display:flex; align-items:center; gap:8px; padding:4px 10px; background:var(--card-bg); border:1px solid var(--border); border-radius:3px; margin-top:4px; font-size:0.9rem; }
@@ -1484,12 +1485,16 @@ function labelOf(id) {
 }
 
 // combatLabel(ref) → "Goblin Ambush (cbt_005)", a new combat's name, or the
-// AI's "new: <name>".
+// AI's "new: <name>". A "new:" combat the DM renamed in step 4 (#117) shows
+// the DM's name, so every place the page names it agrees with what publish
+// will create.
 function combatLabel(ref) {
   const e = session.index.entities.get(ref);
   if (e) return e.name + (e.legacyId ? ` (${e.legacyId})` : '');
   const made = ChronicleEntities.newEntities(session.rows).get(ref);
-  return made ? made.name + ' (new)' : String(ref).replace(/^new:\s*/, '') + ' (new combat)';
+  if (made) return made.name + ' (new)';
+  const typed = session.combatNames && session.combatNames.get(ref);
+  return (typed || String(ref).replace(/^new:\s*/, '')) + ' (new combat)';
 }
 
 /**
@@ -1504,6 +1509,9 @@ function gridContext(combatRef, assignments) {
   return {
     refs: session.refs, assignments: assignments || new Map(session.assignList.map(a => [a.occ, a.assigned])),
     isParty: id => session.campaign.party.some(p => p.id === id), nameOf: labelOf, name: combatLabel(combatRef),
+    // A name the DM typed for a new combat (#117) survives a grid rebuild,
+    // which otherwise discards grid edits.
+    newName: session.combatNames ? session.combatNames.get(combatRef) : undefined,
     recordedOrder: last ? last.slots.slice().sort((a, b) => a.s - b.s).map(s => s.a) : null,
     rosterLabels: new Set(((cbt && cbt.mechanics && cbt.mechanics.enemies_roster) || []).map(g => g.actor_id)),
   };
@@ -1715,7 +1723,17 @@ function renderGrid(gi) {
   </td>`).join('')}</tr>`;
   const eventForm = session.eventForm && session.eventForm.gi === gi ? renderEventForm(gi) : '';
   const held = g.held.length ? `<div class="flag-box"><strong>Held back (not published until assigned):</strong><ul>${g.held.map(h => `<li>Round ${h.round}: "${escapeHtml(h.asWritten)}" — ${escapeHtml(h.source_line)} (${escapeHtml(h.reason)})</li>`).join('')}</ul></div>` : '';
-  return `<div class="fact-combat grid-combat"><h3>${escapeHtml(g.name)}</h3>
+  // A combat the notes started gets a name field (#117): a page that begins
+  // mid-fight never names it, and publish would otherwise create a combat
+  // called after its first round. A recorded combat's name is not editable here.
+  const nameErr = session.combatNameError && session.combatNameError.gi === gi ? session.combatNameError.message : '';
+  const title = g.newName !== undefined
+    ? `<h3>New combat: <input type="text" class="combat-name" value="${escapeHtml(g.newName || '')}" placeholder="Name this combat" aria-label="Name of the new combat"
+        onchange="renameCombat(${gi}, this.value)"></h3>
+       <p class="fact-line">Publish creates the combat under this name. The notes' own name for it was "${escapeHtml(String(g.combat).replace(/^new:\s*/, ''))}".</p>
+       ${nameErr ? `<div class="ident-error">${escapeHtml(nameErr)}</div>` : ''}`
+    : `<h3>${escapeHtml(g.name)}</h3>`;
+  return `<div class="fact-combat grid-combat">${title}
     <details class="order-pass" ${session.orderOpen === false ? '' : 'open'}><summary><strong>Pass 1 — initiative order</strong> <span class="fact-line">drag a row, or use the arrows; every round follows</span></summary>
       <div class="order-list" data-orderlist="${gi}">${order}</div></details>
     <div class="grid-wrap"><table class="round-grid"><thead>${head}</thead><tbody>${partyRows}
@@ -1724,6 +1742,27 @@ function renderGrid(gi) {
     ${eventForm}${held}
     ${sel ? renderCellEditor(gi) : '<p class="hint">Click a cell to edit it. Drag a line to move one activity, or ⠿ to move or swap a whole turn.</p>'}
   </div>`;
+}
+
+/**
+ * renameCombat(gi, value) — the DM names a combat the notes started (#117).
+ * The rule (new combats only, never blank) is ChronicleGrid.renameNewCombat's.
+ * The name is also kept in session.combatNames so a grid rebuild keeps it and
+ * combatLabel shows it everywhere the page names the combat. A refused name
+ * leaves the old one and shows why under the field; without this the DM could
+ * not fix "Round 10" before publish.
+ */
+function renameCombat(gi, value) {
+  const g = session.grids[gi];
+  try {
+    ChronicleGrid.renameNewCombat(g, value);
+    (session.combatNames = session.combatNames || new Map()).set(g.combat, g.newName);
+    g.name = combatLabel(g.combat);
+    session.combatNameError = null;
+  } catch (err) {
+    session.combatNameError = { gi, message: err.message };
+  }
+  renderReview();
 }
 
 function selectCell(gi, round, row, enemy) {
@@ -2553,7 +2592,9 @@ function publishPlan() {
   const arrayOf = id => session.index.entities.get(id)?.array || made.get(id)?.array || (session.campaign.party.some(p => p.id === id) ? 'party' : null);
   const textItems = ChroniclePages.textItems(pages, d.changes.filter(c => c.decision === 'accepted').map(c => ({ id: c.id, field: c.field, text: c.final })));
   const judgmentItems = ChroniclePages.judgmentItems(d.judgments.filter(j => j.decision === 'approved'), { sessionRef: session.legacyId, arrayOf, newId: ChronicleIds.newId });
-  const combats = session.grids.map(g => Object.assign(ChronicleGrid.toTurnSchema(g, session.legacyId), { name: g.name }));
+  // newName is the DM's name for a combat the notes started (#117); publish
+  // creates the combat under it. A recorded combat has none.
+  const combats = session.grids.map(g => Object.assign(ChronicleGrid.toTurnSchema(g, session.legacyId), { name: g.name, newName: g.newName }));
   // A placeholder keeps its recorded header unless the DM ticked replace (#74).
   const rec = (session.campaign.session_logs || []).find(s => s.legacy_id === session.legacyId);
   const he = session.headerEdit || {};
