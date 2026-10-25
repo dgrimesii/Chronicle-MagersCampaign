@@ -42,6 +42,7 @@
  *   mergePages(pages, refs)             — one session: rounds across page
  *                                         breaks merged, round resets flagged,
  *                                         passages and page summaries gathered
+ *   applyPassageEdits(passages, edits) — the DM's passage edits and drops (#116)
  *   passageItems(merged, refs, session) — the passages as publish items
  *                                         (#102), plus those that wait for
  *                                         their round or entry to be written
@@ -478,6 +479,9 @@ Respond with JSON only, no prose:
    * a split assignment, as speaker or target, is deferred too.
    */
   function passageItems(merged, references, sessionLegacyId) {
+    // A passage the DM dropped in review (#116) is neither written nor
+    // deferred. Its index still counts, so item ids and the DM's moves, both
+    // keyed by position, stay stable.
     const byOcc = new Map(references.map(r => [r.occ, r]));
     const items = [], deferred = [];
     const entityOf = occ => {
@@ -487,6 +491,7 @@ Respond with JSON only, no prose:
       return m ? { array: 'combat_encounters', id: m[1] } : { array: r.array, id: r.entityId };
     };
     merged.passages.forEach((p, i) => {
+      if (p.dropped) return;
       let speaker = 'dm';
       if (p.speaker !== 'dm') {
         const sp = entityOf(p.speaker);
@@ -524,7 +529,8 @@ Respond with JSON only, no prose:
     const byOcc = new Map(references.map(r => [r.occ, r]));
     return identityItems.map(item => {
       if (item.type !== 'NEW' || item.array !== 'world_lore') return item;
-      const told = passages.find(p => p.speaker !== 'dm' && p.attach?.to === 'entity' && byOcc.get(p.attach.occ)?.entityId === item.rawData.id);
+      // A dropped passage (#116) is not testimony: it will not be written.
+      const told = passages.find(p => !p.dropped && p.speaker !== 'dm' && p.attach?.to === 'entity' && byOcc.get(p.attach.occ)?.entityId === item.rawData.id);
       if (!told) return item;
       const copy = JSON.parse(JSON.stringify(item));
       copy.rawData.mechanics = Object.assign({}, copy.rawData.mechanics, {
@@ -533,7 +539,38 @@ Respond with JSON only, no prose:
     });
   }
 
-  const api = { ENUMS, pageReferences, combatChoices, factsPrompt, parseFacts, validateFacts, checkFacts, mergePages, passageItems, testimonyUpdates };
+  /**
+   * applyPassageEdits(passages, edits) → passages, changed in place.
+   *
+   * The DM's corrections to passages in step 4 (#116). edits is
+   * { index: { text?, dropped? } }, keyed by the passage's position in the
+   * merged list, the same key the DM's moves use:
+   *   text    — replaces the passage's text; the AI's reading is kept as
+   *             originalText so the review can show what changed. A text
+   *             equal to the AI's, or empty, changes nothing.
+   *   dropped — the passage is not written (passageItems skips it) and is
+   *             not testimony (testimonyUpdates skips it); it stays in the
+   *             list, marked, so the DM can restore it.
+   * Why: a passage that carries a misread ("ruins" for ROUS, "Not 1" for
+   * Nat 1, an ignored line stated as an NPC's words) could only be moved,
+   * so the misread was published and the entity-page draft built on it
+   * (#17, F4). The grid corrections never reach passages.
+   */
+  function applyPassageEdits(passages, edits) {
+    for (const [i, e] of Object.entries(edits || {})) {
+      const p = passages[i];
+      if (!p || !e) continue;
+      const text = typeof e.text === 'string' ? e.text.trim() : '';
+      if (text && text !== (p.originalText || p.text)) {
+        if (p.originalText == null) p.originalText = p.text;
+        p.text = text;
+      }
+      if (e.dropped) p.dropped = true;
+    }
+    return passages;
+  }
+
+  const api = { ENUMS, pageReferences, combatChoices, factsPrompt, parseFacts, validateFacts, checkFacts, mergePages, passageItems, testimonyUpdates, applyPassageEdits };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ChronicleFacts = api;

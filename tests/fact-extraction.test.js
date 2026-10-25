@@ -311,5 +311,44 @@ console.log('\nTest P-2 — passages become publish items (gate)');
   assert('P-2: a repeat publish adds no passage twice', again.npc_directory.find(n => n.id === RUFUS).passages.length === 1);
 }
 
+console.log('\nTest P-3 — the DM edits and drops passages (#116)');
+{
+  // The #17 gate published misreads that sat in passages ("ruins" for ROUS,
+  // "Not 1" for Nat 1) because review could only move a passage.
+  const fresh = () => F.mergePages([{ page: 'notes', facts: F.parseFacts(JSON.stringify(notesPage())) }], pRefs);
+  const merged = fresh();
+  const rufusAt = merged.passages.findIndex(p => p.speaker !== 'dm');
+  const roundAt = merged.passages.findIndex(p => p.attach && p.attach.to === 'round');
+  const sessionAt = merged.passages.findIndex(p => p.attach && p.attach.to === 'session');
+  const before = merged.passages[rufusAt].text;
+  F.applyPassageEdits(merged.passages, { [rufusAt]: { text: '  Rufus says the dragons keep a pact with the goblins.  ' }, [roundAt]: { dropped: true } });
+  const ed = merged.passages[rufusAt];
+  assert('P-3: an edit replaces the text, trimmed, and keeps the AI\'s reading', ed.text === 'Rufus says the dragons keep a pact with the goblins.' && ed.originalText === before);
+  assert('P-3: the speaker and attachment are unchanged by an edit', ed.speaker !== 'dm' && ed.attach.to === 'entity');
+  const { items, deferred } = F.passageItems(merged, pRefs, 'session_006');
+  assert('P-3: the edited text is what is written', items.some(i => i.rawData._passage_append[0].text === ed.text) && !items.some(i => i.rawData._passage_append[0].text === before));
+  assert('P-3: the written passage carries no review fields', items.every(i => !('originalText' in i.rawData._passage_append[0]) && !('dropped' in i.rawData._passage_append[0])));
+  assert('P-3: a dropped passage is neither written nor deferred', deferred.length === 0 && items.length === merged.passages.length - 1);
+  assert('P-3: item ids still follow the passage positions', items.some(i => i.id === 'passage_' + sessionAt));
+  const same = fresh();
+  F.applyPassageEdits(same.passages, { [rufusAt]: { text: before }, [sessionAt]: { text: '   ' } });
+  assert('P-3: saving the AI\'s own text, or nothing, changes nothing', !('originalText' in same.passages[rufusAt]) && !('originalText' in same.passages[sessionAt]));
+  const again = F.applyPassageEdits(F.applyPassageEdits(fresh().passages, { [rufusAt]: { text: 'Edited once.' } }), { [rufusAt]: { text: 'Edited twice.' } });
+  assert('P-3: a second edit keeps the AI\'s first reading as originalText', again[rufusAt].text === 'Edited twice.' && again[rufusAt].originalText === before);
+  // A dropped NPC passage is not testimony: new lore it named stays as identified.
+  const told = fresh();
+  // Every passage an NPC spoke is dropped (the lore's testimony is its own passage).
+  F.applyPassageEdits(told.passages, Object.fromEntries(told.passages.map((p, i) => [i, p.speaker !== 'dm' ? { dropped: true } : null]).filter(([, e]) => e)));
+  const lore = F.testimonyUpdates(E.toQueueItems(pRows, index, 'session_006'), told.passages, pRefs).find(i => i.array === 'world_lore');
+  assert('P-3: dropping the NPC\'s passage means its lore is not marked as testimony', lore && lore.rawData.mechanics.reliability !== 'rumoured');
+  const page = fs.readFileSync(require('path').join(__dirname, '..', 'admin', 'session.html'), 'utf8');
+  assert('P-3: the page applies the edits with the moves, against the same read',
+    /for \(const \[i, attach\] of Object\.entries\(session\.passageMoves[^\n]*\n[^\n]*\n\s*ChronicleFacts\.applyPassageEdits\(merged\.passages, session\.passageEdits\)/.test(page));
+  assert('P-3: every passage has Edit and Drop, a dropped one Restore', /onclick="session\.passageEditing = \$\{i\}; renderReview\(\);">Edit</.test(page) && /dropPassage\(\$\{i\}, true\)">Drop</.test(page) && /dropPassage\(\$\{i\}, false\)">Restore</.test(page));
+  assert('P-3: the draft and the header draft skip dropped passages', /\.filter\(p => all \|\| !p\.dropped\)/.test(page) && /passages\.filter\(p => !p\.dropped && !passageTarget\(p\)\)/.test(page) && /passages\.filter\(p => !p\.dropped\)\.map\(p => \(\{ text: p\.text, speakerLabel/.test(page));
+  assert('P-3: a change after the draft asks for a Redraft', /session\.passagesChangedSinceDraft \? '<div class="flag-box">Passages were edited or dropped after this draft was made/.test(page));
+  assert('P-3: dropped passages are listed as not written', /list\('Passages you dropped', droppedPassages\)/.test(page));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

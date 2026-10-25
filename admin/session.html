@@ -169,6 +169,10 @@
   .passage .speaker { font-family:'Cinzel',serif; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
   .passage .speaker.npc { color:var(--c-npc); }
   .passage-text { font-size:0.98rem; line-height:1.45; }
+  /* A dropped passage (#116) stays visible, struck through, so it can be restored. */
+  .passage.dropped .passage-text { text-decoration:line-through; color:var(--muted); }
+  .passage .edited { color:var(--amber); }
+  .passage textarea { width:100%; margin-top:4px; }
 
 
   /* ── Step 4: the round grid (#103) ── */
@@ -442,6 +446,9 @@ const session = {
   headerEdit:   null, // { title?, summary?, titleDraft?, summaryDraft?, replaceTitle?, replaceSummary? }
   headerDraft:  null, // the header's own draft (#74): { status: 'drafting'|'done'|'error', error, warnings }
   passageMoves: {},   // passage index → attach, the DM's moves
+  passageEdits: {},   // passage index → { text?, dropped? }, the DM's corrections (#116)
+  passageEditing: null, // index of the passage being edited in place, or null
+  passagesChangedSinceDraft: false, // a passage edit or drop after the draft ran (#116)
   approvals:    null, // Set of approved section keys
   // Publish (#106):
   publishing:   false, // a publish is running; the button is disabled
@@ -1346,6 +1353,8 @@ function renderFacts() {
   // Moves made against an earlier read are not applied to a new one.
   if (session.passageMovesKey === session.factsKey) {
     for (const [i, attach] of Object.entries(session.passageMoves || {})) if (merged.passages[i]) merged.passages[i].attach = attach;
+    // The DM's text edits and drops (#116), kept and reset exactly like moves.
+    ChronicleFacts.applyPassageEdits(merged.passages, session.passageEdits);
   }
   session.mergedFacts = merged;
   session.refs = refs;
@@ -1965,12 +1974,18 @@ function whereLabel(a) {
 }
 
 /**
- * buildPages() — one page per entity or event the session touched
+ * buildPages(opts) — one page per entity or event the session touched
  * (ChroniclePages.touchedPages), from the settled names, the combats and the
- * passages as they now sit (after any move).
+ * passages as they now sit (after any move or edit). A dropped passage
+ * (#116) is left out, so the draft never reads it, unless
+ * opts.includeDropped: the entity pages show it struck through so it can
+ * be restored. Each passage keeps its position in the merged list as
+ * index, the key the DM's moves and edits use.
  */
-function buildPages() {
-  const passages = session.mergedFacts.passages.map(p => Object.assign({}, p, { targetId: passageTarget(p), speakerLabel: speakerLabel(p) }));
+function buildPages(opts) {
+  const all = !!(opts && opts.includeDropped);
+  const passages = session.mergedFacts.passages.map((p, index) => Object.assign({}, p, { index, targetId: passageTarget(p), speakerLabel: speakerLabel(p) }))
+    .filter(p => all || !p.dropped);
   return ChroniclePages.touchedPages({
     campaign: session.campaign, refs: session.refs, passages,
     combats: session.grids.map(g => g.combat).filter(c => !/^new:/.test(c)),
@@ -1997,11 +2012,13 @@ async function startDraft() {
   const knownIds = new Set(pages.map(p => p.id).concat(session.campaign.party.map(p => p.id), session.refs.map(r => r.entityId).filter(Boolean)));
   const names = [...knownIds].filter(id => !/^roster:/.test(id)).map(id => `${id} = ${labelOf(id)}`).join('; ');
   session.draft = { status: 'drafting', error: '', changes: [], judgments: [], dropped: [] };
+  // This draft reads the passages as they now are, edits included (#116).
+  session.passagesChangedSinceDraft = false;
   renderEntityPages();
   try {
     const system = ChroniclePages.draftPrompt({
       sessionLabel: `${session.legacyId}, played ${session.date}`, pages, facts: factsText(),
-      sessionPassages: session.mergedFacts.passages.filter(p => !passageTarget(p)).map(p => ({ text: p.text, speaker: p.speaker, speakerLabel: speakerLabel(p) })),
+      sessionPassages: session.mergedFacts.passages.filter(p => !p.dropped && !passageTarget(p)).map(p => ({ text: p.text, speaker: p.speaker, speakerLabel: speakerLabel(p) })),
       header: rec ? { title: rec.title, summary: rec.narrative && rec.narrative.summary } : null, names,
     });
     const draft = ChroniclePages.parseDraft(await ChronicleAI.draftPages({ system }));
@@ -2054,7 +2071,7 @@ async function draftHeader() {
       roster: ChronicleAI.PARTY_ROSTER,
       // Every passage, wherever it now sits (after the DM's moves): the
       // header covers the whole session, not only its session-level lines.
-      passages: session.mergedFacts.passages.map(p => ({ text: p.text, speakerLabel: speakerLabel(p) })),
+      passages: session.mergedFacts.passages.filter(p => !p.dropped).map(p => ({ text: p.text, speakerLabel: speakerLabel(p) })),
       combats: session.grids.map(g => {
         // A new combat has no record yet, so no outcome; the rounds still say how it went.
         const rec = (session.campaign.combat_encounters || []).find(c => c.id === g.combat);
@@ -2118,7 +2135,7 @@ function movePassage(i, value) {
   const [kind, a, b] = value.split('|');
   const attach = kind === 'entity' ? { to: 'entity', occ: a } : kind === 'combat' ? { to: 'combat', combat: a }
     : kind === 'round' ? { to: 'round', combat: a, n: Number(b) } : { to: 'session' };
-  if (session.passageMovesKey !== session.factsKey) { session.passageMoves = {}; session.passageMovesKey = session.factsKey; }
+  if (session.passageMovesKey !== session.factsKey) { session.passageMoves = {}; session.passageEdits = {}; session.passageMovesKey = session.factsKey; }
   session.passageMoves[i] = attach;
   renderFacts();
 }
@@ -2143,12 +2160,74 @@ function passageOptions() {
 }
 
 // passageHtml(p) — one passage, DM exposition and NPC testimony shown apart.
+/**
+ * passageHtml(p) — one passage in review: its speaker and place, its text,
+ * the lines it came from, and the DM's controls: move it, edit its text, or
+ * drop it (#116). Edit opens the text in place with Save and Cancel; an
+ * edited passage is marked "edited" and shows the AI's reading beneath. A
+ * dropped passage stays, struck through and marked "dropped — not
+ * written", with Restore. Editing and dropping exist because a passage can
+ * carry a misread the grid corrections never reach (#17, F4).
+ */
 function passageHtml(p) {
-  return `<div class="passage${p.speaker === 'dm' ? '' : ' testimony'}">
-    <span class="speaker${p.speaker === 'dm' ? '' : ' npc'}">${p.speaker === 'dm' ? 'DM — fact' : escapeHtml(speakerLabel(p)) + ' — testimony'}${whereLabel(p.attach) ? ' · ' + escapeHtml(whereLabel(p.attach)) : ''}</span>
-    <div class="passage-text">${escapeHtml(p.text)}</div>
+  const i = p.index;
+  const editing = session.passageEditing === i;
+  const text = editing
+    ? `<textarea id="pe-${i}" rows="3">${escapeHtml(p.text)}</textarea>
+       <div class="ident-actions"><button class="btn btn-primary" onclick="savePassage(${i})">Save</button><button class="btn" onclick="session.passageEditing = null; renderReview();">Cancel</button></div>`
+    : `<div class="passage-text">${escapeHtml(p.text)}</div>`;
+  const marks = (p.originalText != null ? ' · <span class="edited">edited</span>' : '') + (p.dropped ? ' · dropped — not written' : '');
+  const controls = p.dropped
+    ? `<button class="btn" onclick="dropPassage(${i}, false)">Restore</button>`
+    : `<select onchange="if (this.value) movePassage(${i}, this.value)">${passageOptions()}</select>
+       ${editing ? '' : `<button class="btn" onclick="session.passageEditing = ${i}; renderReview();">Edit</button>`}
+       <button class="btn" onclick="dropPassage(${i}, true)">Drop</button>`;
+  return `<div class="passage${p.speaker === 'dm' ? '' : ' testimony'}${p.dropped ? ' dropped' : ''}">
+    <span class="speaker${p.speaker === 'dm' ? '' : ' npc'}">${p.speaker === 'dm' ? 'DM — fact' : escapeHtml(speakerLabel(p)) + ' — testimony'}${whereLabel(p.attach) ? ' · ' + escapeHtml(whereLabel(p.attach)) : ''}${marks}</span>
+    ${text}
+    ${p.originalText != null && !editing ? `<div class="fact-line">AI read: ${escapeHtml(p.originalText)}</div>` : ''}
     <div class="fact-line">p.${escapeHtml(String(p.page))}: ${escapeHtml((p.source_lines || []).join(' / '))}
-      <select onchange="if (this.value) movePassage(${p.index}, this.value)">${passageOptions()}</select></div></div>`;
+      ${controls}</div></div>`;
+}
+
+/**
+ * passageEdit(i) → the DM's edit record for passage i, created when needed.
+ * Edits are kept against the read they were made on, as moves are: a new
+ * read of the pages starts with none.
+ */
+function passageEdit(i) {
+  if (session.passageMovesKey !== session.factsKey) { session.passageMoves = {}; session.passageEdits = {}; session.passageMovesKey = session.factsKey; }
+  return (session.passageEdits[i] = session.passageEdits[i] || {});
+}
+
+/**
+ * savePassage(i) — keeps the edited text of passage i (#116). Saving the
+ * AI's own text, or nothing, removes the edit. The draft read the old
+ * text, so the page asks for a Redraft if one has run.
+ */
+function savePassage(i) {
+  const el = document.getElementById('pe-' + i);
+  const text = el ? el.value.trim() : '';
+  const p = session.mergedFacts.passages[i];
+  const e = passageEdit(i);
+  if (!text || text === (p.originalText != null ? p.originalText : p.text)) delete e.text; else e.text = text;
+  // Undo an earlier edit on the merged copy; renderFacts reapplies what is kept.
+  if (p.originalText != null && e.text == null) { p.text = p.originalText; delete p.originalText; }
+  session.passageEditing = null;
+  if (session.draft && session.draft.status === 'done') session.passagesChangedSinceDraft = true;
+  renderFacts();
+}
+
+/**
+ * dropPassage(i, drop) — drops passage i so it is not written, or restores
+ * it (#116). Restoring clears the mark on the merged copy, since
+ * renderFacts only ever adds the mark.
+ */
+function dropPassage(i, drop) {
+  const e = passageEdit(i);
+  if (drop) e.dropped = true; else { delete e.dropped; delete session.mergedFacts.passages[i].dropped; }
+  if (session.draft && session.draft.status === 'done') session.passagesChangedSinceDraft = true;
+  renderFacts();
 }
 
 /**
@@ -2159,7 +2238,8 @@ function passageHtml(p) {
 function renderEntityPages() {
   const el = document.getElementById('pages-panel');
   if (!session.gridsBuilt) { el.innerHTML = ''; return; }
-  const pages = buildPages();
+  // Dropped passages are shown (struck through) so they can be restored.
+  const pages = buildPages({ includeDropped: true });
   const d = session.draft || { status: 'idle', changes: [], judgments: [], dropped: [] };
   const changesFor = id => d.changes.map((c, i) => Object.assign({ i }, c)).filter(c => c.id === id);
   const status = d.status === 'drafting' ? '<span class="state">drafting proposals…</span>'
@@ -2189,6 +2269,7 @@ function renderEntityPages() {
   el.innerHTML = `<div class="fact-combat"><h3>Entity pages</h3>
     <div class="ident-toolbar"><span>${status}</span>
       ${d.status !== 'drafting' ? `<button class="btn" onclick="startDraft()">${d.status === 'idle' ? 'Draft proposals' : 'Redraft (replaces the proposals and your decisions on them)'}</button>` : ''}</div>
+    ${session.passagesChangedSinceDraft ? '<div class="flag-box">Passages were edited or dropped after this draft was made. Redraft to base the proposals on them.</div>' : ''}
     ${pages.map(pageHtml).join('') || '<p class="hint">No passages or proposals for any entity.</p>'}
     ${d.dropped && d.dropped.length ? `<div class="flag-box"><strong>Proposals that could not be used:</strong><ul>${d.dropped.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>` : ''}
   </div>
@@ -2359,10 +2440,13 @@ function heldHtml(plan) {
   const held = plan.combats.flatMap(c => c.held.map(h => `${c.name} round ${h.round}: "${h.asWritten}" — ${h.reason}`));
   const events = plan.combats.flatMap(c => c.events.map(e => `${c.name} round ${e.round}: ${e.text}`));
   const unplaced = (plan.queuePreview || []).map(u => `${u.what} — ${u.reason}`);
+  // Passages the DM dropped (#116).
+  const droppedPassages = session.mergedFacts.passages.filter(p => p.dropped).map(p => p.text);
   const list = (title, rows) => rows.length ? `<div class="fact-round"><h4>${title}</h4><ul>${rows.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>` : '';
   const body = list('Facts held back (an actor not yet assigned or settled)', held)
     + list('Round events not turned into attacks (their lines stay as passages)', events)
-    + list('Not placed', unplaced);
+    + list('Not placed', unplaced)
+    + list('Passages you dropped', droppedPassages);
   return body ? `<div class="fact-combat"><h4>Not written by this publish</h4>${body}</div>` : '';
 }
 
