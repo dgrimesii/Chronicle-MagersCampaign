@@ -2,7 +2,7 @@
 
 Oct 25, 2026 · David Grimes
 
-*Plan for phase 7 (epic #121): moving campaign storage from the repo to Postgres. Hosting and the player rollout are phase 8 (#6). Exported from the working plan doc on 25 October 2026; updated the same day with the phase 7 definition of done, server-side API keys, and what phase 7 does to be ready for the shared IAM. Open questions are at the end.*
+*Plan for phase 7 (epic #121): moving campaign storage from the repo to Postgres. Hosting and the player rollout are phase 8 (#6). Exported from the working plan doc on 25 October 2026; updated the same day with the phase 7 definition of done, server-side API keys, what phase 7 does to be ready for the shared IAM, and the two CLAUDE.md rules it changes. Open questions are at the end.*
 
 ## Summary
 
@@ -43,7 +43,7 @@ The file holds 10 populated collections (party 6, session_logs 7, npc_directory 
 Three things matter for the move:
 
 - **Publish replaces the whole document.** `applySession()` runs in the browser and returns a new campaign; the store writes it whole.
-- **The repo has no `package.json`.** Every test runs on plain Node with no dependencies, so the server is the project's first npm dependency set.
+- **The repo has no `package.json`, and CLAUDE.md forbids npm packages.** Every test runs on plain Node with no dependencies, and CLAUDE.md's file conventions say "zero npm packages, zero build steps". The server is the project's first npm dependency set, so that rule has to change first (P7-2, below).
 - **Leftovers to retire:** `scripts/build.js` still rebuilds an `EMBEDDED_DATA` block that neither viewer contains any more, and `data/magers-campaign.json.old` is still tracked.
 
 ## Target architecture
@@ -75,6 +75,7 @@ flowchart LR
 
 - **The server serves the pages too.** One origin means no CORS, the pages' relative paths keep working, and Live Server's reload problems go away. `npm run dev` replaces Live Server.
 - **Node, because the shared modules already run on it.** The tests `require` them today, so the server can reuse `ChroniclePublish`, `ChronicleIds` and the integrity checks. Suggested stack, to be ratified in an ADR as Hosting.md asks: Fastify, `pg` and `node-pg-migrate`, in a new `server/` folder.
+- **npm packages on the server only.** The browser side stays as CLAUDE.md requires: vanilla HTML, CSS and JS, no framework, no bundler, no build step. Packages are allowed only under `server/` (and its tests), recorded in the ADR and in CLAUDE.md's file conventions.
 - **The API keeps the store's contract.** `loadCampaign()` still returns the raw 5.0.1 JSON, so no page changes how it reads or normalises data.
 - **Stage 1 still applies publishes in the browser.** The page sends the new campaign and the version it was built on. The server writes the difference in one transaction, or refuses with 409 if the version moved, which replaces the "file changed on disk" check.
 - **Stage 2, later and optional, applies them on the server.** The page sends the approved queue items and the server runs `applySession()` on the current data. This removes the whole-document upload; with one DM it is not urgent.
@@ -103,6 +104,7 @@ Today the Anthropic key sits in `shared/config.js` and the browser sends it stra
 - **The proxy and every write are guarded.** In production mode, the AI proxy and all `/api` writes (publish, drafts) need a DM access token, set as the `DM_ACCESS_TOKEN` environment variable and entered once per browser session. Without it they answer 401, so a deployed server cannot be used to spend the key or change the campaign. Phase 8's IAM replaces the token with accounts. In development the server binds to `localhost` only.
 - **Spend is capped and logs stay clean.** Each key gets a monthly spend limit in the Anthropic Console. Logs record the model, token counts and status, never a key, a photo or note text.
 - **Rotation is one step:** create a new key, change the environment variable, restart, delete the old key. The README records the steps.
+- **CLAUDE.md changes with it.** Its "Shared AI module rules" require the `anthropic-dangerous-direct-browser-access` header in every `chronicle-ai.js` call and the key in `config.js`, and its narrative rules put `geminiApiKey` there too. P7-7 rewrites those rules in the same change: keys only in the server's environment, every AI call through `/api/ai/messages`, the direct-browser header gone. Until P7-7 lands, the current rules stand.
 - **Gemini:** only `intake.html` and `delta-review.html` call it (`chronicle-narrative.js`), and P7-1 retires them. When narrative generation (#45) returns, it uses the same proxy pattern with `GEMINI_API_KEY`.
 
 ### Ready for IAM
@@ -162,7 +164,7 @@ The browser changes sit mostly in two modules: `chronicle-store.js` for data and
 | `admin/intake.html`, `admin/delta-review.html` | Not ported. Retire them before the switch (the roadmap's next step anyway). Until then they must refuse to publish in API mode, or two stores drift apart |
 | Log viewer and player view | No change beyond the store. The player view on GitHub Pages keeps reading the repo file, which the mirror keeps current, until hosting |
 | `scripts/` | `migrate-opaque-ids.js --check` runs on the export. `harvest-characters.js` gains `--label level-6` and writes a reference snapshot. `build.js` is deleted |
-| Docs | README data architecture, run instructions and key rotation; the storage and key rules in CLAUDE.md; `.env.example` gains `DATABASE_URL_TEST`, `DATABASE_URL_SANDBOX`, `ANTHROPIC_API_KEY`, `DM_ACCESS_TOKEN`, `DM_IDENTITY` and the migration role's `DATABASE_URL_OWNER` (names only, never values) |
+| Docs | README data architecture, run instructions and key rotation; in CLAUDE.md, the npm rule (P7-2), the data loading and local-file publishing rules (P7-4), and the AI key and header rules (P7-7); `.env.example` gains `DATABASE_URL_TEST`, `DATABASE_URL_SANDBOX`, `ANTHROPIC_API_KEY`, `DM_ACCESS_TOKEN`, `DM_IDENTITY` and the migration role's `DATABASE_URL_OWNER` (names only, never values) |
 
 ## Local development and testing
 
@@ -207,18 +209,18 @@ Eight phase 7 issues, children of #121, each ending with a gate you can run, in 
 
 1. **Retire `intake.html` and `delta-review.html`.** Already next on #52, with no issue yet. It leaves the session page as the only writer, so there is one publish path to port.
     - Gate: only the session page can publish; Delta Review's Accept/Defer and `deferred_gaps` are moved or dropped by your decision.
-2. **ADR and server skeleton.** `package.json`, `server/`, the static pages and `/api/health` served by one Node process, `npm run dev`, `npm run db:setup`, the compose healthcheck.
-    - Gate: every page works under `npm run dev` exactly as under Live Server, still in file mode; health reports all three databases; the 20 existing tests pass.
+2. **ADR and server skeleton.** The ADR (stack, and npm packages allowed under `server/` only), with CLAUDE.md's "zero npm packages" rule changed to match, approved by you before any package is added. Then `package.json`, `server/`, the static pages and `/api/health` served by one Node process, `npm run dev`, `npm run db:setup`, the compose healthcheck.
+    - Gate: CLAUDE.md and the ADR say the same thing about packages, and nothing outside `server/` imports one; every page works under `npm run dev` exactly as under Live Server, still in file mode; health reports all three databases; the 20 existing tests pass.
 3. **Schema, import and export.** The migrations (run by the owner role; the server uses the application role), `import-campaign.js`, the export, the ability snapshots, and the round-trip tests.
     - Gate: import then export is deep-equal for the real file and the fixture, and `--check` passes on the export.
-4. **Read and write through the API.** The read endpoints, publish with its version check, the `publishes` log, the mirror, the sandbox and `db:backup`. Then the cutover, steps 1 to 6 of Data migration.
+4. **Read and write through the API.** The read endpoints, publish with its version check, the `publishes` log, the mirror, the sandbox and `db:backup`, with CLAUDE.md's data loading and local-file publishing rules rewritten for API mode. Then the cutover, steps 1 to 6 of Data migration.
     - Gate: a #17-style Safe Test Mode run publishes to the sandbox and leaves `chronicle_dev` untouched; a stale publish is refused; the next backlog session publishes for real, and its mirror diff is reviewed and committed.
 5. **Saved review drafts.** Autosave and resume on the session page, photos in `draft_pages`, the draft deleted on publish.
     - Gate: a reload in the middle of step 4, after grid and passage edits, comes back exactly as it was.
 6. **Scripts and docs.** The harvest script writes snapshots; `--check` runs on the export; `build.js` and `magers-campaign.json.old` go; README and CLAUDE.md describe the database.
     - Gate: no page or script reads `data/` directly (a search proves it), except the mirror writer.
-7. **API keys on the server.** `/api/ai/messages` with its limits, `chronicle-ai.js` switched to it, keys out of `config.js`, the single access check with the DM access token on the proxy and all writes in production mode, the author recorded on every write, the secret-scan test, spend limits, and the rotation steps in the README.
-    - Gate: a full session read runs with no key in the browser (DevTools shows no request to `api.anthropic.com` and no key in any response); the proxy refuses a missing token, another model and an oversized request; the secret-scan test passes.
+7. **API keys on the server.** `/api/ai/messages` with its limits, `chronicle-ai.js` switched to it, keys out of `config.js`, the single access check with the DM access token on the proxy and all writes in production mode, the author recorded on every write, the secret-scan test, spend limits, the rotation steps in the README, and CLAUDE.md's "Shared AI module rules" and `geminiApiKey` rule rewritten to match.
+    - Gate: a full session read runs with no key in the browser (DevTools shows no request to `api.anthropic.com` and no key in any response); the proxy refuses a missing token, another model and an oversized request; the secret-scan test passes; CLAUDE.md no longer tells anyone to keep a key in `config.js` or to send the direct-browser header.
 8. **Render rehearsal.** Prove the intake could move to Render as it stands, using only the local machine: a fresh, empty database; `npm ci`; `npm run db:migrate`; the import from the frozen file; then `npm start` with `NODE_ENV=production`, the mirror off, and only environment variables for configuration. Add the server to `docker-compose.yml` as a second service for this, so it runs without anything installed on Windows.
     - Gate: that run passes a Safe Test Mode session end to end (upload to publish, a draft restored after a reload, the result in the log viewer); `/api/health` answers as Render's health check would expect; a `pg_dump` restores into another empty database and exports deep-equal; a search finds no runtime read or write outside the database except the switchable mirror; and without the DM token the AI proxy, publish and drafts all answer 401.
 
@@ -260,4 +262,5 @@ The largest risk is switching stores in the middle of the backlog, so the cutove
 - [ ] **Retire Live Server** in favour of `npm run dev`? Recommended.
 - [ ] **Keep the mirror file** until hosted backups exist? Recommended.
 - [ ] **Stack for the ADR:** Fastify, `pg` and `node-pg-migrate`, or something you prefer?
+- [ ] **npm packages under `server/` only?** CLAUDE.md forbids npm packages outright. The plan needs your approval to change that rule for the server, keeping the browser side vanilla with no build step. Nothing in P7-2 adds a package until you approve.
 - [ ] **Delta Review's `deferred_gaps`:** carry them into the session page, or drop them when it retires?
