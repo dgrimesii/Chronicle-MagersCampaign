@@ -333,7 +333,9 @@
       "npc_002",
       "npc_005",
       "npc_006",
-      "mon_006"
+      "mon_006",
+      "item_009",
+      "item_010"
     ]
   },
   "party": [
@@ -1570,9 +1572,7 @@
           "90de8d99-fc0d-407e-8de0-66f5d7494b55"
         ],
         "level_ups": [],
-        "items_found": [
-          "dfda0b06-b707-481b-b67a-c76793407841"
-        ],
+        "items_found": [],
         "npcs_met": [
           "6b7c714b-9093-4408-b55c-366a2b4465ed",
           "54b54de8-19e2-4e8e-86f1-4388f5823334",
@@ -1652,9 +1652,7 @@
           "02fce0b8-9553-4133-974e-9d1669cb9b22"
         ],
         "level_ups": [],
-        "items_found": [
-          "29ba6371-58a9-4209-a8f2-2ee6d94399eb"
-        ],
+        "items_found": [],
         "npcs_met": [
           "342813de-f19d-476a-ba7b-90ef06225021"
         ],
@@ -1685,7 +1683,6 @@
             "type": "story_event",
             "ref": [
               "6e84d955-bba8-4d07-b1ac-573fba01f1da",
-              "29ba6371-58a9-4209-a8f2-2ee6d94399eb",
               "6b7c714b-9093-4408-b55c-366a2b4465ed"
             ]
           },
@@ -2992,54 +2989,6 @@
     },
     {
       "_object_type": "item",
-      "id": "dfda0b06-b707-481b-b67a-c76793407841",
-      "legacy_id": "item_009",
-      "name": "Trade Commission",
-      "mechanics": {
-        "item_type": "currency",
-        "is_quest_relevant": false,
-        "quest_refs": [
-          "78485dcc-5121-4bb2-9c44-2935349d0651"
-        ],
-        "current_holder": null,
-        "found_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
-        "found_location": "899e5762-77ff-4034-9620-96b4712e59eb",
-        "provenance": "30 GP commission paid by Helen at Menne's Ranch upon completion of the Potion Supply Chain quest, session_004.",
-        "contents": null
-      },
-      "narrative": {
-        "description": "30 GP trade commission. Held as party funds.",
-        "significance": "First significant monetary reward. Reward for qst_004.",
-        "condition": null
-      },
-      "notes": null
-    },
-    {
-      "_object_type": "item",
-      "id": "29ba6371-58a9-4209-a8f2-2ee6d94399eb",
-      "legacy_id": "item_010",
-      "name": "Unrefined Emerald",
-      "mechanics": {
-        "item_type": "currency",
-        "is_quest_relevant": false,
-        "quest_refs": [
-          "6e84d955-bba8-4d07-b1ac-573fba01f1da"
-        ],
-        "current_holder": "party_shared",
-        "found_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
-        "found_location": "42598c87-c1ea-4b13-ba67-70b3d73da002",
-        "provenance": "Reward from Helen at Menne's Ranch for clearing the ROUS infestation (qst_005). Received session_005. Valued at approximately 100 GP unrefined.",
-        "contents": null
-      },
-      "narrative": {
-        "description": "Reward for ROUS cave. Valued at 100 GP.",
-        "significance": "Reward for qst_005. Most valuable single item in the party's possession.",
-        "condition": "Unrefined — requires a jeweller to assess final value."
-      },
-      "notes": null
-    },
-    {
-      "_object_type": "item",
       "id": "876df906-74e3-4e59-b500-1d9830019a89",
       "legacy_id": "item_011",
       "name": "Immovable Rod",
@@ -3852,9 +3801,7 @@
         "reward_received": {
           "description": "30 GP trade commission from Helen at Menne's Ranch",
           "value_gp": 30,
-          "item_refs": [
-            "dfda0b06-b707-481b-b67a-c76793407841"
-          ]
+          "item_refs": []
         },
         "objectives": [
           {
@@ -3897,9 +3844,7 @@
         "reward_received": {
           "description": "Unrefined emerald from Krustie Gnome at The Quarry as payment for clearing the ROUS infestation.",
           "value_gp": 100,
-          "item_refs": [
-            "29ba6371-58a9-4209-a8f2-2ee6d94399eb"
-          ]
+          "item_refs": []
         },
         "objectives": [
           {
@@ -3927,7 +3872,7 @@
           {
             "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
             "type": "reward_received",
-            "fact": "Unrefined emerald (item_010, ~100 GP) received from Krustie Gnome (npc_003) at The Quarry.",
+            "fact": "Unrefined emerald (~100 GP) received from Krustie Gnome (npc_003) at The Quarry.",
             "progress_narrative": null
           }
         ]
@@ -12104,23 +12049,6 @@
       }
     },
     {
-      "id": "67dc1aeb-ad2d-4b18-ad93-733843623a18",
-      "from_id": "29ba6371-58a9-4209-a8f2-2ee6d94399eb",
-      "from_type": "item",
-      "to_id": "6e84d955-bba8-4d07-b1ac-573fba01f1da",
-      "to_type": "quest",
-      "relationship_type": "quest_connection",
-      "significance": "participation",
-      "established_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
-      "last_updated_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
-      "status": "active",
-      "narrative": {
-        "ground_truth_notes": "Tied to the quest.",
-        "edge_prose": null,
-        "regeneration_flagged": false
-      }
-    },
-    {
       "id": "8ceb2ebf-3eb4-4838-be9e-c98638500812",
       "from_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
       "from_type": "npc",
@@ -12852,23 +12780,6 @@
       }
     },
     {
-      "id": "543182e8-7eb1-4b42-95f6-749a2e7b7902",
-      "from_id": "dfda0b06-b707-481b-b67a-c76793407841",
-      "from_type": "item",
-      "to_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
-      "to_type": "quest",
-      "relationship_type": "quest_connection",
-      "significance": "participation",
-      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
-      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
-      "status": "active",
-      "narrative": {
-        "ground_truth_notes": "Tied to the quest.",
-        "edge_prose": null,
-        "regeneration_flagged": false
-      }
-    },
-    {
       "id": "ed252eaf-372d-4c6b-90c4-3795ad962eb4",
       "from_id": "eaba1342-500b-4ff5-b9b5-3a2f4dff7185",
       "from_type": "location",
@@ -12954,6 +12865,23 @@
       }
     },
     {
+      "id": "7bbfe6f9-2651-47bc-b9dd-7ff780bfd458",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "0663ce9f-64a0-4628-8790-392ccaa5afeb",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+      "last_updated_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in Goblin Ambush. Fought the party in Larkspur Dragon Lair.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
       "id": "66540719-4c32-4e26-be1c-91d948bdc453",
       "from_id": "party",
       "from_type": "party",
@@ -13018,7 +12946,7 @@
       "last_updated_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
       "status": "active",
       "narrative": {
-        "ground_truth_notes": "Fought the party in Goblin Ambush.",
+        "ground_truth_notes": "Fought the party in Goblin Ambush. Fought the party in On the Road Back to the Quarry.",
         "edge_prose": null,
         "regeneration_flagged": false
       }
@@ -13086,10 +13014,10 @@
       "relationship_type": "combat_antagonist",
       "significance": "participation",
       "established_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
-      "last_updated_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "last_updated_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
       "status": "active",
       "narrative": {
-        "ground_truth_notes": "Fought the party in Goblin Ambush.",
+        "ground_truth_notes": "Fought the party in Goblin Ambush. Fought the party in On the Road Back to the Quarry.",
         "edge_prose": null,
         "regeneration_flagged": false
       }
@@ -13161,6 +13089,23 @@
       "disposition": "unknown",
       "narrative": {
         "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "c985932b-49d7-4616-aea7-4c8f00058a14",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "9a18705b-c448-4662-b246-39170fc75627",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+      "last_updated_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in On the Road Back to the Quarry.",
         "edge_prose": null,
         "regeneration_flagged": false
       }
