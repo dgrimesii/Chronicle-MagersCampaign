@@ -1667,7 +1667,8 @@
         ],
         "locations_visited": [
           "42598c87-c1ea-4b13-ba67-70b3d73da002",
-          "23024fd5-77fd-4e07-b494-fabc83b89ab5"
+          "23024fd5-77fd-4e07-b494-fabc83b89ab5",
+          "07366c9a-6900-4278-9924-85b2c8dc2b17"
         ]
       },
       "narrative": {
@@ -1697,7 +1698,7 @@
             ]
           },
           {
-            "description": "Goblin ambush — cbt_005 begins, paused at end of session",
+            "description": "Goblin ambush — cbt_005 begins",
             "type": "combat_highlight",
             "ref": "02fce0b8-9553-4133-974e-9d1669cb9b22"
           }
@@ -1736,7 +1737,10 @@
           "4aea310d-df5b-491b-910f-ddf974d1a351"
         ],
         "items_found": [
-          "876df906-74e3-4e59-b500-1d9830019a89"
+          "876df906-74e3-4e59-b500-1d9830019a89",
+          "ea0ccbe3-be23-489c-8b87-1eef6e8c7437",
+          "86a9ec50-15d8-4728-9178-1e57bbc2e777",
+          "2f2e4d9f-33ef-4b7c-9e0c-db0a8541ad5b"
         ],
         "npcs_met": [],
         "npcs_lost": [],
@@ -1746,7 +1750,8 @@
         ],
         "locations_visited": [
           "eaba1342-500b-4ff5-b9b5-3a2f4dff7185",
-          "42598c87-c1ea-4b13-ba67-70b3d73da002"
+          "07366c9a-6900-4278-9924-85b2c8dc2b17",
+          "fff9b274-8dbb-4add-a6e9-657ea4f37d02"
         ]
       },
       "narrative": {
@@ -2352,7 +2357,7 @@
         "observed_abilities": [
           {
             "name": "Pylon-spawned",
-            "description": "Emerged from Pylon during the Siege of Bagyers Farm."
+            "description": "Emerges from a Pylon."
           },
           {
             "name": "Sulfurous residue",
@@ -2371,7 +2376,7 @@
           "black goo on death",
           "skittering claws on stone"
         ],
-        "encounter_notes": "Spawned continuously from the Pylon during cbt_002. Eliminating the Pylon source stopped the spawning. Attacking individual creatures was attrition; destroying the Pylon was the solution."
+        "encounter_notes": "Spawned continuously from a Pylon; destroying the source stops the spawning. Attacking individual creatures is attrition."
       },
       "notes": null
     },
@@ -2390,7 +2395,7 @@
         "observed_abilities": [
           {
             "name": "Aggressive charge",
-            "description": "Charges targets directly; prioritised horses over party members during cbt_003."
+            "description": "Charges targets directly."
           },
           {
             "name": "Large flightless bird",
@@ -2407,7 +2412,7 @@
           "thundering charge",
           "feathers and fury"
         ],
-        "encounter_notes": "Prioritised horses over party members — tactical consideration for future encounters with mounts or large animals nearby. Vespon Swarm was present simultaneously in cbt_003."
+        "encounter_notes": "May prioritise horses over party members: a tactical consideration for encounters with mounts or large animals nearby."
       },
       "notes": null
     },
@@ -2427,15 +2432,15 @@
         "observed_abilities": [
           {
             "name": "Swarm coordination",
-            "description": "Controlled by the Vespon Queen. Lost formation and became stationary when Queen was incapacitated."
+            "description": "Controlled by the Vespon Queen. Loses formation and becomes stationary when the Queen is incapacitated."
           },
           {
             "name": "Sleep vulnerability",
-            "description": "Multiple swarm members eliminated by a single Sleep spell in cbt_001."
+            "description": "A single Sleep spell can eliminate multiple swarm members."
           },
           {
             "name": "Mold Earth weakness",
-            "description": "Entombed via Mold Earth in the cbt_001 finale — unconventional but effective."
+            "description": "Can be entombed with Mold Earth."
           }
         ],
         "observed_weaknesses": [
@@ -2452,7 +2457,7 @@
           "dense cloud movement",
           "sulfurous smell"
         ],
-        "encounter_notes": "The key discovery: swarm loses coordination when the Queen is taken out. Swarm alone is manageable; swarm with active Queen is not. Sleep and AoE spells effective."
+        "encounter_notes": "Loses coordination when the Queen is taken out. Swarm alone is manageable; swarm with an active Queen is not. Sleep and AoE spells are effective."
       },
       "notes": null
     },
@@ -2461,11 +2466,15 @@
       "id": "302ca3fc-ea4f-40c9-b77b-d57138cc6785",
       "legacy_id": "mon_004",
       "name": "Goblins",
+      "aliases": [
+        "goblin"
+      ],
       "mechanics": {
         "reliability": "confirmed",
         "first_encountered": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "combat_appearances": [
-          "02fce0b8-9553-4133-974e-9d1669cb9b22"
+          "02fce0b8-9553-4133-974e-9d1669cb9b22",
+          "0ed0adc6-da35-466d-9a5c-64d7a4a4d97b"
         ],
         "creature_type": "Humanoid (goblinoid)",
         "observed_abilities": [
@@ -2475,7 +2484,7 @@
           },
           {
             "name": "Coordinated with slingers",
-            "description": "Operated alongside Goblin Slingers and an Ogre in cbt_005 — suggests organised force."
+            "description": "Can operate alongside slingers and larger creatures as an organised force."
           },
           {
             "name": "Ranged sling attacks",
@@ -2484,7 +2493,7 @@
           },
           {
             "name": "Coordinated positioning",
-            "description": "Stayed back during goblin advance, providing ranged support.",
+            "description": "Stays back during a goblin advance, providing ranged support.",
             "role": "slinger"
           }
         ],
@@ -2501,7 +2510,7 @@
           "distance — never close",
           "coordinated chatter with standard goblins"
         ],
-        "encounter_notes": "Organised force — not an opportunistic raid. Slingers, standard goblins, and an Ogre in deliberate formation. Suggests a commander or at least a plan. Slingers: Remove or close distance on slingers early. They are low-damage but persistent — the accumulated hits from Del being targeted multiple times contributed to two downed events."
+        "encounter_notes": "Slingers: Remove or close distance on slingers early. They are low-damage but persistent."
       },
       "notes": null
     },
@@ -2520,30 +2529,23 @@
         "observed_abilities": [
           {
             "name": "Sonic Buzz",
-            "description": "Special attack. Used on Asphodel in Round 2 of cbt_001 — downed immediately (12 damage)."
+            "description": "Special attack. Single-target and high damage."
           },
           {
             "name": "Swarm command",
             "description": "Commands Vespon Swarms directly. Swarm loses coordination when Queen is incapacitated."
-          },
-          {
-            "name": "Killed by Asphodel",
-            "description": "Eliminated in Round 4 of cbt_001 by Asphodel."
           }
         ],
-        "observed_weaknesses": [
-          "Unarmed strikes (killed by Asphodel, Round 4 cbt_001)"
-        ],
+        "observed_weaknesses": [],
         "threat_level": "high"
       },
       "narrative": {
         "description": "Larger than the swarm members. A distinct creature that commands rather than constitutes the swarm.",
         "sensory": [
           "sonic vibration",
-          "larger than the swarm",
-          "silence when it died"
+          "larger than the swarm"
         ],
-        "encounter_notes": "Priority target in any Vespon engagement. Sonic Buzz is the dangerous ability — single-target but high damage. Killed by Asphodel using Unarmed Strike in Round 4."
+        "encounter_notes": "Priority target in any Vespon engagement. Sonic Buzz is the dangerous ability: single-target but high damage."
       },
       "notes": null
     },
@@ -2556,36 +2558,26 @@
         "reliability": "confirmed",
         "first_encountered": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "combat_appearances": [
-          "02fce0b8-9553-4133-974e-9d1669cb9b22"
+          "02fce0b8-9553-4133-974e-9d1669cb9b22",
+          "0ed0adc6-da35-466d-9a5c-64d7a4a4d97b"
         ],
         "creature_type": "Giant",
         "observed_abilities": [
           {
-            "name": "Delayed entry",
-            "description": "Appeared at the treeline at the end of Round 1 — not visible until the ambush was already underway."
-          },
-          {
             "name": "High melee damage",
-            "description": "Dealt 12 damage to Malachite in Round 3, 10 damage in Round 2. Greatclub-type attacks."
-          },
-          {
-            "name": "Killed by Ice Knife",
-            "description": "Eliminated by Atticus (pc_006) via Ice Knife in Round 3 of cbt_005. Shard burst hit Malachite but he saved."
+            "description": "Greatclub-type attacks."
           }
         ],
-        "observed_weaknesses": [
-          "Ice Knife (killed by Atticus, Round 3 cbt_005)"
-        ],
+        "observed_weaknesses": [],
         "threat_level": "high"
       },
       "narrative": {
-        "description": "Standard ogre. Large, slow to arrive, dangerous once engaged. Appeared as a second wave behind the goblin advance.",
+        "description": "Standard ogre. Large and dangerous once engaged.",
         "sensory": [
           "ground impact of footsteps",
-          "appeared at treeline like punctuation",
           "heavy breathing"
         ],
-        "encounter_notes": "Arrived late but escalated the fight significantly. Ice Knife was the killing blow; the shard burst was a near-miss for Malachite. Engagement confirmed: Ogres take positioning seriously — appeared only after goblins were established."
+        "encounter_notes": "Ogres take positioning seriously."
       },
       "notes": null
     },
@@ -2604,15 +2596,11 @@
         "observed_abilities": [
           {
             "name": "Pack creature",
-            "description": "Encountered in large numbers in the cavern. Coordinated pack attacks across multiple targets."
+            "description": "Encountered in large numbers. Coordinated pack attacks across multiple targets."
           },
           {
             "name": "ROUS designation",
             "description": "Referred to in-game as ROUS (Rodents of Unusual Size) — table nickname that stuck."
-          },
-          {
-            "name": "Endurance",
-            "description": "Infestation required 7 rounds across 2 sessions to clear completely."
           }
         ],
         "observed_weaknesses": [],
@@ -2622,26 +2610,12 @@
         "description": "Giant rats — larger than expected, aggressive when cornered. Pack mentality. The 'ROUS' designation emerged at the table and stuck.",
         "sensory": [
           "skittering in darkness",
-          "damp cave smell",
           "eyes reflecting torchlight",
           "high-pitched squeals"
         ],
-        "encounter_notes": "Cave environment was a factor — tight corridors limited AoE options. The water slide entry (no choice on positioning) made the opening round difficult."
+        "encounter_notes": null
       },
       "notes": null
-    },
-    {
-      "id": "07e4cc08-26e9-4368-80d4-81b124029384",
-      "name": "Lurkspur Larkspur Dragon",
-      "mechanics": {
-        "reliability": "unverified",
-        "appearances": [
-          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
-        ]
-      },
-      "narrative": {
-        "description": "A Larkspur Dragon species that descends from ridges onto the cart, killing all at the cart and frightening the goblins."
-      }
     },
     {
       "id": "0663ce9f-64a0-4628-8790-392ccaa5afeb",
@@ -2650,25 +2624,14 @@
         "reliability": "unverified",
         "appearances": [
           "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ],
+        "combat_appearances": [
+          "02fce0b8-9553-4133-974e-9d1669cb9b22",
+          "6a60cd71-9bb8-4a76-85b0-37ce42d6b0ef"
         ]
       },
       "narrative": {
-        "description": "A dragon enemy in the combat, targeted by party attacks and acting with Beak and Talon attacks."
-      },
-      "narrative.description": "A Larkspur Dragon enemy in the combat, targeted by party attacks and acting with Beak and Talon attacks.",
-      "op": "delete"
-    },
-    {
-      "id": "cc0c5ecf-47a1-41f0-bcba-5e692145fcdf",
-      "name": "goblin",
-      "mechanics": {
-        "reliability": "unverified",
-        "appearances": [
-          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
-        ]
-      },
-      "narrative": {
-        "description": "Goblins ambushing the party, eventually fleeing in round 7 after taking casualties."
+        "description": "A dragon species that attacks with its beak and talons and has a breath weapon."
       }
     },
     {
@@ -2678,10 +2641,13 @@
         "reliability": "unverified",
         "appearances": [
           "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ],
+        "combat_appearances": [
+          "0ed0adc6-da35-466d-9a5c-64d7a4a4d97b"
         ]
       },
       "narrative": {
-        "description": "Kobolds mostly repositioning; one attacked Mal and missed."
+        "description": null
       }
     }
   ],
@@ -3083,8 +3049,8 @@
         "quest_refs": [],
         "current_holder": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
         "found_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
-        "found_location": null,
-        "provenance": "Loot from session_006 — session not yet logged in Chronicle.",
+        "found_location": "fff9b274-8dbb-4add-a6e9-657ea4f37d02",
+        "provenance": "Found in the Larkspur Dragon's hoard.",
         "contents": null
       },
       "narrative": {
@@ -3092,27 +3058,70 @@
         "significance": "Utility item with creative combat and exploration applications.",
         "condition": null
       },
-      "notes": "Found during session_006 — full loot context pending Chronicle intake of that session. Currently carried by Asphodel (pc_004)."
+      "notes": "Currently carried by Asphodel (pc_004)."
     },
     {
+      "_object_type": "item",
       "id": "ea0ccbe3-be23-489c-8b87-1eef6e8c7437",
       "name": "Bag of Holding",
-      "description": "Found as a leather bag in the Larkspur Larkspur Dragon's hoard."
+      "mechanics": {
+        "item_type": "wondrous_item",
+        "is_quest_relevant": false,
+        "quest_refs": [],
+        "current_holder": null,
+        "found_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+        "found_location": "fff9b274-8dbb-4add-a6e9-657ea4f37d02",
+        "provenance": "Found in the Larkspur Dragon's hoard.",
+        "contents": null
+      },
+      "narrative": {
+        "description": "Found as a leather bag in the Larkspur Dragon's hoard.",
+        "significance": null,
+        "condition": null
+      },
+      "notes": null
     },
     {
+      "_object_type": "item",
       "id": "86a9ec50-15d8-4728-9178-1e57bbc2e777",
       "name": "Wand of Magic Detection",
-      "description": "Found in the Larkspur Larkspur Dragon's hoard."
+      "mechanics": {
+        "item_type": "wondrous_item",
+        "is_quest_relevant": false,
+        "quest_refs": [],
+        "current_holder": null,
+        "found_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+        "found_location": "fff9b274-8dbb-4add-a6e9-657ea4f37d02",
+        "provenance": "Found in the Larkspur Dragon's hoard.",
+        "contents": null
+      },
+      "narrative": {
+        "description": "Found in the Larkspur Dragon's hoard.",
+        "significance": null,
+        "condition": null
+      },
+      "notes": null
     },
     {
+      "_object_type": "item",
       "id": "2f2e4d9f-33ef-4b7c-9e0c-db0a8541ad5b",
       "name": "Good Luck charm/token",
-      "description": "A small stone found in the Larkspur Larkspur Dragon's hoard."
-    },
-    {
-      "id": "8e7f6cc5-cab8-47b7-bcab-a739ac5574b6",
-      "name": "Immovable Rod",
-      "description": "Found as a rod in the Larkspur Larkspur Dragon's hoard."
+      "mechanics": {
+        "item_type": "wondrous_item",
+        "is_quest_relevant": false,
+        "quest_refs": [],
+        "current_holder": null,
+        "found_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+        "found_location": "fff9b274-8dbb-4add-a6e9-657ea4f37d02",
+        "provenance": "Found in the Larkspur Dragon's hoard.",
+        "contents": null
+      },
+      "narrative": {
+        "description": "A small stone found in the Larkspur Dragon's hoard.",
+        "significance": null,
+        "condition": null
+      },
+      "notes": null
     }
   ],
   "locations": [
@@ -3175,16 +3184,14 @@
         "visibility": "visited",
         "region": "Southwest — 2 days from Menne's Ranch",
         "type": "mining_site",
-        "combat_history": [
-          "02fce0b8-9553-4133-974e-9d1669cb9b22"
-        ],
+        "combat_history": [],
         "sessions_visited": [
-          "4478195d-34d9-46ec-b316-2546ca48bf34",
-          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+          "4478195d-34d9-46ec-b316-2546ca48bf34"
         ],
         "connected_to": [
           "899e5762-77ff-4034-9620-96b4712e59eb",
-          "23024fd5-77fd-4e07-b494-fabc83b89ab5"
+          "23024fd5-77fd-4e07-b494-fabc83b89ab5",
+          "07366c9a-6900-4278-9924-85b2c8dc2b17"
         ],
         "notable_entities": [
           "6b7c714b-9093-4408-b55c-366a2b4465ed"
@@ -3197,7 +3204,7 @@
           "machinery noise",
           "transient workers"
         ],
-        "significance": "Staging point for the Rat Cave quest. Krustie Gnome directed the party here. Site of cbt_005 (Goblin Ambush) on the road approaching.",
+        "significance": "Staging point for the Rat Cave quest. Krustie Gnome directed the party here.",
         "flavor_text": null,
         "flavor_text_generated_at": null,
         "flavor_text_model": null,
@@ -3268,7 +3275,8 @@
         ],
         "connected_to": [
           "fc8a09a1-ab44-46aa-9e0c-1b16a2bae110",
-          "42598c87-c1ea-4b13-ba67-70b3d73da002"
+          "42598c87-c1ea-4b13-ba67-70b3d73da002",
+          "07366c9a-6900-4278-9924-85b2c8dc2b17"
         ],
         "notable_entities": [
           "54b54de8-19e2-4e8e-86f1-4388f5823334"
@@ -3506,7 +3514,7 @@
       "name": "Lake Town",
       "parent_location": null,
       "mechanics": {
-        "visibility": "heard-of",
+        "visibility": "visited",
         "region": "Approx. 2 days west of The Quarry",
         "type": "settlement",
         "combat_history": [],
@@ -3514,7 +3522,8 @@
           "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
         ],
         "connected_to": [
-          "42598c87-c1ea-4b13-ba67-70b3d73da002"
+          "42598c87-c1ea-4b13-ba67-70b3d73da002",
+          "07366c9a-6900-4278-9924-85b2c8dc2b17"
         ],
         "notable_entities": []
       },
@@ -3590,24 +3599,72 @@
       "notes": null
     },
     {
-      "id": "083eaff7-d6f9-4bbf-b79a-51df9eb17cd3",
-      "name": "Goblin Ambush",
-      "description": "Existing location established in session 5 — do not CANCEL. Associate all session 6 entries referencing Goblin Ambush with the existing location ID confirmed by DM.",
-      "action": "CANCEL",
-      "mechanics": {}
-    },
-    {
+      "_object_type": "location",
       "id": "fff9b274-8dbb-4add-a6e9-657ea4f37d02",
-      "name": "Larkspur Larkspur Dragon Lair",
-      "description": "The lair of the Larkspur Larkspur Dragon, spotted as a peak in the distance and stormed by the party.",
-      "mechanics": {}
+      "name": "Larkspur Dragon Lair",
+      "parent_location": null,
+      "mechanics": {
+        "visibility": "visited",
+        "region": null,
+        "type": "lair",
+        "combat_history": [
+          "6a60cd71-9bb8-4a76-85b0-37ce42d6b0ef"
+        ],
+        "sessions_visited": [
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ],
+        "connected_to": [],
+        "notable_entities": []
+      },
+      "narrative": {
+        "description": "The lair of the Larkspur Dragon, spotted as a peak in the distance and stormed by the party.",
+        "atmosphere": [],
+        "significance": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
+      },
+      "notes": null
     },
     {
+      "_object_type": "location",
       "id": "07366c9a-6900-4278-9924-85b2c8dc2b17",
       "name": "Road to Lake Town",
-      "type": "location",
-      "description": "CANCEL a CANCEL location entry for 'Road to Lake Town' — a travel road connecting to Lake Town (existing location eaba1342-500b-4ff5-b9b5-3a2f4dff7185). This road was the site of a goblin ambush in session 6. All session 6 entries referencing the goblin ambush location should be associated with this CANCEL location ID once created.",
-      "mechanics": {}
+      "parent_location": null,
+      "mechanics": {
+        "visibility": "visited",
+        "region": "Between Lake Town and Menne's Ranch, through The Quarry",
+        "type": "road",
+        "combat_history": [
+          "02fce0b8-9553-4133-974e-9d1669cb9b22",
+          "0ed0adc6-da35-466d-9a5c-64d7a4a4d97b"
+        ],
+        "sessions_visited": [
+          "4478195d-34d9-46ec-b316-2546ca48bf34",
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ],
+        "connected_to": [
+          "42598c87-c1ea-4b13-ba67-70b3d73da002",
+          "eaba1342-500b-4ff5-b9b5-3a2f4dff7185",
+          "899e5762-77ff-4034-9620-96b4712e59eb"
+        ],
+        "notable_entities": []
+      },
+      "narrative": {
+        "description": "The road running from Lake Town through The Quarry to Menne's Ranch.",
+        "atmosphere": [],
+        "significance": null,
+        "flavor_text": null,
+        "flavor_text_generated_at": null,
+        "flavor_text_model": null,
+        "flavor_text_version": 0,
+        "regeneration_flagged": false,
+        "regeneration_flag_reason": null
+      },
+      "notes": null
     }
   ],
   "quest_ledger": [
@@ -3723,15 +3780,15 @@
         "origin_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
         "given_by": null,
         "reward_received": {
-          "description": "36 GP contract payment (6 GP/person × 6 party members) from Lake Town upon delivery.",
-          "value_gp": 36,
+          "description": "70 GP for delivering the bodies and cart and 40 GP for completing the job, from Lake Town.",
+          "value_gp": 110,
           "item_refs": []
         },
         "objectives": [
           {
             "id": "990c5b37-715c-4c30-8d88-782f7d644759",
             "legacy_id": "obj_005",
-            "description": "Escort the stone-trading caravan to Lake Town.",
+            "description": "Escort the cart from The Quarry to Lake Town.",
             "is_completed": true,
             "location_ref": "eaba1342-500b-4ff5-b9b5-3a2f4dff7185",
             "npc_ref": null
@@ -3747,7 +3804,7 @@
           {
             "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
             "type": "setback",
-            "fact": "Ambushed by goblins and an Ogre mid-route. Combat paused at end of session_005.",
+            "fact": "Ambushed by goblins and an Ogre mid-route.",
             "progress_narrative": null
           },
           {
@@ -3765,13 +3822,7 @@
           {
             "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
             "type": "reward_received",
-            "fact": "Lake Town paid the 36 GP contract. Town mourned the dead but was grateful to have them returned.",
-            "progress_narrative": null
-          },
-          {
-            "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
-            "type": "progress",
-            "fact": "The party brought the cart and returned the bodies of fallen people to Lake Town, receiving 70 GP for delivering the bodies and cart and 40 GP for completing the job.",
+            "fact": "Lake Town paid 70 GP for delivering the bodies and cart and 40 GP for completing the job. Town mourned the dead but was grateful to have them returned.",
             "progress_narrative": null
           }
         ]
@@ -3887,12 +3938,6 @@
         "open_questions": []
       },
       "notes": null
-    },
-    {
-      "id": "d009469f-4951-4080-b647-933c81a4eecc",
-      "name": "Escort Cart to Lake Town",
-      "type": "session_note",
-      "description": "CANCEL session_note: Escort the cart and its owners to Lake Town. The cart owners were killed during a goblin ambush en route — session_note status should be updated to reflect this complication or failure."
     }
   ],
   "combat_encounters": [
@@ -3978,12 +4023,21 @@
           "high-pitched buzzing",
           "darkness under the canopy",
           "smell of sulfur",
-          "tree roots underfoot"
+          "tree roots underfoot",
+          "silence when the Queen died"
         ],
         "current_status": null,
         "finale": "Atti and Goldie used Mold Earth to entomb the sleeping swarm.",
         "aftermath": null
       },
+      "passages": [
+        {
+          "text": "The swarm lost formation and became stationary when the Queen was incapacitated.",
+          "session_id": "48e67e5e-0ae6-45da-b823-0299b250e67c",
+          "speaker": "dm",
+          "page": null
+        }
+      ],
       "rounds": [
         {
           "n": 1,
@@ -4490,7 +4544,21 @@
             }
           ],
           "summary": "Queen killed; remaining swarm put to sleep and entombed via Mold Earth.",
-          "enemy_turns": []
+          "enemy_turns": [],
+          "passages": [
+            {
+              "text": "A single Sleep spell eliminated multiple swarm members.",
+              "session_id": "48e67e5e-0ae6-45da-b823-0299b250e67c",
+              "speaker": "dm",
+              "page": null
+            },
+            {
+              "text": "Asphodel killed the Vespon Queen with an Unarmed Strike.",
+              "session_id": "48e67e5e-0ae6-45da-b823-0299b250e67c",
+              "speaker": "dm",
+              "page": null
+            }
+          ]
         }
       ],
       "notes": null
@@ -7324,6 +7392,14 @@
         "finale": null,
         "aftermath": "Del, Atticus, and Goldie used Wild Shape and familiars to turn into/summon goats to pull the wagon the rest of the way to Menne's Ranch."
       },
+      "passages": [
+        {
+          "text": "The Axe Beaks prioritised the horses over party members.",
+          "session_id": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+          "speaker": "dm",
+          "page": null
+        }
+      ],
       "rounds": [
         {
           "n": 1,
@@ -8635,6 +8711,14 @@
         "finale": null,
         "aftermath": null
       },
+      "passages": [
+        {
+          "text": "The cave environment was a factor: tight corridors limited AoE options. The water slide entry, with no choice on positioning, made the opening round difficult.",
+          "session_id": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+          "speaker": "dm",
+          "page": null
+        }
+      ],
       "rounds": [
         {
           "n": 1,
@@ -9606,8 +9690,8 @@
       "legacy_id": "cbt_005",
       "name": "Goblin Ambush",
       "mechanics": {
-        "outcome": "paused",
-        "location": "42598c87-c1ea-4b13-ba67-70b3d73da002",
+        "outcome": "victory",
+        "location": "07366c9a-6900-4278-9924-85b2c8dc2b17",
         "sessions": [
           "4478195d-34d9-46ec-b316-2546ca48bf34",
           "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
@@ -9620,7 +9704,7 @@
             "mon_ref": "302ca3fc-ea4f-40c9-b77b-d57138cc6785",
             "count": null,
             "count_remaining": null,
-            "notes": "Several killed. Count unknown. Combat paused."
+            "notes": "Several killed. Count unknown."
           },
           {
             "actor_id": "Goblin Slingers",
@@ -9640,25 +9724,9 @@
             "notes": "Appeared at treeline end of Round 1. Killed by pc_006 Ice Knife in Round 3."
           },
           {
-            "actor_id": "Unidentified enemies",
-            "type": "group",
-            "mon_ref": null,
-            "count": null,
-            "count_remaining": null,
-            "notes": null
-          },
-          {
-            "actor_id": "Goblins hit",
-            "type": "group",
-            "mon_ref": null,
-            "count": null,
-            "count_remaining": null,
-            "notes": null
-          },
-          {
             "actor_id": "Larkspur Dragon #1",
             "type": "group",
-            "mon_ref": null,
+            "mon_ref": "0663ce9f-64a0-4628-8790-392ccaa5afeb",
             "count": null,
             "count_remaining": null,
             "notes": null
@@ -9666,7 +9734,7 @@
           {
             "actor_id": "Larkspur Dragon #2",
             "type": "group",
-            "mon_ref": null,
+            "mon_ref": "0663ce9f-64a0-4628-8790-392ccaa5afeb",
             "count": null,
             "count_remaining": null,
             "notes": null
@@ -9735,12 +9803,33 @@
           "tense road",
           "goblin musk",
           "scrub and dust",
-          "ambush energy"
+          "ambush energy",
+          "Ogre appearing at the treeline like punctuation"
         ],
-        "current_status": "Paused at end of Round 3. Remaining goblins still active. Continues session_006.",
+        "current_status": null,
         "finale": null,
         "aftermath": null
       },
+      "passages": [
+        {
+          "text": "An organised force, not an opportunistic raid: slingers, standard goblins and an Ogre in deliberate formation, suggesting a commander or at least a plan.",
+          "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
+          "speaker": "dm",
+          "page": null
+        },
+        {
+          "text": "The Ogre arrived late but escalated the fight significantly, appearing only after the goblins were established.",
+          "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
+          "speaker": "dm",
+          "page": null
+        },
+        {
+          "text": "The slingers were low-damage but persistent: their accumulated hits on Del, targeted multiple times, contributed to two downed events.",
+          "session_id": "4478195d-34d9-46ec-b316-2546ca48bf34",
+          "speaker": "dm",
+          "page": null
+        }
+      ],
       "rounds": [
         {
           "n": 1,
@@ -10318,6 +10407,14 @@
         {
           "n": 4,
           "sid": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+          "passages": [
+            {
+              "text": "Two Larkspur dragons descend from the ridges onto the cart, killing everyone at the cart and frightening the goblins.",
+              "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+              "speaker": "dm",
+              "page": null
+            }
+          ],
           "slots": [
             {
               "s": 1,
@@ -10465,34 +10562,37 @@
               "actor_id": "Goblins",
               "activities": [
                 {
-                  "economy": "action",
-                  "name": "Goblins — Hit Mal (opportunity attack)",
-                  "outcomes": []
+                  "economy": "reaction",
+                  "name": "Opportunity Attack",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
+                    }
+                  ]
                 }
               ],
-              "special_events": [
-                {
-                  "type": "other",
-                  "description": "Mal takes opportunity hit damage"
-                }
-              ],
+              "special_events": [],
               "notes": null
             },
             {
-              "actor_id": "Unidentified enemies",
+              "actor_id": "Goblin Slingers",
               "activities": [
                 {
                   "economy": "action",
-                  "name": "CANCEL — merge into existing Goblins (302ca3fc-ea4f-40c9-b77b-d57138cc6785) — Attack Larkspur Dragon, 1 hit",
-                  "outcomes": []
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
                 }
               ],
-              "special_events": [
-                {
-                  "type": "other",
-                  "description": "Larkspur Dragon takes 1 hit from CANCEL — merge into existing Goblins (302ca3fc-ea4f-40c9-b77b-d57138cc6785)"
-                }
-              ],
+              "special_events": [],
               "notes": null
             }
           ]
@@ -10651,7 +10751,7 @@
                       "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
                     }
                   ],
-                  "notes": "Cast in response to Lurkspur Larkspur Dragon attack."
+                  "notes": "Cast in response to Larkspur Dragon attack."
                 }
               ],
               "notes": null
@@ -10659,29 +10759,52 @@
           ],
           "enemy_turns": [
             {
-              "actor_id": "Unidentified enemies",
+              "actor_id": "Larkspur Dragon #1",
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Lurkspur Larkspur Dragon — Attack Gold, Gold casts Shield",
-                  "outcomes": []
-                },
+                  "name": "Attack",
+                  "notes": "One miss (Gold's Shield), one hit with slash and poison damage",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
+                    },
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
+                    }
+                  ]
+                }
+              ],
+              "special_events": [],
+              "notes": null
+            },
+            {
+              "actor_id": "Larkspur Dragon #2",
+              "activities": [
                 {
                   "economy": "action",
-                  "name": "Lurkspur Larkspur Dragon — Attack Goblins (2 attacks): one miss, one hit [3 slash + 7 poison]; Reel, Dead",
-                  "outcomes": []
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": "Goblins",
+                      "effect": "killed"
+                    },
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": "Goblins",
+                      "effect": "killed"
+                    }
+                  ]
                 }
               ],
-              "special_events": [
-                {
-                  "type": "other",
-                  "description": "Gold uses Shield reaction"
-                },
-                {
-                  "type": "other",
-                  "description": "One goblin killed by Lurkspur Larkspur Dragon; 1 Larkspur Dragon bloodied"
-                }
-              ],
+              "special_events": [],
               "notes": null
             },
             {
@@ -10689,17 +10812,55 @@
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Goblins — Hit Del [4], Hit Mal [1]; Hit Larkspur Dragon, Hit Larkspur Dragon, Hit Larkspur Dragon, Hit Del (Down)",
-                  "outcomes": []
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 4,
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
+                    },
+                    {
+                      "res": "hit",
+                      "val": 1,
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
+                    },
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    },
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    },
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    },
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+                      "effect": "downed"
+                    }
+                  ]
                 }
               ],
-              "special_events": [
-                {
-                  "type": "other",
-                  "description": "Del takes 4 damage and goes down; Mal takes 1 damage; Larkspur Dragon hit three times"
-                }
-              ],
+              "special_events": [],
               "notes": null
+            }
+          ],
+          "passages": [
+            {
+              "text": "By the end of round 5 one dragon was bloodied.",
+              "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+              "speaker": "dm",
+              "page": null
             }
           ]
         },
@@ -10742,6 +10903,19 @@
                       "val": 13,
                       "target_id": null,
                       "target_text": "Larkspur Dragon"
+                    }
+                  ]
+                },
+                {
+                  "economy": "reaction",
+                  "name": "Opportunity Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 9,
+                      "target_id": "Goblins",
+                      "effect": "killed"
                     }
                   ]
                 }
@@ -10853,32 +11027,6 @@
                 }
               ],
               "notes": null
-            },
-            {
-              "s": "enemies",
-              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
-              "activities": [
-                {
-                  "economy": "reaction",
-                  "name": "Reactive Strike",
-                  "val_type": "damage",
-                  "outcomes": [
-                    {
-                      "res": "hit",
-                      "val": 9,
-                      "target_id": "Goblins",
-                      "effect": "killed"
-                    },
-                    {
-                      "res": "hit",
-                      "val": 9,
-                      "target_id": "Goblins",
-                      "effect": "killed"
-                    }
-                  ]
-                }
-              ],
-              "notes": null
             }
           ],
           "enemy_turns": [
@@ -10887,33 +11035,30 @@
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Goblin moves; movement triggers Mal's Reactive Strike.",
-                  "outcomes": []
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    },
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    },
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
                 }
               ],
-              "special_events": [
-                {
-                  "type": "other",
-                  "description": "Goblin's movement triggered Mal's Reactive Strike reaction."
-                }
-              ],
-              "notes": null
-            },
-            {
-              "actor_id": "Goblins hit",
-              "activities": [
-                {
-                  "economy": "action",
-                  "name": "Larkspur Dragon, Larkspur Dragon, Ogre.",
-                  "outcomes": []
-                }
-              ],
-              "special_events": [
-                {
-                  "type": "other",
-                  "description": "Goblins successfully hit Larkspur Dragon, Larkspur Dragon, and Ogre."
-                }
-              ],
+              "special_events": [],
               "notes": null
             },
             {
@@ -10921,16 +11066,19 @@
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Beak hit Ashton [5], Con save passed.",
-                  "outcomes": []
+                  "name": "Attack",
+                  "detail": "Beak",
+                  "notes": "Ash succeeded on a Constitution save",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 5,
+                      "target_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3"
+                    }
+                  ]
                 }
               ],
-              "special_events": [
-                {
-                  "type": "other",
-                  "description": "Ashton takes 5 damage; Con save passed."
-                }
-              ],
+              "special_events": [],
               "notes": null
             },
             {
@@ -10938,16 +11086,31 @@
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Beak daze Goblin hit; Talon vs Mal — miss.",
-                  "outcomes": []
-                }
-              ],
-              "special_events": [
+                  "name": "Attack",
+                  "detail": "Beak",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": "Goblins",
+                      "effect": "killed"
+                    }
+                  ]
+                },
                 {
-                  "type": "other",
-                  "description": "Larkspur Dragon #2's Beak hit a goblin with a daze effect; Talon attack against Mal missed."
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Talon",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
+                    }
+                  ]
                 }
               ],
+              "special_events": [],
               "notes": null
             }
           ]
@@ -11028,14 +11191,13 @@
           "enemy_turns": [
             {
               "actor_id": "Goblins",
-              "activities": [
+              "activities": [],
+              "special_events": [
                 {
-                  "economy": "action",
-                  "name": "Goblins flee.",
-                  "outcomes": []
+                  "type": "fled",
+                  "description": "The goblins flee"
                 }
               ],
-              "special_events": [],
               "notes": null
             },
             {
@@ -11043,19 +11205,21 @@
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Larkspur Dragon #2 targets Mal — miss.",
-                  "outcomes": []
-                },
-                {
-                  "economy": "action",
-                  "name": "Larkspur Dragon #2 attempts to flee, triggering an Opportunity Attack from Mal.",
-                  "outcomes": []
+                  "name": "Attack",
+                  "notes": "Nat 1",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
+                    }
+                  ]
                 }
               ],
               "special_events": [
                 {
-                  "type": "other",
-                  "description": "Larkspur Dragon #2's attack against Mal missed."
+                  "type": "fled",
+                  "description": "Dragon #2 flees"
                 }
               ],
               "notes": null
@@ -11063,7 +11227,7 @@
           ]
         }
       ],
-      "notes": "⚠ Combat continues in Session 006."
+      "notes": null
     },
     {
       "_object_type": "combat",
@@ -11112,19 +11276,19 @@
     {
       "_object_type": "combat",
       "id": "6a60cd71-9bb8-4a76-85b0-37ce42d6b0ef",
-      "name": "Larkspur Larkspur Dragon Lair",
+      "name": "Larkspur Dragon Lair",
       "mechanics": {
-        "outcome": null,
-        "location": null,
+        "outcome": "victory",
+        "location": "fff9b274-8dbb-4add-a6e9-657ea4f37d02",
         "sessions": [
           "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
         ],
         "total_rounds_logged": 1,
         "enemies_roster": [
           {
-            "actor_id": "Unidentified enemies",
+            "actor_id": "Larkspur Dragon",
             "type": "group",
-            "mon_ref": null,
+            "mon_ref": "0663ce9f-64a0-4628-8790-392ccaa5afeb",
             "count": null,
             "count_remaining": null,
             "notes": null
@@ -11162,14 +11326,12 @@
                     {
                       "res": "hit",
                       "val": 10,
-                      "target_id": null,
-                      "target_text": "Larkspur Dragon"
+                      "target_id": "Larkspur Dragon"
                     },
                     {
                       "res": "miss",
                       "val": null,
-                      "target_id": null,
-                      "target_text": "Larkspur Dragon"
+                      "target_id": "Larkspur Dragon"
                     }
                   ]
                 }
@@ -11188,14 +11350,12 @@
                     {
                       "res": "hit",
                       "val": 7,
-                      "target_id": null,
-                      "target_text": "Larkspur Dragon"
+                      "target_id": "Larkspur Dragon"
                     },
                     {
                       "res": "miss",
                       "val": null,
-                      "target_id": null,
-                      "target_text": "Larkspur Dragon"
+                      "target_id": "Larkspur Dragon"
                     }
                   ]
                 }
@@ -11215,8 +11375,7 @@
                     {
                       "res": "hit",
                       "val": 11,
-                      "target_id": null,
-                      "target_text": "Larkspur Dragon"
+                      "target_id": "Larkspur Dragon"
                     }
                   ]
                 }
@@ -11236,8 +11395,7 @@
                     {
                       "res": "hit",
                       "val": 14,
-                      "target_id": null,
-                      "target_text": "Larkspur Dragon",
+                      "target_id": "Larkspur Dragon",
                       "effect": "killed"
                     }
                   ]
@@ -11286,25 +11444,35 @@
           ],
           "enemy_turns": [
             {
-              "actor_id": "Unidentified enemies",
+              "actor_id": "Larkspur Dragon",
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Larkspur Dragon breath attack on Ashton, Hit for 10 damage.",
-                  "outcomes": []
+                  "name": "Attack",
+                  "detail": "Breath",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 10,
+                      "target_id": "55643397-35ab-4e4d-8f0b-f847a65ed4e3"
+                    }
+                  ]
                 },
                 {
                   "economy": "action",
-                  "name": "Larkspur Dragon talon attack on Mal, Miss.",
-                  "outcomes": []
+                  "name": "Attack",
+                  "detail": "Talon",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
+                    }
+                  ]
                 }
               ],
-              "special_events": [
-                {
-                  "type": "other",
-                  "description": "10 damage to Ashton."
-                }
-              ],
+              "special_events": [],
               "notes": null
             }
           ]
@@ -11317,18 +11485,34 @@
       "id": "0ed0adc6-da35-466d-9a5c-64d7a4a4d97b",
       "name": "On the Road Back to the Quarry",
       "mechanics": {
-        "outcome": null,
-        "location": null,
+        "outcome": "paused",
+        "location": "07366c9a-6900-4278-9924-85b2c8dc2b17",
         "sessions": [
           "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
         ],
         "total_rounds_logged": 2,
         "enemies_roster": [
           {
-            "actor_id": "Unidentified enemies",
+            "actor_id": "Kobolds",
             "type": "group",
-            "mon_ref": null,
+            "mon_ref": "9a18705b-c448-4662-b246-39170fc75627",
             "count": null,
+            "count_remaining": null,
+            "notes": null
+          },
+          {
+            "actor_id": "Goblins",
+            "type": "group",
+            "mon_ref": "302ca3fc-ea4f-40c9-b77b-d57138cc6785",
+            "count": 4,
+            "count_remaining": null,
+            "notes": null
+          },
+          {
+            "actor_id": "Ogres",
+            "type": "group",
+            "mon_ref": "61aed323-0e64-4953-a2dd-061a77e90599",
+            "count": 2,
             "count_remaining": null,
             "notes": null
           }
@@ -11431,8 +11615,7 @@
                     {
                       "res": "hit",
                       "val": 9,
-                      "target_id": null,
-                      "target_text": "Ogre"
+                      "target_id": "Ogres"
                     }
                   ]
                 }
@@ -11452,8 +11635,7 @@
                     {
                       "res": "hit",
                       "val": 11,
-                      "target_id": null,
-                      "target_text": "Ogre"
+                      "target_id": "Ogres"
                     }
                   ]
                 }
@@ -11495,38 +11677,53 @@
           ],
           "enemy_turns": [
             {
-              "actor_id": "Unidentified enemies",
+              "actor_id": "Kobolds",
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Kobold attacks Mal — miss. Four Kobolds dash to reposition.",
-                  "outcomes": []
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
+                    }
+                  ]
                 },
                 {
                   "economy": "action",
-                  "name": "Four Goblins dash to reposition.",
-                  "outcomes": []
-                },
+                  "name": "Dash",
+                  "outcomes": [],
+                  "notes": "Four Kobolds dash to reposition."
+                }
+              ],
+              "special_events": [],
+              "notes": null
+            },
+            {
+              "actor_id": "Goblins",
+              "activities": [
                 {
                   "economy": "action",
-                  "name": "Both Ogres dash to close distance.",
-                  "outcomes": []
+                  "name": "Dash",
+                  "outcomes": [],
+                  "notes": "Four Goblins dash to reposition."
                 }
               ],
-              "special_events": [
+              "special_events": [],
+              "notes": null
+            },
+            {
+              "actor_id": "Ogres",
+              "activities": [
                 {
-                  "type": "other",
-                  "description": "No damage dealt; Kobolds closing distance."
-                },
-                {
-                  "type": "other",
-                  "description": "Goblins closing distance."
-                },
-                {
-                  "type": "other",
-                  "description": "Ogres closing distance toward the party."
+                  "economy": "action",
+                  "name": "Dash",
+                  "outcomes": [],
+                  "notes": "Both Ogres dash to close distance."
                 }
               ],
+              "special_events": [],
               "notes": null
             }
           ]
@@ -11547,8 +11744,7 @@
                     {
                       "res": "success",
                       "val": null,
-                      "target_id": null,
-                      "target_text": "Goblin",
+                      "target_id": "Goblins",
                       "effect": "killed"
                     }
                   ],
@@ -11580,8 +11776,7 @@
                     {
                       "res": "hit",
                       "val": 15,
-                      "target_id": null,
-                      "target_text": "Kobold",
+                      "target_id": "Kobolds",
                       "effect": "killed"
                     }
                   ]
@@ -11613,14 +11808,12 @@
                     {
                       "res": "hit",
                       "val": 7,
-                      "target_id": null,
-                      "target_text": "Ogre"
+                      "target_id": "Ogres"
                     },
                     {
                       "res": "hit",
                       "val": 16,
-                      "target_id": null,
-                      "target_text": "Ogre"
+                      "target_id": "Ogres"
                     }
                   ]
                 },
@@ -11632,8 +11825,7 @@
                     {
                       "res": "hit",
                       "val": 8,
-                      "target_id": null,
-                      "target_text": "Ogre"
+                      "target_id": "Ogres"
                     }
                   ]
                 }
@@ -11685,8 +11877,7 @@
                     {
                       "res": "hit",
                       "val": 8,
-                      "target_id": null,
-                      "target_text": "Kobold",
+                      "target_id": "Kobolds",
                       "effect": "killed"
                     }
                   ]
@@ -11727,30 +11918,45 @@
           ],
           "enemy_turns": [
             {
-              "actor_id": "Unidentified enemies",
+              "actor_id": "Ogres",
               "activities": [
                 {
                   "economy": "action",
-                  "name": "Ogre attacks Mal — miss",
-                  "outcomes": []
-                },
-                {
-                  "economy": "action",
-                  "name": "Ogre attacks Del — miss",
-                  "outcomes": []
-                },
-                {
-                  "economy": "action",
-                  "name": "Kobold attacks Del — Hit [3]",
-                  "outcomes": []
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
+                    },
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
+                    }
+                  ]
                 }
               ],
-              "special_events": [
+              "special_events": [],
+              "notes": null
+            },
+            {
+              "actor_id": "Kobolds",
+              "activities": [
                 {
-                  "type": "other",
-                  "description": "Del takes 3 damage"
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 3,
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
+                    }
+                  ]
                 }
               ],
+              "special_events": [],
               "notes": null
             }
           ]

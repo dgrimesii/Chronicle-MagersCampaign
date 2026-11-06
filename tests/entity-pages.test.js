@@ -92,6 +92,9 @@ console.log('\nTest E-2 — the draft prompt');
   assert('E-2: 0 HP or downed is never death', /"downed" is NOT dead/.test(p));
   assert('E-2: holders only when stated; allegiance when stated or implied by role', /only when the notes state it/.test(p) && /plainly implied by a change of role/.test(p));
   assert('E-2: the recorded header is shown so it is kept', p.includes('title "The Larkspur Dragons"'));
+  // The DM's rule: a bestiary description is reusable, so it never tells what a creature did.
+  assert('E-2: a bestiary description says what the creature is, not what it did', /A bestiary "description" says only what the creature is/.test(p) && /never what it did in a session or combat/.test(p));
+  assert('E-2: bestiary encounter notes hold general tactics, not an account of one fight', /"encounter_notes" holds only general tactics/.test(p));
 }
 
 // ── E-3 ─────────────────────────────────────────────────────────────────────

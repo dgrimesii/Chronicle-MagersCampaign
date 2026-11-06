@@ -311,6 +311,8 @@ Legacy IDs that were voided must never appear as a `legacy_id`: `npc_002`, `npc_
 
 A variant of a creature (a goblin with a sling) is the same bestiary entry in a different role. Give its combat roster group a `role` and point `mon_ref` at the base creature; tag abilities seen only in that role with the same `role`. Do not add a second bestiary entry for it.
 
+A bestiary entry is reusable by any combat or event, so nothing in it records one event. `narrative.description` says only what the creature is (`null` if nothing is known), `observed_abilities` and `observed_weaknesses` say what it can do and what works against it (a single kill is not a weakness), and `encounter_notes` holds only general tactics. What a creature did belongs on the combat or event where it acted: its rounds, `passages`, or `narrative`.
+
 ### `deferred_gaps` — workflow state array
 
 `deferred_gaps[]` is a root-level array written by `delta-review.html` when the DM chooses **Defer** on an integrity gap during a publish cycle. It persists in the campaign JSON alongside narrative data and is version-controlled.

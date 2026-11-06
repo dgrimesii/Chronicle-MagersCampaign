@@ -150,6 +150,12 @@
    *               downed is never death); an allegiance change when stated or
    *               implied by a change of role; an item's holder only when stated
    *   header    — a title and a summary of the session from its passages
+   *
+   * The bestiary rule in task 1 is the DM's: a creature's description and
+   * encounter notes must be reusable by any combat, so they say what the
+   * creature is and how to fight it, never what it did this session. Session 6
+   * drafts broke this ("Kobolds mostly repositioning"),
+   * and removing the rule would let such text back into the bestiary.
    */
   function draftPrompt(ctx) {
     const pageText = ctx.pages.map(p => {
@@ -172,7 +178,7 @@ ENTITY PAGES (id | array | name, current text fields, this session's passages):
 ${pageText || '(none)'}
 
 TASKS:
-1. "changes": for an entity page whose passages add something to a text field, propose the field's new full text: keep what is recorded, fold in what the passages add, in the same voice. Only fields listed for that page. Add no fact the passages or facts do not contain. Words an NPC said are testimony: keep them attributed ("Rufus claims the dragons keep a pact"), never stated as fact. Skip fields with nothing new. Each: {"id","field","text","reason"}.
+1. "changes": for an entity page whose passages add something to a text field, propose the field's new full text: keep what is recorded, fold in what the passages add, in the same voice. Only fields listed for that page. Add no fact the passages or facts do not contain. Words an NPC said are testimony: keep them attributed ("Rufus claims the dragons keep a pact"), never stated as fact. A bestiary "description" says only what the creature is (appearance, nature, attacks), never what it did in a session or combat, and names no event, so any combat can reuse it; if the notes do not say what the creature is, propose no description. A bestiary "encounter_notes" holds only general tactics for fighting the creature, never an account of one fight. Skip fields with nothing new. Each: {"id","field","text","reason"}.
 2. "judgments": events the DM must approve. Each has "kind", "source" (the passage or fact it rests on, quoted) and:
    - "moment": a significant character moment. {"type": one of ${MOMENT_TYPES.join(', ')}, "character_ids": [ids], "description", "combat": combat id or null, "round": n or null}
    - "relationship": a significant relationship formed or changed. {"from_id", "to_id", "relationship_type": one of ${RELATIONSHIP_TYPES.join(', ')}, "note"}
