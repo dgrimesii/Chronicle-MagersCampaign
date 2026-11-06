@@ -5,7 +5,7 @@
  *   - shared/chronicle-ids.js helpers
  *   - scripts/migrate-opaque-ids.js checkReferences() — the phase 1 gate:
  *     every reference in the migrated JSON resolves to an existing opaque ID
- *   - the migrated data/magers-campaign.json and test fixture
+ *   - the migrated campaign, as frozen before session 6, and the test fixture
  *   - both viewers' normaliseCampaignJson on the migrated data
  *
  * WHY THIS FILE EXISTS
@@ -81,7 +81,9 @@ console.log('\nTest O-1 — shared/chronicle-ids.js');
 
 // ── O-2 — the gate on the real data and the fixture ─────────────────────────
 console.log('\nTest O-2 — every reference resolves (phase 1 gate)');
-const campaign = load('data/magers-campaign.json');
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+// tests/live-campaign.test.js runs the reference check on the real file.
+const campaign = load('tests/fixtures/campaign-pre-session-6.json');
 for (const [label, data] of [['campaign', campaign], ['fixture', load('tests/fixtures/test-campaign.json')]]) {
   const r = checkReferences(data);
   assert(label + ': check passes (no broken, legacy, duplicate or unresolved target)', checkPassed(r));

@@ -67,7 +67,8 @@ const playerNorm = loadNormaliser('player/index.html');
 
 // The real campaign, with passages and an alias added where the session page
 // would put them. Nothing is written back.
-const campaign = JSON.parse(read('data/magers-campaign.json'));
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = JSON.parse(read('tests/fixtures/campaign-pre-session-6.json'));
 const C = ChronicleIds.buildLegacyIndex(campaign);
 const RUFUS = C.get('npc_014'), BELFAR = C.get('loc_006'), S6 = C.get('session_006'), S5 = C.get('session_005');
 const byId = id => { let hit = null; ChronicleIds.forEachEntity(campaign, e => { if (e.id === id) hit = e; }); return hit; };

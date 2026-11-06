@@ -50,7 +50,8 @@ function assert(label, condition) {
 
 const ROOT = path.join(__dirname, '..');
 const read = rel => JSON.parse(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
-const campaign = read('data/magers-campaign.json');
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = read('tests/fixtures/campaign-pre-session-6.json');
 const fixture = read('tests/fixtures/test-campaign.json');
 const session = id => campaign.session_logs.find(s => s.legacy_id === id);
 const EXPECTED = {

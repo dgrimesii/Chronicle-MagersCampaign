@@ -44,6 +44,9 @@ const TEST_FILES = [
   'tests/session-publish.test.js',
   'tests/viewer-passages.test.js',
   'tests/ground-truth.test.js',
+  // Last, and the only one that reads the real campaign file: everything above
+  // uses a frozen copy, so a failure here alone means the data, not the code.
+  'tests/live-campaign.test.js',
 ];
 
 // ── Run each test file ───────────────────────────────────────────────────────

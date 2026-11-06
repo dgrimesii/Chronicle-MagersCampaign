@@ -3,7 +3,7 @@
  *
  * Tests for the 5.0.0 turn schema migration (issue #93):
  *   - scripts/migrate-turn-schema.js conversion rules, on synthetic 4.x rounds
- *   - the converted data/magers-campaign.json (every round converted, counts)
+ *   - the converted campaign, as frozen before session 6 (every round converted, counts)
  *   - the normaliseCampaignJson() viewers in admin/log-viewer.html and
  *     player/index.html, run in Node against the real data
  *
@@ -242,8 +242,10 @@ console.log('\nTest T-4 — bonus action, movement, enemy turns, and re-running'
 }
 
 // ── Test T-5 — the converted campaign file ───────────────────────────────────
-console.log('\nTest T-5 — data/magers-campaign.json is fully on 5.0.0');
-const campaign = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'magers-campaign.json'), 'utf8'));
+console.log('\nTest T-5 — the frozen campaign is fully on 5.0.0');
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+// tests/live-campaign.test.js checks the turn shape of the real file.
+const campaign = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'fixtures', 'campaign-pre-session-6.json'), 'utf8'));
 // Since issue #95 entity ids are UUIDs. These tests name entities by their
 // legacy ID (pc_004, cbt_002), which is how the DM's decisions were written:
 // L turns a legacy ID into the UUID, R turns a UUID back for comparisons.
@@ -272,7 +274,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 }
 
 // ── Test T-8 — DM target and effect decisions in the real data ───────────────
-console.log('\nTest T-8 — enemy targets and effects in data/magers-campaign.json');
+console.log('\nTest T-8 — enemy targets and effects in the frozen campaign');
 {
   const turn = (cbt, n, actor) => {
     const r = campaign.combat_encounters.find(c => c.legacy_id === cbt).rounds.find(x => x.n === n);
@@ -329,7 +331,7 @@ console.log('\nTest T-8 — enemy targets and effects in data/magers-campaign.js
 }
 
 // ── Test T-6 — both viewers render the converted combats ─────────────────────
-console.log('\nTest T-6 — log-viewer and player normalisers on the real data');
+console.log('\nTest T-6 — log-viewer and player normalisers on the frozen campaign');
 {
   const adminView  = loadNormaliser('admin/log-viewer.html')(campaign);
   const playerView = loadNormaliser('player/index.html')(campaign);

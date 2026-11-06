@@ -77,8 +77,10 @@ Chronicle-MagersCampaign/
 │   ├── session-header.test.js        # Tests for the session page's upload step (#99): session choices, the header through applySession, nav bar
 │   ├── entity-identification.test.js # Tests for shared/chronicle-entities.js (#100): rows, matching, actions, flags, publish items through applySession
 │   ├── fact-extraction.test.js       # Tests for shared/chronicle-facts.js (#101, #102): occurrences not names, self-checks, one combat across a page break, passages attached where they belong
+│   ├── live-campaign.test.js         # The only test that reads data/magers-campaign.json: rules that hold however much it grows (ids, turn schema, no review leftovers, both viewers)
 │   ├── fixtures/
-│   │   └── test-campaign.json        # Minimal v5.0.1 campaign for automated tests and Safe Test Mode (real PC names, placeholder sessions 003–007, #111)
+│   │   ├── test-campaign.json        # Minimal v5.0.1 campaign for automated tests and Safe Test Mode (real PC names, placeholder sessions 003–007, #111)
+│   │   └── campaign-pre-session-6.json # Frozen copy of the real campaign from commit 4a31b0c; behaviour tests read it, nothing writes it
 │   ├── output/                       # GITIGNORED — test-campaign.published.json, written by a Safe Test Mode publish (#97)
 │   ├── ocr-ground-truth/             # Ground-truth set (#15): expected structured output for three real pages (images stay in the git-ignored OCR Test Files/)
 │   └── ai-input-fixtures/            # Captured AI response fixtures for offline test runs
@@ -747,6 +749,7 @@ Public API (`window.ChronicleAI`):
 | `cbt_003` r5 note may sit on the wrong turn | `data/magers-campaign.json` | The Axe Beaks note "1 swarm attacks each horse (2 total). Del hit." reads like the Vespon Swarm's turn (one horse outcome, notes "2 separate swarm attacks"). Left as is pending the DM's check of the session_004 notes. |
 | Death saves no longer count in round hit/miss chips | `admin/log-viewer.html`, `player/index.html` | `roundSummaryChips()` and the combat totals count `res === 'hit'`/`'miss'`. Death saves were logged as hit/miss and inflated those counts; as success/failure they no longer do. Intentional, recorded here so the change in totals is not mistaken for lost data. |
 | Prose still names legacy IDs | `data/magers-campaign.json` | 77 strings mention a legacy ID inside text ("Killed by pc_006 Ice Knife"). #95 left them as written: rewriting them to UUIDs would make the notes unreadable, and `legacy_id` still resolves them. The viewers show them as plain text, not links. |
+| Two behaviour tests read the live PC abilities | `tests/round-grid.test.js`, `tests/sanity-checks.test.js` | Both read `data/pc-abilities.json`, which was not frozen with the campaign, so editing a PC's abilities could fail them. Left because intake does not write that file. |
 | Session 6 party turns differ from the confirmed notes | `data/magers-campaign.json` | Goblin Ambush rounds 4 to 7 party slots still hold misreads that `tests/ocr-ground-truth/ground-truth-1.json` and `-2.json` correct, such as Del's round 6 death save recorded as a Chill Touch hit on a dragon. The enemy turns were rebuilt from those files; the DM chose to leave the party slots as they are (2026-11-06). |
 | Dragon targets in Goblin Ambush do not say which dragon | `data/magers-campaign.json` | Most hits on the dragons keep `target_text: "Larkspur Dragon"` because the notes do not say #1 or #2. The roster has only those two individuals, so no `target_id` fits without guessing. |
 | Lair and road combats have no confirmed notes page | `data/magers-campaign.json` | Larkspur Dragon Lair and On the Road Back to the Quarry were linked from their published text only; the repo has no photo or ground truth for those pages, so they may hold misreads. Check them against the physical notes. |
@@ -793,8 +796,10 @@ tests/
 ├── session-header.test.js          # Session page upload step (#99) — session choices, header through applySession, nav bar
 ├── entity-identification.test.js   # Entity identification (#100) — rows, exact/inexact/new, actions, flags, aliases/notes/roster groups through applySession
 ├── fact-extraction.test.js         # Per-page facts (#101) and passages (#102) — references, prompt, validation (occurrences only), checks, merge across pages, passages through applySession
+├── live-campaign.test.js           # The real campaign file — ids and references, turn schema, no review leftovers, reusable bestiary, both viewers, computed fields; the frozen copy still frozen
 ├── fixtures/
-│   └── test-campaign.json          # Minimal v5.0.1 campaign — the real party's names and placeholder sessions (#111), everything else invented
+│   ├── test-campaign.json          # Minimal v5.0.1 campaign — the real party's names and placeholder sessions (#111), everything else invented
+│   └── campaign-pre-session-6.json # Frozen copy of the real campaign from commit 4a31b0c (see Test data)
 ├── output/                         # GITIGNORED — test-campaign.published.json from a Safe Test Mode publish (#97)
 ├── ocr-ground-truth/
 │   ├── README.md                   # What each page tests and how #17 uses the files
@@ -815,6 +820,23 @@ node tests/integrity.test.js   # Individual file
 
 All tests are plain Node.js — no install required.
 
+### Test data
+
+Running intakes changes the campaign file, so the tests are split by what they read:
+
+| Tests | Read | A failure means |
+|---|---|---|
+| Behaviour tests (every file except the one below) | `tests/fixtures/test-campaign.json` and `tests/fixtures/campaign-pre-session-6.json` | The code changed behaviour. New campaign data cannot cause it |
+| `tests/live-campaign.test.js` | `data/magers-campaign.json` | The campaign data has a problem, usually from the last publish or hand edit |
+
+`campaign-pre-session-6.json` is a byte-for-byte copy of the real campaign at commit `4a31b0c`, the last state before session 6, with Goblin Ambush paused at round 3 and session 6 still a placeholder. That is why the session 6 ground truth can be run against it. Publish and Safe Test Mode never touch it.
+
+- **After an intake:** run `node tests/run-all.js`. The live check reads the new data; the behaviour tests should give the same result as before.
+- **A code defect found by an intake:** fix it and add a small test for that case, with any data it needs written in the test. Do not refresh the copy.
+- **A schema change:** convert the copy as well as the real file, because the live check requires their `_schema_version` to match. This is the only routine reason to edit the copy.
+- **Refreshing the copy:** not needed after intakes, and it would break tests that rely on its specifics, such as the paused ambush. `tests/live-campaign.test.js` fails if the copy has been replaced.
+- **Live-check rules:** they must hold however much the campaign grows, so they name no counts and no particular combats.
+
 ### Safe Test Mode
 
 `shared/config.js` (gitignored) holds the settings below. `shared/chronicle-store.js` applies them; no page checks them itself:
@@ -833,7 +855,7 @@ Switching test mode on or off requires changing only `config.js`. Older copies o
 
 ### Test fixture
 
-`tests/fixtures/test-campaign.json` is a minimal v5.0.1 campaign. It contains: 6 party members, 7 sessions (session_001 and session_002 with content, session_003–session_007 placeholders), 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. Since #111 the six PCs carry the real party's names, nicknames, classes, levels, species and backgrounds (pc_001 and pc_002 were the invented Aldric and Sable), and the placeholders carry the real sessions' dates, so a Safe Test Mode publish of real session notes resolves every PC and the real session ID (the session page offers session_003–session_007 at upload). Everything else is invented. All automated tests run against this fixture. Since #95 its entities have UUID ids with their old typed IDs as `legacy_id`, like the real file; its two quest objectives never had ids and still have none.
+`tests/fixtures/test-campaign.json` is a minimal v5.0.1 campaign. It contains: 6 party members, 7 sessions (session_001 and session_002 with content, session_003–session_007 placeholders), 1 combat (3 rounds with known content), 3 NPCs, 2 quests, 2 items, 2 locations. Since #111 the six PCs carry the real party's names, nicknames, classes, levels, species and backgrounds (pc_001 and pc_002 were the invented Aldric and Sable), and the placeholders carry the real sessions' dates, so a Safe Test Mode publish of real session notes resolves every PC and the real session ID (the session page offers session_003–session_007 at upload). Everything else is invented. Automated tests that need a small invented campaign use this fixture; those that need the real party's history use the frozen copy (see Test data). Since #95 its entities have UUID ids with their old typed IDs as `legacy_id`, like the real file; its two quest objectives never had ids and still have none.
 
 ---
 

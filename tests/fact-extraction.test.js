@@ -51,7 +51,8 @@ function assert(label, condition) {
 }
 const throws = fn => { try { fn(); return false; } catch (e) { return true; } };
 
-const campaign = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'magers-campaign.json'), 'utf8'));
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'tests', 'fixtures', 'campaign-pre-session-6.json'), 'utf8'));
 const C = ChronicleIds.buildLegacyIndex(campaign);
 const AMBUSH = C.get('cbt_005');
 const index = E.buildIndex(campaign);

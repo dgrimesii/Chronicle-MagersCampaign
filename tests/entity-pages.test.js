@@ -49,7 +49,8 @@ function assert(label, condition) {
   else           { console.log('  FAIL  ' + label); failed++; }
 }
 
-const campaign = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'magers-campaign.json'), 'utf8'));
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'tests', 'fixtures', 'campaign-pre-session-6.json'), 'utf8'));
 const C = ChronicleIds.buildLegacyIndex(campaign);
 const RUFUS = C.get('npc_014'), BELFAR = C.get('loc_006'), AMBUSH = C.get('cbt_005'), GOLI = C.get('pc_005'), DEL = C.get('pc_004');
 const MAP = campaign.inventory_and_loot.find(i => /map/i.test(i.name)).id;

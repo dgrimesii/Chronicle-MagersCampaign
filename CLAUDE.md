@@ -441,6 +441,17 @@ Do not change `_schema_version` without explicit instruction. It lives at the ro
 
 ---
 
+## Test data
+
+The campaign file changes with every intake, so tests must not depend on what it holds. README "Test data" explains the split:
+
+- Behaviour tests read `tests/fixtures/campaign-pre-session-6.json`, a frozen copy of the real campaign from commit `4a31b0c`, or `tests/fixtures/test-campaign.json`. A new behaviour test must not read `data/magers-campaign.json`
+- `tests/live-campaign.test.js` is the only test that reads the real file. Its rules must hold however much the campaign grows: no counts, and no named combat or session
+- Do not refresh the frozen copy after an intake, or edit it to make a test pass. For a defect an intake found, add a small test with its own data. The one routine edit is converting the copy in the same task as an approved schema change
+- A failing live check means the data has a problem: repair the data, or the code that wrote it. Do not loosen the check to get a pass
+
+---
+
 ## What you must never do
 
 - Do not add EMBEDDED_DATA blocks to any HTML file
@@ -486,6 +497,7 @@ After any code change, open the affected page in a browser and check:
 - [ ] `val` fields display as numbers where data exists, blank where null
 
 **For schema/JSON changes:**
+- [ ] `node tests/live-campaign.test.js` passes
 - [ ] `_schema_version` is unchanged unless you were explicitly told to update it
 - [ ] All new ids are UUIDs, and `node scripts/migrate-opaque-ids.js data/magers-campaign.json --check` passes
 - [ ] `meta.last_updated` reflects today's date

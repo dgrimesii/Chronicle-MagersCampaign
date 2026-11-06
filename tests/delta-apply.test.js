@@ -63,7 +63,8 @@ const ROOT     = path.join(__dirname, '..');
 const readJson = rel => JSON.parse(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
 
 const fixture  = readJson('tests/fixtures/test-campaign.json');
-const campaign = readJson('data/magers-campaign.json');
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = readJson('tests/fixtures/campaign-pre-session-6.json');
 
 // apply(base, items, options) → the updated campaign. Most tests only need
 // the campaign; applyN returns the notes too.
@@ -493,7 +494,7 @@ console.log('\nTest G-5 — combat sessions, round counts, session combats and l
   assert('G-5: deriveFields is idempotent', JSON.stringify(once) === JSON.stringify(twice));
   const changed = once.locations.filter((l, i) => JSON.stringify(l) !== JSON.stringify(campaign.locations[i])).map(l => l.legacy_id);
   const otherArrays = ['combat_encounters', 'session_logs', 'bestiary', 'npc_directory'].every(a => JSON.stringify(once[a]) === JSON.stringify(campaign[a]));
-  assert('G-5: on today\'s file deriveFields changes only loc_011 (Lake Town)', changed.join(',') === 'loc_011' && otherArrays);
+  assert('G-5: on the frozen file deriveFields changes only loc_011 (Lake Town)', changed.join(',') === 'loc_011' && otherArrays);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

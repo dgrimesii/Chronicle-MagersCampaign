@@ -51,7 +51,8 @@ function assert(label, condition) {
 const ROOT = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 // The real campaign, for the session_006 placeholder; nothing is written back.
-const campaign = JSON.parse(read('data/magers-campaign.json'));
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = JSON.parse(read('tests/fixtures/campaign-pre-session-6.json'));
 const throws = fn => { try { fn(); return false; } catch (e) { return true; } };
 
 // ── D-1 ─────────────────────────────────────────────────────────────────────

@@ -52,7 +52,8 @@ const ROOT     = path.join(__dirname, '..');
 const read     = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 // The real campaign, because it has the session_006 and session_007
 // placeholders and the fixture does not. Nothing is written back.
-const campaign = JSON.parse(read('data/magers-campaign.json'));
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = JSON.parse(read('tests/fixtures/campaign-pre-session-6.json'));
 const fixture  = JSON.parse(read('tests/fixtures/test-campaign.json'));
 
 // ── H-1 ─────────────────────────────────────────────────────────────────────

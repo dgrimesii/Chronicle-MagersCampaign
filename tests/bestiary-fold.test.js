@@ -54,7 +54,9 @@ function loadNormaliser(file) {
   return new Function(src.slice(start, end + 2) + '\nreturn normaliseCampaignJson;')();
 }
 
-const rawText  = fs.readFileSync(path.join(ROOT, 'data/magers-campaign.json'), 'utf8');
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+// tests/live-campaign.test.js guards the real file against mon_006 coming back.
+const rawText  = fs.readFileSync(path.join(ROOT, 'tests/fixtures/campaign-pre-session-6.json'), 'utf8');
 const campaign = JSON.parse(rawText);
 // Entity ids are UUIDs since issue #95; L finds an entity by its legacy ID.
 const L = require('../shared/chronicle-ids.js').buildLegacyIndex(campaign);

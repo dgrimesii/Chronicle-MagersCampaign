@@ -65,9 +65,10 @@ function assert(label, condition) {
 }
 const throws = fn => { try { fn(); return false; } catch (e) { return true; } };
 
-// The real campaign: it has the party, the paused Goblin Ambush and its
+// The campaign as frozen before session 6, so intakes cannot change these
+// results (see README "Test data"): it has the party, the paused Goblin Ambush and its
 // roster groups, which the fixture does not. Nothing is written back.
-const campaign = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'magers-campaign.json'), 'utf8'));
+const campaign = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'tests', 'fixtures', 'campaign-pre-session-6.json'), 'utf8'));
 const C = ChronicleIds.buildLegacyIndex(campaign);
 const ID = {
   del: C.get('pc_004'), mal: C.get('pc_002'), gold: C.get('pc_001'), ash: C.get('pc_003'),

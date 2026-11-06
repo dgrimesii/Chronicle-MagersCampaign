@@ -62,7 +62,8 @@ function assert(label, condition) {
 const ROOT = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 // The real campaign, for session_006, cbt_005 and its NPCs; never written.
-const campaign = JSON.parse(read('data/magers-campaign.json'));
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = JSON.parse(read('tests/fixtures/campaign-pre-session-6.json'));
 const C = ChronicleIds.buildLegacyIndex(campaign);
 const AMBUSH = C.get('cbt_005'), DEL = C.get('pc_004'), ASH = C.get('pc_003'), RUFUS = C.get('npc_014');
 const QUEST = C.get('qst_003'), MAP = C.get('item_001');

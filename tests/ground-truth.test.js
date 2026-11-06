@@ -46,7 +46,9 @@ function assert(label, condition) {
 const ROOT = path.join(__dirname, '..');
 const DIR = path.join(ROOT, 'tests', 'ocr-ground-truth');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
-const campaign = JSON.parse(read('data/magers-campaign.json'));
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+// Legacy IDs never change, so an ID named in the ground truth exists here too.
+const campaign = JSON.parse(read('tests/fixtures/campaign-pre-session-6.json'));
 const fixture = JSON.parse(read('tests/fixtures/test-campaign.json'));
 const REAL = ChronicleIds.buildLegacyIndex(campaign);
 const FIX = ChronicleIds.buildLegacyIndex(fixture);

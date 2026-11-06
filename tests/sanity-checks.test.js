@@ -218,7 +218,8 @@ console.log('\nTest S-9 — gaps');
 }
 
 // ── Acceptance on the real campaign ────────────────────────────────────────
-const campaign = read('data/magers-campaign.json');
+// Frozen pre-session 6 campaign, so running intakes cannot change these results (see README "Test data").
+const campaign = read('tests/fixtures/campaign-pre-session-6.json');
 const pcAbilities = read('data/pc-abilities.json');
 const C = ChronicleIds.buildLegacyIndex(campaign);
 const realCtx = () => ({ abilities: CI.abilityContext(campaign, pcAbilities), names: CI.partyNames(campaign) });
