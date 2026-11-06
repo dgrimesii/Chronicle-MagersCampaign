@@ -215,6 +215,29 @@
   }
 
   /**
+   * labelOpening(combat, label, ctx) → { group, rest } or null
+   *
+   * Finds the creature an enemy label opens with, trying the longest opening
+   * first so "Goblin Boss hit" prefers a Goblin Boss over a Goblin. A roster group
+   * wins; otherwise a bestiary name adds a group linked to that entry. The whole
+   * label is not tried, because the caller already looked for it.
+   *
+   * Why: enemy lines arrive as free text and the words before a colon are not
+   * always a name (#130). If removed, those labels become junk roster groups.
+   */
+  function labelOpening(combat, label, ctx) {
+    const words = label.split(/\s+/);
+    for (let n = words.length - 1; n > 0; n--) {
+      const head = words.slice(0, n).join(' ');
+      const rest = words.slice(n).join(' ');
+      const group = findRosterGroup(combat, head);
+      if (group) return { group, rest };
+      if (variants(head).some(v => ctx.names.bestiary.has(v))) return { group: addRosterGroup(combat, head, ctx), rest };
+    }
+    return null;
+  }
+
+  /**
    * resolveTargets(text, actorId, combat, ctx) → [{ target_id, target_text? }]
    *
    * Turns one written target into outcome target fields, following the rule
@@ -372,6 +395,35 @@
   }
 
   /**
+   * slotNumber(s, actor, list, combat, where, ctx) → a number, or null
+   *
+   * A slot is a position in the initiative order, so it must be a number.
+   * Text that is not one takes the number the same actor holds elsewhere in this
+   * round, then in the combat's recorded rounds. With none to find, it is written
+   * as null and reported; a guess would put the turn in the wrong place.
+   *
+   * Why: session 6 published a party opportunity attack in a slot named "enemies"
+   * (#130). If removed, that text reaches the data and fails the live L-2 check.
+   */
+  function slotNumber(s, actor, list, combat, where, ctx) {
+    const n = num(s);
+    if (n != null) return n;
+    if (s == null || s === '') return null;
+    // The same PC can be written by name in one place and by id in another.
+    const who = a => ctx.names.party.get(norm(a)) ?? a;
+    const same = e => e && (e.s ?? e.slot) != null && who(e.a ?? e.actor_id) === who(actor) && num(e.s ?? e.slot) != null;
+    const found = (list || []).find(same)
+      || (combat.rounds || []).flatMap(r => r.slots || []).find(same);
+    if (found) {
+      const fixed = num(found.s ?? found.slot);
+      ctx.notes.add(`${where}: slot "${s}" is not a number; used slot ${fixed}, where ${actor} acts.`);
+      return fixed;
+    }
+    ctx.notes.add(`${where}: slot "${s}" is not a number and ${actor ?? 'its actor'} has no other slot; it was left blank.`);
+    return null;
+  }
+
+  /**
    * convertSlots(list, combat, ctx, where) → 5.0.0 slot[]
    *
    * The AI writes one entry per roll: Del's two unarmed strikes and her
@@ -391,12 +443,18 @@
     const built = new Set();
     let untyped = 0;
     for (const raw of list || []) {
-      if (raw && Array.isArray(raw.activities)) { slots.push(clone(raw)); continue; }
+      if (raw && Array.isArray(raw.activities)) {
+        const whole = clone(raw);
+        whole.s = slotNumber(whole.s, whole.a, list, combat, where, ctx);
+        slots.push(whole);
+        continue;
+      }
       if (!isFlatEntry(raw)) {
         ctx.notes.add(`${where}: a slot in an unrecognised shape was left out.`);
         continue;
       }
       const e = flatFields(raw);
+      e.s = slotNumber(e.s, e.a, list, combat, where, ctx);
       const key = e.s + '|' + e.a;
       let slot = byKey.get(key);
       if (!slot) {
@@ -459,7 +517,8 @@
    * The AI returns enemy actions as free text, { desc: "Goblins: hit Del for
    * 7", impact: "Del downed" }, with no group id. The turn schema needs one
    * turn per roster group per round. The group is found from a "Label: …"
-   * prefix, or from the text starting with a roster label, or — when the
+   * prefix (or that prefix's opening words, labelOpening), or from the text
+   * starting with a roster label, or — when the
    * combat has only one group — that group. A label the roster lacks is
    * added to it (addRosterGroup); a line with no usable label goes to an
    * "Unidentified enemies" group and is reported, rather than being pinned
@@ -495,7 +554,19 @@
       if (labelled) {
         const label = labelled[1].trim();
         text = labelled[2].trim();
-        group = findRosterGroup(combat, label) || addRosterGroup(combat, label, ctx);
+        group = findRosterGroup(combat, label);
+        if (!group) {
+          // "Goblins hit: Mal for 7": the creature is the opening of the label, and
+          // the rest belongs to the action. Taking it all as a name made a roster
+          // group called "Goblins hit" with no bestiary link in session 6 (#130).
+          const opening = labelOpening(combat, label, ctx);
+          if (opening) {
+            group = opening.group;
+            text = [opening.rest, text].filter(Boolean).join(' ');
+          } else {
+            group = addRosterGroup(combat, label, ctx);
+          }
+        }
       } else {
         // "Goblins hit Mal twice": the text opens with a roster label.
         const words = norm(desc);
@@ -730,6 +801,101 @@
     return Object.assign(out, rest);
   }
 
+  // Where each flat field a review card can hold belongs on the record (#129),
+  // taken from the fields the recorded data already uses. tag is the record's
+  // _object_type, for a card that arrives without one.
+  const RECORD_FIELDS = {
+    locations: { tag: 'location',
+      narrative: ['description', 'atmosphere', 'significance', 'founding'],
+      mechanics: ['visibility', 'region', 'connected_to', 'notable_entities'] },
+    npc_directory: { tag: 'npc',
+      narrative: ['description', 'personality', 'role_in_story', 'last_words', 'significance'],
+      mechanics: ['disposition', 'species', 'gender', 'class', 'role', 'status_event', 'relationships'] },
+    bestiary: { tag: 'monster',
+      narrative: ['description', 'sensory', 'encounter_notes'],
+      mechanics: ['reliability', 'creature_type', 'observed_abilities', 'observed_weaknesses', 'threat_level'] },
+    inventory_and_loot: { tag: 'item',
+      narrative: ['description', 'significance', 'condition'],
+      mechanics: ['item_type', 'is_quest_relevant', 'quest_refs', 'current_holder', 'found_session', 'found_location', 'provenance', 'contents'] },
+    quest_ledger: { tag: 'quest',
+      narrative: ['motivation', 'thematic_weight', 'open_questions'],
+      mechanics: ['status', 'priority', 'category', 'visibility', 'origin_session', 'given_by', 'reward_received', 'objectives', 'progress_log'] },
+  };
+  // A cascade card's "type" says which array it belongs in, not a field of the
+  // record, so these words are dropped. Any other value is a location's kind.
+  const CARD_KIND_WORDS = /^(location|npc|item|quest|monster|entry)$/i;
+  // Commands to the review. No record has these at the top level, except that a
+  // quest's status belongs in mechanics, which is moved before this list applies.
+  const COMMAND_FIELDS = ['op', 'action', 'status'];
+
+  /**
+   * shapeRecord(arr, rawData, notes, isNew) → the record in the shape the viewers read
+   *
+   * Moves flat fields into narrative and mechanics, follows dotted keys, and
+   * removes command fields, reporting each one. A value already in the block wins
+   * over a flat copy, and the difference is reported. Arrays with no entry in
+   * RECORD_FIELDS, such as combats and sessions, are returned unchanged.
+   *
+   * Why here: every path that adds a record passes through publish, and the
+   * session 6 records with a top-level description did not display (#129).
+   * Empty blocks are added only for a new record, so a MOD never looks as if it
+   * is setting them.
+   * If removed: a flat card publishes text the viewers never show, and the live
+   * L-3 check fails after the publish.
+   */
+  function shapeRecord(arr, rawData, notes, isNew) {
+    const homes = RECORD_FIELDS[arr];
+    if (!homes) return rawData;
+    const r = clone(rawData);
+    const label = r.name || r.title || arr;
+
+    for (const key of Object.keys(r)) {
+      if (!key.includes('.')) continue;
+      setPath(r, key, r[key]);
+      delete r[key];
+    }
+
+    if (typeof r.type === 'string' && CARD_KIND_WORDS.test(r.type)) delete r.type;
+    else if (arr === 'locations' && r.type !== undefined) {
+      r.mechanics = r.mechanics || {};
+      if (r.mechanics.type == null) r.mechanics.type = r.type;
+      delete r.type;
+    }
+    if (arr === 'quest_ledger') {
+      if (r.title == null && r.name != null) r.title = r.name;
+      delete r.name;
+      // Quests have no narrative.description; motivation is the field the viewers show.
+      if (r.description != null && r.motivation == null) r.motivation = r.description;
+      delete r.description;
+    }
+
+    for (const block of ['narrative', 'mechanics']) {
+      for (const key of homes[block]) {
+        if (!(key in r)) continue;
+        if (!r[block] || typeof r[block] !== 'object') r[block] = {};
+        if (r[block][key] == null) r[block][key] = r[key];
+        else if (r[key] != null && JSON.stringify(r[block][key]) !== JSON.stringify(r[key])) {
+          notes.add(`${label}: kept ${block}.${key}; the review also had a different flat ${key}, which was not written.`);
+        }
+        delete r[key];
+      }
+    }
+
+    for (const key of COMMAND_FIELDS) {
+      if (!(key in r)) continue;
+      notes.add(`${label}: the review command field "${key}" was not written.`);
+      delete r[key];
+    }
+
+    if (isNew) {
+      if (r._object_type === undefined) r._object_type = homes.tag;
+      if (!r.narrative) r.narrative = {};
+      if (!r.mechanics) r.mechanics = {};
+      if (r.notes === undefined) r.notes = null;
+    }
+    return r;
+  }
+
   // ── Derived fields ─────────────────────────────────────────────────────────
 
   /**
@@ -950,7 +1116,7 @@
         for (const r of rawData.rounds || []) pendingRounds.push({ combat, raw: r });
         continue;
       }
-      out[arr].push(withId(rawData, a));
+      out[arr].push(withId(shapeRecord(arr, rawData, notes, true), a));
     }
 
     refreshNames();
@@ -1075,6 +1241,25 @@
       return;
     }
     const target = out[arr][idx];
+    // A combat's location, named by the review (#127). It is matched here rather than
+    // on the card because the place may be a NEW location with no id until this publish;
+    // NEW items run first, so it exists by now. A name with no match is reported and
+    // not written, because text in this field would break the reference.
+    if (rawData._location_name !== undefined) {
+      const { _location_name: place, ...others } = rawData;
+      rawData = others;
+      if (place) {
+        const key = norm(place);
+        const loc = (out.locations || []).find(l => norm(l.name) === key || (l.aliases || []).some(a => norm(a) === key));
+        if (loc) {
+          target.mechanics = target.mechanics || {};
+          target.mechanics.location = loc.id;
+        } else {
+          notes.add(`${target.name || 'A combat'}: no location is named "${place}", so its location was not set.`);
+        }
+      }
+      if (!Object.keys(rawData).some(k => k !== 'id')) return;
+    }
     // _set (#105): { 'narrative.description': text, 'mechanics.disposition': … }
     // sets single fields by path, so an accepted text change or an approved
     // judgment changes that one field and nothing else on the entity (a
@@ -1140,6 +1325,19 @@
       // the look-alike, and Mark as sub-type adds a roster group. A whole-
       // object MOD would overwrite the lists these append to.
       appendIdentification(target, rawData, notes);
+    } else if (RECORD_FIELDS[arr]) {
+      // A block is merged field by field (#129). Object.assign replaced the whole
+      // narrative or mechanics, so a card with one new field erased all the others.
+      // A null is an empty card field, never a decision to clear a recorded value.
+      const { narrative, mechanics, ...rest } = shapeRecord(arr, rawData, notes, false);
+      Object.assign(target, rest);
+      for (const [block, fields] of [['narrative', narrative], ['mechanics', mechanics]]) {
+        for (const [k, v] of Object.entries(fields || {})) {
+          if (v == null) continue;
+          if (!target[block]) target[block] = {};
+          target[block][k] = v;
+        }
+      }
     } else {
       Object.assign(target, rawData);
     }

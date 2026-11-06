@@ -529,9 +529,20 @@ ${TABLE_RULES}
                    The test: could this individual return in a future session as a distinct
                    entity, separate from the rest of their group? If yes, npc. If they are
                    interchangeable with the others around them, monster.
-      "desc" — one sentence describing the entity from the text context
+      "desc" — what the creature IS, reusable in any encounter: its kind, appearance and nature.
+             If the text describes the creature, use that, and only flesh out its shorthand into a sentence; add no new concept.
+             If the text says nothing about what it is and it is a standard D&D creature, write one short standard sentence ("Small reptilian humanoid that fights in packs.").
+             Otherwise null. Never mention actions, targets, hits, misses, rounds, party members or this fight.
+      "context" — one sentence: what it did in this text. Shown to the DM as evidence; never saved on the creature.
     Do NOT list individual instances of a monster type ("Goblin #1", "Goblin #2").
-    The caller deduplicates against the existing bestiary; always include the full list.`;
+    The caller deduplicates against the existing bestiary; always include the full list.
+
+12. COMBAT STATUS.
+    Before the rounds array, include "combat_status": where this combat stands at the end of the text.
+      "outcome" — one of victory, defeat, retreat, pyrrhic, interrupted, paused. Use it only when the text shows it
+                  ("Combat Ended", all enemies dead, "continues next session"). Otherwise null.
+      "evidence" — the line that shows it, copied exactly, or null.
+      "location" — the place the fight happens, as the text names it, or null. Never infer a place.`;
 
   // ─────────────────────────────────────────────────────────
   // Narrative extraction system prompt — used by extractNarrativeEntities().
@@ -576,13 +587,15 @@ RULES — these are absolute, not guidelines:
    Use the exact name as written if known (e.g. "Escort to Lake Town").
    progress_entry should be a single sentence describing what happened with the quest.
 
-6. ITEMS AND LOOT.
-   Include any items, coins, treasure, or rewards found or received by the party.
-   Each item should be a separate entry. For coin stacks (cp, sp, gp), use one entry
-   per denomination (e.g. name: "1400 cp", description: "Copper pieces from dragon's lair").
-   For named items (Bag of Holding, Immovable Rod, etc.), include the full name and any
-   description given in the text. Generic potions ("2x Potion of Healing") can be grouped
-   as one entry with the quantity in the name (e.g. name: "Potion of Healing ×2").
+6. ITEMS AND TREASURE. Only distinct things of significance are items.
+   Money is NEVER an item: coins, payments, and any gem, art object or treasure with a stated cash value
+   ("1400 cp", "emerald worth 100 GP", "art and gems"). Write it in "treasure" as the notes state it.
+   A quest reward paid in money goes in that quest's quest_updates entry: state it in progress_entry
+   ("Rewarded 200 GP and an emerald worth 30 GP") and set reward_value_gp to the total stated value (230).
+   Items are named or magic items (Bag of Holding, Immovable Rod) and quest objects (maps, letters, keys),
+   with any description the text gives. An object or gem described by something other than its price, with no
+   value given ("oddly warm gem"), is also an item, for the DM to confirm. Generic potions can be grouped as one
+   entry with the quantity in the name (e.g. name: "Potion of Healing ×2").
 
 7. COHORT DETECTION.
    A cohort is an anonymous recurring GROUP — goblins in a region, mercenary bands, a dragon flight.
@@ -605,11 +618,12 @@ Output schema:
     { "name": "<location name>", "description": "<one sentence from the text>" }
   ],
   "quest_updates": [
-    { "quest_hint": "<quest name or identifying phrase>", "progress_entry": "<one sentence: what happened>" }
+    { "quest_hint": "<quest name or identifying phrase>", "progress_entry": "<one sentence: what happened>", "reward_value_gp": <total stated cash value of a reward, or null> }
   ],
   "items": [
-    { "name": "<item or coin name>", "description": "<source or context from text, or null>" }
+    { "name": "<item name, never money>", "description": "<source or context from text, or null>" }
   ],
+  "treasure": ["<money or priced treasure, as the notes state it>"],
   "session_notes": "<one or two sentence DM-reference summary of the page — not a cascade item>",
   "cohorts": [
     {
@@ -676,7 +690,10 @@ Output schema:
    * Sends a plain-language description to the API and converts it to round proposals.
    * onResult receives an array of normalised proposal objects.
    */
-  async function fillRoundsFromText({ text, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading, onEntities, onNarrative }) {
+  async function fillRoundsFromText({ text, combatName, combatId, sessionId, roundNumbers, onResult, onError, onLoading, onEntities, onNarrative, onStatus }) {
+    // onStatus(status, lastRound) — optional callback receiving where the combat stands
+    // at the end of the text (#127), and the page's highest round, so a caller can let
+    // the latest page win whatever order pages are read in.
     // onEntities(entities) — optional callback receiving [{name, type, desc}] for any
     // new entity the AI flags in enemy_actions (rule 11 of ROUND_SYSTEM_STRICT).
     // Callers can use this to queue cascade items without a second AI call.
@@ -714,8 +731,9 @@ Output schema:
     //        Splash, Fireball, etc. — one roll, per-target saves, each target an entry.
     const schemaExample = '{\n' +
       '"new_entities": [\n' +
-      '  { "name": "<creature type or NPC name>", "type": "monster|npc", "desc": "<one sentence from text>" }\n' +
+      '  { "name": "<creature type or NPC name>", "type": "monster|npc", "desc": "<what it is, per rule 11, or null>", "context": "<what it did here>" }\n' +
       '],\n' +
+      '"combat_status": { "outcome": "<per rule 12, or null>", "evidence": "<line, or null>", "location": "<place, or null>" },\n' +
       '"rounds":[{\n' +
       '  "round_number": <number>,\n' +
       '  "session_id": "<string>",\n' +
@@ -767,8 +785,9 @@ Output schema:
       '"narrative": {\n' +
       '  "npcs": [{ "name": "<individual identifier — name or description; not a generic creature type>", "role": "<brief description>", "disposition": "friendly|neutral|hostile|unknown" }],\n' +
       '  "locations": [{ "name": "<location name>", "description": "<one sentence>" }],\n' +
-      '  "quest_updates": [{ "quest_hint": "<quest name>", "progress_entry": "<one sentence>" }],\n' +
-      '  "items": [{ "name": "<item or coin name>", "description": "<source/context or null>" }],\n' +
+      '  "quest_updates": [{ "quest_hint": "<quest name>", "progress_entry": "<one sentence, stating any reward>", "reward_value_gp": <total stated cash value, or null> }],\n' +
+      '  "items": [{ "name": "<named or magic item or quest object; never coins or priced treasure>", "description": "<source/context or null>" }],\n' +
+      '  "treasure": ["<coins or priced treasure, as the notes state it>"],\n' +
       '  "session_notes": "<one sentence DM-reference summary>"\n' +
       '}\n' +
       '}';
@@ -832,6 +851,10 @@ Output schema:
           if (onEntities && Array.isArray(parsed.new_entities) && parsed.new_entities.length) {
             onEntities(parsed.new_entities);
           }
+          if (onStatus && parsed.combat_status) {
+            const rounds = (parsed.rounds || []).map(r => Number(r.round_number)).filter(Number.isFinite);
+            onStatus(parsed.combat_status, rounds.length ? Math.max(...rounds) : null);
+          }
           // Fire onNarrative when the AI included a narrative block alongside the rounds.
           // This handles mixed pages (combat + narrative content on the same page).
           // Guard: only fire when the block is present and at least one sub-array is non-empty,
@@ -864,6 +887,7 @@ Output schema:
                             || (Array.isArray(n.locations) && n.locations.length)
                             || (Array.isArray(n.quest_updates) && n.quest_updates.length)
                             || (Array.isArray(n.items) && n.items.length)
+                            || (Array.isArray(n.treasure) && n.treasure.length)
                             || n.session_notes;
             if (hasContent) onNarrative(n);
           }
@@ -997,12 +1021,16 @@ You help the DM correct errors in session intake deltas. When given a correction
 Respond ONLY with valid JSON. Do not include any reasoning, explanation, or text outside the JSON object — put your explanation inside the "content" field.
 {
   "content": "plain language explanation of what you changed and why",
-  "diffs": [{"k": "field · subfield", "old": "previous value", "new": "corrected value"}],
-  "cascades": [{"type": "NEW location|npc|item|quest|monster", "desc": "description of new item to queue", "entityHint": {"name":"...","type":"..."}}],
+  "diffs": [{"k": "field.subfield", "old": "previous value", "new": "corrected value"}],
+  "cascades": [{"type": "NEW location|npc|item|quest|monster", "desc": "the new record's own description (what the place, person, thing or quest is), or null", "entityHint": {"name":"...","type":"..."}}],
   "globalScope": ["item title 1", "item title 2"]
 }
 
+A cascade's "desc" is saved on the record. Never put instructions, conditions, checks, ids or queue wording in it; any concern about duplicates goes in "content". For a monster, it says what the creature is, never what it did: use what the notes say, flesh out only their shorthand, write one short standard sentence for a standard creature the notes do not describe, and otherwise use null.
 Omit diffs, cascades, or globalScope if not applicable. Never omit content. Never write text before or after the JSON block.
+
+A diff's "new" value is exactly what gets saved in the campaign log. Never write an instruction to the reviewer in it (no "CANCEL", "delete", "merge into…", "check whether…"); explain those in "content". Name a nested field with dots, as in "narrative.description".
+When the DM says this card should not exist at all (cancel it, delete it, it is a duplicate), return the single diff {"op": "cancel"} and say in "content" which existing record it duplicates, if any. That rejects the card.
 
 STRUCTURAL CORRECTIONS — reorder operation (ROUND items only):
 When the initiative order is wrong (wrong actor in the wrong slot, two actors swapped,
@@ -1253,7 +1281,7 @@ ${contextStr}${scopeNote}`,
       return {
         content: "I'll update the combat location to the Old Bridge. Since this location doesn't exist yet, I've also queued a new location entry for your review.",
         diffs: [{ k: 'location_id', old: 'loc_002 (The Quarry)', new: 'loc_new_01 (Old Bridge)' }],
-        cascades: [{ type: 'NEW location', desc: 'loc_new_01 — "The Old Bridge" added to review queue', entityHint: { name: 'The Old Bridge', type: 'location' } }],
+        cascades: [{ type: 'NEW location', desc: 'An old stone bridge.', entityHint: { name: 'The Old Bridge', type: 'location' } }],
         globalScope: [],
       };
     }

@@ -29,6 +29,8 @@ const TEST_FILES = [
   'tests/intake-preparation.test.js',
   'tests/delta-schema.test.js',
   'tests/delta-apply.test.js',
+  'tests/corrections.test.js',
+  'tests/publish-shape.test.js',
   'tests/store.test.js',
   'tests/turn-schema.test.js',
   'tests/bestiary-fold.test.js',

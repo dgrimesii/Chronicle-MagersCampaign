@@ -823,7 +823,7 @@ WHAT COUNTS AS AN ENTITY (the "kind" field):
 - npc: a named or described non-player person ("the wizard", "Ched").
 - creature: a monster or animal, singly or as a group ("Goblins", "dragon", "#2 Dragon", "Slinger").
 - faction: an organisation. cohort: a recurring group of people or creatures tied to a place or quest.
-- place: a location. thing: a notable object or treasure the party finds or handles (not a PC's ordinary weapon).
+- place: a location. thing: a notable object the party finds or handles (not a PC's ordinary weapon, and never money: coins, or a gem, art object or treasure with a stated cash value, are not things).
 - combat: a fight as a whole ("the ambush", "Combat Ended" refers to the current combat). quest: a mission or goal.
 - moment: a significant character moment. lore: a piece of knowledge, history or rumour.
 NOT entities: spells, class features and abilities (Witch Bolt, True Strike, Flurry of Blows), conditions, dice, damage numbers, and real people (players, the DM, "played by ...").

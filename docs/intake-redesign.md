@@ -41,7 +41,7 @@ Everything the notes mention is an entity, and every fact and every passage of n
 | --- | --- | --- |
 | People and creatures | `npc_directory`, `bestiary`, `factions`, `cohorts` | "the wizard" → The Low-Level Wizard; "goblins" → Goblins |
 | Places | `locations` | "Bel" → Belfar (`loc_006`); a place not yet recorded |
-| Things | `inventory_and_loot` | the Immovable Rod; coins found |
+| Things | `inventory_and_loot` | the Immovable Rod; never money (coins or priced treasure, #122) |
 | Events | `combat_encounters`, `quest_ledger`, `character_moments` | "ambush continues" → Goblin Ambush (`cbt_005`); "the escort" → Escort to Lake Town |
 | Knowledge | `world_lore` | something an NPC told the party; background you explained |
 

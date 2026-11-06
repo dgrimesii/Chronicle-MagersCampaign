@@ -176,13 +176,14 @@ async function loadCampaignData() {
 
 ## Shared module load order
 
-When a page needs all eleven shared modules, load them in this order:
+When a page needs all twelve shared modules, load them in this order:
 
 ```html
 <script src="../shared/config.js"></script>
 <script src="../shared/chronicle-store.js"></script>
 <script src="../shared/chronicle-ids.js"></script>
 <script src="../shared/chronicle-publish.js"></script>
+<script src="../shared/chronicle-corrections.js"></script>
 <script src="../shared/chronicle-entities.js"></script>
 <script src="../shared/chronicle-facts.js"></script>
 <script src="../shared/chronicle-grid.js"></script>
@@ -198,6 +199,8 @@ When a page needs all eleven shared modules, load them in this order:
 `chronicle-ids.js` exports `window.ChronicleIds` (and `module.exports` under Node): UUID allocation and legacy-ID translation (issue #95). No dependencies. Load it on any page that accepts IDs from outside the data (intake output, AI output, links) and must turn a legacy ID into a UUID, or that creates entities. The two viewers do not load it, because `normaliseCampaignJson` must stay self-contained.
 
 `chronicle-publish.js` exports `window.ChroniclePublish` (and `module.exports` under Node): `applySession()`, the one function that turns approved review items into campaign data (issue #92), plus `sessionChoices()` and `sessionHeader()`, which the session page uses to pick the session ID and date and hand them to `applySession()` (#99). Session choices and the header rule belong here, not in the page, so `tests/session-header.test.js` runs them through the real publish. It needs `chronicle-ids.js` loaded first and touches no DOM, sessionStorage or network; pages pass their state in as options. Any change to what publish writes goes in this module, not in a page, so `tests/delta-apply.test.js` keeps testing the real code. README "Shared modules" lists its round-conversion rules. Since #106 it also holds `sessionQueue()`, which turns the session page's review into the queue (so `tests/session-publish.test.js` tests the real order and placement), and `deriveRelationships()`, run by every `applySession()`.
+
+`chronicle-corrections.js` exports `window.ChronicleCorrections` (and `module.exports` under Node): what an applied correction may change in Delta Review (#128). No dependencies, DOM, storage or network; load it after `chronicle-publish.js`. Put any new rule about corrections here, not in the page, so `tests/corrections.test.js` tests the real code. Never let a correction store a command or an instruction as data, rewrite an id, or spread when the new name holds the old word. It also holds what a new card may propose (duplicates, descriptions, treasure, combat status); money is never an inventory item (#122).
 
 `chronicle-entities.js` exports `window.ChronicleEntities` (and `module.exports` under Node): the session page's entity identification (#100), meaning the step 2 mention prompt and reply check, the step 3 rows and the DM's actions, and `toQueueItems()`, which turns the answers into publish items. It needs `chronicle-ids.js` loaded first and touches no DOM, storage or network. Matching rules belong here, not in the page, so `tests/entity-identification.test.js` tests the real code. Only an exact name, PC nickname or alias may be bulk-acknowledged; never let the AI's own confidence decide that. The DM can add an entity the read missed (`addRow`, #115): it gets one occurrence on every page and is matched and settled like a read row. The DM can mark a row not an entity (`dismiss`, #113): it makes no publish item, and a dismissed occurrence is never guessed at downstream (a target keeps its words as `target_text`, an actor's facts are held back, a passage about it goes on the session). The DM can correct a row's kind before settling it (`setKind`, #114); a corrected row is matched by the same rules as a fresh one (`matchRow`), never kept on a match made for the old kind. Mark as sub-type (`markSubType`, #119) accepts a combat and creature another row of the same step 3 creates; pass it the rows, and keep such a sub-type reopening with the row that created them.
 
@@ -307,11 +310,11 @@ Since issue #95 every entity `id` is a lowercase **UUID v4**, e.g. `3f2b8c1e-9a4
 
 Workflow records keep typed ids: `prompt_improvement_log[]` (`pil_NNN`) and `deferred_gaps[]` (`gap_NNN`). No entity refers to them.
 
-Legacy IDs that were voided must never appear as a `legacy_id`: `npc_002`, `npc_005`, `npc_006` (gaps in the NPC registry) and `mon_006` (Goblin Slinger, folded into Goblins by issue #94).
+Legacy IDs that were voided must never appear as a `legacy_id`: `npc_002`, `npc_005`, `npc_006` (gaps in the NPC registry), `mon_006` (Goblin Slinger, folded into Goblins by issue #94), and `item_009` and `item_010` (money recorded as items, removed by #122).
 
 A variant of a creature (a goblin with a sling) is the same bestiary entry in a different role. Give its combat roster group a `role` and point `mon_ref` at the base creature; tag abilities seen only in that role with the same `role`. Do not add a second bestiary entry for it.
 
-A bestiary entry is reusable by any combat or event, so nothing in it records one event. `narrative.description` says only what the creature is (`null` if nothing is known), `observed_abilities` and `observed_weaknesses` say what it can do and what works against it (a single kill is not a weakness), and `encounter_notes` holds only general tactics. What a creature did belongs on the combat or event where it acted: its rounds, `passages`, or `narrative`.
+A bestiary entry is reusable by any combat or event, so nothing in it records one event. `narrative.description` says only what the creature is (`null` if nothing is known). The DM's rule for the AI (#123): what the notes say comes first, fleshing out only their shorthand with no new concept; a standard D&D creature the notes do not describe gets one short standard sentence. In the same entry, `observed_abilities` and `observed_weaknesses` say what it can do and what works against it (a single kill is not a weakness), and `encounter_notes` holds only general tactics. What a creature did belongs on the combat or event where it acted: its rounds, `passages`, or `narrative`.
 
 ### `deferred_gaps` — workflow state array
 
@@ -367,7 +370,7 @@ None since issue #95: entity ids are UUIDs and are not counted. The last legacy 
 
 The next session's legacy ID, typed by the DM at intake, is `session_008`. Workflow records still count: the next `pil_NNN` and `gap_NNN` come from their array lengths.
 
-Voided/skipped legacy IDs (never reuse): `npc_002`, `npc_005`, `npc_006`, `mon_006`
+Voided/skipped legacy IDs (never reuse): `npc_002`, `npc_005`, `npc_006`, `mon_006`, `item_009`, `item_010`
 
 ### Field naming
 

@@ -663,6 +663,7 @@ header{border-bottom:1px solid var(--border-strong);padding:0 1.5rem;display:gri
 <!-- Publish logic (issue #92): applies the approved queue to the campaign and
      writes the 5.0.0 shapes the viewers read. Needs chronicle-ids.js first. -->
 <script src="../shared/chronicle-publish.js"></script>
+<script src="../shared/chronicle-corrections.js"></script>
 <script src="../shared/chronicle-integrity.js"></script>
 <script src="../shared/chronicle-ai.js"></script>
 <!-- chronicle-narrative.js loaded here for detectCascadeCandidates (issue #44).
@@ -1472,7 +1473,8 @@ function commitInlineEntityEdit(itemId, field, oldVal, newVal, spanEl) {
   spanEl.classList.add('cell-edited');
 
   // ── Record the correction ─────────────────────────────────────────────────
-  // appliedCorrections is read by the publish path and the queue status indicators.
+  // appliedCorrections drives the card's before/after list and the queue indicators.
+  // Publish never reads it: only rawData is written, which is why it is set above.
   item.corrected = true;
   if (!item.appliedCorrections) item.appliedCorrections = [];
   item.appliedCorrections.push({ k: field, old: oldVal, new: trimmed || null });
@@ -2053,7 +2055,21 @@ function sendCorrection() {
     if (response.cascades?.length) {
       response.cascades.forEach(casc => {
         const newItem = _buildCascadeItem(casc, text);
-        if (!newItem) return;
+        if (!newItem) {
+          // Say why nothing was queued, and take it off the reply's list of new items.
+          const replyMsg = thread[thread.length - 1];
+          const found = casc._existing || casc._queued;
+          if (found) {
+            replyMsg.cascades = (replyMsg.cascades || []).filter(c => c !== casc);
+            if (!replyMsg.cascades.length) replyMsg.cascades = null;
+            const hintName = escapeHtmlDR(casc.entityHint?.name || 'That record');
+            const where = casc._existing
+              ? `already in the campaign (${escapeHtmlDR(found.legacy_id || found.id)})`
+              : 'already queued in this review';
+            replyMsg.content += ` <span style="color:var(--muted);font-size:0.82rem;">${hintName} is ${where}; nothing new was queued.</span>`;
+          }
+          return;
+        }
         newItem.isCascade = true;
         newItem.group     = 'Other';
 
@@ -2154,15 +2170,38 @@ function _buildCascadeItem(casc, correctionText) {
   // Client-side duplicate check (issue #56 Layer 1): if a campaign entity already
   // has this name, flag the item so the DM sees a ⚠ dup? warning before approving.
   // Does not block creation — the DM makes the final call; the warning is advisory.
-  const dupMatch = checkDuplicateName(hint.name);
+  const dupMatch = checkDuplicateName(hint.name, hint.type);
+
+  // A record that already exists is never proposed again (#126, #131). The reason is
+  // left on the cascade so the caller can name the record in the reply.
+  if (dupMatch?.strength === 'same') {
+    casc._existing = dupMatch;
+    return null;
+  }
+  const queued = _queuedWithSameName(array, hint.name);
+  if (queued) {
+    casc._queued = queued;
+    return null;
+  }
+
+  // Review wording never becomes a description (#126), and a bestiary description
+  // says what the creature is, not what it did (#123). Removed text stays visible as
+  // evidence on the card, so the DM loses nothing.
+  const cleaned = ChronicleCorrections.cleanDescription(casc.desc);
+  const reusable = array === 'bestiary'
+    ? ChronicleCorrections.reusableDescription(cleaned.text, _partyNames())
+    : { text: cleaned.text, evidence: null };
+  const evidence = cleaned.removed || reusable.evidence;
 
   return {
-    id: 'd_cascade_'+Date.now(), type:'NEW', array,
+    // Unique even when one reply builds several cascades in the same millisecond (#125).
+    id: ChronicleCorrections.newCascadeId([...items, ...cascadeItems].map(i => i.id), Date.now()),
+    type:'NEW', array,
     group:'Other', status:'pending', flags:[], isCascade:true,
     title:`New ${hint.type||'entry'} — ${hint.name||'unnamed'}`,
-    sourceQuote:`Correction note: "${correctionText}"`,
+    sourceQuote:`Correction note: "${correctionText}"` + (evidence ? ` — Evidence: "${evidence}"` : ''),
     sourceRef:`Cascade from ${casc.type}`,
-    rawData:{ name:hint.name, type:hint.type, description:casc.desc },
+    rawData:{ name:hint.name, type:hint.type, description:reusable.text },
     // _possibleDuplicate is set when a campaign entity with the same normalised name exists.
     // Rendered as a ⚠ dup? chip in the queue card and a warning block in the review panel.
     // Null when no match — most cascade items will not have this set.
@@ -2239,15 +2278,11 @@ function showInterpretForm(itemId) {
     return;
   }
 
-  const combats = campaignIntegrityData.combat_encounters || [];
-
   // '-- Non-Combat --' (__narrative__) is always the first option — pure narrative
   // pages are more common than pages that start a brand-new combat. '-- New combat --'
   // (__new__) follows so the DM can declare an encounter not yet in the JSON.
-  // Existing combats follow in campaign order.
-  const existingOptions = combats.map(c =>
-    `<option value="${escapeHtmlDR(c.id)}">${escapeHtmlDR(c.name || c.id)} (${escapeHtmlDR(c.id)})</option>`
-  ).join('');
+  // Combats created in this review, then the campaign's, follow (#124).
+  const existingOptions = _combatOptionsHtml();
 
   panel.innerHTML = `
     <div style="background:var(--parchment-dark);border:1px solid var(--border);
@@ -2293,6 +2328,144 @@ function showInterpretForm(itemId) {
   // is selected. The DM can switch to __new__ if they want to create a new combat;
   // toggleNewCombatFields() will show the name/ID fields at that point.
   // We no longer auto-show combat fields — the Non-Combat option is a valid default.
+}
+
+/**
+ * _noteCombatStatus(combatId, combatName, reading, round, isNew)
+ *
+ * Creates or updates the one status card for a combat, a MOD that sets its outcome
+ * and location. A new combat always gets one. A recorded combat gets one only when
+ * the notes change something, so unrelated combats add no cards.
+ * Why: nothing in intake ever set these fields, so new combats published null and a
+ * finished combat stayed "paused" (#127). The merge rule is in ChronicleCorrections.
+ * What breaks if removed: the DM must hand-edit every combat's outcome after publish.
+ */
+function _noteCombatStatus(combatId, combatName, reading, round, isNew) {
+  const cardId = `d_status_${combatId}`;
+  let card = cascadeItems.find(i => i.id === cardId);
+  const recorded = (campaignIntegrityData?.combat_encounters || []).find(c => c.id === combatId);
+  if (!card) {
+    const queuedNew = isNew || _reviewCombats().some(i => i.rawData?.id === combatId);
+    const changes = reading && ((ChronicleCorrections.OUTCOMES.includes(reading.outcome) && reading.outcome !== recorded?.outcome)
+      || (!recorded?.location && reading.location));
+    if (!queuedNew && !changes) return;
+    card = {
+      id:         cardId,
+      type:       'MOD',
+      array:      'combat_encounters',
+      targetId:   combatId,
+      group:      'Other',
+      status:     'pending',
+      flags:      [],
+      isCascade:  true,
+      title:      `Combat outcome — ${combatName}`,
+      sourceRef:  'Interpret',
+      sourceQuote: '',
+      _statusState: ChronicleCorrections.mergeCombatStatus(null, null, null),
+      rawData:    { id: combatId, _set: { 'mechanics.outcome': recorded?.outcome ?? null } },
+      // Regular function so the card's state is read at call time (issue #64 pattern).
+      nlRender() {
+        const st = this._statusState;
+        const options = ['', ...ChronicleCorrections.OUTCOMES].map(o =>
+          `<option value="${o}"${o === (st.outcome || '') ? ' selected' : ''}>${o || '— not set —'}</option>`).join('');
+        const places = (campaignIntegrityData?.locations || []).map(l => l.name)
+          .concat(cascadeItems.filter(i => i.array === 'locations' && i.type === 'NEW' && i.status !== 'rejected').map(i => i.rawData?.name))
+          .filter(Boolean).map(n => `<option value="${escapeHtmlDR(n)}"></option>`).join('');
+        return `<div class="nl-narrative">Where <strong>${escapeHtmlDR(combatName)}</strong> stands at the end of the pages read so far.</div>
+          <div class="field-grid" style="margin-top:0.6rem;">
+            <div class="field-row"><div class="field-label">Outcome</div>
+              <div class="field-val"><select onchange="setCombatStatusField('${this.id}','outcome',this.value)">${options}</select>
+              <span style="color:var(--muted);font-size:0.78rem;margin-left:6px;">Recorded: ${escapeHtmlDR(recorded?.outcome ?? 'none')}</span></div></div>
+            <div class="field-row"><div class="field-label">Location</div>
+              <div class="field-val"><input list="status-places-${this.id}" value="${escapeHtmlDR(st.location || '')}" placeholder="${recorded?.location ? 'Keep the recorded location' : 'Not set'}"
+                onchange="setCombatStatusField('${this.id}','location',this.value)" />
+                <datalist id="status-places-${this.id}">${places}</datalist></div></div>
+            <div class="field-row"><div class="field-label">From the notes</div>
+              <div class="field-val" style="font-style:italic;">${escapeHtmlDR(st.evidence || 'The notes do not say.')}</div></div>
+          </div>`;
+      },
+    };
+    cascadeItems.push(card);
+  }
+  card._statusState = ChronicleCorrections.mergeCombatStatus(card._statusState, reading, round);
+  _syncCombatStatusCard(card);
+}
+
+/**
+ * _syncCombatStatusCard(card)
+ *
+ * Copies the card's state into rawData, the only part publish reads.
+ * Why a location is a name here: it may be a location queued in this review, with no
+ * id until publish, which matches the name then (_location_name, applyMod).
+ * What breaks if removed: the card would show a choice that never publishes.
+ */
+function _syncCombatStatusCard(card) {
+  const st = card._statusState;
+  card.rawData._set = { 'mechanics.outcome': st.outcome ?? card.rawData._set?.['mechanics.outcome'] ?? null };
+  if (st.location) card.rawData._location_name = st.location;
+  else delete card.rawData._location_name;
+  card.sourceQuote = st.evidence || '';
+}
+
+/**
+ * setCombatStatusField(cardId, field, value)
+ *
+ * Records the DM's choice on a status card. A choice is marked so a later page's
+ * reading never replaces it.
+ * What breaks if removed: the card's dropdown and location box do nothing.
+ */
+function setCombatStatusField(cardId, field, value) {
+  const card = cascadeItems.find(i => i.id === cardId);
+  if (!card) return;
+  const st = card._statusState;
+  st[field] = value || null;
+  st[field === 'outcome' ? 'outcomeChosen' : 'locationChosen'] = true;
+  _syncCombatStatusCard(card);
+  renderQueue();
+}
+
+/**
+ * _reviewCombats()
+ *
+ * The combats created by "New combat" earlier in this review and not rejected.
+ * Why: they live in the queue, not the loaded campaign, so a combat continuing onto
+ * the next page could not be chosen (#124).
+ * What breaks if removed: each page of a new combat would have to create another one.
+ */
+function _reviewCombats() {
+  return cascadeItems.filter(i => i.type === 'NEW' && i.array === 'combat_encounters' && i.status !== 'rejected');
+}
+
+/**
+ * _combatOptionsHtml()
+ *
+ * Builds the dropdown's combat options: this review's first, as the likeliest choice
+ * for the next page, then the campaign's. Their ids are placeholders that publish
+ * turns into UUIDs, so rounds queued against one land in the right combat.
+ * What breaks if removed: showInterpretForm() has no combats to offer.
+ */
+function _combatOptionsHtml() {
+  const option = (id, name) => `<option value="${escapeHtmlDR(id)}">${escapeHtmlDR(name || id)} (${escapeHtmlDR(id)})</option>`;
+  const created = _reviewCombats().map(i => option(i.rawData.id, i.rawData.name)).join('');
+  const recorded = (campaignIntegrityData?.combat_encounters || []).map(c => option(c.id, c.name)).join('');
+  return (created ? `<optgroup label="Created in this review">${created}</optgroup>` : '')
+    + (recorded ? `<optgroup label="In the campaign">${recorded}</optgroup>` : '');
+}
+
+/**
+ * _refreshInterpretForms()
+ *
+ * Rebuilds the combat list in any Interpret form already open, keeping each choice.
+ * Why: the DM may open page 6's form before page 5 finishes creating its combat.
+ * What breaks if removed: that open form would not offer the new combat (#124).
+ */
+function _refreshInterpretForms() {
+  document.querySelectorAll('select[id^="interpret-combat-"]').forEach(select => {
+    const chosen = select.value;
+    [...select.querySelectorAll('optgroup')].forEach(g => g.remove());
+    select.insertAdjacentHTML('beforeend', _combatOptionsHtml());
+    select.value = chosen;
+  });
 }
 
 /**
@@ -2386,6 +2559,7 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
     const nameLower = npc.name.toLowerCase();
     // Skip if already tracked in the campaign — DM doesn't need to approve a duplicate.
     if (knownNPCs.has(nameLower)) return;
+    if (checkDuplicateName(npc.name, 'npc')?.strength === 'same' || _queuedWithSameName('npc_directory', npc.name)) return;
 
     // Stable cascade ID using itemId + name so re-running interpret doesn't duplicate.
     const cascadeId = `d_npc_${itemId}_${nameLower.replace(/\W+/g, '_')}`;
@@ -2405,7 +2579,7 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
       // Client-side duplicate check (issue #56 Layer 1). knownNPCs already filters
       // exact lowercase matches; checkDuplicateName catches punctuation variants and
       // provides the {id, type, name} needed to render the ⚠ dup? warning.
-      _possibleDuplicate: checkDuplicateName(npc.name) || null,
+      _possibleDuplicate: checkDuplicateName(npc.name, 'npc') || null,
       rawData: {
         name:      npc.name,
         // Description lives at rawData.narrative.description (v4 NPC schema shape)
@@ -2440,6 +2614,7 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
     if (!loc.name) return;
     const nameLower = loc.name.toLowerCase();
     if (knownLocations.has(nameLower)) return;
+    if (checkDuplicateName(loc.name, 'location')?.strength === 'same' || _queuedWithSameName('locations', loc.name)) return;
 
     const cascadeId = `d_loc_${itemId}_${nameLower.replace(/\W+/g, '_')}`;
     if (cascadeItems.some(i => i.id === cascadeId) || items.some(i => i.id === cascadeId)) return;
@@ -2456,10 +2631,11 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
       sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
       sourceQuote: loc.description || 'Extracted from session notes.',
       // Client-side duplicate check (issue #56 Layer 1).
-      _possibleDuplicate: checkDuplicateName(loc.name) || null,
+      _possibleDuplicate: checkDuplicateName(loc.name, 'location') || null,
       rawData: {
         name:        loc.name,
-        // Flat description field (v4 location schema uses top-level description).
+        // Flat on the card only, for its inline editor. Recorded locations keep it at
+        // narrative.description, and publish moves it there (shapeRecord, #129).
         description: loc.description || null,
       },
       nlRender() {
@@ -2502,6 +2678,10 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
       sourceQuote: qu.progress_entry || 'Quest update extracted from session notes.',
       rawData: {
         quest_hint: qu.quest_hint,
+        // A cash reward is a value on the quest, never an item (#122). The words stay in
+        // the progress entry below. Only a real number is written.
+        ...(Number.isFinite(Number(qu.reward_value_gp)) && qu.reward_value_gp != null
+          ? { _set: { 'mechanics.reward_received.value_gp': Number(qu.reward_value_gp) } } : {}),
         // _progress_append carries the progress_log entry shape.
         // applyDeltasToCampaign() detects this field on quest MOD items and
         // pushes to progress_log[] rather than calling Object.assign on the quest.
@@ -2537,10 +2717,18 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
   });
 
   // ── Item / loot cascade items ─────────────────────────────────────
-  // Coins, treasures, named items, potions found by the party.
-  // Each maps to inventory_and_loot as a NEW item (flat rawData shape — description at top level).
+  // Named items, potions and quest objects found by the party. Each maps to
+  // inventory_and_loot as a NEW item (flat on the card; publish shapes it, #129).
+  // Money is never an item (#122): the guard catches what the AI still returns,
+  // and it joins the page's treasure, which is saved as a passage on the session.
+  const treasure = (result.treasure || []).filter(t => typeof t === 'string' && t.trim());
   (result.items || []).forEach(it => {
     if (!it.name) return;
+    if (ChronicleCorrections.isCashTreasure(it.name, it.description)) {
+      treasure.push(it.description ? `${it.name}: ${it.description}` : it.name);
+      return;
+    }
+    if (checkDuplicateName(it.name, 'item')?.strength === 'same' || _queuedWithSameName('inventory_and_loot', it.name)) return;
     const nameLower = it.name.toLowerCase();
 
     // Stable cascade ID from itemId + item name — prevents duplicates on re-run.
@@ -2558,10 +2746,11 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
       title:       `New Item — ${it.name}`,
       sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
       sourceQuote: it.description || 'Extracted from session notes.',
+      _possibleDuplicate: checkDuplicateName(it.name, 'item') || null,
       rawData: {
         name:        it.name,
-        // Flat description field matches the inventory_and_loot schema shape.
-        // editableSpan field path 'description' writes to rawData.description directly.
+        // Flat on the card only, for editableSpan's 'description' path. Recorded items
+        // keep it at narrative.description, and publish moves it there (#129).
         description: it.description || null,
       },
       nlRender() {
@@ -2580,6 +2769,38 @@ function _processNarrativeResult(result, itemId, sessionId, rawItem) {
     });
     added++;
   });
+
+  // ── Treasure passage ──────────────────────────────────────────────
+  // Passages are the session's own narrative, and publish saves them. session_notes
+  // would lose the treasure, because it is only reference text on this page's card.
+  if (treasure.length && sessionId) {
+    const treasureId = `d_treasure_${itemId}`;
+    if (!cascadeItems.some(i => i.id === treasureId) && !items.some(i => i.id === treasureId)) {
+      cascadeItems.push({
+        id:          treasureId,
+        type:        'MOD',
+        array:       'session_logs',
+        targetId:    sessionId,
+        group:       'Other',
+        status:      'pending',
+        flags:       [],
+        isCascade:   true,
+        title:       'Treasure — session narrative',
+        sourceRef:   `Narrative Extract — ${rawItem?.title || 'OCR page'}`,
+        sourceQuote: treasure.join('; '),
+        rawData: {
+          id: sessionId,
+          _passage_append: [{ text: 'Treasure: ' + treasure.join('; ') + '.', session_id: sessionId, speaker: 'dm', page: null }],
+        },
+        // Regular function so rawData is read at call time (issue #64 pattern).
+        nlRender() {
+          return `<div class="nl-narrative">Treasure, saved as narrative on the session rather than as items.</div>
+            <div class="field-val" style="font-style:italic;line-height:1.5;margin-top:0.6rem;">${escapeHtmlDR(this.rawData._passage_append[0].text)}</div>`;
+        },
+      });
+      added++;
+    }
+  }
 
   // ── Cohort cascade items ──────────────────────────────────────────
   // Two sub-paths based on whether the AI identified a match to an existing cohort:
@@ -2999,6 +3220,12 @@ function interpretRawItem(itemId) {
       statusEl.textContent = 'Enter a combat name before running.';
       return;
     }
+    // A second "New" with the same name would split one fight into two combats (#124).
+    const sameCombat = _reviewCombats().find(i => ChronicleCorrections.nameKey(i.rawData?.name) === ChronicleCorrections.nameKey(combatName));
+    if (sameCombat) {
+      statusEl.textContent = `"${sameCombat.rawData.name}" was already created in this review. Choose it from the list instead.`;
+      return;
+    }
     combatId = idSpan?.textContent?.trim() || '';
     if (!combatId) {
       statusEl.textContent = 'Could not compute next combat ID — reload the page and try again.';
@@ -3008,7 +3235,9 @@ function interpretRawItem(itemId) {
     combatId = combatSelect.value;
     if (!combatId) { statusEl.textContent = 'Select a combat first.'; return; }
     const combat = (campaignIntegrityData?.combat_encounters || []).find(c => c.id === combatId);
-    combatName = combat?.name || combatId;
+    // A combat created earlier in this review is in the queue, not the campaign (#124).
+    const queuedCombat = _reviewCombats().find(i => i.rawData?.id === combatId);
+    combatName = combat?.name || queuedCombat?.rawData?.name || combatId;
   }
 
   // Open-ended round extraction: passing null tells fillRoundsFromText to prompt the AI
@@ -3090,6 +3319,8 @@ function interpretRawItem(itemId) {
         // a creature type already tracked as an NPC should not also enter the bestiary).
         if (knownMonsters.has(nameLower)) return;
         if (knownNPCs.has(nameLower))     return;
+        // The same rule as every other path: "goblin" is the recorded Goblins (#131).
+        if (checkDuplicateName(entity.name, 'monster')?.strength === 'same' || _queuedWithSameName('bestiary', entity.name)) return;
 
         // Cross-round shorthand guard: skip if an existing bestiary entry is a more
         // specific version of this name (e.g. "dragon" when "Larkspur Dragon" is
@@ -3102,10 +3333,15 @@ function interpretRawItem(itemId) {
 
         // All entity cascade items from interpret go to bestiary (see normType comment above).
         const array   = 'bestiary';
+        // The description must suit any later encounter, so anything reporting this
+        // fight is shown as evidence and not saved (#123). The AI's own "context" says
+        // what the creature did here, and is never saved on the creature.
+        const reusable = ChronicleCorrections.reusableDescription(entity.desc, _partyNames());
+        const evidence = [entity.context, reusable.evidence].filter(Boolean).join(' ');
         const rawData = {
           name:      entity.name,
           mechanics: { reliability: 'unverified', appearances: [sessionId] },
-          narrative: { description: entity.desc || null },
+          narrative: { description: reusable.text },
         };
 
         // Cross-item cascade ID: uses array name (not itemId) so the same entity name
@@ -3125,13 +3361,13 @@ function interpretRawItem(itemId) {
           isCascade:   true,
           title:       `New Monster — ${entity.name}`,
           sourceRef:   `Interpret — ${item.title || 'OCR page'}`,
-          sourceQuote: entity.desc || 'Detected in enemy turns during OCR interpret.',
+          sourceQuote: evidence || 'Detected in enemy turns during OCR interpret.',
           rawData,
           // Client-side duplicate check (issue #56 Layer 1). The knownMonsters/knownNPCs
           // sets already filter exact lowercase matches, but checkDuplicateName uses the
           // full normalised index (includes punctuation-stripped variants) and produces the
           // {id, type, name} object the ⚠ dup? chip needs to identify the matched entity.
-          _possibleDuplicate: checkDuplicateName(entity.name) || null,
+          _possibleDuplicate: checkDuplicateName(entity.name, 'monster') || null,
           // Regular function so this.rawData is read at call time — not captured
           // as a closed-over local. Without this, inline edits via
           // commitInlineEntityEdit() would not appear in subsequent re-renders
@@ -3159,6 +3395,12 @@ function interpretRawItem(itemId) {
         });
       });
 
+      renderQueue();
+    },
+
+    // onStatus: where the combat stands at the end of this page, read by the AI (#127).
+    onStatus: (status, lastRound) => {
+      _noteCombatStatus(combatId, combatName, status, lastRound, isNewCombat);
       renderQueue();
     },
 
@@ -3234,6 +3476,10 @@ function interpretRawItem(itemId) {
               </div>`;
             },
           });
+          // A new combat always gets a status card, so null is never published unseen (#127).
+          _noteCombatStatus(combatId, combatName, null, null, true);
+          // The next page's Interpret form can now offer this combat (#124).
+          _refreshInterpretForms();
         }
       }
 
@@ -3316,6 +3562,44 @@ function interpretRawItem(itemId) {
 // ── AI corrections handled by ChronicleAI module (chronicle-ai.js) ──
 
 
+/**
+ * _refusedNote(refused)
+ *
+ * Builds the reply line naming the changes that were not applied.
+ * Why: a refused instruction must be visible, or the DM would assume it worked.
+ * What breaks if removed: refused changes vanish with no explanation.
+ */
+function _refusedNote(refused) {
+  const words = refused.map(d => escapeHtmlDR(String(d.new ?? d.op ?? d.k))).join('; ');
+  return ` <span style="color:var(--rust);font-size:0.82rem;">Not applied, because it is an instruction rather than data: ${words}. Use Reject on the card, or edit the field.</span>`;
+}
+
+/**
+ * _applyCorrectionCommands(item, msg, sorted)
+ *
+ * Carries out what classifyDiffs() found that is not data: a cancel rejects the
+ * card, and refused entries are reported in the reply. Returns true when the card
+ * was cancelled, so the caller stops.
+ * Why: "cancel this" used to add a field and leave the card to publish, which is
+ * how session 6 stored "action": "CANCEL". Reject is the existing way to keep a
+ * card out of publish, and the DM can still undo it from the card.
+ * What breaks if removed: applyDiff() throws, and no correction can be applied.
+ */
+function _applyCorrectionCommands(item, msg, sorted) {
+  if (sorted.refused.length) msg.content += _refusedNote(sorted.refused);
+  if (!sorted.cancel && sorted.data.length) return false;
+  if (sorted.cancel) {
+    item.status = 'rejected';
+    msg.content += ' <span style="color:var(--teal);font-size:0.82rem;">✓ Card rejected; it will not publish</span>';
+  }
+  msg.diffs = null;
+  renderAssistant();
+  renderReview();
+  renderQueue();
+  updateProgress();
+  return true;
+}
+
 function applyDiff(msgId) {
   // Applies a set of AI-proposed diffs to the queue item currently selected.
   // Why: the old stub never persisted diffs — it just hid the UI and re-rendered
@@ -3336,6 +3620,13 @@ function applyDiff(msgId) {
   if (!item._originalRawData) {
     item._originalRawData = JSON.parse(JSON.stringify(item.rawData || {}));
   }
+
+  // Sort the reply before anything is written (#128): a command drops the card,
+  // and an instruction to the reviewer is reported instead of being saved as
+  // campaign text. Everything below this point works on real data changes only.
+  const sorted = ChronicleCorrections.classifyDiffs(msg.diffs);
+  if (_applyCorrectionCommands(item, msg, sorted)) return;
+  msg.diffs = sorted.data;
 
   // For RAW OCR items: mutate rawData.ocr_text directly so nlRender() shows
   // the corrected text in the pre block. Safe to mutate here because:
@@ -3498,6 +3789,13 @@ function applyDiff(msgId) {
     });
   }
 
+  // Entity cards (NPC, location, monster, item, quest). This branch was missing:
+  // the card said "Applied" and rawData never changed, so the correction was lost
+  // at publish (#128). RAW and ROUND cards are written above.
+  if (item.type !== 'RAW' && item.type !== 'ROUND') {
+    ChronicleCorrections.writeEntityDiffs(item.rawData, msg.diffs);
+  }
+
   // Accumulate each diff into appliedCorrections — these drive the before/after
   // display on the review card. Array grows across multiple correction rounds
   // rather than being replaced, so all edits remain visible at once.
@@ -3562,7 +3860,7 @@ function applyGlobalCorrection(msgId) {
   if (!msg) return;
 
   // Prefer the frozen snapshot; fall back to live diffs (old thread entries without snapshot).
-  const diffs = msg._globalDiffs?.length ? msg._globalDiffs : (msg.diffs || []);
+  let diffs = msg._globalDiffs?.length ? msg._globalDiffs : (msg.diffs || []);
 
   // Discover which checkboxes the DM left checked. The globalScope block renders one
   // .global-match div per entry; .global-match-check toggles the 'checked' class on click.
@@ -3583,6 +3881,10 @@ function applyGlobalCorrection(msgId) {
     // different field names to rawData vs roundData for non-active items.
     const SLOT_FIELD_MAP = { action: 'act', result: 'res', value: 'val', notes: 'notes' };
     const allQueueItems = [...items, ...cascadeItems];
+    // Sorted once, because the same reply applies to every ticked card (#128).
+    const sorted = ChronicleCorrections.classifyDiffs(diffs);
+    if (sorted.refused.length) msg.content += _refusedNote(sorted.refused);
+    diffs = sorted.data;
 
     checkedIndices.forEach(idx => {
       const entry = msg.globalScope[idx];
@@ -3600,6 +3902,14 @@ function applyGlobalCorrection(msgId) {
       // when the DM inspects the item. Set once — never overwritten on retries.
       if (!target._originalRawData) {
         target._originalRawData = JSON.parse(JSON.stringify(target.rawData || {}));
+      }
+
+      // A command to drop a card is obeyed for each ticked card and never stored (#128).
+      if (sorted.cancel) {
+        target.status = 'rejected';
+        applied++;
+        if (isSelf) selfApplied = true;
+        return;
       }
 
       // Apply diffs to rawData (and roundData for ROUND items).
@@ -3669,13 +3979,10 @@ function applyGlobalCorrection(msgId) {
           }
         });
       } else {
-        // Simple top-level field patch for non-RAW, non-ROUND types (NPC, location, etc.).
-        // Reorder diffs (op:"reorder") have no 'k' — the !d.op guard skips them safely.
-        diffs.forEach(d => {
-          if (d.k && d.new !== undefined && target.rawData && !d.op) {
-            target.rawData[d.k] = d.new;
-          }
-        });
+        // Entity cards: the shared writer follows dotted paths, so
+        // "narrative.description" reaches the nested field instead of being
+        // stored as one literal key (#128). Reorder diffs have no 'k' and are skipped.
+        ChronicleCorrections.writeEntityDiffs(target.rawData, diffs);
       }
 
       // Record the correction — drives the "Corrections Applied" section in renderReview()
@@ -3713,6 +4020,8 @@ function applyGlobalCorrection(msgId) {
 
   renderAssistant();
   renderQueue();
+  // A cancelled card changes the review counts, so the progress bar is refreshed too (#128).
+  updateProgress();
   // Re-render the active card only if the self-entry was checked — so the DM sees the
   // Corrections Applied section and updated card content without an unexpected card jump.
   if (selfApplied) renderReview();
@@ -4170,59 +4479,54 @@ window.sessionGroundTruth = {};
 /**
  * buildCampaignNameIndex(data)
  *
- * Builds a Map of normalised entity name → {id, type, name} from the raw campaign JSON.
- * Used for client-side duplicate detection when cascade items are created (issue #56 Layer 1).
- *
- * Why a Map instead of the old roster string: the old approach injected the full roster
- * into every AI system prompt — at end-of-campaign (~320 entities) that costs ~88,000
- * tokens per intake run and dilutes AI attention on the actual correction task. The Map
- * is zero token cost and catches the majority of real-world duplicates entirely in JS.
- *
- * Called once after initIntegrity() fetches the campaign JSON. Stored as window.campaignNameIndex.
- * Returns an empty Map (not null) when all entity arrays are absent — callers can always call .get().
- *
- * Normalisation: lowercase, strip punctuation, collapse whitespace. This catches exact
- * matches and minor punctuation variants (e.g. "The Hooded Figure" = "the hooded figure").
- * Edit-distance fuzzy matching is a future enhancement — exact normalised match is sufficient
- * for the common case and avoids false positives.
+ * Builds the list of records a new card could duplicate, stored as
+ * window.campaignNameIndex. ChronicleCorrections holds the rule, so
+ * tests/corrections.test.js tests the real code (#131).
+ * Why no AI: this is free, instant, and needs no roster in the prompt.
+ * What breaks if removed: checkDuplicateName() finds nothing, and every duplicate queues.
  */
 function buildCampaignNameIndex(data) {
-  const index = new Map();
-  // Normalise a name for comparison: lowercase, strip non-alphanumeric (except spaces),
-  // collapse whitespace. Using the same normalisation at lookup time avoids mismatches
-  // caused by punctuation or capitalisation variants.
-  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-  const add  = (id, type, name) => { if (name) index.set(norm(name), { id, type, name }); };
-
-  // All entity types that can appear as cascade items. factions/cohorts use || [] guard
-  // because they were introduced in schema v4.1 and may be absent in older snapshots.
-  (data.npc_directory      || []).forEach(e => add(e.id, 'npc',      e.name));
-  (data.locations          || []).forEach(e => add(e.id, 'location',  e.name));
-  (data.bestiary           || []).forEach(e => add(e.id, 'monster',   e.name));
-  (data.factions           || []).forEach(e => add(e.id, 'faction',   e.name));
-  (data.cohorts            || []).forEach(e => add(e.id, 'cohort',    e.name));
-  (data.inventory_and_loot || []).forEach(e => add(e.id, 'item',      e.name));
-  (data.quest_ledger       || []).forEach(e => add(e.id, 'quest',     e.name));
-
-  return index;
+  return ChronicleCorrections.buildRecordIndex(data);
 }
 
 /**
- * checkDuplicateName(name)
+ * checkDuplicateName(name, type)
  *
- * Looks up a proposed entity name in window.campaignNameIndex.
- * Returns the matched entry {id, type, name} if an existing entity shares this
- * normalised name, or null if no match (or if the index is not yet loaded).
- *
- * Why: called at each cascade item creation site so the DM sees a ⚠ dup? warning
- * before approving — zero token cost, zero AI call, runs entirely in JS (issue #56 Layer 1).
- * What breaks if removed: duplicate detection falls back to Layer 2 (AI-side injection)
- * only, losing the client-side pre-flight that catches obvious cases instantly.
+ * Looks up a proposed record. Returns { id, legacy_id, type, name, strength }, where
+ * strength "same" means do not queue it and "close" means warn the DM with the dup? chip.
+ * Returns null when there is no match or the index has not loaded.
+ * Why: called wherever a new card is created. What breaks if removed: those call sites throw.
  */
-function checkDuplicateName(name) {
+function checkDuplicateName(name, type) {
   if (!window.campaignNameIndex || !name) return null;
-  const norm = (s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim());
-  return window.campaignNameIndex.get(norm(name)) || null;
+  return ChronicleCorrections.findDuplicate(name, type, window.campaignNameIndex);
+}
+
+/**
+ * _queuedWithSameName(array, name)
+ *
+ * Returns the card already in this review with the same name in the same array,
+ * ignoring any that were rejected.
+ * Why: the campaign index only knows published records, so a creature named on two
+ * pages would otherwise be proposed twice (#131).
+ * What breaks if removed: one record can be approved twice in a single publish.
+ */
+function _queuedWithSameName(array, name) {
+  const key = ChronicleCorrections.nameKey(name);
+  return [...items, ...cascadeItems].find(i =>
+    i.type === 'NEW' && i.array === array && i.status !== 'rejected' && i.status !== 'merged'
+    && ChronicleCorrections.nameKey(i.rawData?.name ?? i.rawData?.title) === key) || null;
+}
+
+/**
+ * _partyNames()
+ *
+ * The PCs' names and nicknames, for the reusable-description check (#123).
+ * Why from the data: the party can change, and the check must follow it.
+ * What breaks if removed: new monster cards throw while being built.
+ */
+function _partyNames() {
+  return (campaignIntegrityData?.party || []).flatMap(p => [p.name, p.nickname]).filter(Boolean);
 }
 
 // ══════════════════════════════════════════════════════
@@ -4323,119 +4627,15 @@ function buildAIContextString() {
 }
 
 /**
- * _escapeRegex(str)
- * Escapes special regex characters so a literal string can be used in new RegExp().
- * Why: fact keys may contain characters like '.' or '(' that have regex meaning.
- */
-function _escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * _extractMinimalSubstitution(oldStr, newStr)
- *
- * Finds the single word that changed between two strings using a word-set diff.
- * Returns { old, new } of just the changed word pair.
- *
- * Why character-level prefix/suffix fails here: "Gold" and "Goldie" share the
- * prefix "Gold", so character-level extraction sees old="" and new="ie" — which
- * is technically correct but useless as a propagation key. Word-level diffing
- * instead asks: "which word appears in old but not new?" Answer: "Gold".
- *
- * Algorithm:
- *   1. Extract all \w+ tokens from each string (case-insensitive comparison)
- *   2. Find tokens only in old (removed) and only in new (added)
- *   3. If exactly one removed and one added: that's the substitution
- *   4. Otherwise return empty (ambiguous — don't register)
- *
- * Examples:
- *   "Slot 6: Gold —" → "Slot 6: Goldie —"  →  { old:"Gold",  new:"Goldie" }
- *   "Gold crits with True Strike" → "Goldie crits with True Strike"
- *                                              →  { old:"Gold",  new:"Goldie" }
- *   "Bel" → "Belfar"  (direct short diff — handled by isMinimal fast path)
- *
- * Returns { old:'', new:'' } when no clean single-word substitution is found.
- */
-function _extractMinimalSubstitution(oldStr, newStr) {
-  // Extract word tokens — letters, digits, apostrophes, hyphens within words
-  const tokenize = s => (s.match(/[\w'-]+/g) || []);
-  const oldTokens = tokenize(oldStr);
-  const newTokens = tokenize(newStr);
-
-  // Build case-insensitive lookup sets for each side
-  const oldLower = new Set(oldTokens.map(w => w.toLowerCase()));
-  const newLower = new Set(newTokens.map(w => w.toLowerCase()));
-
-  // Words present in old but absent from new (the "removed" word)
-  const removed = oldTokens.filter(w => !newLower.has(w.toLowerCase()));
-  // Words present in new but absent from old (the "added" word)
-  const added   = newTokens.filter(w => !oldLower.has(w.toLowerCase()));
-
-  // Only register when exactly one word was swapped — multiple changes are
-  // ambiguous and could cause incorrect propagation across unrelated items.
-  if (removed.length === 1 && added.length === 1) {
-    return { old: removed[0], new: added[0] };
-  }
-
-  return { old: '', new: '' };
-}
-
-/**
- * _applySubstitutionToObj(obj, key, resolvedName, fieldPath, diffs)
- *
- * Recursively walks a rawData object and replaces whole-word occurrences of
- * `key` with `resolvedName` in every string field. Records each replacement
- * as a diff entry. Returns the modified object (or value).
- *
- * Why: actor names in round items live inside nested arrays (initiative_slots[].actor_id),
- * not at the top level. A field-specific approach (rawData.name, rawData.ocr_text) misses
- * these nested paths entirely. Recursive traversal finds the substitution wherever it lives.
- * What breaks if removed: propagation silently finds no matches on structured round items
- * and never applies corrections to them.
- */
-function _applySubstitutionToObj(obj, re, key, resolvedName, fieldPath, diffs) {
-  if (typeof obj === 'string') {
-    // Reset lastIndex before each test — the 'g' flag makes the regex stateful,
-    // so without this reset a match in a previous field would advance lastIndex
-    // past the start of the next field's string, causing missed matches.
-    re.lastIndex = 0;
-    if (re.test(obj)) {
-      re.lastIndex = 0;
-      const corrected = obj.replace(new RegExp(re.source, re.flags), resolvedName);
-      diffs.push({ k: fieldPath, old: key, new: corrected });
-      return corrected;
-    }
-    return obj;
-  }
-  if (Array.isArray(obj)) {
-    return obj.map((item, i) =>
-      _applySubstitutionToObj(item, re, key, resolvedName, fieldPath ? `${fieldPath}[${i}]` : `[${i}]`, diffs)
-    );
-  }
-  if (obj && typeof obj === 'object') {
-    const out = {};
-    for (const [k, v] of Object.entries(obj)) {
-      out[k] = _applySubstitutionToObj(v, re, key, resolvedName, fieldPath ? `${fieldPath}.${k}` : k, diffs);
-    }
-    return out;
-  }
-  return obj;
-}
-
-/**
  * extractAndRegisterFacts(item, diffs)
  *
- * Reads a set of applied diffs and registers short-phrase corrections as
- * confirmed facts in window.sessionGroundTruth. Returns the array of newly
- * registered keys so the caller can pass them to propagateGroundTruth().
+ * Registers the name corrections among a set of applied diffs as confirmed
+ * facts in window.sessionGroundTruth, and returns the new keys for
+ * propagateGroundTruth(). ChronicleCorrections.factFromDiff() decides what counts
+ * as a name, so tests/corrections.test.js tests the real rule (#128).
  *
- * Why: any diff where d.old is a short phrase (≤ 40 chars, no newlines) is
- * treated as a potential name alias regardless of the diff key. Actor names appear
- * in initiative_slots, entity names in 'name' fields, OCR aliases in 'ocr_text' —
- * all three need the same propagation. Field key signals content vs. identity only
- * for the content-only exclusion list below.
- * What breaks if removed: no facts are ever registered; the registry stays empty
- * and the session ground truth system is silently non-functional.
+ * Why: facts carry a correction to the AI's later calls and to other cards.
+ * What breaks if removed: the registry stays empty and corrections stay on one card.
  *
  * Called from applyDiff() BEFORE msg.diffs is nulled — must read msg.diffs live.
  */
@@ -4443,64 +4643,20 @@ function extractAndRegisterFacts(item, diffs) {
   const newKeys = [];
   if (!Array.isArray(diffs)) return newKeys;
 
-  // Prose fields whose values describe events rather than identify entities.
-  // A diff on these (e.g. {k:'description', old:'fallen', new:'dead'}) should
-  // never propagate as a name alias even when the value is short.
-  const CONTENT_FIELDS = new Set([
-    'description', 'notes', 'summary', 'motivation', 'aftermath',
-    'setup', 'finale', 'background', 'content', 'entry',
-  ]);
-
   diffs.forEach(d => {
-    if (typeof d.old !== 'string' || !d.old.trim()) return;
-    if (typeof d.new !== 'string' || !d.new.trim()) return;
-    if (CONTENT_FIELDS.has(d.k)) return;
-    if (d.old.includes('\n') && d.new.includes('\n')) return; // multi-line block swap — not a name alias
-
-    // For bracket-path diffs (ROUND item structural fields like "slots[2].action_type"),
-    // only register facts when the field is act or desc — the only ROUND fields whose
-    // values are ability/action names that could meaningfully propagate to other items.
-    // Controlled-vocabulary fields (action_type, result, res, val_type, target_effects,
-    // notes) hold short generic words ('action', 'hit', 'bonus_action') that must NEVER
-    // propagate as name aliases — they appear in every round and would corrupt any item
-    // containing those words in any string field, including raw OCR text.
-    const bracketField = d.k?.match(/\[\d+\]\.(\w+)$/)?.[1];
-    if (bracketField) {
-      const ROUND_PROPAGATE_FIELDS = new Set(['act', 'action', 'desc', 'description']);
-      if (!ROUND_PROPAGATE_FIELDS.has(bracketField)) return;
-    }
-
-    // Extract the minimal changed token from the diff. The AI returns diffs at
-    // phrase level ("Gold — True Strike..." → "Goldie — True Strike..."), but we
-    // need just the changed word ("Gold" → "Goldie") as the registry key so it
-    // propagates reliably across all items. When d.old is already a short token
-    // (no spaces, ≤ 20 chars) use it directly; otherwise strip the common prefix
-    // and suffix to isolate the changed portion.
-    let factKey, factValue;
-    const isMinimal = d.old.length <= 20 && !d.old.includes(' ');
-    if (isMinimal) {
-      factKey   = d.old;
-      factValue = d.new;
-    } else {
-      const sub = _extractMinimalSubstitution(d.old, d.new);
-      // Skip if extraction produced nothing (strings identical, or only
-      // whitespace/punctuation changed — not a name substitution).
-      if (!sub.old || !sub.new || sub.old === sub.new) return;
-      // Skip if the extracted token is itself long — it's a phrase edit, not a name.
-      if (sub.old.length > 40 || sub.old.includes(' ')) return;
-      factKey   = sub.old;
-      factValue = sub.new;
-    }
-
-    window.sessionGroundTruth[factKey] = {
+    const fact = ChronicleCorrections.factFromDiff(d);
+    if (!fact) return;
+    window.sessionGroundTruth[fact.key] = {
       // For 'name' diffs the entity type is known; for all others store 'text'
       // so propagation searches all string fields rather than only rawData.name.
       type:         d.k === 'name' ? arrayToEntityType(item.array) : 'text',
       resolvedId:   d.k === 'name' ? (item.rawData?.id ?? null) : null,
-      resolvedName: factValue,
+      resolvedName: fact.value,
       assertedAt:   item.id,
+      // True when the new name holds the old word: other cards are flagged, not changed.
+      flagOnly:     fact.flagOnly,
     };
-    newKeys.push(factKey);
+    newKeys.push(fact.key);
   });
 
   return newKeys;
@@ -4513,11 +4669,11 @@ function extractAndRegisterFacts(item, diffs) {
  * and applies each newly confirmed fact where a matching token is found anywhere in
  * the item's rawData.
  *
- * Matching strategy:
- *   Confident: the key appears as a whole word anywhere in rawData (recursive scan).
- *              The substitution is applied to every matching string field.
- *   Uncertain: the key appears only as a substring (not a whole word) anywhere in rawData.
- *              A flag is added prompting the DM to confirm before applying.
+ * Matching strategy (ChronicleCorrections.applyFact, #128):
+ *   Confident: the key appears as an exact-case whole word in a text field, and the
+ *              new name does not hold the old word. It is replaced in those fields.
+ *   Uncertain: any other spelling, or a new name holding the old word. A flag asks
+ *              the DM to confirm, so text already correct is never rewritten.
  *
  * Why recursive scan: actor names live inside nested arrays (initiative_slots[].actor_id)
  * and a field-specific check (rawData.name, rawData.ocr_text) never reaches them.
@@ -4539,39 +4695,22 @@ function propagateGroundTruth(newKeys, sourceItemId) {
   newKeys.forEach(key => {
     const fact = window.sessionGroundTruth[key];
     if (!fact) return;
-
-    // Build the whole-word regex once per key and reuse across all target items.
-    // Lookbehind/lookahead prevent "Gold" from matching inside "Goldsmith".
-    const escapedKey   = _escapeRegex(key);
-    const wholeWordRe  = new RegExp('(?<![\\w])' + escapedKey + '(?![\\w])', 'ig');
-    const substringRe  = new RegExp(escapedKey, 'i');
+    const rule = { key, value: fact.resolvedName, flagOnly: !!fact.flagOnly };
 
     allItems.forEach(target => {
       // Never re-process the item that just asserted the fact — it's already corrected.
       if (target.id === sourceItemId) return;
       if (!target.rawData) return;
 
-      // Serialise rawData to check presence before doing the recursive walk.
-      // This is faster than walking the object when most items don't match at all.
-      const serialised = JSON.stringify(target.rawData);
-      const hasWholeWord = wholeWordRe.test(serialised);
-      // Reset lastIndex after the stateful 'g' flag test above.
-      wholeWordRe.lastIndex = 0;
-      const hasSubstring = !hasWholeWord && substringRe.test(serialised);
-
-      if (hasWholeWord) {
-        // Confident — walk rawData recursively and apply the substitution in-place.
-        const diffs = [];
-        target.rawData = _applySubstitutionToObj(
-          target.rawData, wholeWordRe, key, fact.resolvedName, '', diffs
-        );
-        if (diffs.length) {
-          if (!target.appliedCorrections) target.appliedCorrections = [];
-          diffs.forEach(d => target.appliedCorrections.push(d));
-          target.corrected = true;
-          impactedIds.add(target.id);
-        }
-      } else if (hasSubstring) {
+      const result = ChronicleCorrections.applyFact(target.rawData, rule);
+      if (result.diffs.length) {
+        target.rawData = result.rawData;
+        if (!target.appliedCorrections) target.appliedCorrections = [];
+        result.diffs.forEach(d => target.appliedCorrections.push(d));
+        target.corrected = true;
+        impactedIds.add(target.id);
+      }
+      if (result.possible) {
         // Uncertain — flag rather than auto-apply.
         if (!target.flags) target.flags = [];
         const flagText = `Possible match: "${key}" → ${fact.resolvedName} — confirm?`;
@@ -4841,6 +4980,9 @@ async function initIntegrity() {
         id:          c.id,
         legacy_id:   c.legacy_id ?? null,  // #95: numbers the next placeholder cbt_NNN
         name:        c.name,
+        // Compared with what the notes say, to raise a status card only on a change (#127).
+        outcome:     c.mechanics?.outcome ?? null,
+        location:    c.mechanics?.location ?? null,
         // v4 stores round count in mechanics sub-object; fall back to null if absent
         totalRounds: c.mechanics?.total_rounds_logged ?? null,
         sessions:    c.mechanics?.sessions            ?? [],
@@ -4849,6 +4991,7 @@ async function initIntegrity() {
       // Raw entity arrays — stored directly from JSON for name-lookup and dedup use.
       // factions/cohorts guarded with || [] because they were added in schema v4.1
       // and may be absent in older campaign snapshots.
+      party:              json.party              || [],
       npc_directory:      json.npc_directory      || [],
       locations:          json.locations          || [],
       bestiary:           json.bestiary           || [],
