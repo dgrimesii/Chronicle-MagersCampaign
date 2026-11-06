@@ -1722,7 +1722,11 @@
       "title": "The Larkspur Dragons",
       "date": "2026-04-02",
       "mechanics": {
-        "combats": [],
+        "combats": [
+          "02fce0b8-9553-4133-974e-9d1669cb9b22",
+          "6a60cd71-9bb8-4a76-85b0-37ce42d6b0ef",
+          "0ed0adc6-da35-466d-9a5c-64d7a4a4d97b"
+        ],
         "level_ups": [
           "d274d0ec-9875-488d-8ea2-f7f2615db019",
           "c86bf29f-a914-4e05-9528-3a15d626213d",
@@ -1741,7 +1745,8 @@
           "e4d4ad3c-4aad-4eb6-80c2-0fb3d741df90"
         ],
         "locations_visited": [
-          "eaba1342-500b-4ff5-b9b5-3a2f4dff7185"
+          "eaba1342-500b-4ff5-b9b5-3a2f4dff7185",
+          "42598c87-c1ea-4b13-ba67-70b3d73da002"
         ]
       },
       "narrative": {
@@ -2319,6 +2324,16 @@
         "regeneration_flag_reason": null
       },
       "notes": "Has not appeared on-screen as of session_005 despite being in Riverbend since session_001. An unexploited lead."
+    },
+    {
+      "id": "4e6bde3a-4080-4bec-9693-26e67fe3d712",
+      "name": "Barnes",
+      "mechanics": {
+        "disposition": "unknown"
+      },
+      "narrative": {
+        "description": "Leader of Lake Town"
+      }
     }
   ],
   "bestiary": [
@@ -2614,6 +2629,60 @@
         "encounter_notes": "Cave environment was a factor — tight corridors limited AoE options. The water slide entry (no choice on positioning) made the opening round difficult."
       },
       "notes": null
+    },
+    {
+      "id": "07e4cc08-26e9-4368-80d4-81b124029384",
+      "name": "Lurkspur Larkspur Dragon",
+      "mechanics": {
+        "reliability": "unverified",
+        "appearances": [
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ]
+      },
+      "narrative": {
+        "description": "A Larkspur Dragon species that descends from ridges onto the cart, killing all at the cart and frightening the goblins."
+      }
+    },
+    {
+      "id": "0663ce9f-64a0-4628-8790-392ccaa5afeb",
+      "name": "Larkspur Dragon",
+      "mechanics": {
+        "reliability": "unverified",
+        "appearances": [
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ]
+      },
+      "narrative": {
+        "description": "A dragon enemy in the combat, targeted by party attacks and acting with Beak and Talon attacks."
+      },
+      "narrative.description": "A Larkspur Dragon enemy in the combat, targeted by party attacks and acting with Beak and Talon attacks.",
+      "op": "delete"
+    },
+    {
+      "id": "cc0c5ecf-47a1-41f0-bcba-5e692145fcdf",
+      "name": "goblin",
+      "mechanics": {
+        "reliability": "unverified",
+        "appearances": [
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ]
+      },
+      "narrative": {
+        "description": "Goblins ambushing the party, eventually fleeing in round 7 after taking casualties."
+      }
+    },
+    {
+      "id": "9a18705b-c448-4662-b246-39170fc75627",
+      "name": "Kobold",
+      "mechanics": {
+        "reliability": "unverified",
+        "appearances": [
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ]
+      },
+      "narrative": {
+        "description": "Kobolds mostly repositioning; one attacked Mal and missed."
+      }
     }
   ],
   "world_lore": [
@@ -3024,6 +3093,26 @@
         "condition": null
       },
       "notes": "Found during session_006 — full loot context pending Chronicle intake of that session. Currently carried by Asphodel (pc_004)."
+    },
+    {
+      "id": "ea0ccbe3-be23-489c-8b87-1eef6e8c7437",
+      "name": "Bag of Holding",
+      "description": "Found as a leather bag in the Larkspur Larkspur Dragon's hoard."
+    },
+    {
+      "id": "86a9ec50-15d8-4728-9178-1e57bbc2e777",
+      "name": "Wand of Magic Detection",
+      "description": "Found in the Larkspur Larkspur Dragon's hoard."
+    },
+    {
+      "id": "2f2e4d9f-33ef-4b7c-9e0c-db0a8541ad5b",
+      "name": "Good Luck charm/token",
+      "description": "A small stone found in the Larkspur Larkspur Dragon's hoard."
+    },
+    {
+      "id": "8e7f6cc5-cab8-47b7-bcab-a739ac5574b6",
+      "name": "Immovable Rod",
+      "description": "Found as a rod in the Larkspur Larkspur Dragon's hoard."
     }
   ],
   "locations": [
@@ -3090,7 +3179,8 @@
           "02fce0b8-9553-4133-974e-9d1669cb9b22"
         ],
         "sessions_visited": [
-          "4478195d-34d9-46ec-b316-2546ca48bf34"
+          "4478195d-34d9-46ec-b316-2546ca48bf34",
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
         ],
         "connected_to": [
           "899e5762-77ff-4034-9620-96b4712e59eb",
@@ -3420,7 +3510,9 @@
         "region": "Approx. 2 days west of The Quarry",
         "type": "settlement",
         "combat_history": [],
-        "sessions_visited": [],
+        "sessions_visited": [
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ],
         "connected_to": [
           "42598c87-c1ea-4b13-ba67-70b3d73da002"
         ],
@@ -3496,6 +3588,26 @@
         "regeneration_flag_reason": null
       },
       "notes": null
+    },
+    {
+      "id": "083eaff7-d6f9-4bbf-b79a-51df9eb17cd3",
+      "name": "Goblin Ambush",
+      "description": "Existing location established in session 5 — do not CANCEL. Associate all session 6 entries referencing Goblin Ambush with the existing location ID confirmed by DM.",
+      "action": "CANCEL",
+      "mechanics": {}
+    },
+    {
+      "id": "fff9b274-8dbb-4add-a6e9-657ea4f37d02",
+      "name": "Larkspur Larkspur Dragon Lair",
+      "description": "The lair of the Larkspur Larkspur Dragon, spotted as a peak in the distance and stormed by the party.",
+      "mechanics": {}
+    },
+    {
+      "id": "07366c9a-6900-4278-9924-85b2c8dc2b17",
+      "name": "Road to Lake Town",
+      "type": "location",
+      "description": "CANCEL a CANCEL location entry for 'Road to Lake Town' — a travel road connecting to Lake Town (existing location eaba1342-500b-4ff5-b9b5-3a2f4dff7185). This road was the site of a goblin ambush in session 6. All session 6 entries referencing the goblin ambush location should be associated with this CANCEL location ID once created.",
+      "mechanics": {}
     }
   ],
   "quest_ledger": [
@@ -3655,6 +3767,12 @@
             "type": "reward_received",
             "fact": "Lake Town paid the 36 GP contract. Town mourned the dead but was grateful to have them returned.",
             "progress_narrative": null
+          },
+          {
+            "session_id": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+            "type": "progress",
+            "fact": "The party brought the cart and returned the bodies of fallen people to Lake Town, receiving 70 GP for delivering the bodies and cart and 40 GP for completing the job.",
+            "progress_narrative": null
           }
         ]
       },
@@ -3769,6 +3887,12 @@
         "open_questions": []
       },
       "notes": null
+    },
+    {
+      "id": "d009469f-4951-4080-b647-933c81a4eecc",
+      "name": "Escort Cart to Lake Town",
+      "type": "session_note",
+      "description": "CANCEL session_note: Escort the cart and its owners to Lake Town. The cart owners were killed during a goblin ambush en route — session_note status should be updated to reflect this complication or failure."
     }
   ],
   "combat_encounters": [
@@ -9485,9 +9609,10 @@
         "outcome": "paused",
         "location": "42598c87-c1ea-4b13-ba67-70b3d73da002",
         "sessions": [
-          "4478195d-34d9-46ec-b316-2546ca48bf34"
+          "4478195d-34d9-46ec-b316-2546ca48bf34",
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
         ],
-        "total_rounds_logged": 3,
+        "total_rounds_logged": 7,
         "enemies_roster": [
           {
             "actor_id": "Goblins",
@@ -9513,6 +9638,38 @@
             "count": 1,
             "count_remaining": 0,
             "notes": "Appeared at treeline end of Round 1. Killed by pc_006 Ice Knife in Round 3."
+          },
+          {
+            "actor_id": "Unidentified enemies",
+            "type": "group",
+            "mon_ref": null,
+            "count": null,
+            "count_remaining": null,
+            "notes": null
+          },
+          {
+            "actor_id": "Goblins hit",
+            "type": "group",
+            "mon_ref": null,
+            "count": null,
+            "count_remaining": null,
+            "notes": null
+          },
+          {
+            "actor_id": "Larkspur Dragon #1",
+            "type": "group",
+            "mon_ref": null,
+            "count": null,
+            "count_remaining": null,
+            "notes": null
+          },
+          {
+            "actor_id": "Larkspur Dragon #2",
+            "type": "group",
+            "mon_ref": null,
+            "count": null,
+            "count_remaining": null,
+            "notes": null
           }
         ],
         "pcs_downed": [
@@ -10157,6 +10314,753 @@
               "notes": null
             }
           ]
+        },
+        {
+          "n": 4,
+          "sid": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+          "slots": [
+            {
+              "s": 1,
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Flurry of Blows",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 7,
+                      "target_id": null,
+                      "effect": "killed"
+                    }
+                  ]
+                },
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Healing Hands",
+                  "val_type": "healing",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": "2e850ecb-fccb-4ef0-a21d-df9585f5404c"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    },
+                    {
+                      "res": "hit",
+                      "val": 8,
+                      "target_id": null,
+                      "effect": "killed"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 3,
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "effect": "killed"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 4,
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Witch Bolt",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 14,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 5,
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Acid Splash",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 4,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 6,
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "True Strike",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "crit",
+                      "val": 9,
+                      "target_id": null,
+                      "effect": "killed"
+                    }
+                  ],
+                  "notes": "Advantage passed to Del."
+                }
+              ],
+              "notes": null
+            }
+          ],
+          "enemy_turns": [
+            {
+              "actor_id": "Goblins",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Goblins — Hit Mal (opportunity attack)",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Mal takes opportunity hit damage"
+                }
+              ],
+              "notes": null
+            },
+            {
+              "actor_id": "Unidentified enemies",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "CANCEL — merge into existing Goblins (302ca3fc-ea4f-40c9-b77b-d57138cc6785) — Attack Larkspur Dragon, 1 hit",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Larkspur Dragon takes 1 hit from CANCEL — merge into existing Goblins (302ca3fc-ea4f-40c9-b77b-d57138cc6785)"
+                }
+              ],
+              "notes": null
+            }
+          ]
+        },
+        {
+          "n": 5,
+          "sid": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+          "slots": [
+            {
+              "s": 1,
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 7,
+                      "target_id": "Goblins",
+                      "effect": "killed"
+                    },
+                    {
+                      "res": "hit",
+                      "val": 5,
+                      "target_id": "Goblins",
+                      "effect": "killed"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 13,
+                      "target_id": "Goblins",
+                      "effect": "killed"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 3,
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Shillelagh",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ],
+                  "notes": "Advantage passed to Gold."
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 4,
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    },
+                    {
+                      "res": "hit",
+                      "val": 9,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 5,
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+              "activities": [
+                {
+                  "economy": "bonus_action",
+                  "name": "Witch Bolt",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 11,
+                      "target_id": null
+                    }
+                  ],
+                  "notes": "Activate ongoing Witch Bolt damage."
+                },
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Chill Touch",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 6,
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "True Strike",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 12,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
+                },
+                {
+                  "economy": "reaction",
+                  "name": "Shield",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
+                    }
+                  ],
+                  "notes": "Cast in response to Lurkspur Larkspur Dragon attack."
+                }
+              ],
+              "notes": null
+            }
+          ],
+          "enemy_turns": [
+            {
+              "actor_id": "Unidentified enemies",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Lurkspur Larkspur Dragon — Attack Gold, Gold casts Shield",
+                  "outcomes": []
+                },
+                {
+                  "economy": "action",
+                  "name": "Lurkspur Larkspur Dragon — Attack Goblins (2 attacks): one miss, one hit [3 slash + 7 poison]; Reel, Dead",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Gold uses Shield reaction"
+                },
+                {
+                  "type": "other",
+                  "description": "One goblin killed by Lurkspur Larkspur Dragon; 1 Larkspur Dragon bloodied"
+                }
+              ],
+              "notes": null
+            },
+            {
+              "actor_id": "Goblins",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Goblins — Hit Del [4], Hit Mal [1]; Hit Larkspur Dragon, Hit Larkspur Dragon, Hit Larkspur Dragon, Hit Del (Down)",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Del takes 4 damage and goes down; Mal takes 1 damage; Larkspur Dragon hit three times"
+                }
+              ],
+              "notes": null
+            }
+          ]
+        },
+        {
+          "n": 6,
+          "sid": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+          "slots": [
+            {
+              "s": 1,
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Chill Touch",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Sword",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 13,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 3,
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Shillelagh",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                },
+                {
+                  "economy": "bonus_action",
+                  "name": "Healing Word",
+                  "val_type": "healing",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 11,
+                      "target_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 4,
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    },
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 5,
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Witch Bolt",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 3,
+                      "target_id": null
+                    }
+                  ]
+                },
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Chill Touch",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 6,
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "True Strike",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 11,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": "enemies",
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
+              "activities": [
+                {
+                  "economy": "reaction",
+                  "name": "Reactive Strike",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 9,
+                      "target_id": "Goblins",
+                      "effect": "killed"
+                    },
+                    {
+                      "res": "hit",
+                      "val": 9,
+                      "target_id": "Goblins",
+                      "effect": "killed"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            }
+          ],
+          "enemy_turns": [
+            {
+              "actor_id": "Goblins",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Goblin moves; movement triggers Mal's Reactive Strike.",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Goblin's movement triggered Mal's Reactive Strike reaction."
+                }
+              ],
+              "notes": null
+            },
+            {
+              "actor_id": "Goblins hit",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Larkspur Dragon, Larkspur Dragon, Ogre.",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Goblins successfully hit Larkspur Dragon, Larkspur Dragon, and Ogre."
+                }
+              ],
+              "notes": null
+            },
+            {
+              "actor_id": "Larkspur Dragon #1",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Beak hit Ashton [5], Con save passed.",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Ashton takes 5 damage; Con save passed."
+                }
+              ],
+              "notes": null
+            },
+            {
+              "actor_id": "Larkspur Dragon #2",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Beak daze Goblin hit; Talon vs Mal — miss.",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Larkspur Dragon #2's Beak hit a goblin with a daze effect; Talon attack against Mal missed."
+                }
+              ],
+              "notes": null
+            }
+          ]
+        },
+        {
+          "n": 7,
+          "sid": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+          "slots": [
+            {
+              "s": 1,
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 9,
+                      "target_id": null
+                    },
+                    {
+                      "res": "hit",
+                      "val": 7,
+                      "target_id": null
+                    }
+                  ]
+                },
+                {
+                  "economy": "bonus_action",
+                  "name": "Flurry of Blows",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 4,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 13,
+                      "target_id": "Larkspur Dragon #2"
+                    }
+                  ]
+                },
+                {
+                  "economy": "reaction",
+                  "name": "Opportunity Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 12,
+                      "target_id": "Larkspur Dragon #2"
+                    }
+                  ],
+                  "notes": "Reactive Strike triggered by Larkspur Dragon #2 fleeing. Fire Strike rider adds 10 additional fire damage (not a separate action — part of the attack)."
+                }
+              ],
+              "notes": null
+            }
+          ],
+          "enemy_turns": [
+            {
+              "actor_id": "Goblins",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Goblins flee.",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [],
+              "notes": null
+            },
+            {
+              "actor_id": "Larkspur Dragon #2",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Larkspur Dragon #2 targets Mal — miss.",
+                  "outcomes": []
+                },
+                {
+                  "economy": "action",
+                  "name": "Larkspur Dragon #2 attempts to flee, triggering an Opportunity Attack from Mal.",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Larkspur Dragon #2's attack against Mal missed."
+                }
+              ],
+              "notes": null
+            }
+          ]
         }
       ],
       "notes": "⚠ Combat continues in Session 006."
@@ -10204,6 +11108,655 @@
       },
       "rounds": [],
       "notes": "Round-by-round details pending. Referenced in session_001 summary."
+    },
+    {
+      "_object_type": "combat",
+      "id": "6a60cd71-9bb8-4a76-85b0-37ce42d6b0ef",
+      "name": "Larkspur Larkspur Dragon Lair",
+      "mechanics": {
+        "outcome": null,
+        "location": null,
+        "sessions": [
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ],
+        "total_rounds_logged": 1,
+        "enemies_roster": [
+          {
+            "actor_id": "Unidentified enemies",
+            "type": "group",
+            "mon_ref": null,
+            "count": null,
+            "count_remaining": null,
+            "notes": null
+          }
+        ],
+        "pcs_downed": [],
+        "enemies_eliminated": [],
+        "status_effects_applied": []
+      },
+      "initiative": {
+        "entries": []
+      },
+      "narrative": {
+        "setup": null,
+        "turning_point": null,
+        "atmosphere": [],
+        "current_status": null,
+        "finale": null,
+        "aftermath": null
+      },
+      "rounds": [
+        {
+          "n": 1,
+          "sid": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+          "slots": [
+            {
+              "s": 1,
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 10,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    },
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 7,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    },
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 3,
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "True Strike",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 11,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 4,
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Longsword attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 14,
+                      "target_id": null,
+                      "target_text": "Larkspur Dragon",
+                      "effect": "killed"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 5,
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "No action recorded",
+                  "outcomes": [
+                    {
+                      "res": "unclear",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 6,
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "No action recorded",
+                  "outcomes": [
+                    {
+                      "res": "unclear",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            }
+          ],
+          "enemy_turns": [
+            {
+              "actor_id": "Unidentified enemies",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Larkspur Dragon breath attack on Ashton, Hit for 10 damage.",
+                  "outcomes": []
+                },
+                {
+                  "economy": "action",
+                  "name": "Larkspur Dragon talon attack on Mal, Miss.",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "10 damage to Ashton."
+                }
+              ],
+              "notes": null
+            }
+          ]
+        }
+      ],
+      "notes": null
+    },
+    {
+      "_object_type": "combat",
+      "id": "0ed0adc6-da35-466d-9a5c-64d7a4a4d97b",
+      "name": "On the Road Back to the Quarry",
+      "mechanics": {
+        "outcome": null,
+        "location": null,
+        "sessions": [
+          "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9"
+        ],
+        "total_rounds_logged": 2,
+        "enemies_roster": [
+          {
+            "actor_id": "Unidentified enemies",
+            "type": "group",
+            "mon_ref": null,
+            "count": null,
+            "count_remaining": null,
+            "notes": null
+          }
+        ],
+        "pcs_downed": [],
+        "enemies_eliminated": [],
+        "status_effects_applied": []
+      },
+      "initiative": {
+        "entries": []
+      },
+      "narrative": {
+        "setup": null,
+        "turning_point": null,
+        "atmosphere": [],
+        "current_status": null,
+        "finale": null,
+        "aftermath": null
+      },
+      "rounds": [
+        {
+          "n": 1,
+          "sid": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+          "slots": [
+            {
+              "s": 1,
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
+              "activities": [
+                {
+                  "economy": "bonus_action",
+                  "name": "Bladesong (Invoke)",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": "d274d0ec-9875-488d-8ea2-f7f2615db019"
+                    }
+                  ]
+                },
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Web",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "road"
+                    }
+                  ],
+                  "notes": "Area control across road."
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Dash",
+                  "outcomes": [],
+                  "notes": "Repositioning to cover an ally."
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 3,
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Darkness",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ],
+                  "notes": "Layering Darkness over webbed area."
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 4,
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Witch Bolt",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 9,
+                      "target_id": null,
+                      "target_text": "Ogre"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 5,
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Shortbow",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 11,
+                      "target_id": null,
+                      "target_text": "Ogre"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 6,
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Entangle",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "4 targets restrained; Ogre succeeded on save"
+                    }
+                  ],
+                  "notes": "4 targets failed their Strength save and are restrained. Ogre succeeded on its save and is unaffected.; restrained"
+                },
+                {
+                  "economy": "bonus_action",
+                  "name": "Archer (Starry Form)",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": "4aea310d-df5b-491b-910f-ddf974d1a351"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            }
+          ],
+          "enemy_turns": [
+            {
+              "actor_id": "Unidentified enemies",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Kobold attacks Mal — miss. Four Kobolds dash to reposition.",
+                  "outcomes": []
+                },
+                {
+                  "economy": "action",
+                  "name": "Four Goblins dash to reposition.",
+                  "outcomes": []
+                },
+                {
+                  "economy": "action",
+                  "name": "Both Ogres dash to close distance.",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "No damage dealt; Kobolds closing distance."
+                },
+                {
+                  "type": "other",
+                  "description": "Goblins closing distance."
+                },
+                {
+                  "type": "other",
+                  "description": "Ogres closing distance toward the party."
+                }
+              ],
+              "notes": null
+            }
+          ]
+        },
+        {
+          "n": 2,
+          "sid": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+          "slots": [
+            {
+              "s": 1,
+              "a": "d274d0ec-9875-488d-8ea2-f7f2615db019",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Concussive Burst",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": null,
+                      "target_text": "Goblin",
+                      "effect": "killed"
+                    }
+                  ],
+                  "notes": "4 goblins failed saves against Concussive Burst; all 4 killed."
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 2,
+              "a": "c86bf29f-a914-4e05-9528-3a15d626213d",
+              "activities": [
+                {
+                  "economy": "bonus_action",
+                  "name": "Rage (Enter)",
+                  "outcomes": [
+                    {
+                      "res": "success",
+                      "val": null,
+                      "target_id": "c86bf29f-a914-4e05-9528-3a15d626213d"
+                    }
+                  ]
+                },
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 15,
+                      "target_id": null,
+                      "target_text": "Kobold",
+                      "effect": "killed"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 3,
+              "a": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+              "activities": [
+                {
+                  "economy": "free",
+                  "name": "Darkness",
+                  "outcomes": [
+                    {
+                      "res": "unclear",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ],
+                  "notes": "Asp moves and casts Darkness before engaging the Ogre."
+                },
+                {
+                  "economy": "bonus_action",
+                  "name": "Flurry of Blows",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 7,
+                      "target_id": null,
+                      "target_text": "Ogre"
+                    },
+                    {
+                      "res": "hit",
+                      "val": 16,
+                      "target_id": null,
+                      "target_text": "Ogre"
+                    }
+                  ]
+                },
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 8,
+                      "target_id": null,
+                      "target_text": "Ogre"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 4,
+              "a": "55643397-35ab-4e4d-8f0b-f847a65ed4e3",
+              "activities": [
+                {
+                  "economy": "bonus_action",
+                  "name": "Witch Bolt activate",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 7,
+                      "target_id": null
+                    }
+                  ]
+                },
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Eldritch Blast",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 6,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 5,
+              "a": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Attack",
+                  "detail": "Short Bow",
+                  "val_type": "damage",
+                  "outcomes": [
+                    {
+                      "res": "hit",
+                      "val": 8,
+                      "target_id": null,
+                      "target_text": "Kobold",
+                      "effect": "killed"
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            },
+            {
+              "s": 6,
+              "a": "4aea310d-df5b-491b-910f-ddf974d1a351",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Magic",
+                  "detail": "Starry Wisp",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                },
+                {
+                  "economy": "bonus_action",
+                  "name": "Archer",
+                  "outcomes": [
+                    {
+                      "res": "miss",
+                      "val": null,
+                      "target_id": null
+                    }
+                  ]
+                }
+              ],
+              "notes": null
+            }
+          ],
+          "enemy_turns": [
+            {
+              "actor_id": "Unidentified enemies",
+              "activities": [
+                {
+                  "economy": "action",
+                  "name": "Ogre attacks Mal — miss",
+                  "outcomes": []
+                },
+                {
+                  "economy": "action",
+                  "name": "Ogre attacks Del — miss",
+                  "outcomes": []
+                },
+                {
+                  "economy": "action",
+                  "name": "Kobold attacks Del — Hit [3]",
+                  "outcomes": []
+                }
+              ],
+              "special_events": [
+                {
+                  "type": "other",
+                  "description": "Del takes 3 damage"
+                }
+              ],
+              "notes": null
+            }
+          ]
+        }
+      ],
+      "notes": null
     }
   ],
   "character_moments": [
@@ -10275,7 +11828,1243 @@
     }
   ],
   "prompt_improvement_log": [],
-  "entity_relationships": [],
+  "entity_relationships": [
+    {
+      "id": "13bc8b06-e46b-476e-971b-7cfb5344df46",
+      "from_id": "1d6a0a99-2568-4496-a565-2fbde67acd8b",
+      "from_type": "npc",
+      "to_id": "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Named in an objective of \"Avenge Uncle Ched\". Recorded on Darnell as quest_contact.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "4f5529e6-9fef-4dab-915b-c6f2993f665b",
+      "from_id": "1d6a0a99-2568-4496-a565-2fbde67acd8b",
+      "from_type": "npc",
+      "to_id": "73966d25-57c2-4707-93a1-9c858d1d9f11",
+      "to_type": "location",
+      "relationship_type": "location_inhabitant",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Darnell as resides_in.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "66be6b12-dc6c-4d23-84fa-f1fe72e28c23",
+      "from_id": "1d6a0a99-2568-4496-a565-2fbde67acd8b",
+      "from_type": "npc",
+      "to_id": "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
+      "to_type": "item",
+      "relationship_type": "unknown",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Darnell as marked_on.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "551c440c-1f28-4e76-a41c-0a03669fdd72",
+      "from_id": "23024fd5-77fd-4e07-b494-fabc83b89ab5",
+      "from_type": "location",
+      "to_id": "6e84d955-bba8-4d07-b1ac-573fba01f1da",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Named in an objective of \"The Quarry ROUS Problem\".",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "67dc1aeb-ad2d-4b18-ad93-733843623a18",
+      "from_id": "29ba6371-58a9-4209-a8f2-2ee6d94399eb",
+      "from_type": "item",
+      "to_id": "6e84d955-bba8-4d07-b1ac-573fba01f1da",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "last_updated_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Tied to the quest.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "8ceb2ebf-3eb4-4838-be9e-c98638500812",
+      "from_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "from_type": "npc",
+      "to_id": "4120da64-0c3b-4204-99a2-5f84dc7f9c49",
+      "to_type": "item",
+      "relationship_type": "unknown",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Bessel as owned.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "df43a7d0-cef1-475d-bd34-5873702a2932",
+      "from_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "from_type": "npc",
+      "to_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Bessel as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "375f757f-3fd3-4648-a970-556bb1a74db1",
+      "from_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "from_type": "npc",
+      "to_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Bessel as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "f4ad8269-15f2-411d-bf41-e7660cf6c43e",
+      "from_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "from_type": "npc",
+      "to_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Bessel as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "88b0d5e8-6beb-4c2d-b0ee-6279ae8e5840",
+      "from_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "from_type": "npc",
+      "to_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Bessel as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "227d09a0-a9aa-4c50-8674-607e3e4eaae1",
+      "from_id": "342813de-f19d-476a-ba7b-90ef06225021",
+      "from_type": "npc",
+      "to_id": "e4d4ad3c-4aad-4eb6-80c2-0fb3d741df90",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "last_updated_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on The Low-Level Wizard as escort_subject.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "3ec189de-1f52-4804-8d04-addadc038a68",
+      "from_id": "4120da64-0c3b-4204-99a2-5f84dc7f9c49",
+      "from_type": "item",
+      "to_id": "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Tied to the quest.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "2e1e6e96-3f8a-449c-bb46-c6637c2cc5dd",
+      "from_id": "421e7307-4401-4ca0-a6fd-44e8dec6437d",
+      "from_type": "lore",
+      "to_id": "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Tied to the quest.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "3bfb9693-9e47-44e5-bd95-6f9dae0f54b4",
+      "from_id": "421e7307-4401-4ca0-a6fd-44e8dec6437d",
+      "from_type": "lore",
+      "to_id": "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Tied to the quest.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "abf0c0e3-7262-40a5-bf80-ecb05b152397",
+      "from_id": "54b54de8-19e2-4e8e-86f1-4388f5823334",
+      "from_type": "npc",
+      "to_id": "6e84d955-bba8-4d07-b1ac-573fba01f1da",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Gave the quest \"The Quarry ROUS Problem\". Recorded on Helen as quest_giver.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "a1dece97-44b8-4be3-b44e-40ac81caa88b",
+      "from_id": "54b54de8-19e2-4e8e-86f1-4388f5823334",
+      "from_type": "npc",
+      "to_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Named in an objective of \"Blair's Potion Supply Chain\". Recorded on Helen as quest_contact.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "ad445faa-d6e2-4716-8737-0b02e7314daa",
+      "from_id": "54b54de8-19e2-4e8e-86f1-4388f5823334",
+      "from_type": "npc",
+      "to_id": "899e5762-77ff-4034-9620-96b4712e59eb",
+      "to_type": "location",
+      "relationship_type": "location_inhabitant",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Helen as resides_in.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "c914992d-83f7-492e-9cb3-eed0cfb49928",
+      "from_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "from_type": "npc",
+      "to_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Blair as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "ada3bf3f-8087-4423-ae7f-3f73a97fcd7f",
+      "from_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "from_type": "npc",
+      "to_id": "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Gave the quest \"Avenge Uncle Ched\". Recorded on Blair as quest_giver.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "4828436b-6dd1-4740-8129-d2ac98498eb7",
+      "from_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "from_type": "npc",
+      "to_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Blair as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "e9002f6a-e5f6-4a93-a4b2-bbc371653dfc",
+      "from_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "from_type": "npc",
+      "to_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Gave the quest \"Blair's Potion Supply Chain\". Recorded on Blair as quest_giver.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "9e41d204-7a21-4c1b-88fc-87a07bebcb15",
+      "from_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "from_type": "npc",
+      "to_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Blair as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "3dcec8db-730d-47d3-943a-d66bc0158807",
+      "from_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "from_type": "npc",
+      "to_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Blair as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "c597b3fd-36ea-49a4-83ea-405d1c6b2cb1",
+      "from_id": "63adc36d-ce4e-4313-8e81-a4598c63740c",
+      "from_type": "lore",
+      "to_id": "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Tied to the quest.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "edaeebc6-751e-48a9-90c4-1542beb19069",
+      "from_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "from_type": "npc",
+      "to_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Ched Warmfire as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "e0513971-6ed8-4840-9827-a96ae2e141a0",
+      "from_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "from_type": "npc",
+      "to_id": "2e850ecb-fccb-4ef0-a21d-df9585f5404c",
+      "to_type": "pc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Ched Warmfire as uncle.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "cc48e882-452e-4535-9045-1a0d9cf32603",
+      "from_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "from_type": "npc",
+      "to_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Ched Warmfire as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "8a30e557-0b41-49df-8a58-ad3e0cfb3157",
+      "from_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "from_type": "npc",
+      "to_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+      "to_type": "pc",
+      "relationship_type": "unknown",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Ched Warmfire as found.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "19fbb227-b310-432a-aa3d-099c7600f736",
+      "from_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "from_type": "npc",
+      "to_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Ched Warmfire as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "5d4ca773-8838-43e0-8ad9-0937869d0cae",
+      "from_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "from_type": "npc",
+      "to_id": "c86bf29f-a914-4e05-9528-3a15d626213d",
+      "to_type": "pc",
+      "relationship_type": "unknown",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Ched Warmfire as found.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "17610510-cc45-4bf1-99f3-bfecc0b10c0d",
+      "from_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "from_type": "npc",
+      "to_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Ched Warmfire as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "f265245c-48e6-42e4-bf18-290b045303e8",
+      "from_id": "6b7c714b-9093-4408-b55c-366a2b4465ed",
+      "from_type": "npc",
+      "to_id": "42598c87-c1ea-4b13-ba67-70b3d73da002",
+      "to_type": "location",
+      "relationship_type": "location_inhabitant",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Krustie Gnome as resides_in.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "54985fa2-a4a2-4dc4-89cb-f81440f08a45",
+      "from_id": "6b7c714b-9093-4408-b55c-366a2b4465ed",
+      "from_type": "npc",
+      "to_id": "6e84d955-bba8-4d07-b1ac-573fba01f1da",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Krustie Gnome as quest_contact.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "5e65e3b9-a607-4962-900a-27a83116fe7f",
+      "from_id": "73966d25-57c2-4707-93a1-9c858d1d9f11",
+      "from_type": "location",
+      "to_id": "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Named in an objective of \"Avenge Uncle Ched\".",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "b16e52d3-70e3-4c63-8719-5634524eaa20",
+      "from_id": "73966d25-57c2-4707-93a1-9c858d1d9f11",
+      "from_type": "location",
+      "to_id": "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Named in an objective of \"The Pylon Anomaly\".",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "848d4323-820f-4868-87ff-efccd1aca0ff",
+      "from_id": "7ffa63ec-318f-476c-a077-827a959b9bcb",
+      "from_type": "npc",
+      "to_id": "21e3c9d6-b2d0-432a-9b15-95605f926c37",
+      "to_type": "location",
+      "relationship_type": "location_inhabitant",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Kiki as based_in.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "36e42082-3dbf-4c06-b719-fbc9d4ff68d1",
+      "from_id": "7ffa63ec-318f-476c-a077-827a959b9bcb",
+      "from_type": "npc",
+      "to_id": "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
+      "to_type": "item",
+      "relationship_type": "unknown",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Kiki as marked_on.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "7733be63-dddd-4dbf-aa54-542158f58195",
+      "from_id": "899e5762-77ff-4034-9620-96b4712e59eb",
+      "from_type": "location",
+      "to_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Named in an objective of \"Blair's Potion Supply Chain\".",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "93926fef-f72a-4cf0-aad5-98655ed7529a",
+      "from_id": "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
+      "from_type": "item",
+      "to_id": "3e3c3c67-3482-411b-ad66-3c1e6a4cdde2",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Tied to the quest.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "fa4b1045-042f-4473-a42d-a09080453809",
+      "from_id": "c00c0c6f-8db7-4ce9-8b81-205d6ac907e8",
+      "from_type": "item",
+      "to_id": "bd4ac219-e3d0-4b6e-ab1f-ee76043347d9",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Tied to the quest.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "c5bd7163-2ea9-44cc-9402-bad1697ecf84",
+      "from_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "from_type": "npc",
+      "to_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Rufus as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "a3c75f7a-a6c0-426a-86a5-57b0d01d6bde",
+      "from_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "from_type": "npc",
+      "to_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Rufus as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "eb009ef9-ecb9-40b9-8270-becb66e30532",
+      "from_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "from_type": "npc",
+      "to_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Rufus as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "2034ba37-c528-42de-8bce-4176dfa69466",
+      "from_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "from_type": "npc",
+      "to_id": "a4887883-9d2d-4d0e-aa6d-62aca5db905b",
+      "to_type": "pc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Rufus as mentor.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "70dbe4b6-248a-4d85-a46e-a995fa8bf492",
+      "from_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "from_type": "npc",
+      "to_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Rufus as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "5308f9ae-ab2c-4854-97ed-401287763211",
+      "from_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "from_type": "npc",
+      "to_id": "fc8a09a1-ab44-46aa-9e0c-1b16a2bae110",
+      "to_type": "location",
+      "relationship_type": "location_inhabitant",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Rufus as resides_in.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "51f76c5b-121a-4a32-a4e6-7687c16da12c",
+      "from_id": "d77743c5-103b-4947-b360-a3ac494820b9",
+      "from_type": "npc",
+      "to_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Carly as escorted_by.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "41bd8a83-fb3f-4cbd-b0f6-d0bfdece4210",
+      "from_id": "d77743c5-103b-4947-b360-a3ac494820b9",
+      "from_type": "npc",
+      "to_id": "899e5762-77ff-4034-9620-96b4712e59eb",
+      "to_type": "location",
+      "relationship_type": "unknown",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Carly as delivered_to.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "543182e8-7eb1-4b42-95f6-749a2e7b7902",
+      "from_id": "dfda0b06-b707-481b-b67a-c76793407841",
+      "from_type": "item",
+      "to_id": "78485dcc-5121-4bb2-9c44-2935349d0651",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Tied to the quest.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "ed252eaf-372d-4c6b-90c4-3795ad962eb4",
+      "from_id": "eaba1342-500b-4ff5-b9b5-3a2f4dff7185",
+      "from_type": "location",
+      "to_id": "e4d4ad3c-4aad-4eb6-80c2-0fb3d741df90",
+      "to_type": "quest",
+      "relationship_type": "quest_connection",
+      "significance": "participation",
+      "established_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "last_updated_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Named in an objective of \"Escort to Lake Town\".",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "e93ff80b-bc5e-4578-bc5c-55b5982944d8",
+      "from_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "from_type": "npc",
+      "to_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Hawk as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "87fa2581-1dd7-40d3-a368-a2fc15dfc17a",
+      "from_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "from_type": "npc",
+      "to_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Hawk as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "56271923-8f9f-4efe-a1fc-90577d4a8212",
+      "from_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "from_type": "npc",
+      "to_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Hawk as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "ed2d06a0-e1a6-413e-9f78-55988aff0d99",
+      "from_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "from_type": "npc",
+      "to_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Recorded on Hawk as former_party_member.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "66540719-4c32-4e26-be1c-91d948bdc453",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "1d6a0a99-2568-4496-a565-2fbde67acd8b",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "disposition": "unknown",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "0213cc67-7f86-46ef-88ca-ff7e1ad4384d",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "2da77d12-00fe-4682-b715-5e88e42104cf",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "48e67e5e-0ae6-45da-b823-0299b250e67c",
+      "last_updated_session": "48e67e5e-0ae6-45da-b823-0299b250e67c",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in Vespon Queen & Swarm.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "cc9da106-c061-4523-8a14-a58cd4479fe5",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "2df8bbc2-807b-4ff2-bdb4-25483878bfdb",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "disposition": "deceased",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "43b63ebe-b2cb-41cc-b3b4-4cbcffb0dae7",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "302ca3fc-ea4f-40c9-b77b-d57138cc6785",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "last_updated_session": "b12d5cc2-47ed-4ffa-9bc2-9c672dfe86c9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in Goblin Ambush.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "ae98c0d2-d29a-4719-a4e6-c60659b61e82",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "342813de-f19d-476a-ba7b-90ef06225021",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "last_updated_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "status": "active",
+      "disposition": "unknown",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "cf3e1711-9fef-4f99-a6e9-8944f5091218",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "54b54de8-19e2-4e8e-86f1-4388f5823334",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "disposition": "friendly",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "4edc9ed7-57a7-4f02-975a-824abe390278",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "54ec9a73-ff34-4d91-84e2-9e22fdea91e9",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "disposition": "friendly",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "ea77d1a0-0b81-4d09-980a-716c2013a7b1",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "61aed323-0e64-4953-a2dd-061a77e90599",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "last_updated_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in Goblin Ambush.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "6ecf5651-cc7c-41a0-beb7-8f2e5af47220",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "642e6635-92e5-46cb-a8fe-b6c9a2a1390f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "disposition": "deceased",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "62983b6d-6dc0-4463-a566-21dca4828e92",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "6b7c714b-9093-4408-b55c-366a2b4465ed",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "4478195d-34d9-46ec-b316-2546ca48bf34",
+      "status": "active",
+      "disposition": "neutral",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "154b9f7a-b9c3-443a-9858-5950821d0b98",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "7db56047-b857-4987-bd3f-b67010adf11e",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "48e67e5e-0ae6-45da-b823-0299b250e67c",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in Vespon Queen & Swarm. Fought the party in Axe Beak & Vespon Ambush.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "f548b02b-8890-401d-ac67-affa7382bf8f",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "7ffa63ec-318f-476c-a077-827a959b9bcb",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "disposition": "unknown",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "8d6d6001-c439-4d33-a594-ea2d543d6569",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "bf62ea56-6f5b-4e53-8628-d86b465cc859",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in The Rat Cave.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "b8a3de3f-e2af-4efd-900a-f73e7bb3b4a7",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "c0d2adb1-386e-42d9-ae31-4a3ce502a310",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "48e67e5e-0ae6-45da-b823-0299b250e67c",
+      "last_updated_session": "c006c8d9-0266-4743-8bcc-9dfe2f5fdd88",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in Siege of Bagyers Farm.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "7064ba1b-1559-4611-98bc-988a070cb9f6",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "c63bead9-ef05-441e-b27d-add362e92975",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "disposition": "friendly",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "82f89d63-910c-4e69-beaa-744940f8596f",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "d77743c5-103b-4947-b360-a3ac494820b9",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "disposition": "friendly",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "860a7106-d0e4-4bbd-817b-5232b7e9ce26",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "e1b7f481-1cdd-477d-a508-59362d1bc1b5",
+      "to_type": "creature",
+      "relationship_type": "combat_antagonist",
+      "significance": "participation",
+      "established_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "last_updated_session": "816bec76-ff80-4a15-9708-bfd4f4f8adf9",
+      "status": "active",
+      "narrative": {
+        "ground_truth_notes": "Fought the party in Axe Beak & Vespon Ambush.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    },
+    {
+      "id": "9d755fac-2935-4bdd-bd1b-068b669162c7",
+      "from_id": "party",
+      "from_type": "party",
+      "to_id": "f9e0962e-8682-48c8-be05-15ac528d558f",
+      "to_type": "npc",
+      "relationship_type": "social_contact",
+      "significance": "participation",
+      "established_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "last_updated_session": "11f734de-23b4-4473-a1fb-7b4a18a67cc7",
+      "status": "active",
+      "disposition": "deceased",
+      "narrative": {
+        "ground_truth_notes": "Met by the party.",
+        "edge_prose": null,
+        "regeneration_flagged": false
+      }
+    }
+  ],
   "factions": [],
   "cohorts": [],
   "meta": {
@@ -10284,7 +13073,7 @@
     "setting": "Magers Homebrew",
     "dm": "John Magers",
     "started_date": "2026-02-10",
-    "last_updated": "2026-10-23",
+    "last_updated": "2026-11-06",
     "session_count": 5,
     "active": true,
     "notes": null,
@@ -10312,5 +13101,7 @@
       ],
       "notes": "DnDBeyond character sheets are built using 5.5e rules with backwards compatibility enabled. The ddb_synced field on each party member records when the sheet was last imported. Any discrepancies between 5e and 5.5e text should resolve in favour of 5.5e unless the DM has explicitly ruled otherwise."
     }
-  }
+  },
+  "_last_published": "2026-11-06T16:34:58.021Z",
+  "_delta_count": 25
 }
