@@ -12,6 +12,11 @@ Paste this prompt into Claude Code. Fill in the declaration block at the
 top. Everything else uses those values automatically — no other substitutions
 are needed. Do not skip phases or reorder them.
 
+This prompt is the governing workflow for working an issue (DM's decision,
+issue #132). CLAUDE.md "Workflow: working a GitHub issue" says the same
+thing in short form. If the two ever disagree, this prompt wins: fix
+CLAUDE.md to match it in the same task.
+
 ---
 
 ## The Prompt
@@ -55,9 +60,13 @@ Step 1b: Fetch issue ISSUE_NUMBER from REPO_OWNER/REPO_NAME.
 Read the full issue body including title, description, acceptance
 criteria, labels, milestone, and any existing comments.
 
-Step 1c: Set the issue status to "In Progress" in GitHub.
+Step 1c: Add the label "in-progress" to issue ISSUE_NUMBER.
 Do this immediately after reading the issue — before planning begins.
 This signals to any collaborators that work is underway.
+Setting labels replaces the issue's whole label list: read the current
+labels first and send them back with "in-progress" added. Never drop an
+existing label. If the issue is already closed, ask the DM before
+reopening it.
 
 Step 1d: Post a comment on issue ISSUE_NUMBER:
 
@@ -66,6 +75,8 @@ Step 1d: Post a comment on issue ISSUE_NUMBER:
   ---
 
   ## Starting work — Phase 1 complete: Read
+
+  **Date and state:** [today's date] · [uncommitted / committed (hash) / pushed]
 
   **Files read:**
   [list every file you read]
@@ -103,6 +114,8 @@ Post a comment on issue ISSUE_NUMBER:
   ---
 
   ## Phase 2 complete: Plan
+
+  **Date and state:** [today's date] · [uncommitted / committed (hash) / pushed]
 
   **Files to change:**
   | File | What changes | Why |
@@ -167,6 +180,8 @@ After completing all changes, post a comment on issue ISSUE_NUMBER:
 
   ## Phase 3 complete: Build
 
+  **Date and state:** [today's date] · [uncommitted / committed (hash) / pushed]
+
   **Changes made:**
   | File | What changed |
   |---|---|
@@ -178,6 +193,9 @@ After completing all changes, post a comment on issue ISSUE_NUMBER:
   **Comments added:**
   [confirm that intent comments were added to all non-trivial changes]
 
+  **Docs updated:**
+  [which README.md and CLAUDE.md sections changed — or "None"]
+
 Do not proceed to Phase 4 until the comment is posted.
 
 ---
@@ -187,8 +205,10 @@ PHASE 4 — TEST
 Step 4a — Run automated tests
 
 Run any test files created or identified in the Phase 2 plan.
-Report the exact terminal output. All automated tests must pass
-before proceeding. If any fail, fix the code and re-run.
+Report the exact command and terminal output: the result for every
+test file plus totals, never a one-word "tests pass". All automated
+tests must pass before proceeding. If any fail, fix the code and
+re-run. If a test could not be run, say so plainly.
 
 Step 4b — Static verification
 
@@ -216,8 +236,10 @@ Post a comment on issue ISSUE_NUMBER:
 
   ## Phase 4 complete: Test
 
+  **Date and state:** [today's date] · [uncommitted / committed (hash) / pushed]
+
   **Automated test results:**
-  [paste exact terminal output]
+  [the exact command(s) run, then the exact terminal output]
 
   **Static verification:**
   | Check | Result |
@@ -226,6 +248,10 @@ Post a comment on issue ISSUE_NUMBER:
 
   **Manual tests:**
   [either the step-by-step instructions, or "None required"]
+
+  **Not exercised:**
+  [anything deliberately left untested, and why (for example, a real
+  publish that would rewrite the live campaign file) — or "None"]
 
 Do not proceed to Phase 5 until all automated tests pass and the
 comment is posted.
@@ -247,6 +273,8 @@ Step 5b — Post completion comment on issue ISSUE_NUMBER
   ---
 
   ## Work complete — issue ISSUE_NUMBER
+
+  **Date and state:** [today's date] · [uncommitted / committed (hash) / pushed]
 
   ### Summary
   [2-3 sentences describing what was done and why]
@@ -270,13 +298,21 @@ Step 5b — Post completion comment on issue ISSUE_NUMBER
 
 Step 5c — Close or hand off
 
-Determine whether any manual tests were documented in Phase 4.
+First check that the work is pushed to main. Work that exists only
+locally or in a local commit is not complete: leave the issue open
+with "in-progress", tell the DM it is ready to commit and push (commit
+or push only when the DM asks), and do Step 5c once it is pushed. When
+it is pushed, post a short follow-up comment naming the commit hash.
+
+Then determine whether any manual tests were documented in Phase 4.
 
 IF manual tests exist:
 
   DO NOT close the issue.
 
-  1. Add the label "in-review" to issue ISSUE_NUMBER in GitHub
+  1. Swap the label "in-progress" for "in-review" on issue
+     ISSUE_NUMBER (read the current labels and send them all back,
+     with "in-review" in place of "in-progress")
   2. Post a final comment:
 
       ---
@@ -311,7 +347,11 @@ IF manual tests exist:
 
 IF no manual tests exist:
 
-  Close issue ISSUE_NUMBER in GitHub.
+  Remove the label "in-progress" (keeping every other label) and close
+  issue ISSUE_NUMBER in GitHub with the reason "completed". A
+  "Closes #ISSUE_NUMBER" line in the commit message closes it on push:
+  check its state and close it yourself only if it is still open. The
+  label still has to be removed either way.
 
   Print this message to the terminal and stop:
 
@@ -320,7 +360,7 @@ IF no manual tests exist:
       All tests passed (automated only).
       Issue ISSUE_NUMBER has been closed.
 
-      Check the project board for the next issue to work on.
+      Check issue #52 for the next issue to work on.
 
   Session ends here.
 
@@ -342,8 +382,30 @@ STANDING RULES (apply throughout all phases)
 - Never self-close an issue that has outstanding manual tests. If
   manual tests exist, label "in-review" and stop. Closing is the
   DM's responsibility after manual verification is complete.
-- Do not assume which issue comes next. The project board determines
-  priority — do not reference or begin any other issue number.
+- Close only after the commit is pushed to main. Until then the
+  issue stays open with "in-progress".
+- Setting labels replaces the whole list. Read the current labels
+  first and send them back with your change; never drop one.
+- Every phase comment starts with the attribution line and gives
+  today's date and whether the work is uncommitted, committed (with
+  its hash) or pushed.
+- Report results faithfully. Never tick an acceptance item, or report
+  a test passing, unless you saw it in this session.
+- Never paste secrets into a comment: API keys, the proxy URL, Drive
+  file IDs, or anything from shared/config.js.
+- Stopped or abandoned work: remove "in-progress", leave the issue
+  open, and comment on what was done, what remains, and why the work
+  stopped.
+- Do not assume which issue comes next. Issue #52 determines
+  priority — do not begin any other issue on your own.
+- Standing authorisation. Posting comments and changing an issue's
+  state are outward-facing. The DM authorises exactly these actions on
+  the issue you work: posting the phase comments and their follow-ups;
+  adding and removing the "in-progress" and "in-review" labels; and
+  closing the issue as completed, only when no manual tests remain and
+  the work is pushed to main. Nothing else: do not edit issue titles
+  or bodies, add other labels, reopen closed issues, or close issues
+  you did not work.
 ```
 
 ---

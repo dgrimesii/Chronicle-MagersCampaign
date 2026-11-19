@@ -586,52 +586,46 @@ When fixing this, also remove the silent catch that falls back to the hardcoded 
 
 ## Workflow: working a GitHub issue
 
-### Issue status
-
-Move each issue you work through these states:
-
-1. **Start: add the `in-progress` label.** Do this before you change any code. If the issue is already closed, ask the DM before reopening it. Setting labels replaces the issue's whole label list, so read the current labels first and send them back with `in-progress` added. Never drop the existing labels (`feature`, `wu-*`, and so on).
-2. **Finished but not pushed: leave it open with `in-progress`.** Work that exists only locally or only in a local commit is not complete.
-3. **Complete: close it.** Close the issue only after the commit is pushed to `main`, and use the reason "completed". In the same step, remove `in-progress` (keeping every other label) and post the follow-up comment naming the commit hash. A `Closes #N` line in the commit message closes the issue automatically on push. Then check the issue's state, and close it yourself only if it is still open. The label still has to be removed either way.
-4. **Stopped or abandoned:** remove `in-progress` and leave the issue open. Post a comment saying what was done, what remains, and why the work stopped.
-
-### Implementation log
-
-Whenever you work a GitHub issue in this repo, post an implementation log as a comment on that issue. Do not wait to be asked. Post it when the work is finished, before reporting back to the DM. If the work is later committed, pushed or changed, post a short follow-up comment that says so and names the commit hash.
+`docs/chronicle-issue-prompt.md` is the governing workflow for working an issue (DM's decision, #132). This section says the same thing; the prompt holds the full comment templates. If the two ever disagree, the prompt wins: fix this section to match it in the same task.
 
 The issue thread is the lasting record of why the code changed. Chat history is not kept, and the commit message is too short to hold the reasoning.
 
-Every comment must:
+### Phases
 
-- **Say that Claude wrote it.** Start with a line such as `🤖 Comment written by Claude (Claude Code) on behalf of the DM.` The DM posts through their own GitHub account, so without this line the comment reads as if the DM wrote it.
-- **Give the date and state.** Give today's date and say whether the work is uncommitted, committed (with hash) or pushed.
+Work every issue in five phases, in order: **READ → PLAN → approval gate → BUILD → TEST → CLOSE**. Post one comment at the end of each phase, in the prompt's format, before starting the next. Do not wait to be asked.
 
-The implementation log must contain these sections:
+1. **READ.** Read README.md, CLAUDE.md, the issue (body, labels, comments) and every file it names. Then add the `in-progress` label, before planning begins. If the issue is already closed, ask the DM before reopening it. Comment: *Starting work — Phase 1 complete: Read* (files read, issue understood, blockers or ambiguities).
+2. **PLAN.** A plan taken only from the issue and the files read: every file to change and how, the order, the test strategy (each test automated or manual, with pass criteria), and the risks. Comment: *Phase 2 complete: Plan*.
+3. **Approval gate.** Stop after the Phase 2 comment and print the prompt's "✋ PLAN COMPLETE" message. **Never write code before the DM types "approved".** On "revise: …", revise the plan, post a revised Phase 2 comment and wait again.
+4. **BUILD.** Make exactly the approved changes, with no added scope, applying every CLAUDE.md rule (intent comments, README in the same phase, both normalisers together). Comment: *Phase 3 complete: Build* (changes made, deviations from the plan, comments added, and **which README.md and CLAUDE.md sections changed**).
+5. **TEST.** Run the automated tests and report the exact command and output: the result for every test file plus totals, never a one-word "tests pass". All must pass before moving on; fix and re-run if not. Do the static checks, and write step-by-step Live Server instructions for every manual test (or "No manual tests required"). Comment: *Phase 4 complete: Test* (automated results, static verification, manual tests, and **not exercised**: anything deliberately left untested and why, such as a real publish that would rewrite the live campaign file).
+6. **CLOSE.** Check every acceptance criterion and fix any that fails. Comment: *Work complete — issue N* (summary, files changed, test results, acceptance criteria ticked or not, notes for dependent issues). Then hand off or close, as below.
 
-1. **What was built.** New files, functions or methods, and what each does.
-2. **What changed.** Each file touched, with one line on what changed in it.
-3. **Deviations.** Anything that differs from the issue's scope or suggested design, and why. Also list any behaviour change a reader would not expect from the issue text. Write "None" if there are none.
-4. **Docs.** Which README.md and CLAUDE.md sections were updated.
-5. **Automated tests.** Document these explicitly, never as a one-word "tests pass":
-   - the exact command(s) run (for example `node tests/run-all.js`)
-   - the result for every test file, plus totals (for example `6/6 files passed`, `35 passed, 0 failed`)
-   - which tests were added or changed, and what they check
-   - what the automated tests do not cover. For example, no test loads the HTML pages themselves.
-   - If tests were not run, or any failed, say so plainly and include the failure output.
-6. **Manual verification.** Browser or other manual checks done, and what they showed.
-7. **Not exercised.** Anything deliberately left untested, and why (for example, a real publish that would rewrite the live campaign file).
-8. **Acceptance.** The issue's acceptance checklist, each item ticked or not, with a note on any exception.
+### Comment rules
 
-Rules:
+- **Attribution.** Every comment starts with the line `*🤖 This comment was generated by Claude Code*` between two `---` rules. The DM posts through their own GitHub account, so without it the comment reads as the DM's.
+- **Date and state.** Every phase comment gives today's date and says whether the work is uncommitted, committed (with its hash) or pushed. Once the work is pushed, post a short follow-up naming the commit hash.
+- **Report faithfully.** Never tick an acceptance item, or report a test passing, unless you saw it in this session. If tests were not run or failed, say so and include the output.
+- **No secrets.** Never paste API keys, the proxy URL, Drive file IDs, or anything from `shared/config.js`.
 
-- Report results faithfully. Never mark an acceptance item done, or tests passing, unless you saw it happen in this session.
-- Never paste secrets into a comment: API keys, the proxy URL, Drive file IDs, or anything from `shared/config.js`.
-- Posting comments and changing an issue's state are outward-facing. This section is the DM's standing authorisation for exactly these actions on issues you work:
-  - posting implementation logs and their follow-ups
-  - adding and removing the `in-progress` label
-  - closing the issue as completed once its commit is pushed
+### Labels and closing
 
-  It does not authorise any other change. Do not edit issue titles or bodies, add other labels, reopen closed issues, or close issues you did not work.
+- **Setting labels replaces the whole list.** Read the current labels first and send them back with your change. Never drop existing labels (`feature`, `enhancement`, `wu-*`, and so on).
+- **Not pushed: stays open with `in-progress`.** Work that exists only locally or in a local commit is not complete. Commit or push only when the DM asks. Step 5c (hand-off or close) waits until the commit is on `main`.
+- **Manual tests remain:** swap `in-progress` for `in-review`, post the *Awaiting manual review* comment, print the "⏸ AWAITING MANUAL REVIEW" message, and stop. Do not close the issue: the DM closes it after the manual tests.
+- **No manual tests:** once the commit is pushed to `main`, remove `in-progress` and close the issue with reason "completed". A `Closes #N` line in the commit message closes it on push; check its state and close it yourself only if it is still open. The label still has to be removed either way.
+- **Stopped or abandoned:** remove `in-progress`, leave the issue open, and comment on what was done, what remains, and why the work stopped.
+- **One issue at a time.** For what comes next, point the DM to #52; never start another issue on your own.
+
+### Standing authorisation
+
+Posting comments and changing an issue's state are outward-facing. This section is the DM's standing authorisation for exactly these actions on issues you work:
+
+- posting the phase comments and their follow-ups
+- adding and removing the `in-progress` and `in-review` labels
+- closing the issue as completed, only when no manual tests remain and the work is pushed to `main`
+
+It does not authorise anything else. Do not edit issue titles or bodies, add other labels, reopen closed issues, or close issues you did not work.
 
 ---
 
